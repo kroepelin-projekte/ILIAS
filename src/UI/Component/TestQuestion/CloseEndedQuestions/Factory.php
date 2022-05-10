@@ -2,8 +2,6 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEndedQuestions;
 
-use ILIAS\UI\Component\Tree\TreeRecursion;
-
 /**
  * Close-ended Questions factory
  */
