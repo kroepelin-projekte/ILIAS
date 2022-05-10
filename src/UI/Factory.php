@@ -800,4 +800,15 @@ interface Factory
      * @return \ILIAS\UI\Component\Symbol\Factory
      */
     public function symbol() : Component\Symbol\Factory;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: >
+     *     TestQuestion ...
+     *
+     * ---
+     * @return \ILIAS\UI\Component\TestQuestion\Factory
+     */
+    public function test() : Component\TestQuestion\Factory;
 }
