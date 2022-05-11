@@ -2,7 +2,7 @@
 
 namespace ILIAS\UI\Component\TestQuestion;
 
-interface TestQuestion
+interface TestQuestion extends \ILIAS\UI\Component\Component
 {
     
 }
