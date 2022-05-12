@@ -37,7 +37,45 @@ interface Factory
      *     2: Users are able to tab into a question and away from the question.
      *     3: All non-decorative media has an alt-text.
      * ---
-     * @return \ILIAS\UI\Component\TestQuestion\CloseEndedQuestions\Factory
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\Factory
      */
-    public function closeEndedQuestions() : CloseEndedQuestions\Factory;
+    public function closeEnded() : CloseEnded\Factory;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: Open-ended Questions ask respondents to prepare their own response.
+     *   composition: >
+     *     Open-ended Questions offer actively putting in a response.
+     *     Controls for putting in a response comprise text input fields
+     *     and file upload controls.
+     *
+     * rules:
+     *   interaction:
+     *     1: Users actively produces a response into the respective control.
+     * ---
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\OpenEnded\Factory
+     */
+    public function openEnded() : OpenEnded\Factory;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: >
+     *     Sorting / draggable Questions ask respondents to
+     *     produce order or relationships.
+     *   composition: >
+     *     Sorting / draggable Questions offer elements to be sorted.
+     *     Elements can be dragged and dropped.
+     *
+     * rules:
+     *   interaction:
+     *     1: Users actively produce a an order or match by relationship.
+     * ---
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\Sorting\Factory
+     */
+    public function sorting() : Sorting\Factory;
 }

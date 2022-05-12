@@ -1,10 +1,7 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace ILIAS\UI\Component\TestQuestion\CloseEndedQuestions;
+namespace ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice;
 
-/**
- * Close-ended Questions factory
- */
 interface Factory
 {
     /**
@@ -22,9 +19,10 @@ interface Factory
      *     1: https://www.w3.org/TR/wai-aria-practices/#radiobutton
      *     2: All non-decorative media has an alt-text.
      * ---
-     * @return \ILIAS\UI\Component\TestQuestion\CloseEndedQuestions\MultipleChoiceSingleAnswer
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\SingleAnswer
      */
-    public function single() : MultipleChoiceSingleAnswer;
+    public function single() : SingleAnswer;
     
     /**
      * ---
@@ -40,9 +38,10 @@ interface Factory
      *   accessibility:
      *     1: All non-decorative media has an alt-text.
      * ---
-     * @return \ILIAS\UI\Component\TestQuestion\CloseEndedQuestions\MultipleChoiceMultipleAnswer
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\MultipleAnswer
      */
-    public function multiple() : MultipleChoiceMultipleAnswer;
+    public function multiple() : MultipleAnswer;
     
     /**
      * ---
@@ -57,7 +56,8 @@ interface Factory
      *   accessibility:
      *     1: All non-decorative media has an alt-text.
      * ---
-     * @return \ILIAS\UI\Component\TestQuestion\CloseEndedQuestions\MultipleChoiceKprimAnswer
+     *
+     * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\KprimAnswer
      */
-    public function kprim() : MultipleChoiceKprimAnswer;
+    public function kprim() : KprimAnswer;
 }

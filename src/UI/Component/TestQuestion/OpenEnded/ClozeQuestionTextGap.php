@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace ILIAS\UI\Component\TestQuestion\OpenEndedQuestions;
+namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
 interface ClozeQuestionTextGap
 {
