@@ -9,13 +9,14 @@ use ILIAS\UI\Component;
 class Renderer extends AbstractComponentRenderer
 {
     
-    protected function getComponentInterfaceName()
-    {
-        // TODO: Implement getComponentInterfaceName() method.
-    }
-    
     public function render(Component\Component $component, RendererInterface $default_renderer)
     {
         // TODO: Implement render() method.
+        $this->checkComponent($component);
+    }
+    
+    protected function getComponentInterfaceName()
+    {
+        return [Component\TestQuestion\TestQuestion::class];
     }
 }
