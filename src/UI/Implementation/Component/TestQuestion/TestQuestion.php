@@ -2,51 +2,46 @@
 
 namespace ILIAS\UI\Implementation\Component\TestQuestion;
 
-use ILIAS\UI\Component as C;
+use ILIAS\UI\Component\TestQuestion as T;
 
-class TestQuestion implements C\TestQuestion\TestQuestion
+class TestQuestion implements T\TestQuestion
 {
+    protected string $questionStem;
     
+    protected array $questionCanvas;
     
-    public function getQuestionStem() : string
-    {
-        // TODO: Implement getQuestionStem() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
+    protected ?\ILIAS\UI\Component\Button\Standard $actions = null;
     
-    public function getAnswers() : array
-    {
-        // TODO: Implement getAnswers() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
-    
-    public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\TestQuestion\TestQuestion
-    {
-        // TODO: Implement withReachedPoints() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
-    
-    public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\TestQuestion\TestQuestion
-    {
-        // TODO: Implement withBestSolutions() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
-    
-    public function withFeedbackOnFullyCorrectAnswer(array $feedback) : \ILIAS\UI\Component\TestQuestion\TestQuestion
-    {
-        // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
-    
-    public function withSpezificFeedbackForEachAnswer(array $feedback) : \ILIAS\UI\Component\TestQuestion\TestQuestion
-    {
-        // TODO: Implement withSpezificFeedbackForEachAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+    public function __construct(string $questionStem, array $questionCanvas){
+        $this->questionStem = $questionStem;
+        $this->questionCanvas = $questionCanvas;
     }
     
     public function getCanonicalName()
     {
         // TODO: Implement getCanonicalName() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
+    }
+    
+    public function getQuestionStem() : string
+    {
+        return $this->questionStem;
+    }
+    
+    public function getQuestionCanvas() : array
+    {
+        return $this->questionCanvas;
+    }
+    
+    public function withActions(\ILIAS\UI\Component\Button\Standard $actions
+    ) : T\TestQuestion {
+        $clone = clone $this;
+        $clone->actions = $actions;
+        return $clone;
+    }
+    
+    public function getActions()
+    {
+        return $this->actions;
     }
 }

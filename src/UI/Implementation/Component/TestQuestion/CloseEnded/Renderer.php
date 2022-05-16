@@ -1,6 +1,6 @@
 <?php
 
-namespace ILIAS\UI\Implementation\Component\TestQuestion\CloseEndedQuestions;
+namespace ILIAS\UI\Implementation\Component\TestQuestion\CloseEnded;
 
 use ILIAS\UI\Implementation\Render\AbstractComponentRenderer;
 use ILIAS\UI\Renderer as RendererInterface;

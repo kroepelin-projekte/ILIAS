@@ -2,7 +2,15 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice;
 
-interface SingleAnswer
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+use ILIAS\UI\Component\TestQuestion\Feedback;
+
+interface SingleAnswer extends Feedback
 {
-    
+    /**
+     * Get the Answers
+     *
+     * @return array
+     */
+    public function getAnswers() : array;
 }
