@@ -4,9 +4,12 @@ namespace ILIAS\UI\Implementation\Component\TestQuestion\CloseEnded\MultipleChoi
 
 use ILIAS\UI\Component\TestQuestion as T;
 use ILIAS\UI\Implementation\Component\TestQuestion\TestQuestion;
+use ILIAS\UI\Implementation\Component\ComponentHelper;
 
 class SingleAnswer implements T\CloseEnded\MultipleChoice\SingleAnswer
 {
+    use ComponentHelper;
+    
     public function withReachedPoints(string $reachedPoints) : TestQuestion
     {
         // TODO: Implement withReachedPoints() method.

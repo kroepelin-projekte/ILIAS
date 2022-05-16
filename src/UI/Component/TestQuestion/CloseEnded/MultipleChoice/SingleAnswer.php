@@ -5,7 +5,7 @@ namespace ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice;
 use ILIAS\UI\Component\TestQuestion\TestQuestion;
 use ILIAS\UI\Component\TestQuestion\Feedback;
 
-interface SingleAnswer extends Feedback
+interface SingleAnswer extends Feedback, \ILIAS\UI\Component\Component
 {
     /**
      * Get the Answers

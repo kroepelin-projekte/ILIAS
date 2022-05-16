@@ -810,5 +810,5 @@ interface Factory
      * ---
      * @return \ILIAS\UI\Component\TestQuestion\Factory
      */
-//    public function testQuestion() : Component\TestQuestion\Factory;
+    public function testQuestion() : Component\TestQuestion\Factory;
 }

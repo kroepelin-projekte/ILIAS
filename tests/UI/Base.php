@@ -111,6 +111,10 @@ class NoUIFactory implements Factory
     public function symbol() : C\Symbol\Factory
     {
     }
+    
+    public function testQuestion() : C\TestQuestion\Factory
+    {
+    }
 }
 
 class LoggingRegistry implements ResourceRegistry

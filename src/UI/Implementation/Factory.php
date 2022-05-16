@@ -132,6 +132,11 @@ class Factory implements \ILIAS\UI\Factory
      */
     protected $legacy_factory;
 
+    /**
+     * @var C\TestQuestion\Factory
+     */
+    protected $testQuestion_factory;
+
     public function __construct(
         C\Counter\Factory $counter_factory,
         C\Button\Factory $button_factory,
@@ -156,7 +161,8 @@ class Factory implements \ILIAS\UI\Factory
         C\Tree\Factory $tree_factory,
         C\Menu\Factory $menu_factory,
         C\Symbol\Factory $symbol_factory,
-        C\Legacy\Factory $legacy_factory
+        C\Legacy\Factory $legacy_factory,
+        C\TestQuestion\Factory $testQuestion_factory
     ) {
         $this->counter_factory = $counter_factory;
         $this->button_factory = $button_factory;
@@ -182,6 +188,7 @@ class Factory implements \ILIAS\UI\Factory
         $this->menu_factory = $menu_factory;
         $this->symbol_factory = $symbol_factory;
         $this->legacy_factory = $legacy_factory;
+        $this->testQuestion_factory = $testQuestion_factory;
     }
 
     /**
@@ -391,5 +398,13 @@ class Factory implements \ILIAS\UI\Factory
     public function symbol() : C\Symbol\Factory
     {
         return $this->symbol_factory;
+    }
+    
+    /**
+     * @inheritdoc
+     */
+    public function testQuestion() : C\TestQuestion\Factory
+    {
+        return $this->testQuestion_factory;
     }
 }
