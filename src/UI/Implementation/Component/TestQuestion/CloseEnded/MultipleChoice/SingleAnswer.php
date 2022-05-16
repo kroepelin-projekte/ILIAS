@@ -31,7 +31,7 @@ class SingleAnswer implements T\CloseEnded\MultipleChoice\SingleAnswer
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withFeedbackOnFullyCorrectAnswer(array $feedback) : TestQuestion
+    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer) : TestQuestion
     {
         // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
@@ -43,7 +43,7 @@ class SingleAnswer implements T\CloseEnded\MultipleChoice\SingleAnswer
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withSpezificFeedbackForEachAnswer(array $feedback) : TestQuestion
+    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer) : TestQuestion
     {
         // TODO: Implement withSpezificFeedbackForEachAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');

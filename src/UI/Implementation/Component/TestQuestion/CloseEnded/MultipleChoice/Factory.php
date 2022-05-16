@@ -8,8 +8,7 @@ class Factory implements T\CloseEnded\MultipleChoice\Factory
     
     public function single() : SingleAnswer
     {
-        // TODO: Implement single() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new SingleAnswer();
     }
     
     public function multiple() : MultipleAnswer

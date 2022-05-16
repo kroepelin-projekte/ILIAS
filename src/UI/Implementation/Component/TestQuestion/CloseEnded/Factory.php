@@ -29,7 +29,6 @@ class Factory implements T\CloseEnded\Factory
     
     public function multipleChoice() : MultipleChoice\Factory
     {
-        // TODO: Implement multipleChoice() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new MultipleChoice\Factory();
     }
 }

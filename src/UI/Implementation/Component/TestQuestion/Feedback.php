@@ -5,6 +5,13 @@ use ILIAS\UI\Component\TestQuestion as T;
 
 class Feedback implements T\Feedback
 {
+    protected string $reachedPoints;
+    
+    protected array $bestSolutions;
+    
+    protected array $feedbackFullyCorrectAnswer;
+    
+    protected array $feedbackForEachAnswer;
     
     public function withReachedPoints(string $reachedPoints) : TestQuestion
     {
@@ -30,7 +37,7 @@ class Feedback implements T\Feedback
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withFeedbackOnFullyCorrectAnswer(array $feedback) : TestQuestion
+    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer) : TestQuestion
     {
         // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
@@ -42,7 +49,7 @@ class Feedback implements T\Feedback
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withSpezificFeedbackForEachAnswer(array $feedback) : TestQuestion
+    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer) : TestQuestion
     {
         // TODO: Implement withSpezificFeedbackForEachAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');

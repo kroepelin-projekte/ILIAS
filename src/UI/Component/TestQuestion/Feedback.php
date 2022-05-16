@@ -27,10 +27,10 @@ interface Feedback
     public function getBestSolutions() : array;
     
     /**
-     * @param array $feedback
+     * @param array $feedbackFullyCorrectAnswer
      * @return TestQuestion
      */
-    public function withFeedbackOnFullyCorrectAnswer(array $feedback) : TestQuestion;
+    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer) : TestQuestion;
     
     /**
      * @return mixed
@@ -38,10 +38,10 @@ interface Feedback
     public function getFeedbackOnFullyCorrectAnswer();
     
     /**
-     * @param array $feedback
+     * @param array $feedbackForEachAnswer
      * @return TestQuestion
      */
-    public function withSpezificFeedbackForEachAnswer(array $feedback) : TestQuestion;
+    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer) : TestQuestion;
     
     /**
      * @return array
