@@ -6,25 +6,19 @@ use ILIAS\UI\Component\TestQuestion as T;
 
 class Factory implements T\CloseEnded\Factory
 {
-    public function __construct(){
-    }
-    
     public function clozeQuestionSelectGap() : ClozeQuestionSelectGap
     {
-        // TODO: Implement clozeQuestionSelectGap() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new ClozeQuestionSelectGap();
     }
     
     public function errorText() : ErrorText
     {
-        // TODO: Implement errorText() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new ErrorText();
     }
     
     public function imageMap() : ImageMap
     {
-        // TODO: Implement imageMap() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new ImageMap();
     }
     
     public function multipleChoice() : MultipleChoice\Factory

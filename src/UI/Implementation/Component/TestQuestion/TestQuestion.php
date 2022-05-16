@@ -34,7 +34,7 @@ class TestQuestion implements T\TestQuestion
     }
     
     public function withActions(\ILIAS\UI\Component\Button\Standard $actions
-    ) : T\TestQuestion {
+    ) : TestQuestion {
         $clone = clone $this;
         $clone->actions = $actions;
         return $clone;

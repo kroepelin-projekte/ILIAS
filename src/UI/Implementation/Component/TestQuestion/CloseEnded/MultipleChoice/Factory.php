@@ -5,7 +5,6 @@ use ILIAS\UI\Component\TestQuestion as T;
 
 class Factory implements T\CloseEnded\MultipleChoice\Factory
 {
-    
     public function single() : SingleAnswer
     {
         return new SingleAnswer();
@@ -13,13 +12,11 @@ class Factory implements T\CloseEnded\MultipleChoice\Factory
     
     public function multiple() : MultipleAnswer
     {
-        // TODO: Implement multiple() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new MultipleAnswer();
     }
     
     public function kprim() : KprimAnswer
     {
-        // TODO: Implement kprim() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new KprimAnswer();
     }
 }

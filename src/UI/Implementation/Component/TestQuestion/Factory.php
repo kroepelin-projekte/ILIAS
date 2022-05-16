@@ -6,9 +6,6 @@ use ILIAS\UI\Component\TestQuestion as T;
 
 class Factory implements T\Factory
 {
-    public function __construct(){
-    }
-    
     public function closeEnded() : CloseEnded\Factory
     {
         return new CloseEnded\Factory();
@@ -16,13 +13,11 @@ class Factory implements T\Factory
     
     public function openEnded() : OpenEnded\Factory
     {
-        // TODO: Implement openEnded() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new OpenEnded\Factory();
     }
     
     public function sorting() : Sorting\Factory
     {
-        // TODO: Implement sorting() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return new Sorting\Factory();
     }
 }
