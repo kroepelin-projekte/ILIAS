@@ -11,12 +11,21 @@ class Renderer extends AbstractComponentRenderer
     
     public function render(Component\Component $component, RendererInterface $default_renderer)
     {
-        // TODO: Implement render() method.
+        /**
+         * @var Component\TestQuestion\CloseEnded\MultipleChoice\SingleAnswer $component
+         */
         $this->checkComponent($component);
+        $tpl = $this->getTemplate("tpl.testquestion.html", true, true);
+        $tpl->setVariable("TITLE", $component->getQuestionStem());
+        $tpl->setVariable("Antwort1", $component->getQuestionCanvas()[0]);
+        $tpl->setVariable("Antwort2", $component->getQuestionCanvas()[1]);
+        $tpl->setVariable("Antwort3", $component->getQuestionCanvas()[2]);
+        $tpl->setVariable("Antwort4", $component->getQuestionCanvas()[3]);
+        return $tpl->get();
     }
     
     protected function getComponentInterfaceName()
     {
-        // TODO: Implement getComponentInterfaceName() method.
+        return [Component\TestQuestion\CloseEnded\MultipleChoice\SingleAnswer::class];
     }
 }

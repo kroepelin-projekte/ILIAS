@@ -14,7 +14,7 @@ class Renderer extends AbstractComponentRenderer
         // TODO: Implement render() method.
         $this->checkComponent($component);
     
-        $tpl = $this->getTemplate("tpl.testquestion.html", true, true);
+        $tpl = $this->getTemplate("tpl.testquestion.html", false, false);
         
         
     
