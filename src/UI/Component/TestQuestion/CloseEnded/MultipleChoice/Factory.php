@@ -22,7 +22,7 @@ interface Factory
      *
      * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\SingleAnswer
      */
-    public function single() : SingleAnswer;
+    public function single($questionStem, $questionCanvas) : SingleAnswer;
     
     /**
      * ---

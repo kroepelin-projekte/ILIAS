@@ -7,7 +7,7 @@ use ILIAS\UI\Implementation\Component\ComponentHelper;
 
 abstract class TestQuestion implements T\TestQuestion
 {
-    use ComponentHelper;
+    
     
     protected string $questionStem;
     
