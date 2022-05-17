@@ -13,6 +13,16 @@ class Renderer extends AbstractComponentRenderer
     {
         // TODO: Implement render() method.
         $this->checkComponent($component);
+    
+        $tpl = $this->getTemplate("tpl.testquestion.html", true, true);
+        
+        
+    
+        
+    
+        //$tpl->setVariable("TITLE", $component->getTitle());
+        // $tpl->setVariable("BODY", $this->getContentAsString($component, $default_renderer));
+        return $tpl->get();
     }
     
     protected function getComponentInterfaceName()

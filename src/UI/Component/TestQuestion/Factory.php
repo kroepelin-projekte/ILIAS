@@ -58,7 +58,7 @@ interface Factory
      *
      * @return \ILIAS\UI\Component\TestQuestion\OpenEnded\Factory
      */
-    public function openEnded() : OpenEnded\Factory;
+    //public function openEnded() : OpenEnded\Factory;
     
     /**
      * ---
@@ -77,5 +77,5 @@ interface Factory
      *
      * @return \ILIAS\UI\Component\TestQuestion\Sorting\Factory
      */
-    public function sorting() : Sorting\Factory;
+    //public function sorting() : Sorting\Factory;
 }
