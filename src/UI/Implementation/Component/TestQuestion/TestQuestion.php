@@ -5,7 +5,7 @@ namespace ILIAS\UI\Implementation\Component\TestQuestion;
 use ILIAS\UI\Component\TestQuestion as T;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-class TestQuestion implements T\TestQuestion
+abstract class TestQuestion implements T\TestQuestion
 {
     use ComponentHelper;
     

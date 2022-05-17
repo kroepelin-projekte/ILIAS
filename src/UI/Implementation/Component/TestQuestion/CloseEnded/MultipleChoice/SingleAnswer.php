@@ -6,9 +6,40 @@ use ILIAS\UI\Component\TestQuestion as T;
 use ILIAS\UI\Implementation\Component\TestQuestion\TestQuestion;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-class SingleAnswer implements T\CloseEnded\MultipleChoice\SingleAnswer
+class SingleAnswer extends TestQuestion implements T\CloseEnded\MultipleChoice\SingleAnswer
 {
-    use ComponentHelper;
+    protected string $questionStem;
+    
+    protected array $questionCanvas;
+    
+    protected ?\ILIAS\UI\Component\Button\Standard $actions = null;
+    
+    public function __construct(string $questionStem, array $questionCanvas){
+        $this->questionStem = $questionStem;
+        $this->questionCanvas = $questionCanvas;
+    }
+    
+    public function getQuestionStem() : string
+    {
+        return $this->questionStem;
+    }
+    
+    public function getQuestionCanvas() : array
+    {
+        return $this->questionCanvas;
+    }
+    
+    public function withActions(\ILIAS\UI\Component\Button\Standard $actions
+    ) : TestQuestion {
+        $clone = clone $this;
+        $clone->actions = $actions;
+        return $clone;
+    }
+    
+    public function getActions()
+    {
+        return $this->actions;
+    }
     
     public function withReachedPoints(string $reachedPoints) : TestQuestion
     {
@@ -55,12 +86,6 @@ class SingleAnswer implements T\CloseEnded\MultipleChoice\SingleAnswer
     public function getSpezificFeedbackForEachAnswer() : array
     {
         // TODO: Implement getSpezificFeedbackForEachAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
-    }
-    
-    public function getAnswers() : array
-    {
-        // TODO: Implement getAnswers() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
 }
