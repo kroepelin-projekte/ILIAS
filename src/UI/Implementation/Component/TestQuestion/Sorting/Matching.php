@@ -2,8 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\TestQuestion\Sorting;
 use ILIAS\UI\Component\TestQuestion as T;
+use ILIAS\UI\Implementation\Component\TestQuestion\TestQuestion;
 
-class Matching implements T\Sorting\Matching
+class Matching extends TestQuestion implements T\Sorting\Matching
 {
     
 }

@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\Sorting;
 
-interface VerticalOrdering
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface VerticalOrdering extends TestQuestion
 {
     
 }

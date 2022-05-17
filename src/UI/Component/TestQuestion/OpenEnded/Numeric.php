@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface Numeric
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface Numeric extends TestQuestion
 {
     
 }

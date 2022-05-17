@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface TextSubset
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface TextSubset extends TestQuestion
 {
     
 }

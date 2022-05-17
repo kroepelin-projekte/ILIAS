@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\Sorting;
 
-interface Matching
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface Matching extends TestQuestion
 {
     
 }

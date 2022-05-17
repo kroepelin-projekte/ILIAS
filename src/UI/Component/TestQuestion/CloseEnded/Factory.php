@@ -7,12 +7,6 @@ namespace ILIAS\UI\Component\TestQuestion\CloseEnded;
  */
 interface Factory
 {
-    //public function clozeQuestionSelectGap() : ClozeQuestionSelectGap;
-    
-    //public function errorText() : ErrorText;
-    
-    //public function imageMap() : ImageMap;
-    
     /**
      * ---
      * description:
@@ -28,4 +22,58 @@ interface Factory
      * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\Factory
      */
     public function multipleChoice() : MultipleChoice\Factory;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: >
+     *     Sorting / draggable Questions ask respondents to
+     *     produce order or relationships.
+     *   composition: >
+     *     Sorting / draggable Questions offer elements to be sorted.
+     *     Elements can be dragged and dropped.
+     *
+     * rules:
+     *   interaction:
+     *     1: Users actively produce a an order or match by relationship.
+     * ---
+     * @return ClozeQuestionSelectGap
+     */
+    public function clozeQuestionSelectGap() : ClozeQuestionSelectGap;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: >
+     *     Sorting / draggable Questions ask respondents to
+     *     produce order or relationships.
+     *   composition: >
+     *     Sorting / draggable Questions offer elements to be sorted.
+     *     Elements can be dragged and dropped.
+     *
+     * rules:
+     *   interaction:
+     *     1: Users actively produce a an order or match by relationship.
+     * ---
+     * @return ErrorText
+     */
+    public function errorText() : ErrorText;
+    
+    /**
+     * ---
+     * description:
+     *   purpose: >
+     *     Sorting / draggable Questions ask respondents to
+     *     produce order or relationships.
+     *   composition: >
+     *     Sorting / draggable Questions offer elements to be sorted.
+     *     Elements can be dragged and dropped.
+     *
+     * rules:
+     *   interaction:
+     *     1: Users actively produce a an order or match by relationship.
+     * ---
+     * @return ImageMap
+     */
+    public function imageMap() : ImageMap;
 }

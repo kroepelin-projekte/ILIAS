@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice;
 
-interface MultipleAnswer
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface MultipleAnswer extends TestQuestion
 {
     
 }

@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface ClozeQuestionTextGap
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface ClozeQuestionTextGap extends TestQuestion
 {
     
 }

@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded;
 
-interface ErrorText
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface ErrorText extends TestQuestion
 {
     
 }

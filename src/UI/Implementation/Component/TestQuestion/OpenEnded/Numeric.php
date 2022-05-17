@@ -2,8 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\TestQuestion\OpenEnded;
 use ILIAS\UI\Component\TestQuestion as T;
+use ILIAS\UI\Implementation\Component\TestQuestion\TestQuestion;
 
-class Numeric implements T\OpenEnded\Numeric
+class Numeric extends TestQuestion implements T\OpenEnded\Numeric
 {
     
 }

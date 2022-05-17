@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice;
 
-interface KprimAnswer
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface KprimAnswer extends TestQuestion
 {
     
 }

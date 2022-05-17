@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded;
 
-interface ImageMap
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface ImageMap extends TestQuestion
 {
     
 }

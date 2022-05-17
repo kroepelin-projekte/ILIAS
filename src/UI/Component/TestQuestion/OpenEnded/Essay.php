@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface Essay
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface Essay extends TestQuestion
 {
     
 }

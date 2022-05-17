@@ -27,14 +27,14 @@ interface Factory
      *
      * rules:
      *   interaction:
-     *     1: Users select an answer option by clicking on the respective control.
+     *     1: Users MUST select an answer option by clicking on the respective control.
      *   style:
-     *     1: Selected answer options are slightly highlighted (i.e. outline is boldened)
+     *     1: Selected answer MUST options are slightly highlighted (i.e. outline is boldened)
      *   accessibility:
      *     1: >
-     *        All answer options can be reached and left using the keyboard only.
+     *        All answer options MUST be reached and left using the keyboard only.
      *        Keyboard interfaces are specified in specific question types.
-     *     2: Users are able to tab into a question and away from the question.
+     *     2: Users MUST able to tab into a question and away from the question.
      *     3: All non-decorative media has an alt-text.
      * ---
      *
@@ -58,7 +58,7 @@ interface Factory
      *
      * @return \ILIAS\UI\Component\TestQuestion\OpenEnded\Factory
      */
-    //public function openEnded() : OpenEnded\Factory;
+    public function openEnded() : OpenEnded\Factory;
     
     /**
      * ---
@@ -77,5 +77,5 @@ interface Factory
      *
      * @return \ILIAS\UI\Component\TestQuestion\Sorting\Factory
      */
-    //public function sorting() : Sorting\Factory;
+    public function sorting() : Sorting\Factory;
 }

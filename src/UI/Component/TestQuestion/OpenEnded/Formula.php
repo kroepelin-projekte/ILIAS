@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface Formula
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface Formula extends TestQuestion
 {
     
 }

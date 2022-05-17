@@ -20,8 +20,6 @@ abstract class TestQuestion implements T\TestQuestion
         $this->questionCanvas = $questionCanvas;
     }
     
-    
-    
     public function getQuestionStem() : string
     {
         return $this->questionStem;
@@ -42,5 +40,45 @@ abstract class TestQuestion implements T\TestQuestion
     public function getActions()
     {
         return $this->actions;
+    }
+    
+    public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\TestQuestion\TestQuestion
+    {
+        // TODO: Implement withReachedPoints() method.
+    }
+    
+    public function getReachedPoints() : string
+    {
+        // TODO: Implement getReachedPoints() method.
+    }
+    
+    public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\TestQuestion\TestQuestion
+    {
+        // TODO: Implement withBestSolutions() method.
+    }
+    
+    public function getBestSolutions() : array
+    {
+        // TODO: Implement getBestSolutions() method.
+    }
+    
+    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer
+    ) : \ILIAS\UI\Component\TestQuestion\TestQuestion {
+        // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
+    }
+    
+    public function getFeedbackOnFullyCorrectAnswer()
+    {
+        // TODO: Implement getFeedbackOnFullyCorrectAnswer() method.
+    }
+    
+    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer
+    ) : \ILIAS\UI\Component\TestQuestion\TestQuestion {
+        // TODO: Implement withSpezificFeedbackForEachAnswer() method.
+    }
+    
+    public function getSpezificFeedbackForEachAnswer() : array
+    {
+        // TODO: Implement getSpezificFeedbackForEachAnswer() method.
     }
 }

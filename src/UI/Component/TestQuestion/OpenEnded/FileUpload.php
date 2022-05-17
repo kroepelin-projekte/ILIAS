@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\OpenEnded;
 
-interface FileUpload
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface FileUpload extends TestQuestion
 {
     
 }

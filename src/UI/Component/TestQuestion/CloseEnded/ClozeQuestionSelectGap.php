@@ -2,7 +2,9 @@
 
 namespace ILIAS\UI\Component\TestQuestion\CloseEnded;
 
-interface ClozeQuestionSelectGap
+use ILIAS\UI\Component\TestQuestion\TestQuestion;
+
+interface ClozeQuestionSelectGap extends TestQuestion
 {
     
 }

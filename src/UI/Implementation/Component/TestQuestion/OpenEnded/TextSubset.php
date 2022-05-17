@@ -2,8 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\TestQuestion\OpenEnded;
 use ILIAS\UI\Component\TestQuestion as T;
+use ILIAS\UI\Implementation\Component\TestQuestion\TestQuestion;
 
-class TextSubset implements T\OpenEnded\TextSubset
+class TextSubset extends TestQuestion implements T\OpenEnded\TextSubset
 {
     
 }
