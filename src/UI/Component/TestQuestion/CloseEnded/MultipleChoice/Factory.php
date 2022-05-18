@@ -20,6 +20,8 @@ interface Factory
      *     2: All non-decorative media has an alt-text.
      * ---
      *
+     * @param string $questionStem
+     * @param array $questionCanvas
      * @return \ILIAS\UI\Component\TestQuestion\CloseEnded\MultipleChoice\SingleAnswer
      */
     public function single($questionStem, $questionCanvas) : SingleAnswer;
