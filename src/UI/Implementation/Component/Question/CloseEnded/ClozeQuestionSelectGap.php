@@ -2,11 +2,11 @@
 
 namespace ILIAS\UI\Implementation\Component\Question\CloseEnded;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 use ILIAS\UI\Implementation\Component\Question\Question;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-class ClozeQuestionSelectGap extends Question implements T\CloseEnded\ClozeQuestionSelectGap
+class ClozeQuestionSelectGap extends Question implements I\CloseEnded\ClozeQuestionSelectGap
 {
     use ComponentHelper;
 }

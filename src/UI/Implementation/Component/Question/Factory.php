@@ -2,9 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\Question;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 
-class Factory implements T\Factory
+class Factory implements I\Factory
 {
     /**
      * @inheritdoc

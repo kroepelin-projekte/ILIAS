@@ -2,9 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\Question\CloseEnded\MultipleChoice;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 
-class Factory implements T\CloseEnded\MultipleChoice\Factory
+class Factory implements I\CloseEnded\MultipleChoice\Factory
 {
     public function singleAnswer($questionStem, $questionCanvas) : SingleAnswer
     {

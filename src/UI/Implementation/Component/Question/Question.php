@@ -2,16 +2,14 @@
 
 namespace ILIAS\UI\Implementation\Component\Question;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-abstract class Question implements T\Question
+abstract class Question implements I\Question
 {
     protected string $questionStem;
     
     protected array $questionCanvas;
-    
-    protected ?\ILIAS\UI\Component\Button\Standard $actions = null;
     
     public function __construct(string $questionStem, array $questionCanvas)
     {

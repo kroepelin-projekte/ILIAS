@@ -2,11 +2,11 @@
 
 namespace ILIAS\UI\Implementation\Component\Question\CloseEnded;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 use ILIAS\UI\Implementation\Component\Question\Question;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-class ImageMap extends Question implements T\CloseEnded\ImageMap
+class ImageMap extends Question implements I\CloseEnded\ImageMap
 {
     use ComponentHelper;
 }

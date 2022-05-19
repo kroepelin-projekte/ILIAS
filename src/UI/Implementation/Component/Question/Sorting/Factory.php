@@ -2,9 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\Question\Sorting;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 
-class Factory implements T\Sorting\Factory
+class Factory implements I\Sorting\Factory
 {
     public function horizontalOrdering() : HorizontalOrdering
     {

@@ -2,9 +2,9 @@
 
 namespace ILIAS\UI\Implementation\Component\Question\OpenEnded;
 
-use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Component\Question as I;
 
-class Factory implements T\OpenEnded\Factory
+class Factory implements I\OpenEnded\Factory
 {
     public function clozeQuestionTextGap() : ClozeQuestionTextGap
     {
