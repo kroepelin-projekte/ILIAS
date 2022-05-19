@@ -1,6 +1,7 @@
 <?php
 
 namespace ILIAS\UI\Implementation\Component\Question\OpenEnded;
+
 use ILIAS\UI\Component\Question as T;
 
 class Factory implements T\OpenEnded\Factory

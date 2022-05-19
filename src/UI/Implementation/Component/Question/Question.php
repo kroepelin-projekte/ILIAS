@@ -7,15 +7,14 @@ use ILIAS\UI\Implementation\Component\ComponentHelper;
 
 abstract class Question implements T\Question
 {
-    
-    
     protected string $questionStem;
     
     protected array $questionCanvas;
     
     protected ?\ILIAS\UI\Component\Button\Standard $actions = null;
     
-    public function __construct(string $questionStem, array $questionCanvas){
+    public function __construct(string $questionStem, array $questionCanvas)
+    {
         $this->questionStem = $questionStem;
         $this->questionCanvas = $questionCanvas;
     }
@@ -30,7 +29,8 @@ abstract class Question implements T\Question
         return $this->questionCanvas;
     }
     
-    public function withActions(\ILIAS\UI\Component\Button\Standard $actions
+    public function withActions(
+        \ILIAS\UI\Component\Button\Standard $actions
     ) : Question {
         $clone = clone $this;
         $clone->actions = $actions;
@@ -45,40 +45,50 @@ abstract class Question implements T\Question
     public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
     {
         // TODO: Implement withReachedPoints() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
     public function getReachedPoints() : string
     {
         // TODO: Implement getReachedPoints() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
     public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\Question\Question
     {
         // TODO: Implement withBestSolutions() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
     public function getBestSolutions() : array
     {
         // TODO: Implement getBestSolutions() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer
+    public function withFeedbackOnFullyCorrectAnswer(
+        array $feedbackFullyCorrectAnswer
     ) : \ILIAS\UI\Component\Question\Question {
         // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
     public function getFeedbackOnFullyCorrectAnswer()
     {
         // TODO: Implement getFeedbackOnFullyCorrectAnswer() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer
+    public function withSpezificFeedbackForEachAnswer(
+        array $feedbackForEachAnswer
     ) : \ILIAS\UI\Component\Question\Question {
         // TODO: Implement withSpezificFeedbackForEachAnswer() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
     public function getSpezificFeedbackForEachAnswer() : array
     {
         // TODO: Implement getSpezificFeedbackForEachAnswer() method.
+        throw new \ILIAS\UI\NotImplementedException('NYI');
     }
 }

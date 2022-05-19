@@ -8,7 +8,6 @@ use ILIAS\UI\Component;
 
 class Renderer extends AbstractComponentRenderer
 {
-    
     public function render(Component\Component $component, RendererInterface $default_renderer)
     {
         /**

@@ -6,5 +6,4 @@ use ILIAS\UI\Component\Question\Question;
 
 interface HorizontalOrdering extends Question
 {
-    
 }

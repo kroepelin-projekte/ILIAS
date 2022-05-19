@@ -1,6 +1,7 @@
 <?php
 
 namespace ILIAS\UI\Implementation\Component\Question\CloseEnded\MultipleChoice;
+
 use ILIAS\UI\Component\Question as T;
 
 class Factory implements T\CloseEnded\MultipleChoice\Factory
