@@ -112,7 +112,7 @@ class NoUIFactory implements Factory
     {
     }
     
-    public function testQuestion() : C\TestQuestion\Factory
+    public function question() : C\Question\Factory
     {
     }
 }

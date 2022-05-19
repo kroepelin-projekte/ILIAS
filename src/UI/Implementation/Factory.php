@@ -133,9 +133,9 @@ class Factory implements \ILIAS\UI\Factory
     protected $legacy_factory;
 
     /**
-     * @var C\TestQuestion\Factory
+     * @var C\Question\Factory
      */
-    protected $testquestion_factory;
+    protected $question_factory;
 
     public function __construct(
         C\Counter\Factory $counter_factory,
@@ -162,7 +162,7 @@ class Factory implements \ILIAS\UI\Factory
         C\Menu\Factory $menu_factory,
         C\Symbol\Factory $symbol_factory,
         C\Legacy\Factory $legacy_factory,
-        C\TestQuestion\Factory $testquestion_factory
+        C\Question\Factory $question_factory
     ) {
         $this->counter_factory = $counter_factory;
         $this->button_factory = $button_factory;
@@ -188,7 +188,7 @@ class Factory implements \ILIAS\UI\Factory
         $this->menu_factory = $menu_factory;
         $this->symbol_factory = $symbol_factory;
         $this->legacy_factory = $legacy_factory;
-        $this->testquestion_factory = $testquestion_factory;
+        $this->question_factory = $question_factory;
     }
 
     /**
@@ -403,8 +403,8 @@ class Factory implements \ILIAS\UI\Factory
     /**
      * @inheritdoc
      */
-    public function testQuestion() : C\TestQuestion\Factory
+    public function question() : C\Question\Factory
     {
-        return $this->testquestion_factory;
+        return $this->question_factory;
     }
 }

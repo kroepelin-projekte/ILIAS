@@ -1506,7 +1506,7 @@ class ilInitialisation
                 $c["ui.factory.menu"],
                 $c["ui.factory.symbol"],
                 $c["ui.factory.legacy"],
-                $c["ui.factory.testquestion"]
+                $c["ui.factory.question"]
             );
         };
         $c["ui.signal_generator"] = function ($c) {
@@ -1708,8 +1708,8 @@ class ilInitialisation
         $c["ui.factory.legacy"] = function ($c) {
             return new ILIAS\UI\Implementation\Component\Legacy\Factory($c["ui.signal_generator"]);
         };
-        $c["ui.factory.testquestion"] = function ($c) {
-            return new ILIAS\UI\Implementation\Component\TestQuestion\Factory();
+        $c["ui.factory.question"] = function ($c) {
+            return new ILIAS\UI\Implementation\Component\Question\Factory();
         };
 
         $plugins = ilPluginAdmin::getActivePlugins();

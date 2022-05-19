@@ -805,10 +805,10 @@ interface Factory
      * ---
      * description:
      *   purpose: >
-     *     TestQuestion ...
+     *     Question ...
      *
      * ---
-     * @return \ILIAS\UI\Component\TestQuestion\Factory
+     * @return \ILIAS\UI\Component\Question\Factory
      */
-    public function testQuestion() : Component\TestQuestion\Factory;
+    public function question() : Component\Question\Factory;
 }

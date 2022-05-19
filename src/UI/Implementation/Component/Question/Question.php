@@ -1,0 +1,84 @@
+<?php
+
+namespace ILIAS\UI\Implementation\Component\Question;
+
+use ILIAS\UI\Component\Question as T;
+use ILIAS\UI\Implementation\Component\ComponentHelper;
+
+abstract class Question implements T\Question
+{
+    
+    
+    protected string $questionStem;
+    
+    protected array $questionCanvas;
+    
+    protected ?\ILIAS\UI\Component\Button\Standard $actions = null;
+    
+    public function __construct(string $questionStem, array $questionCanvas){
+        $this->questionStem = $questionStem;
+        $this->questionCanvas = $questionCanvas;
+    }
+    
+    public function getQuestionStem() : string
+    {
+        return $this->questionStem;
+    }
+    
+    public function getQuestionCanvas() : array
+    {
+        return $this->questionCanvas;
+    }
+    
+    public function withActions(\ILIAS\UI\Component\Button\Standard $actions
+    ) : Question {
+        $clone = clone $this;
+        $clone->actions = $actions;
+        return $clone;
+    }
+    
+    public function getActions()
+    {
+        return $this->actions;
+    }
+    
+    public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
+    {
+        // TODO: Implement withReachedPoints() method.
+    }
+    
+    public function getReachedPoints() : string
+    {
+        // TODO: Implement getReachedPoints() method.
+    }
+    
+    public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\Question\Question
+    {
+        // TODO: Implement withBestSolutions() method.
+    }
+    
+    public function getBestSolutions() : array
+    {
+        // TODO: Implement getBestSolutions() method.
+    }
+    
+    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer
+    ) : \ILIAS\UI\Component\Question\Question {
+        // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
+    }
+    
+    public function getFeedbackOnFullyCorrectAnswer()
+    {
+        // TODO: Implement getFeedbackOnFullyCorrectAnswer() method.
+    }
+    
+    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer
+    ) : \ILIAS\UI\Component\Question\Question {
+        // TODO: Implement withSpezificFeedbackForEachAnswer() method.
+    }
+    
+    public function getSpezificFeedbackForEachAnswer() : array
+    {
+        // TODO: Implement getSpezificFeedbackForEachAnswer() method.
+    }
+}
