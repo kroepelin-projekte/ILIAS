@@ -28,20 +28,7 @@ abstract class Question implements T\Question
     {
         return $this->questionCanvas;
     }
-    
-    public function withActions(
-        \ILIAS\UI\Component\Button\Standard $actions
-    ) : Question {
-        $clone = clone $this;
-        $clone->actions = $actions;
-        return $clone;
-    }
-    
-    public function getActions()
-    {
-        return $this->actions;
-    }
-    
+
     public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
     {
         // TODO: Implement withReachedPoints() method.
