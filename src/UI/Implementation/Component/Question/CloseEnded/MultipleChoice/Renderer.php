@@ -16,10 +16,15 @@ class Renderer extends AbstractComponentRenderer
         $this->checkComponent($component);
         $tpl = $this->getTemplate("tpl.question.html", true, true);
         $tpl->setVariable("TITLE", $component->getQuestionStem());
-        $tpl->setVariable("Antwort1", $component->getQuestionCanvas()[0]);
-        $tpl->setVariable("Antwort2", $component->getQuestionCanvas()[1]);
-        $tpl->setVariable("Antwort3", $component->getQuestionCanvas()[2]);
-        $tpl->setVariable("Antwort4", $component->getQuestionCanvas()[3]);
+    
+        $tpl->setCurrentBlock("answer_row");
+        foreach ($component->getQuestionCanvas() as $key => $answer)
+        {
+            $tpl->setVariable("ID", $key);
+            $tpl->setVariable("ANSWER", htmlspecialchars($answer));
+            $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
+            $tpl->parseCurrentBlock();
+        }
         return $tpl->get();
     }
     
