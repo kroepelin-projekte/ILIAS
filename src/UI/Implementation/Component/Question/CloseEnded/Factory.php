@@ -6,6 +6,21 @@ use ILIAS\UI\Component\Question as I;
 
 class Factory implements I\CloseEnded\Factory
 {
+    public function singleAnswer($questionStem, $questionCanvas) : SingleAnswer
+    {
+        return new SingleAnswer($questionStem, $questionCanvas);
+    }
+    
+    public function multipleAnswer() : MultipleAnswer
+    {
+        return new MultipleAnswer();
+    }
+    
+    public function kprimAnswer() : KprimAnswer
+    {
+        return new KprimAnswer();
+    }
+    
     public function clozeQuestionSelectGap() : ClozeQuestionSelectGap
     {
         return new ClozeQuestionSelectGap();

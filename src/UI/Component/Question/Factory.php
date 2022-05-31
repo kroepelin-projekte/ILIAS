@@ -27,15 +27,17 @@ interface Factory
      *
      * rules:
      *   interaction:
-     *     1: Users MUST select an answer option by clicking on the respective control.
+     *     1: For Non-Compulsory Close-ended Questions Users SHOULD select an answer option by clicking on the respective control.
+     *     2: For Compulsory Close-ended Questions Users MUST select an answer option by clicking on the respective control.
      *   style:
-     *     1: Selected answer MUST options are slightly highlighted (i.e. outline is boldened)
+     *     1: Selected answer options MUST be visually highlighted
      *   accessibility:
      *     1: >
      *        All answer options MUST be reached and left using the keyboard only.
      *        Keyboard interfaces are specified in specific question types.
-     *     2: Users MUST able to tab into a question and away from the question.
-     *     3: All non-decorative media has an alt-text.
+     *     2: Users MUST be able to tab into a question and away from the question.
+     *     3: Upon opening Close-ended Question the focus MUST be placed at the beginning of the Question text.
+     *     4: All non-decorative media has an alt-text. Issue  KS-article can only add information available from the question editors.
      * ---
      *
      * @return \ILIAS\UI\Component\Question\CloseEnded\Factory

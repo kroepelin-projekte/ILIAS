@@ -5,6 +5,6 @@ function base()
     $f = $DIC->ui()->factory();
     $renderer = $DIC->ui()->renderer();
 
-    $content = $f->question()->closeEnded()->multipleChoice()->singleAnswer("Hier steht die Frage", ["Antwort1", "Antwort2", "Antwort3", "Antwort4"]);
+    $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", ["<i>Antwort1</i>", "Antwort2", "Antwort3", "Antwort4"]);
     return $renderer->render($content);
 }

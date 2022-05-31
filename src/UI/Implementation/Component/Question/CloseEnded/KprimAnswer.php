@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace ILIAS\UI\Implementation\Component\Question\CloseEnded\MultipleChoice;
+namespace ILIAS\UI\Implementation\Component\Question\CloseEnded;
 
 use ILIAS\UI\Component\Question as I;
 use ILIAS\UI\Implementation\Component\Question\Question;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-class KprimAnswer extends Question implements I\CloseEnded\MultipleChoice\KprimAnswer
+class KprimAnswer extends Question implements I\CloseEnded\KprimAnswer
 {
     use ComponentHelper;
 }

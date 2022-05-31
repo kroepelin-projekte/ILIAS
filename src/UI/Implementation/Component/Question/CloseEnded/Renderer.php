@@ -10,11 +10,26 @@ class Renderer extends AbstractComponentRenderer
 {
     public function render(Component\Component $component, RendererInterface $default_renderer)
     {
-        // TODO: Implement render() method.
+        /**
+         * @var \ILIAS\UI\Component\Question\CloseEnded\SingleAnswer $component
+         */
+        $this->checkComponent($component);
+        $tpl = $this->getTemplate("tpl.question.html", true, true);
+        $tpl->setVariable("TITLE", $component->getQuestionStem());
+    
+        $tpl->setCurrentBlock("answer_row");
+        foreach ($component->getQuestionCanvas() as $key => $answer)
+        {
+            $tpl->setVariable("ID", $key);
+            $tpl->setVariable("ANSWER", htmlspecialchars($answer, 2, 'UTF-8'));
+            $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
+            $tpl->parseCurrentBlock();
+        }
+        return $tpl->get();
     }
     
     protected function getComponentInterfaceName()
     {
-        // TODO: Implement getComponentInterfaceName() method.
+        return [Component\Question\CloseEnded\SingleAnswer::class];
     }
 }
