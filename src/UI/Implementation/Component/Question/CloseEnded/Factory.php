@@ -10,34 +10,4 @@ class Factory implements I\CloseEnded\Factory
     {
         return new SingleAnswer($questionStem, $questionCanvas);
     }
-    
-    public function multipleAnswer() : MultipleAnswer
-    {
-        return new MultipleAnswer();
-    }
-    
-    public function kprimAnswer() : KprimAnswer
-    {
-        return new KprimAnswer();
-    }
-    
-    public function clozeQuestionSelectGap() : ClozeQuestionSelectGap
-    {
-        return new ClozeQuestionSelectGap();
-    }
-    
-    public function errorText() : ErrorText
-    {
-        return new ErrorText();
-    }
-    
-    public function imageMap() : ImageMap
-    {
-        return new ImageMap();
-    }
-    
-    public function multipleChoice() : MultipleChoice\Factory
-    {
-        return new MultipleChoice\Factory();
-    }
 }

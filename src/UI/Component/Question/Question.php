@@ -3,7 +3,7 @@
 namespace ILIAS\UI\Component\Question;
 
 /**
- * Common interface to all TestQuestions.
+ * Common interface to all Questions.
  */
 interface Question extends \ILIAS\UI\Component\Component
 {

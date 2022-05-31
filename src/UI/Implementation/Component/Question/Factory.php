@@ -13,20 +13,4 @@ class Factory implements I\Factory
     {
         return new CloseEnded\Factory();
     }
-    
-    /**
-     * @inheritdoc
-     */
-    public function openEnded() : OpenEnded\Factory
-    {
-        return new OpenEnded\Factory();
-    }
-    
-    /**
-     * @inheritdoc
-     */
-    public function sorting() : Sorting\Factory
-    {
-        return new Sorting\Factory();
-    }
 }
