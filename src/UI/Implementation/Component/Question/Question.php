@@ -2,14 +2,18 @@
 
 namespace ILIAS\UI\Implementation\Component\Question;
 
-use ILIAS\UI\Component\Question as I;
+use ILIAS\UI\Component as I;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
 
-abstract class Question implements I\Question
+abstract class Question implements I\Question\Question
 {
+    use ComponentHelper;
+    
     protected string $questionStem;
     
     protected array $questionCanvas;
+    
+    protected array $buttons = [];
     
     public function __construct(string $questionStem, array $questionCanvas)
     {
@@ -26,7 +30,22 @@ abstract class Question implements I\Question
     {
         return $this->questionCanvas;
     }
-
+    
+    public function getButtons() : array
+    {
+        return $this->buttons;
+    }
+    
+    public function withButtons(array $buttons)
+    {
+        $types = array(I\Component::class);
+        $this->checkArgListElements("buttons", $buttons, $types);
+        
+        $clone = clone $this;
+        $clone->buttons = $buttons;
+        return $clone;
+    }
+    
     public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
     {
         // TODO: Implement withReachedPoints() method.

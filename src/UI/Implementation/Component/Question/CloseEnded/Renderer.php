@@ -15,7 +15,15 @@ class Renderer extends AbstractComponentRenderer
          */
         $this->checkComponent($component);
         $tpl = $this->getTemplate("tpl.question.html", true, true);
-        $tpl->setVariable("TITLE", $component->getQuestionStem());
+        
+        $tpl->setVariable("qtitle", $component->getQuestionStem());
+        
+        $buttons = $component->getButtons();
+        if (count($buttons) > 0) {
+            $tpl->setCurrentBlock("buttons");
+            $tpl->setVariable("BUTTONS", $default_renderer->render($buttons));
+            $tpl->parseCurrentBlock();
+        }
     
         $tpl->setCurrentBlock("answer_row");
         foreach ($component->getQuestionCanvas() as $key => $answer)

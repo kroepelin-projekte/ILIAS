@@ -37,7 +37,7 @@ interface Factory
      *        Keyboard interfaces are specified in specific question types.
      *     2: Users MUST be able to tab into a question and away from the question.
      *     3: Upon opening Close-ended Question the focus MUST be placed at the beginning of the Question text.
-     *     4: All non-decorative media has an alt-text. Issue  KS-article can only add information available from the question editors.
+     *     4: All non-decorative media has an alt-text. ISSUE KS-article can only add information available from the question editors.
      * ---
      *
      * @return \ILIAS\UI\Component\Question\CloseEnded\Factory
