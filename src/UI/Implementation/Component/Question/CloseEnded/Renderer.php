@@ -24,12 +24,24 @@ class Renderer extends AbstractComponentRenderer
             $tpl->setVariable("BUTTONS", $default_renderer->render($buttons));
             $tpl->parseCurrentBlock();
         }
+        
+        $reachedPoints = $component->getReachedPoints();
+        if (!empty($reachedPoints)) {
+            $tpl->setCurrentBlock("reached_points");
+            $tpl->setVariable("REACHED_POINTS", $reachedPoints);
+            $tpl->parseCurrentBlock();
+        }
     
-        $tpl->setCurrentBlock("answer_row");
-        foreach ($component->getQuestionCanvas() as $key => $answer)
+        foreach ($component->getQuestionCanvas() as $key => $answers)
         {
+            if ($answers[1]) {
+                $tpl->setCurrentBlock("checked");
+                $tpl->setVariable("CHECKED", "checked");
+                $tpl->parseCurrentBlock();
+            }
+            $tpl->setCurrentBlock("answer_row");
             $tpl->setVariable("ID", $key);
-            $tpl->setVariable("ANSWER", htmlspecialchars($answer, 2, 'UTF-8'));
+            $tpl->setVariable("ANSWER", htmlspecialchars($answers[0], 2, 'UTF-8'));
             $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
             $tpl->parseCurrentBlock();
         }

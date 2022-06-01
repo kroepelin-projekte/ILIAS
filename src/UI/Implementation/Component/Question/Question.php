@@ -15,6 +15,8 @@ abstract class Question implements I\Question\Question
     
     protected array $buttons = [];
     
+    protected string $reachedPoints = '';
+    
     public function __construct(string $questionStem, array $questionCanvas)
     {
         $this->questionStem = $questionStem;
@@ -48,14 +50,14 @@ abstract class Question implements I\Question\Question
     
     public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
     {
-        // TODO: Implement withReachedPoints() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        $clone = clone $this;
+        $clone->reachedPoints = $reachedPoints;
+        return $clone;
     }
     
     public function getReachedPoints() : string
     {
-        // TODO: Implement getReachedPoints() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return $this->reachedPoints;
     }
     
     public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\Question\Question
@@ -70,16 +72,16 @@ abstract class Question implements I\Question\Question
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function withFeedbackOnFullyCorrectAnswer(
-        array $feedbackFullyCorrectAnswer
+    public function withFeedbackOnCorrectAnswer(
+        array $feedbackOnCorrectAnswer
     ) : \ILIAS\UI\Component\Question\Question {
-        // TODO: Implement withFeedbackOnFullyCorrectAnswer() method.
+        // TODO: Implement withFeedbackOnCorrectAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     
-    public function getFeedbackOnFullyCorrectAnswer()
+    public function getFeedbackOnCorrectAnswer()
     {
-        // TODO: Implement getFeedbackOnFullyCorrectAnswer() method.
+        // TODO: Implement getFeedbackOnCorrectAnswer() method.
         throw new \ILIAS\UI\NotImplementedException('NYI');
     }
     

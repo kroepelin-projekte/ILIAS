@@ -1,5 +1,5 @@
 <?php
-function withbutton()
+function base_with_button()
 {
     global $DIC;
     $f = $DIC->ui()->factory();
@@ -7,7 +7,7 @@ function withbutton()
     
     $buttons = [$f->button()->standard("Rückmeldung anfordern", "#")];
     
-    $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", ["Antwort1", "Antwort2", "Antwort3", "Antwort4"])
+    $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", [["Antwort 1", false], ["Antwort 2", false], ["Antwort 3", false], ["Antwort 4", false]])
                                            ->withButtons($buttons);
     return $renderer->render($content);
 }

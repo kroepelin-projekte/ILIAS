@@ -44,15 +44,15 @@ interface Question extends \ILIAS\UI\Component\Component
     public function getBestSolutions() : array;
     
     /**
-     * @param array $feedbackFullyCorrectAnswer
+     * @param array $feedbackOnCorrectAnswer
      * @return Question
      */
-    public function withFeedbackOnFullyCorrectAnswer(array $feedbackFullyCorrectAnswer) : Question;
+    public function withFeedbackOnCorrectAnswer(array $feedbackOnCorrectAnswer) : Question;
     
     /**
      * @return mixed
      */
-    public function getFeedbackOnFullyCorrectAnswer();
+    public function getFeedbackOnCorrectAnswer();
     
     /**
      * @param array $feedbackForEachAnswer
