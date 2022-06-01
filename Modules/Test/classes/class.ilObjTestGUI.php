@@ -24,7 +24,7 @@ require_once 'Modules/Test/classes/class.ilTestParticipantAccessFilter.php';
  * @ilCtrl_Calls ilObjTestGUI: ilTestExpresspageObjectGUI, ilAssQuestionPageGUI
  * @ilCtrl_Calls ilObjTestGUI: ilTestDashboardGUI, ilTestResultsGUI
  * @ilCtrl_Calls ilObjTestGUI: ilLearningProgressGUI, ilMarkSchemaGUI
- * @ilCtrl_Calls ilObjTestGUI: ilTestEvaluationGUI
+ * @ilCtrl_Calls ilObjTestGUI: ilTestEvaluationGUI, ilParticipantsTestResultsGUI
  * @ilCtrl_Calls ilObjTestGUI: ilAssGenFeedbackPageGUI, ilAssSpecFeedbackPageGUI
  * @ilCtrl_Calls ilObjTestGUI: ilInfoScreenGUI, ilObjectCopyGUI, ilTestScoringGUI
  * @ilCtrl_Calls ilObjTestGUI: ilRepositorySearchGUI, ilTestExportGUI
@@ -85,6 +85,9 @@ class ilObjTestGUI extends ilObjectGUI
      */
     protected $testAccess;
 
+    /** @var ilErrorHandling */
+    private $error;
+
     /**
      * Constructor
      * @access public
@@ -100,6 +103,7 @@ class ilObjTestGUI extends ilObjectGUI
         $tree = $DIC['tree'];
         $lng->loadLanguageModule("assessment");
         $this->type = "tst";
+        $this->error = $DIC['ilErr'];
         $this->ctrl = $ilCtrl;
         $this->ctrl->saveParameter($this, array("ref_id", "test_ref_id", "calling_test", "test_express_mode", "q_id"));
         if (isset($_GET['ref_id']) && is_numeric($_GET['ref_id'])) {
@@ -949,10 +953,33 @@ class ilObjTestGUI extends ilObjectGUI
         $this->ctrl->setCmdClass('ilTestEvaluationGUI');
         $this->ctrl->setCmd('outUserResultsOverview');
         $this->tabs_gui->clearTargets();
-        
+
         $this->forwardToEvaluationGUI();
     }
-    
+
+    private function testResultsGatewayObject()
+    {
+        global $DIC, $ilPluginAdmin;
+        $this->tabs_gui->clearTargets();
+
+        $this->prepareOutput();
+        $this->addHeaderAction();
+
+        $this->ctrl->setCmdClass('ilParticipantsTestResultsGUI');
+        $this->ctrl->setCmd('showParticipants');
+
+
+        $gui = new ilParticipantsTestResultsGUI();
+        $gui->setTestObj($this->object);
+
+        $factory = new ilTestQuestionSetConfigFactory($this->tree,$DIC->database(),$ilPluginAdmin, $this->object);
+        $gui->setQuestionSetConfig($factory->getQuestionSetConfig());
+        $gui->setObjectiveParent(new ilTestObjectiveOrientedContainer());
+        $gui->setTestAccess($this->getTestAccess());
+        $this->tabs_gui->activateTab('results');
+        $this->ctrl->forwardCommand($gui);
+    }
+
     /**
      * @return ilTestAccess
      */
@@ -1044,6 +1071,10 @@ class ilObjTestGUI extends ilObjectGUI
     */
     protected function importFileObject($parent_id = null, $a_catch_errors = true)
     {
+        if (!$this->checkPermissionBool("create", "", $_REQUEST["new_type"])) {
+            $this->error->raiseError($this->lng->txt("no_create_permission"));
+        }
+
         $form = $this->initImportForm($_REQUEST["new_type"]);
         if ($form->checkInput()) {
             $this->ctrl->setParameter($this, "new_type", $this->type);

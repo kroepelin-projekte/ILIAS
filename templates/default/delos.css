@@ -9311,6 +9311,7 @@ footer {
     grid-template-columns: 1fr;
     -ms-grid-rows: 0 50px;
     grid-template-rows: 0 50px;
+    grid-template-rows: 0 calc(50px + 1.2 * env(safe-area-inset-bottom));
   }
   .il-layout-page .nav.il-maincontrols .il-maincontrols-mainbar .il-mainbar-close-slates {
     display: none;
@@ -9344,6 +9345,7 @@ footer {
     grid-template-columns: 1fr;
     -ms-grid-rows: 1fr 50px;
     grid-template-rows: 1fr 50px;
+    grid-template-rows: 1fr calc(50px + 1.2 * env(safe-area-inset-bottom));
     width: 100%;
   }
   .il-layout-page.with-mainbar-slates-engaged .nav.il-maincontrols .il-maincontrols-mainbar .il-mainbar {
@@ -9442,6 +9444,7 @@ footer {
     display: -ms-flexbox;
     display: flex;
     max-height: 50px;
+    max-height: calc(50px + 1.2 * env(safe-area-inset-bottom));
     overflow: hidden;
     z-index: 996;
   }
@@ -17328,6 +17331,12 @@ div.ilAttendanceListPrint th {
   border: 1px solid #dddddd;
   padding: 2px;
 }
+th.ilMembershipRowActionsHeader {
+  text-align: right;
+}
+th.ilMembershipRowActionsHeader span {
+  padding-right: 6px;
+}
 body.ilBodyPrint {
   height: auto;
   background-color: white;
@@ -17350,7 +17359,7 @@ div.ilInfoScreenSec h2.ilHeader {
 .il_InfoScreenProperty {
   padding: 15px;
   vertical-align: top;
-  color: #737373;
+  color: #6f6f6f;
   font-style: italic;
 }
 .il_InfoScreenPropertyValue {
@@ -19535,29 +19544,6 @@ div.textbox {
   padding-left: 20px;
   background: none;
   cursor: default;
-}
-.clearfix:after,
-.dl-horizontal dd:after,
-.container:after,
-.container-fluid:after,
-.row:after,
-.form-horizontal .form-group:after,
-.btn-toolbar:after,
-.btn-group-vertical > .btn-group:after,
-.nav:after,
-.navbar:after,
-.navbar-header:after,
-.navbar-collapse:after,
-.pager:after,
-.panel-body:after,
-.modal-header:after,
-.modal-footer:after,
-.il-table-presentation-row .il-table-presentation-row-expanded:after {
-  content: ".";
-  display: block;
-  height: 0;
-  clear: both;
-  visibility: hidden;
 }
 div.odd {
   padding: 0.5em 0;
