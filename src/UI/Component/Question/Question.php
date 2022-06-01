@@ -50,9 +50,9 @@ interface Question extends \ILIAS\UI\Component\Component
     public function withFeedbackOnCorrectAnswer(array $feedbackOnCorrectAnswer) : Question;
     
     /**
-     * @return mixed
+     * @return array
      */
-    public function getFeedbackOnCorrectAnswer();
+    public function getFeedbackOnCorrectAnswer() : array;
     
     /**
      * @param array $feedbackForEachAnswer

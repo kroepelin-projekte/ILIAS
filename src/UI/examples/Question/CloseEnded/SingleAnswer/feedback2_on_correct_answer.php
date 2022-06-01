@@ -1,5 +1,5 @@
 <?php
-function feedback_reached_Points()
+function feedback2_on_correct_answer()
 {
     global $DIC;
     $f = $DIC->ui()->factory();
@@ -9,8 +9,8 @@ function feedback_reached_Points()
     
     $content = $f->question()->closeEnded()->singleAnswer(
         "Hier steht die Frage",
-        [["Antwort 1", false], ["Antwort 2", true], ["Antwort 3", false], ["Antwort 4", false]])
-                                           ->withButtons($buttons)
-                                           ->withReachedPoints("Sie haben 2 von 2 Punkten erreicht.");
+        [["Antwort 12", false], ["Antwort 13", false], ["Antwort 14", false], ["Antwort 15", false], ["Antwort 16", true]])
+                 ->withButtons($buttons)
+                 ->withFeedbackOnCorrectAnswer(["Ihre Antwort ist nicht richtig."]);
     return $renderer->render($content);
 }

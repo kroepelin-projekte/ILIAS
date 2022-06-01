@@ -16,6 +16,8 @@ abstract class Question implements I\Question\Question
     protected array $buttons = [];
     
     protected string $reachedPoints = '';
+
+    protected array $feedbackOnCorrectAnswer = [];
     
     public function __construct(string $questionStem, array $questionCanvas)
     {
@@ -75,14 +77,14 @@ abstract class Question implements I\Question\Question
     public function withFeedbackOnCorrectAnswer(
         array $feedbackOnCorrectAnswer
     ) : \ILIAS\UI\Component\Question\Question {
-        // TODO: Implement withFeedbackOnCorrectAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        $clone = clone $this;
+        $clone->feedbackOnCorrectAnswer = $feedbackOnCorrectAnswer;
+        return $clone;
     }
     
-    public function getFeedbackOnCorrectAnswer()
+    public function getFeedbackOnCorrectAnswer() : array
     {
-        // TODO: Implement getFeedbackOnCorrectAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return $this->feedbackOnCorrectAnswer;
     }
     
     public function withSpezificFeedbackForEachAnswer(

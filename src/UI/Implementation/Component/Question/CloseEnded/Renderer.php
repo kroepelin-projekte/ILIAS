@@ -26,9 +26,11 @@ class Renderer extends AbstractComponentRenderer
         }
         
         $reachedPoints = $component->getReachedPoints();
-        if (!empty($reachedPoints)) {
+        $feedbackOnCorrectAnswer = $component->getFeedbackOnCorrectAnswer();
+        if (!empty($reachedPoints) || !empty($feedbackOnCorrectAnswer)) {
             $tpl->setCurrentBlock("reached_points");
-            $tpl->setVariable("REACHED_POINTS", $reachedPoints);
+            $output = trim($feedbackOnCorrectAnswer[0] . ' ' . $reachedPoints);
+            $tpl->setVariable("REACHED_POINTS", $output);
             $tpl->parseCurrentBlock();
         }
     
