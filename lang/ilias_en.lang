@@ -741,7 +741,9 @@ assessment#:#assTextSubset#:#Text Subset Question
 assessment#:#autosave_failed#:#Autosave failed!
 assessment#:#autosave_success#:#Autosave successful...
 assessment#:#average_reached_points#:#Average Points
-assessment#:#backtocallingtest#:#Back to the calling test
+assessment#:#backtocallingtest#:#Back to the test
+assessment#:#backtocallingpage#:#Back to the question page
+assessment#:#backtocallingpool#:#Back to the question pool
 assessment#:#assLongMenu#:#Long Menu
 assessment#:#answers_text_box#:#Text
 assessment#:#min_auto_complete#:#Autocomplete
@@ -822,9 +824,9 @@ assessment#:#delete_image_question#:#Do you really want to remove the image?
 assessment#:#delete_user_data#:#Remove Test Data of Selected Users
 assessment#:#deleteSuggestedSolution#:#Remove this content for recapitulation
 assessment#:#description_maxchars#:#If nothing entered the maximum number of characters for this text answer is unlimited.
-assessment#:#detail_ending_time_reached#:#The time allotted for this test is now over. The test had not been available since %s
+assessment#:#detail_ending_time_reached#:#The time allotted for this test is now over. The test had not been available since %s hours.
 assessment#:#detail_max_processing_time_reached#:#You have reached the maximum allowed processing time of the test!
-assessment#:#detail_starting_time_not_reached#:#You have not reached the start time of the test. The test will be available on %s
+assessment#:#detail_starting_time_not_reached#:#You have not reached the start time of the test. The test will be available on %s hours.
 assessment#:#detailed_evaluation_for#:#Detailed Evaluation for %s
 assessment#:#detailed_evaluation_missing_active_id#:#You must call the ‘Detailed Evaluation’ for a selected participant!
 assessment#:#detailed_evaluation_show#:#Show Detailed Evaluation
@@ -1808,7 +1810,7 @@ assessment#:#tst_btn_hide_best_solutions#:#Hide Best Solutions
 assessment#:#tst_settings_header_intro#:#Information Before Start of Test
 assessment#:#tst_settings_header_execution#:#Administering the Test: Access
 assessment#:#tst_starting_time_desc#:#Point in time after which the test can be started by clicking the button ‚Start‘, participants can provide answers to questions.
-assessment#:#tst_ending_time_desc#:#Point in time at which the test will be finished: Participants an no longer answer questions, the test is finished by ILIAS.
+assessment#:#tst_ending_time_desc#:#Point in time at which the test will be finished: Participants can no longer answer questions, the test is finished by ILIAS.
 assessment#:#tst_allowed_users_desc#:#ILIAS will monitor the number of participants taking the test at the same time. If more users than maximally allowed try to access ILIAS will prevent them from starting the test.
 assessment#:#tst_allowed_users_time_gap_desc#:#Participants that do not click in the test for the indicated amount of time will be categorized as ‚inactive‘ and removed from the test.
 assessment#:#tst_settings_header_test_run#:#Administering the Test: Test Run
@@ -2291,6 +2293,7 @@ rbac#:#cert_read#:#User has read access to Certificates Administration
 rbac#:#cert_visible#:#Certificates Administration is visible
 rbac#:#cert_write#:#User can edit settings in Certificates Administration
 common#:#certificate#:#Certificate
+common#:#certificates#:#Certificates
 common#:#change_assignment#:#Change assignment
 rbac#:#change_existing_object_type_desc#:#This will also change the permissions of already existing objects of that type
 rbac#:#change_existing_objects_desc#:#The permission settings of this role will be adopted to ALL existing objects. If you want to change permissions only for specific object types please click the checkboxes to the right of the appropriate object type.
@@ -2404,7 +2407,7 @@ common#:#cron_jobs#:#Cron Jobs
 common#:#cron_lucene_index_info#:#If enabled, the lucene search index will be updated. Please configure the lucene server at ’Administration -> Search’.
 common#:#cron_lucene_index#:#Update Lucene search index
 common#:#cron_mail_notification_cron#:#regularly per cron job
-common#:#cron_mail_notification_desc#:#If enabled, all users, who want to be informed about new mail, will get notifications by external mail. Please enable the option ‘%s’ first to use this function.
+common#:#cron_mail_notification_desc#:#On request, ILIAS sends e-mail notifications about new mails. In contrast to the immediate forwarding of all mails, this cronjob collects the mails of one day and delivers them as a package. Please enable the option '%s' to use this feature. Additionally, the e-mail notifications for each ILIAS account have to be activated in the personal mail settings.
 common#:#cron_mail_notification_never#:#never
 common#:#cron_mail_notification#:#New Mail Notifications
 common#:#crs_activation_start_invalid#:#The start and the finish time is not valid.
@@ -2794,7 +2797,7 @@ rbac#:#grp_leave#:#User can unsubscribe from group
 common#:#grp_list_members#:#List members
 common#:#grp_list_users#:#List users
 common#:#grp_mem_change_status#:#Change Participant Status
-common#:#grp_mem_send_mail#:#Send Participants a Message
+common#:#grp_mem_send_mail#:#Send member a mail
 common#:#grp_members_gallery#:#Group Members Gallery
 common#:#grp_msg_applicants_assigned#:#Applicant(s) assigned as group member(s)
 common#:#grp_msg_member_assigned#:#User(s) assigned as group member(s)
@@ -2998,8 +3001,8 @@ common#:#legend#:#Legend
 common#:#level#:#Level
 common#:#link_all#:#Link all
 common#:#link_check_message_b#:#If enabled, you will be informed about invalid links by mail.
-common#:#link_check_message_disabled#:#Messages disabled
-common#:#link_check_message_enabled#:#Messages enabled
+common#:#link_check_message_disabled#:#The sending of mails is deactivated.
+common#:#link_check_message_enabled#:#The sending of mails is activated.
 common#:#link_check_subject#:#[ILIAS] Weblink check
 common#:#link_check#:#Weblink Check
 common#:#link_checker_refreshed#:#Refreshed view
@@ -3084,8 +3087,8 @@ common#:#mail_import_file#:#Export file
 common#:#mail_mails_of#:#Mail
 common#:#mail_maxsize_attach#:#Max. attachment size
 common#:#mail_members#:#Mail to Members
-common#:#mail_multiple_recipients_found#:#Enter a more specific mail address. ILIAS found multiple possible recipients for this address: %s
-common#:#mail_no_recipient_found#:#Enter a different mail address. ILIAS couldn't find a recipient with this mail address.
+common#:#mail_multiple_recipients_found#:#Please enter a more precise e-mail address, as ILIAS has found several possible recipients for this address: %s
+common#:#mail_no_recipient_found#:#Please enter a different e-mail address. ILIAS could not find a corresponding recipient.
 common#:#mail_not_sent#:#Mail not sent!
 rbac#:#mail_read#:#User has read access to Mail administration
 common#:#mail_search_no#:#No entries found.
@@ -3769,7 +3772,7 @@ common#:#selected_items_back#:#Back to Personal Items
 common#:#selected_items#:#Personal Items
 common#:#selected_languages_updated#:#The selected languages have been updated (if installed):
 common#:#selected#:#Selected
-common#:#send_mail#:#Send Message
+common#:#send_mail#:#Send mail
 common#:#send#:#Send
 common#:#sender#:#Sender
 common#:#sent#:#Sent
@@ -3981,7 +3984,7 @@ common#:#tst_warning_test_not_complete#:#The test is not complete!
 rbac#:#tst_write#:#User can edit content and settings of test
 common#:#tst#:#Test
 common#:#tutors#:#Tutors
-common#:#txt_registered_passw_gen#:#You successfully registered to ILIAS. You should receive an e-Mail including your generated password shortly.
+common#:#txt_registered_passw_gen#:#You have successfully registered with ILIAS. You will receive an e-mail with your password shortly.
 common#:#txt_registered#:#You successfully registered to ILIAS. Please click on the button below to login to ILIAS with your user account.
 common#:#txt_submitted#:#You successfully submitted an account request to ILIAS. Your account request will be reviewed by the system administrators, and should be activated within 48 hours. You will not be able to log in until your account is activated.
 common#:#typ#:#Object Type Definition
@@ -4046,7 +4049,7 @@ common#:#user_import_failed#:#User import failed.
 common#:#user_imported_with_warnings#:#User import complete with warnings.
 common#:#user_imported#:#User import complete.
 common#:#user_language#:#User Language
-common#:#user_new_account_mail_desc#:#This mail is sent automatically to users that have self-registered or to those who have been registered by an administrator with enabled setting ‘Send mail to inform user about changes’.
+common#:#user_new_account_mail_desc#:#This e-mail is sent after an ILIAS account has been created. If the account was created by an administrator, ILIAS will only send an e-mail if the option "Send mail to inform user about changes" was activated when creating the account.
 common#:#user_new_account_mail#:#New Account Mail
 common#:#user_not_known#:#Please insert a valid username.
 common#:#user_profile_other#:#Other Information
@@ -5608,7 +5611,7 @@ forum#:#forums_disable_notification#:#Disable Notification for this Thread
 forum#:#forums_download_attachment#:#Download file
 forum#:#forums_edit_post#:#Edit Article
 forum#:#forums_enable_notification#:#Enable Notification for this Thread
-forum#:#forums_info_censor_post#:#Are you sure you want to hide this article?
+forum#:#forums_info_censor_post#:#Please provide a reason for hiding this article.
 forum#:#forums_info_censor2_post#:#Revoke Censorship?
 forum#:#forums_info_delete_post#:#Are you sure you want to delete this article including any responses?
 forum#:#forums_mark_read#:#Mark All as Read
@@ -5830,7 +5833,7 @@ jscalendar#:#wk#:#wk
 mathjax#:#mathjax_enable_mathjax_info#:#Activates support for MathJax based mathematical output of LaTeX expressions.
 mathjax#:#mathjax_enable_mathjax#:#Enable MathJax
 mathjax#:#mathjax_mathjax#:#MathJax
-mathjax#:#mathjax_path_to_mathjax_desc#:#E.g. https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML or a URL to your local installation.
+mathjax#:#mathjax_path_to_mathjax_desc#:#E.g. https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML or a URL to your local installation. ILIAS 6 and 7 supports MathJax 2.7, not yet MathJax 3.
 mathjax#:#mathjax_path_to_mathjax#:#URL to MathJax
 mathjax#:#mathjax_settings#:#MathJax Settings
 mathjax#:#mathjax_limiter#:#Inline Delimiters
@@ -8564,8 +8567,8 @@ trac#:#trac_sum#:#Sum
 trac#:#trac_others#:#Others
 assessment#:#dont_use_questionpool#:#Don't insert the questions in a question pool (only available in this test)
 rbac#:#add_consultation_hours#:#Add Consultation Hours
-common#:#cron_mail_notification_message#:#Send Mail Notifications with Mail-Message
-common#:#cron_mail_notification_message_info#:#If enabled, all users will get notifications with complete mail message by external mail.
+common#:#cron_mail_notification_message#:#Mail content as part of the e-mail notification
+common#:#cron_mail_notification_message_info#:#E-mail notifications contain the complete content of the mails received in ILIAS. This means that they can be read without having to log in again.
 common#:#follow_link_to_read_mails#:#click the following link to read these mails:
 common#:#mails_at_the_ilias_installation#:#You received %1$s new mails at the ILIAS-Installation %2$s
 common#:#mail_at_the_ilias_installation#:#You received %1$s new mail at the ILIAS-Installation %2$s
@@ -8922,8 +8925,8 @@ wsp#:#wsp_type_excv#:#Certificate: Exercise
 excv#:#excv_create#:#Create Exercise Certificate
 excv#:#excv_create_info#:#Select a completed exercise to generate a certificate for it.
 content#:#cont_fn#:#Footnote
-common#:#enable_course_group_notifications#:#Daily Mail for Groups and Course News
-common#:#enable_course_group_notifications_desc#:#If enabled, Participants can subscribe to a daily summary of news.
+common#:#enable_course_group_notifications#:#Daily mail for group and course news
+common#:#enable_course_group_notifications_desc#:#If enabled, participants can subscribe to a daily summary of news.
 assessment#:#copy_no_questions_selected#:#Please select at least one question to copy.
 assessment#:#copy_questions_success#:#The question(s) has been copied.
 sahs#:#sahs_choose_pages_chap_scos_ass_only#:#Please select either pages, SCOs, assets or chapters only.
@@ -11324,6 +11327,7 @@ ecs#:#ecs_cmap_att_module#:#Module
 ecs#:#ecs_cmap_att_venue#:#Venue
 assessment#:#tst_man_scoring_by_part#:#Scoring by Participant
 assessment#:#tst_man_scoring_by_qst#:#Scoring by Question
+assessment#:#tst_man_scoring_only_answered#:#Only answered
 assessment#:#tst_no_scorable_qst_available#:#No question to score available
 assessment#:#part_received_a_of_b_points#:#The participant received %s of %s possible points
 assessment#:#answers_of#:#Answers of:
@@ -13481,7 +13485,8 @@ awrn#:#awrn_hide_from_awareness#:#Hide Me From ‘Who is online?’-Tool
 awrn#:#awrn_hide_from_awareness_info#:#The ‘Who is online?’-Tool is in the top bar and listing selected users (e.g. contacts or members of your courses).
 common#:#contact_sysadmin#:#Contact Technical Support
 common#:#report_accessibility_issue#:#Report Accessibility Issue
-common#:#report_accessibility_link#:#Reported%20Link:
+common#:#report_accessibility_link#:#Reported Link:
+common#:#report_accessibility_link_mailto#:#Reported%20Link:
 common#:#accessibility_control_concept#:#Accessibility Control Concept
 common#:#no_accessibility_control_concept_description#:#There is currently no Accessibility Control Concept provided with this installation. Please contact the <a href="%1$s">Accessibility Point of Contact</a>.
 common#:#mainbar_aria_label#:#Mainbar
@@ -13891,13 +13896,13 @@ badge#:#badge_settings#:#Badge Settings
 badge#:#badge_service_activate#:#Activate Service
 badge#:#badge_service_activate_info#:#Activate the service to make badges available
 badge#:#badge_obi_activate#:#Activate Mozilla Open Badges Infrastructure
-badge#:#badge_obi_activate_info#:#Users can export Badges from ILIAS. They can use their Badges to prove their qualification in other web applications.
+badge#:#badge_obi_activate_info#:#Users can export badges from ILIAS. They can use their badges to prove their qualification in other web applications.
 badge#:#badge_obi_organisation#:#Organisation
-badge#:#badge_obi_organisation_info#:#This entry will be displayed as the Issuer of the Badge.
+badge#:#badge_obi_organisation_info#:#This entry will be displayed as the issuer of the badge.
 badge#:#badge_obi_contact#:#Contact E-Mail
-badge#:#badge_obi_contact_info#:#This E-Mail adress will not be shown but baked into the Badge.
+badge#:#badge_obi_contact_info#:#This e-mail address is not displayed, but it is baked into the badge.
 badge#:#badge_obi_salt#:#Salt
-badge#:#badge_obi_salt_info#:#Enter a combination of characters and numbers to allow third parties to validate the authenticity of a Badge. Please do not change the entry afterwards.
+badge#:#badge_obi_salt_info#:#Enter a combination of characters and numbers to allow third parties to validate the authenticity of a badge. Please do not change the entry afterwards.
 badge#:#badge_types#:#Types
 badge#:#badge_image_templates#:#Image Templates
 badge#:#badge_activity_badges#:#Activity Badges
@@ -14014,6 +14019,7 @@ glo#:#glo_referenced_term#:#Referenced Term
 glo#:#glo_term_reference#:#Term Reference
 glo#:#glo_reference#:#Reference
 glo#:#glo_selected_terms_have_been_copied#:#The selected terms have been copied to the clipboard. Please open the target glossary and click "Paste".
+glo#:#glo_please_select_other_glo#:#Please select another glossary.
 prg#:#prg_assign_date#:#Assignment date
 prg#:#prg_assigned_by#:#Assigned by
 style#:#add_system_style#:#Add System Style
@@ -16656,3 +16662,5 @@ rating#:#rating_open_dialog#:#Open rating dialog
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
 rep#:#rep_favourites#:#Favourites
 rep#:#rep_favourites_info#:#Users can mark single repository items as favourites. Favourites lists can be activated and configured in the dashboard and menu settings.
+prtf#:#prtf_copy_pg#:#Copy Page
+prtf#:#prtf_copy_blog_pg#:#Copy Blog Page

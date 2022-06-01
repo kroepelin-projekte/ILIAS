@@ -335,36 +335,7 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
         }
 
         if ($_GET["q_id"]) {
-            if ($rbacsystem->checkAccess('write', $_GET["ref_id"])) {
-                // edit page
-                $ilTabs->addTarget(
-                    "edit_page",
-                    $this->ctrl->getLinkTargetByClass("ilAssQuestionPageGUI", "edit"),
-                    array("edit", "insert", "exec_pg"),
-                    "",
-                    "",
-                    $force_active
-                );
-            }
-
-            $this->addTab_QuestionPreview($ilTabs);
-        }
-
-        $force_active = false;
-        if ($rbacsystem->checkAccess('write', $_GET["ref_id"])) {
-            $url = "";
-            if ($classname) {
-                $url = $this->ctrl->getLinkTargetByClass($classname, "editQuestion");
-            }
-            // edit question properties
-            $ilTabs->addTarget(
-                "edit_question",
-                $url,
-                array("editQuestion", "save", "saveEdit", "addanswers", "removeanswers", "originalSyncForm"),
-                $classname,
-                "",
-                $force_active
-            );
+            $this->addTab_Question($ilTabs);
         }
 
         // add tab for question feedback within common class assQuestionGUI
@@ -560,10 +531,32 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
             
             $answers[$ans['value1']]['frequency']++;
         }
-        
+        $answers = $this->completeAddAnswerAction($answers, $questionIndex);
         return $answers;
     }
-    
+
+    protected function completeAddAnswerAction($answers, $questionIndex)
+    {
+          foreach ($answers as $key => $ans) {
+            $found = false;
+
+            foreach ($this->object->getAnswers() as $item) {
+                if ($ans['answer'] !== $item->getAnswerText()) {
+                    continue;
+                }
+
+                $found = true;
+                break;
+            }
+
+            if (!$found) {
+                $answers[$key]['addable'] = true;
+            }
+        }
+
+        return $answers;
+    }
+
     public function populateCorrectionsFormProperties(ilPropertyFormGUI $form)
     {
         // Choices

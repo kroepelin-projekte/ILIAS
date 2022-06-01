@@ -1457,5 +1457,132 @@ if (!$ilDB->indexExistsByFields('qpl_a_cloze_combi_res', $fields)) {
 <#83>
 <?php
 $ilDB->manipulateF('DELETE FROM settings WHERE keyword = %s', ['text'], ['enable_block_moving']);
-$ilDB->manipulateF('DELETE FROM il_block_setting WHERE type LIKE %s', ['text'], ['pd%']);
+$ilDB->manipulate('DELETE FROM il_block_setting WHERE ' . $ilDB->like('type', 'text', 'pd%'));
+?>
+<#84>
+<?php
+if ($ilDB->tableColumnExists('adv_mdf_definition', 'field_values')) {
+    $field_infos = [
+        'type' => 'clob',
+        'notnull' => false,
+        'default' => null
+    ];
+    $ilDB->modifyTableColumn('adv_mdf_definition', 'field_values', $field_infos);
+}
+?>
+<#85>
+<?php
+// fixes https://mantis.ilias.de/view.php?id=32226: due to moving the favourites item
+// to a new provider, the GS will create a new entry once the main-menu administration
+// is entered. Therefore, if the hotfix can only be applied if the new entry wasn't
+// already created, otherwise we cannot tell if the user adapted the new item to work
+// around the bug. In this case we can just delete the old favourites' entry.
+
+if ($ilDB->tableExists('il_mm_items')) {
+    $result = $ilDB->fetchAll(
+        $ilDB->queryF(
+            "SELECT COUNT(identification) AS amount FROM il_mm_items WHERE identification = %s;",
+            ['text'],
+            ['ILIAS\\Repository\\Provider\\RepositoryMainBarProvider|mm_pd_sel_items']
+        )
+    );
+
+    if (0 === (int) $result[0]['amount']) {
+        $new_values = [
+            'identification' => ['text', 'ILIAS\\Repository\\Provider\\RepositoryMainBarProvider|mm_pd_sel_items'],
+        ];
+
+        $ilDB->update('il_mm_items', $new_values, [
+            'identification' => ['text', 'ILIAS\\PersonalDesktop\\PDMainBarProvider|mm_pd_sel_items'],
+        ]);
+    } else {
+        $ilDB->manipulateF(
+            "DELETE FROM il_mm_items WHERE identification = %s",
+            ['text'],
+            ['ILIAS\\PersonalDesktop\\PDMainBarProvider|mm_pd_sel_items']
+        );
+    }
+}
+?>
+<#86>
+<?php
+if (!$ilDB->tableColumnExists('pg_amd_page_list', 'sdata')) {
+    $field_infos = [
+        'type' => 'clob',
+        'notnull' => false,
+        'default' => null
+    ];
+    $ilDB->addTableColumn('pg_amd_page_list', 'sdata', $field_infos);
+}
+?>
+<#87>
+<?php
+
+function migrate($id, $field_id, $data) : void
+{
+    global $ilDB;
+
+    $query = 'UPDATE pg_amd_page_list ' .
+        'SET sdata = ' . $ilDB->quote(serialize(serialize($data)), ilDBConstants::T_TEXT) . ' ' .
+        'WHERE id = ' . $ilDB->quote($id, ilDBConstants::T_INTEGER) . ' ' .
+        'AND field_id = ' . $ilDB->quote($field_id, ilDBConstants::T_INTEGER);
+    $ilDB->manipulate($query);
+}
+
+function migrateData($field_id, $data) : array
+{
+    global $ilDB;
+
+    if (!is_array($data)) {
+        return [];
+    }
+    $indexes  = [];
+    foreach ($data as $idx => $value) {
+        $query = 'SELECT idx from adv_mdf_enum ' .
+            'WHERE value = ' . $ilDB->quote($value, ilDBConstants::T_TEXT) . ' ' .
+            'AND field_id = ' . $ilDB->quote($field_id, ilDBConstants::T_INTEGER);
+        $res = $ilDB->query($query);
+
+        $found_index = false;
+        while ($row = $res->fetchRow(ilDBConstants::FETCHMODE_OBJECT)) {
+            $indexes[] = (int) $row->idx;
+            $found_index = true;
+        }
+        if ($found_index) {
+            continue;
+        }
+        $query = 'SELECT idx from adv_mdf_enum ' .
+            'WHERE idx = ' . $ilDB->quote($value, ilDBConstants::T_TEXT) . ' ' .
+            'AND field_id = ' . $ilDB->quote($field_id, ilDBConstants::T_INTEGER);
+        $res = $ilDB->query($query);
+        while ($row = $res->fetchRow(ilDBConstants::FETCHMODE_OBJECT)) {
+            $indexes[] = (int) $row->idx;
+        }
+    }
+    return $indexes;
+}
+
+$query = 'SELECT id, pg.field_id, data, field_type FROM pg_amd_page_list pg ' .
+    'JOIN adv_mdf_definition adv ' .
+    'ON pg.field_id = adv.field_id ' .
+    'WHERE sdata IS null ';
+$res = $ilDB->query($query);
+while ($row = $res->fetchRow(ilDBConstants::FETCHMODE_OBJECT)) {
+    if ($row->field_type == 1 || $row->field_type == 8) {
+        migrate(
+                $row->id,
+                $row->field_id,
+                migrateData(
+                        $row->field_id,
+                        unserialize(unserialize($row->data))
+                )
+        );
+    } else {
+        migrate(
+                $row->id,
+                $row->field_id,
+                unserialize(unserialize($row->data))
+        );
+    }
+}
 ?>
