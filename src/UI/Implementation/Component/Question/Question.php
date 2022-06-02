@@ -19,10 +19,10 @@ abstract class Question implements I\Question\Question
 
     protected array $feedbackOnCorrectAnswer = [];
     
-    public function __construct(string $questionStem, array $questionCanvas)
+    public function __construct(string $questionStem, array $answers)
     {
         $this->questionStem = $questionStem;
-        $this->questionCanvas = $questionCanvas;
+        $this->questionCanvas = $answers;
     }
     
     public function getQuestionStem() : string

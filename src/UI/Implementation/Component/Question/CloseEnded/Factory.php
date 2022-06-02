@@ -6,8 +6,8 @@ use ILIAS\UI\Component\Question as I;
 
 class Factory implements I\CloseEnded\Factory
 {
-    public function singleAnswer($questionStem, $questionCanvas) : SingleAnswer
+    public function singleAnswer(string $questionStem, array $answers, int $checkedId = null) : SingleAnswer
     {
-        return new SingleAnswer($questionStem, $questionCanvas);
+        return new SingleAnswer($questionStem, $answers, $checkedId);
     }
 }

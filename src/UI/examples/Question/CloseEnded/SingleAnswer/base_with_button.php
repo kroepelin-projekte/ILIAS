@@ -7,7 +7,7 @@ function base_with_button()
     
     $buttons = [$f->button()->standard("Rückmeldung anfordern", "#")];
     
-    $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", [["Antwort 5", false], ["Antwort 6", false], ["Antwort 7", false]])
+    $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", ["Antwort 5", "Antwort 6", "Antwort 7"])
                                            ->withButtons($buttons);
     return $renderer->render($content);
 }

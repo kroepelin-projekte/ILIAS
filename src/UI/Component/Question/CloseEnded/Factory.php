@@ -22,9 +22,10 @@ interface Factory
      *     1: is inherited from radio input
      * ---
      *
-     * @param string $questionStem
-     * @param array $questionCanvas
+     * @param string   $questionStem
+     * @param array    $answers
+     * @param int|null $checkedId
      * @return \ILIAS\UI\Component\Question\CloseEnded\SingleAnswer
      */
-    public function singleAnswer($questionStem, $questionCanvas) : SingleAnswer;
+    public function singleAnswer(string $questionStem, array $answers, ?int $checkedId) : SingleAnswer;
 }

@@ -34,16 +34,17 @@ class Renderer extends AbstractComponentRenderer
             $tpl->parseCurrentBlock();
         }
     
-        foreach ($component->getQuestionCanvas() as $key => $answers)
+        foreach ($component->getQuestionCanvas() as $key => $answer)
         {
-            if ($answers[1]) {
+            $checkedID = $component->getCheckedId();
+            if ( isset($checkedID) && $checkedID === $key) {
                 $tpl->setCurrentBlock("checked");
                 $tpl->setVariable("CHECKED", "checked");
                 $tpl->parseCurrentBlock();
             }
             $tpl->setCurrentBlock("answer_row");
             $tpl->setVariable("ID", $key);
-            $tpl->setVariable("ANSWER", htmlspecialchars($answers[0], 2, 'UTF-8'));
+            $tpl->setVariable("ANSWER", htmlspecialchars($answer, 2, 'UTF-8'));
             $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
             $tpl->parseCurrentBlock();
         }

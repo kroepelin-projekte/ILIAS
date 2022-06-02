@@ -9,7 +9,8 @@ function feedback2_on_correct_answer()
     
     $content = $f->question()->closeEnded()->singleAnswer(
         "Hier steht die Frage",
-        [["Antwort 12", false], ["Antwort 13", false], ["Antwort 14", false], ["Antwort 15", false], ["Antwort 16", true]])
+        ["Antwort 12", "Antwort 13", "Antwort 14", "Antwort 15", "Antwort 16"],
+        1)
                  ->withButtons($buttons)
                  ->withFeedbackOnCorrectAnswer(["Ihre Antwort ist nicht richtig."]);
     return $renderer->render($content);
