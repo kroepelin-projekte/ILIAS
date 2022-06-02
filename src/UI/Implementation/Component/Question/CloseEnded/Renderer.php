@@ -45,15 +45,11 @@ class Renderer extends AbstractComponentRenderer
             }
             if (!empty($feedbackOnCorrectAnswer)) {
                 $tpl->setCurrentBlock("feedback_correct_answer");
-                $tpl->setVariable("LABEL", "r");
-                $tpl->setVariable("VISIBILITY", "hidden");
                 if ($key === $feedbackOnCorrectAnswer["correct"]) {
-                    $tpl->setVariable("LABEL", "g");
-                    $tpl->setVariable("VISIBILITY", "visible");
+                    $tpl->setVariable("LABEL", "il-correct");
                 }
                 if (!empty($feedbackOnCorrectAnswer["notCorrect"]) && in_array($key, $feedbackOnCorrectAnswer["notCorrect"])) {
-                    $tpl->setVariable("LABEL", "r");
-                    $tpl->setVariable("VISIBILITY", "visible");
+                    $tpl->setVariable("LABEL", "il-notCorrect");
                 }
                 $tpl->parseCurrentBlock();
             }
