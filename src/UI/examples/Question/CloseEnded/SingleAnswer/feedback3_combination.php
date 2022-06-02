@@ -13,6 +13,6 @@ function feedback3_combination()
         2)
                  ->withButtons($buttons)
                  ->withReachedPoints("Sie haben 2 von 2 Punkten erreicht.")
-                 ->withFeedbackOnCorrectAnswer(["Ihre Antwort ist richtig.", "correct, checked" => 2]);
+                 ->withFeedbackOnCorrectAnswer(["Ihre Antwort ist richtig.", "correct" => 2]);
     return $renderer->render($content);
 }

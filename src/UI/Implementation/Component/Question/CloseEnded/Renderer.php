@@ -17,6 +17,7 @@ class Renderer extends AbstractComponentRenderer
         $tpl = $this->getTemplate("tpl.question.html", true, true);
         
         $tpl->setVariable("qtitle", $component->getQuestionStem());
+        $uniqueId = uniqid();
         
         $buttons = $component->getButtons();
         if (count($buttons) > 0) {
@@ -33,7 +34,7 @@ class Renderer extends AbstractComponentRenderer
             $tpl->setVariable("REACHED_POINTS", $output);
             $tpl->parseCurrentBlock();
         }
-    
+        
         foreach ($component->getAnswers() as $key => $answer)
         {
             $checkedID = $component->getCheckedId();
@@ -46,22 +47,24 @@ class Renderer extends AbstractComponentRenderer
                 $tpl->setCurrentBlock("feedback_correct_answer");
                 $tpl->setVariable("LABEL", "r");
                 $tpl->setVariable("VISIBILITY", "hidden");
-                if ($key === $feedbackOnCorrectAnswer["correct, checked"]) {
+                if ($key === $feedbackOnCorrectAnswer["correct"]) {
                     $tpl->setVariable("LABEL", "g");
                     $tpl->setVariable("VISIBILITY", "visible");
                 }
-                if ($key === $feedbackOnCorrectAnswer["notCorrect, checked"] || $key === $feedbackOnCorrectAnswer["notCorrect, notChecked"]) {
+                if (!empty($feedbackOnCorrectAnswer["notCorrect"]) && in_array($key, $feedbackOnCorrectAnswer["notCorrect"])) {
                     $tpl->setVariable("LABEL", "r");
                     $tpl->setVariable("VISIBILITY", "visible");
                 }
                 $tpl->parseCurrentBlock();
             }
             $tpl->setCurrentBlock("answer_row");
+            $tpl->setVariable("uniqid", $uniqueId);
             $tpl->setVariable("ID", $key);
             $tpl->setVariable("ANSWER", htmlspecialchars($answer, 2, 'UTF-8'));
             $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
             $tpl->parseCurrentBlock();
         }
+        
         return $tpl->get();
     }
     

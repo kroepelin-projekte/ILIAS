@@ -6,14 +6,14 @@
         <div class="ilc_qanswer_Answer">
             <!-- BEGIN feedback_correct_answer -->
             <div>
-                <label for="answer_{ID}" class="feedbackOnCorrectAnswer" style="visibility: {VISIBILITY}">{LABEL}</label>
+                <label for="answer_{ID}_{uniqid}" class="feedbackOnCorrectAnswer" style="visibility: {VISIBILITY}">{LABEL}</label>
             </div>
             <!-- END feedback_correct_answer -->
             <div>
-                <input type="radio" name="multiple_choice_result" value="{ID}" id="answer_{ID}" <!-- BEGIN checked -->checked="{CHECKED}"<!-- END checked -->>
+                <input type="radio" name="multiple_choice_result_{uniqid}" value="{ID}" id="answer_{ID}_{uniqid}" <!-- BEGIN checked -->checked="{CHECKED}"<!-- END checked -->>
             </div>
             <div>
-                <label for="answer_{ID}" class="answertext">{ANSWER}</label>
+                <label for="answer_{ID}_{uniqid}" class="answertext">{ANSWER}</label>
             </div>
         </div>
         <div><span name="feedback" style="display:none">{FEEDBACK}</span></div>
