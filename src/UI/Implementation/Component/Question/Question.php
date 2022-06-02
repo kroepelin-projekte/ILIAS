@@ -40,7 +40,7 @@ abstract class Question implements I\Question\Question
         return $this->buttons;
     }
     
-    public function withButtons(array $buttons)
+    public function withButtons(array $buttons) : \ILIAS\UI\Component\Question\Question
     {
         $types = array(I\Component::class);
         $this->checkArgListElements("buttons", $buttons, $types);

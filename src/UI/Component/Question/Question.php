@@ -22,6 +22,17 @@ interface Question extends \ILIAS\UI\Component\Component
     public function getQuestionCanvas() : array;
     
     /**
+     * @param array $buttons
+     * @return Question
+     */
+    public function withButtons(array $buttons) : Question;
+    
+    /**
+     * @return array
+     */
+    public function getButtons() : array;
+    
+    /**
      * @param string $reachedPoints
      * @return Question
      */
