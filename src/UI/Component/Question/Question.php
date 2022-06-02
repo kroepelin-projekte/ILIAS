@@ -19,7 +19,7 @@ interface Question extends \ILIAS\UI\Component\Component
      *
      * @return array
      */
-    public function getQuestionCanvas() : array;
+    public function getAnswers() : array;
     
     /**
      * @param array $buttons

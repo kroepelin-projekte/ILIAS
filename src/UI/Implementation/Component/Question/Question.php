@@ -11,7 +11,7 @@ abstract class Question implements I\Question\Question
     
     protected string $questionStem;
     
-    protected array $questionCanvas;
+    protected array $answers;
     
     protected array $buttons = [];
     
@@ -22,7 +22,7 @@ abstract class Question implements I\Question\Question
     public function __construct(string $questionStem, array $answers)
     {
         $this->questionStem = $questionStem;
-        $this->questionCanvas = $answers;
+        $this->answers = $answers;
     }
     
     public function getQuestionStem() : string
@@ -30,9 +30,9 @@ abstract class Question implements I\Question\Question
         return $this->questionStem;
     }
     
-    public function getQuestionCanvas() : array
+    public function getAnswers() : array
     {
-        return $this->questionCanvas;
+        return $this->answers;
     }
     
     public function getButtons() : array

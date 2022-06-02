@@ -34,7 +34,7 @@ class Renderer extends AbstractComponentRenderer
             $tpl->parseCurrentBlock();
         }
     
-        foreach ($component->getQuestionCanvas() as $key => $answer)
+        foreach ($component->getAnswers() as $key => $answer)
         {
             $checkedID = $component->getCheckedId();
             if ( isset($checkedID) && $checkedID === $key) {
