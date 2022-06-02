@@ -20,7 +20,8 @@ class SingleAnswer extends Question implements I\CloseEnded\SingleAnswer
         parent::__construct($questionStem, $answers);
     }
     
-    public function getCheckedId(){
+    public function getCheckedId() : ?int
+    {
         return $this->checkedID;
     }
 }

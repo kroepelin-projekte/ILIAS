@@ -6,4 +6,5 @@ use ILIAS\UI\Component\Question\Question;
 
 interface SingleAnswer extends Question
 {
+    public function getCheckedId() : ?int;
 }
