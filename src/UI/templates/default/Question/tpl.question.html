@@ -4,6 +4,11 @@
     <div class="ilc_answers answers answer-table ilClearFloat ilc_answers_SingleChoice">
         <!-- BEGIN answer_row -->
         <div class="ilc_qanswer_Answer">
+            <!-- BEGIN feedback_correct_answer -->
+            <div>
+                <label for="answer_{ID}" class="feedbackOnCorrectAnswer" style="visibility: {VISIBILITY}">{LABEL}</label>
+            </div>
+            <!-- END feedback_correct_answer -->
             <div>
                 <input type="radio" name="multiple_choice_result" value="{ID}" id="answer_{ID}" <!-- BEGIN checked -->checked="{CHECKED}"<!-- END checked -->>
             </div>

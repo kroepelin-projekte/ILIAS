@@ -42,6 +42,20 @@ class Renderer extends AbstractComponentRenderer
                 $tpl->setVariable("CHECKED", "checked");
                 $tpl->parseCurrentBlock();
             }
+            if (!empty($feedbackOnCorrectAnswer)) {
+                $tpl->setCurrentBlock("feedback_correct_answer");
+                $tpl->setVariable("LABEL", "r");
+                $tpl->setVariable("VISIBILITY", "hidden");
+                if ($key === $feedbackOnCorrectAnswer["correct, checked"]) {
+                    $tpl->setVariable("LABEL", "g");
+                    $tpl->setVariable("VISIBILITY", "visible");
+                }
+                if ($key === $feedbackOnCorrectAnswer["notCorrect, checked"] || $key === $feedbackOnCorrectAnswer["notCorrect, notChecked"]) {
+                    $tpl->setVariable("LABEL", "r");
+                    $tpl->setVariable("VISIBILITY", "visible");
+                }
+                $tpl->parseCurrentBlock();
+            }
             $tpl->setCurrentBlock("answer_row");
             $tpl->setVariable("ID", $key);
             $tpl->setVariable("ANSWER", htmlspecialchars($answer, 2, 'UTF-8'));
