@@ -1,18 +1,14 @@
 .ilc_qanswer_Answer:before {
-  content: '✖';
-  visibility: hidden;
   padding: 3px;
+  color: @il-btn-standard-color;
 }
 
 .il-feedbackOnCorrectAnswer.il-correct:before {
   content: '✔';
-  visibility: visible;
   background-color: @il-success-color;
-  color: @il-btn-standard-color;
 }
 
 .il-feedbackOnCorrectAnswer.il-notCorrect:before {
-  visibility: visible;
+  content: '✖';
   background-color: @il-warning-color;
-  color: @il-btn-standard-color;
 }
