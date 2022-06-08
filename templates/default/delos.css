@@ -10938,20 +10938,16 @@ footer {
   color: #161616;
 }
 .ilc_qanswer_Answer:before {
-  content: '✖';
-  visibility: hidden;
   padding: 3px;
+  color: white;
 }
 .il-feedbackOnCorrectAnswer.il-correct:before {
   content: '✔';
-  visibility: visible;
   background-color: #6ea03c;
-  color: white;
 }
 .il-feedbackOnCorrectAnswer.il-notCorrect:before {
-  visibility: visible;
+  content: '✖';
   background-color: #B54F00;
-  color: white;
 }
 /**
 This file contains all less Variables set by ILIAS. Please do not overwrite bootstrap standard variables here.
