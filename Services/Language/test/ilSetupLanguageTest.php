@@ -21,9 +21,6 @@
  * Class ilSetupLanguageTest
  * @author  Sílvia Mariné <silvia.marine@kroepelin-projekte.de>
  */
-//is this necessary?
-include_once "Services/Language/classes/Setup/class.ilSetupLanguage.php";
-
 class ilSetupLanguageTest extends ilLanguageBaseTest
 {
     private ilSetupLanguage $newLangSetupDe;
@@ -46,6 +43,7 @@ class ilSetupLanguageTest extends ilLanguageBaseTest
     public function testRetrieveLanguageKey() : void
     {
         $this->assertEquals('de', $this->newLangSetupDe->getLangKey());
+        $this->assertEquals('es', $this->newLangSetupEs->getLangKey());
     }
 
     public function testRetrieveInstalledLanguage() : void
@@ -55,6 +53,7 @@ class ilSetupLanguageTest extends ilLanguageBaseTest
             $languagesAsKeys[] = $languageAsKey->getLangKey();
         }
 
+        $this->assertContains('de', $languagesAsKeys);
         $this->assertContains('es', $languagesAsKeys);
     }
 }

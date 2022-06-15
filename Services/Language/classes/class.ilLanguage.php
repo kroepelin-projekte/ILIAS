@@ -59,6 +59,8 @@ class ilLanguage
     protected string $cust_lang_path;
     protected ilLogger $log;
     protected ilCachedLanguage $global_cache;
+    /** @var string[] */
+    protected $ilCachedLanguageCallable = [ilCachedLanguage::class, 'getInstance'];
 
     /**
      * Constructor
@@ -69,7 +71,7 @@ class ilLanguage
      * $a_lang_key    language code (two characters), e.g. "de", "en", "in"
      * Return false if reading failed, otherwise true
      */
-    public function __construct(string $a_lang_key)
+    public function __construct(string $a_lang_key, callable $ilCachedLanguageCallable = null)
     {
         global $DIC;
         $client_ini = $DIC->clientIni();
@@ -102,8 +104,10 @@ class ilLanguage
             $this->lang_key = $this->lang_default;
         }
     
-        require_once("./Services/Language/classes/class.ilCachedLanguage.php");
-        $this->global_cache = ilCachedLanguage::getInstance($this->lang_key);
+        if (empty($ilCachedLanguageCallable)) {
+            $ilCachedLanguageCallable =  $this->ilCachedLanguageCallable;
+        }
+        $this->global_cache = call_user_func($ilCachedLanguageCallable, $this->lang_key);
         if ($this->global_cache->isActive()) {
             $this->cached_modules = $this->global_cache->getTranslations();
         }
@@ -260,7 +264,7 @@ class ilLanguage
         $r = $ilDB->query($q);
         $row = $r->fetchRow(ilDBConstants::FETCHMODE_ASSOC);
 
-        if ($row === false) {
+        if (empty($row)) {
             return;
         }
 
