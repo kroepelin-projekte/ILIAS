@@ -455,6 +455,7 @@ class ilObjLanguage extends ilObject
                     $local_changes = $this->getLocalChanges($min_date);
                 }
                 $double_checker = [];
+                $query = "INSERT INTO lng_data (module, identifier, lang_key, value, remarks) VALUES ";
                 foreach ($content as $key => $val) {
                     // split the line of the language file
                     // [0]: module
@@ -489,14 +490,23 @@ class ilObjLanguage extends ilObject
 
                             // insert a new value if no local value exists
                             // reset local change date if the values are equal
-                            self::replaceLangEntry(
-                                $separated[0],
-                                $separated[1],
-                                $this->key,
-                                $separated[2],
-                                $change_date,
-                                $separated[3] ?? null
-                            );
+//                            self::replaceLangEntry(
+//                                $separated[0],
+//                                $separated[1],
+//                                $this->key,
+//                                $separated[2],
+//                                $change_date,
+//                                $separated[3] ?? null
+//                            );
+                            $separated[3] = isset($separated[3]) ? str_replace("'", "‘", $separated[3]) : null;
+                            $query .= "('" .
+                                $separated[0] . "','" .
+                                $separated[1] . "','" .
+                                $this->key . "','" .
+                                str_replace("'", "‘", $separated[2]) .
+                                (isset($separated[3]) ? "','" : "',") .
+                                ($separated[3] ?? "NULL") .
+                                (isset($separated[3]) ? "')," : "),");
 
                             $lang_array[$separated[0]][$separated[1]] = $separated[2];
                         }
@@ -523,6 +533,10 @@ class ilObjLanguage extends ilObject
                         }
                     }
                 }
+                
+                $query = rtrim($query, ",") . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);";
+                $ilDB->manipulate($query);
+                unset($query);
 
                 $ld = "";
                 if (empty($scope)) {
