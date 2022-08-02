@@ -475,7 +475,7 @@ class ilObjLanguage extends ilObject
                     if (empty($scope)) {
                         // import of a global language file
 
-                        if ($local_value !== "" && $local_value != $separated[2]) {
+                        if ($local_value !== "" && $local_value !== $separated[2]) {
                             // keep an existing and different local calue
                             $lang_array[$separated[0]][$separated[1]] = $local_value;
                         } else {
@@ -490,14 +490,6 @@ class ilObjLanguage extends ilObject
 
                             // insert a new value if no local value exists
                             // reset local change date if the values are equal
-//                            self::replaceLangEntry(
-//                                $separated[0],
-//                                $separated[1],
-//                                $this->key,
-//                                $separated[2],
-//                                $change_date,
-//                                $separated[3] ?? null
-//                            );
                             $separated[3] = isset($separated[3]) ? str_replace("'", "‘", $separated[3]) : null;
                             $query .= "('" .
                                 $separated[0] . "','" .
@@ -520,14 +512,15 @@ class ilObjLanguage extends ilObject
                             // insert a new value if no global value exists
                             // (local files may have additional entries for customizations)
                             // set the change date to the import date
-                            self::replaceLangEntry(
-                                $separated[0],
-                                $separated[1],
-                                $this->key,
-                                $separated[2],
-                                $change_date,
-                                $separated[3]
-                            );
+                            $separated[3] = isset($separated[3]) ? str_replace("'", "‘", $separated[3]) : null;
+                            $query .= "('" .
+                                $separated[0] . "','" .
+                                $separated[1] . "','" .
+                                $this->key . "','" .
+                                str_replace("'", "‘", $separated[2]) .
+                                (isset($separated[3]) ? "','" : "',") .
+                                ($separated[3] ?? "NULL") .
+                                (isset($separated[3]) ? "')," : "),");
 
                             $lang_array[$separated[0]][$separated[1]] = $separated[2];
                         }
@@ -538,20 +531,11 @@ class ilObjLanguage extends ilObject
                 $ilDB->manipulate($query);
                 unset($query);
 
-//                $ld = "";
                 if (empty($scope)) {
                     $this->status = "installed";
                 } elseif ($scope === "local") {
                     $this->status = "installed_local";
                 }
-//                if ($ld) {
-//                    $query = "UPDATE object_data SET " .
-//                            "description = " . $ilDB->quote($ld, "text") . ", " .
-//                            "last_update = " . $ilDB->quote(date("Y-m-d H:i:s", time()), "timestamp") . " " .
-//                            "WHERE title = " . $ilDB->quote($this->key, "text") . " " .
-//                            "AND type = 'lng'";
-//                    $ilDB->manipulate($query);
-//                }
             }
 
             foreach ($lang_array as $module => $lang_arr) {
