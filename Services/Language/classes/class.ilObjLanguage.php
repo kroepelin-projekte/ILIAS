@@ -538,20 +538,20 @@ class ilObjLanguage extends ilObject
                 $ilDB->manipulate($query);
                 unset($query);
 
-                $ld = "";
+//                $ld = "";
                 if (empty($scope)) {
-                    $ld = "installed";
+                    $this->status = "installed";
                 } elseif ($scope === "local") {
-                    $ld = "installed_local";
+                    $this->status = "installed_local";
                 }
-                if ($ld) {
-                    $query = "UPDATE object_data SET " .
-                            "description = " . $ilDB->quote($ld, "text") . ", " .
-                            "last_update = " . $ilDB->now() . " " .
-                            "WHERE title = " . $ilDB->quote($this->key, "text") . " " .
-                            "AND type = 'lng'";
-                    $ilDB->manipulate($query);
-                }
+//                if ($ld) {
+//                    $query = "UPDATE object_data SET " .
+//                            "description = " . $ilDB->quote($ld, "text") . ", " .
+//                            "last_update = " . $ilDB->quote(date("Y-m-d H:i:s", time()), "timestamp") . " " .
+//                            "WHERE title = " . $ilDB->quote($this->key, "text") . " " .
+//                            "AND type = 'lng'";
+//                    $ilDB->manipulate($query);
+//                }
             }
 
             foreach ($lang_array as $module => $lang_arr) {
