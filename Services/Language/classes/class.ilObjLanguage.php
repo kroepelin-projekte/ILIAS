@@ -490,15 +490,14 @@ class ilObjLanguage extends ilObject
 
                             // insert a new value if no local value exists
                             // reset local change date if the values are equal
-                            $separated[3] = isset($separated[3]) ? str_replace("'", "‘", $separated[3]) : null;
-                            $query .= "('" .
-                                $separated[0] . "','" .
-                                $separated[1] . "','" .
-                                $this->key . "','" .
-                                str_replace("'", "‘", $separated[2]) .
-                                (isset($separated[3]) ? "','" : "',") .
-                                ($separated[3] ?? "NULL") .
-                                (isset($separated[3]) ? "')," : "),");
+                            $query .= sprintf(
+                                    "(%s,%s,%s,%s,%s),",
+                                    $ilDB->quote($separated[0], "text"),
+                                    $ilDB->quote($separated[1], "text"),
+                                    $ilDB->quote($this->key, "text"),
+                                    $ilDB->quote($separated[2], "text"),
+                                    $ilDB->quote($separated[3] ?? NULL, "text")
+                                );
 
                             $lang_array[$separated[0]][$separated[1]] = $separated[2];
                         }
@@ -512,15 +511,14 @@ class ilObjLanguage extends ilObject
                             // insert a new value if no global value exists
                             // (local files may have additional entries for customizations)
                             // set the change date to the import date
-                            $separated[3] = isset($separated[3]) ? str_replace("'", "‘", $separated[3]) : null;
-                            $query .= "('" .
-                                $separated[0] . "','" .
-                                $separated[1] . "','" .
-                                $this->key . "','" .
-                                str_replace("'", "‘", $separated[2]) .
-                                (isset($separated[3]) ? "','" : "',") .
-                                ($separated[3] ?? "NULL") .
-                                (isset($separated[3]) ? "')," : "),");
+                            $query .= sprintf(
+                                "(%s,%s,%s,%s,%s),",
+                                $ilDB->quote($separated[0], "text"),
+                                $ilDB->quote($separated[1], "text"),
+                                $ilDB->quote($this->key, "text"),
+                                $ilDB->quote($separated[2], "text"),
+                                $ilDB->quote($separated[3] ?? NULL, "text")
+                            );
 
                             $lang_array[$separated[0]][$separated[1]] = $separated[2];
                         }
