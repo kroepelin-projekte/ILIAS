@@ -1,6 +1,7 @@
 <?php
 /* Copyright (c) 1998-2009 ILIAS open source, Extended GPL, see docs/LICENSE */
 
+use ILIAS\BackgroundTasks\Implementation\Bucket\BasicBucket;
 
 /**
  * Class ilObjLanguageFolderGUI
@@ -282,17 +283,31 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
      */
     public function refreshSelectedObject()
     {
+        global $DIC;
+        
         $this->checkPermission('write');
         $this->data = $this->lng->txt("selected_languages_updated");
         $this->lng->loadLanguageModule("meta");
 
         $refreshed = array();
         foreach ($_POST["id"] as $id) {
-            $langObj = new ilObjLanguage($id, false);
-            if ($langObj->refresh()) {
+            $taskFactory = $DIC->backgroundTasks()->taskFactory();
+            $taskManager = $DIC->backgroundTasks()->taskManager();
+    
+            // We create a bucket that will be scheduled and set the user that should observe the bucket.
+            $bucket = new BasicBucket();
+            $bucket->setUserId($DIC->user()->getId());
+            $langObj = new ilObjLanguage((int) $id, false);
+            $task = $taskFactory->createTask(ilLangRefreshJob::class, [(int) $id]);
+            if ($task) {
                 $refreshed[] = $langObj->getKey();
                 $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
             }
+            $interaction = $taskFactory->createTask(ilLangRefreshJobUserInteraction::class, [$task, $DIC->user()->getId()]);
+            $bucket->setTask($interaction);
+            $bucket->setTitle($this->lng->txt("refresh") . ": " . $this->lng->txt("meta_l_" . $langObj->getKey()));
+            $bucket->setDescription($this->lng->txt("refresh"));
+            $taskManager->run($bucket);
             unset($langObj);
         }
 
