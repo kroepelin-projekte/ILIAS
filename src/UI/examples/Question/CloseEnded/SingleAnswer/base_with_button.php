@@ -5,7 +5,7 @@ function base_with_button()
     $f = $DIC->ui()->factory();
     $renderer = $DIC->ui()->renderer();
     
-    $buttons = [$f->button()->standard("Rückmeldung anfordern", "#")];
+    $buttons = ["Rückmeldung anfordern"];
     
     $content = $f->question()->closeEnded()->singleAnswer("Hier steht die Frage", ["Antwort 5", "Antwort 6", "Antwort 7"])
                                            ->withButtons($buttons);

@@ -36,12 +36,12 @@ interface Question extends \ILIAS\UI\Component\Component
      * @param string $reachedPoints
      * @return Question
      */
-    public function withReachedPoints(string $reachedPoints) : Question;
+    public function withReachedPoints(array $reachedPoints) : Question;
     
     /**
      * @return string
      */
-    public function getReachedPoints() : string;
+    public function getReachedPoints() : array;
     
     /**
      * @param array $bestSolutions
@@ -75,4 +75,18 @@ interface Question extends \ILIAS\UI\Component\Component
      * @return array
      */
     public function getSpezificFeedbackForEachAnswer() : array;
+    
+    /**
+     * Get update code
+     *
+     * This method has to return JS code that calls
+     * il.UI.filter.onFieldUpdate(event, '$id', string_value);
+     * - initially "onload" and
+     * - on every input change.
+     * It must pass a readable string representation of its value in parameter 'string_value'.
+     *
+     * @param \Closure $binder
+     * @return string
+     */
+    public function getUpdateOnLoadCode() : \Closure;
 }

@@ -15,9 +15,15 @@ abstract class Question implements I\Question\Question
     
     protected array $buttons = [];
     
-    protected string $reachedPoints = '';
+    protected array $reachedPoints = [];
+    
+    protected int $maxPoints = -1;
 
     protected array $feedbackOnCorrectAnswer = [];
+    
+    protected array $feedbackForEachAnswer = [];
+    
+    protected array $bestSolutions = [];
     
     public function __construct(string $questionStem, array $answers)
     {
@@ -42,36 +48,42 @@ abstract class Question implements I\Question\Question
     
     public function withButtons(array $buttons) : \ILIAS\UI\Component\Question\Question
     {
-        $types = array(I\Component::class);
-        $this->checkArgListElements("buttons", $buttons, $types);
+//        $types = array(I\Component::class);
+//        $this->checkArgListElements("buttons", $buttons, $types);
         
         $clone = clone $this;
         $clone->buttons = $buttons;
         return $clone;
     }
     
-    public function withReachedPoints(string $reachedPoints) : \ILIAS\UI\Component\Question\Question
+    public function withReachedPoints(array $reachedPoints) : \ILIAS\UI\Component\Question\Question
     {
         $clone = clone $this;
         $clone->reachedPoints = $reachedPoints;
+        $clone->maxPoints = max($reachedPoints);
         return $clone;
     }
     
-    public function getReachedPoints() : string
+    public function getReachedPoints() : array
     {
         return $this->reachedPoints;
     }
     
+    public function getMaxPoints() : int
+    {
+        return $this->maxPoints;
+    }
+    
     public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\Question\Question
     {
-        // TODO: Implement withBestSolutions() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        $clone = clone $this;
+        $clone->bestSolutions = $bestSolutions;
+        return $clone;
     }
     
     public function getBestSolutions() : array
     {
-        // TODO: Implement getBestSolutions() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return $this->bestSolutions;
     }
     
     public function withFeedbackOnCorrectAnswer(
@@ -90,13 +102,29 @@ abstract class Question implements I\Question\Question
     public function withSpezificFeedbackForEachAnswer(
         array $feedbackForEachAnswer
     ) : \ILIAS\UI\Component\Question\Question {
-        // TODO: Implement withSpezificFeedbackForEachAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        $clone = clone $this;
+        $clone->feedbackForEachAnswer = $feedbackForEachAnswer;
+        return $clone;
     }
     
     public function getSpezificFeedbackForEachAnswer() : array
     {
-        // TODO: Implement getSpezificFeedbackForEachAnswer() method.
-        throw new \ILIAS\UI\NotImplementedException('NYI');
+        return $this->feedbackForEachAnswer;
+    }
+    
+    /**
+     * @inheritDoc
+     */
+    public function getUpdateOnLoadCode() : \Closure
+    {
+        return function ($id) {
+            $code = "$('#$id').on('input', function(event) {
+				il.UI.input.onFieldUpdate(event, '$id', $('#$id input:checked').val());
+				console.log($this->reachedPoints);
+			});
+			il.UI.input.onFieldUpdate(event, '$id', $('#$id input:checked').val());
+			console.log($this->reachedPoints);";
+            return $code;
+        };
     }
 }

@@ -5,13 +5,13 @@ function feedback2_on_correct_answer()
     $f = $DIC->ui()->factory();
     $renderer = $DIC->ui()->renderer();
     
-    $buttons = [$f->button()->standard("Rückmeldung anfordern", "#")];
+    $buttons = ["Rückmeldung anfordern"];
     
     $content = $f->question()->closeEnded()->singleAnswer(
         "Hier steht die Frage",
         ["Antwort 12", "Antwort 13", "Antwort 14", "Antwort 15", "Antwort 16"],
-        1)
+        3)
                  ->withButtons($buttons)
-                 ->withFeedbackOnCorrectAnswer(["Ihre Antwort ist nicht richtig.", "notCorrect" => [1, 3]]);
+                 ->withFeedbackOnCorrectAnswer([true, false, false, false, false]);
     return $renderer->render($content);
 }
