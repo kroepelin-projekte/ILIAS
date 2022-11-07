@@ -6,141 +6,78 @@ use ILIAS\UI\Implementation\Render\AbstractComponentRenderer;
 use ILIAS\UI\Renderer as RendererInterface;
 use ILIAS\UI\Component;
 use ILIAS\UI\Implementation\Component\Button\Button;
+use ILIAS\UI\Implementation\Render\ResourceRegistry;
+use ILIAS\UI\Implementation\Component\Question\Question;
+use ILIAS\UI\Implementation\Component\Question\CloseEnded as Q;
 
 class Renderer extends AbstractComponentRenderer
 {
     public function render(Component\Component $component, RendererInterface $default_renderer)
     {
         /**
-         * @var \ILIAS\UI\Component\Question\CloseEnded\SingleAnswer $component
+         * @var $component Question
          */
         $this->checkComponent($component);
+    
+        switch (true) {
+            case ($component instanceof Q\SingleAnswer):
+                return $this->renderSingleAnswer($component, $default_renderer);
+                
+            default:
+                throw new \LogicException("Cannot render '" . get_class($component) . "'");
+        }
+    }
+    
+    public function renderSingleAnswer(Q\SingleAnswer $component, RendererInterface $default_renderer)
+    {
         $tpl = $this->getTemplate("tpl.question.html", true, true);
 
         $uniqueId = $this->createId();
         $tpl->setVariable("qtitle", $component->getQuestionStem());
         $tpl->setVariable("SAID", $uniqueId);
-
+    
         $feedbackOnCorrectAnswer = $component->getFeedbackOnCorrectAnswer();
         $reachedPoints = $component->getReachedPoints();
         $maxPoints = $component->getMaxPoints();
+        
         $rp_json = json_encode($reachedPoints);
         $fboca_json = json_encode($feedbackOnCorrectAnswer);
         $mp_json = json_encode($maxPoints);
         $buttons = $component->getButtons();
     
-        
-        // AJAX TEST
-        // Beispiel 1
-        if (isset($_POST['ajax'])) {
-            exit("ajax funktioniert");
-        }
-    
-        $f = $this->getUIFactory();
-        $url = $_SERVER['REQUEST_URI'];
-        $button = $f->button()->primary("Click Ajax Button", '')->withAdditionalOnLoadCode(function($id) use ($url) {
-            return "
-                document.getElementById('$id').addEventListener('click', el => {
-                   fetch('$url', {
-                        method: 'post',
-                        body: $id
-                   })
-                   .then(res => res.text())
-                   .then(res => alert(res))
-                });
-            ";
-        });
-    
-        // Beispiel 2
+        //$this->processButton($feedbackOnCorrectAnswer,$reachedPoints, $maxPoints);
         $post = json_decode(file_get_contents('php://input'), true);
-        if (isset($post['data'])) {
-            exit("ajax funktioniert " . $post['data']);
+        if (isset($post['checked'])) {
+            $result = 'Test1';
+            if (Test::$feedback) {
+                if ($feedbackOnCorrectAnswer[$post['data']]) $result = 'Ihre Antwort ist richtig. ';
+                else $result = 'Ihre Antwort ist nicht ganz richtig. ';
+            }
+            if ($reachedPoints) $result .= "Sie haben " . $reachedPoints[$post['data']] . " von " . $maxPoints . " Punkten.";
+        
+        
+            exit($result);
         }
-    
-        $f = $this->getUIFactory();
-        $url = $_SERVER['REQUEST_URI'];
-        $button = $f->button()->primary("Click Ajax Button", '')->withAdditionalOnLoadCode(function($id) use ($url) {
-            return "
-                document.getElementById('$id').addEventListener('click', button => {
-                
-                    data = {
-                        data: 'hallo'
-                    };
-                    
-                    fetch('$url', {
-                        method: 'post',
-                        body: JSON.stringify(data),
-                        header: {
-                            'ContentType': 'application/json'
-                        }
-                    })
-                   .then(res => res.text())
-                   .then(res => alert(res))
-                });
-            ";
-        });
-    
-    
-        // END AJAX TEST
-    
-    
+        
         if (count($buttons) > 0) {
             $f = $this->getUIFactory();
+            $url = json_encode($_SERVER['REQUEST_URI']);
             $feedbackButton = $f->button()->standard($buttons[0], "#")->withOnLoadCode(function ($id) use (
-                $fboca_json,
-                $rp_json,
-                $mp_json
-            ) {
+                $maxPoints,
+                $reachedPoints,
+                $feedbackOnCorrectAnswer,
+                $url) {
+                Test::$feedback += [$id => [$feedbackOnCorrectAnswer, $reachedPoints, $maxPoints]];
                 return "$('#$id').click(function() {
-                console.log('----------------');
-                var divid = $('#$id').parent().parent().attr('id');
-                console.log(divid);
-                var checkedAnswer = $('#' + divid + ' input:checked').val();
-                console.log('checkedAnswer: ' + checkedAnswer);
-                var fboca = $fboca_json;
-                console.log('FeedbackOnCorrectAnswer: ' + fboca + ' - Länge: ' + fboca.length);
-                var rp = $rp_json;
-                console.log('Reached Points: ' + rp);
-                var mp = $mp_json;
-                console.log('MaxPoints: ' + mp);
-                
-                var result = '';
-                if (fboca.length > 0) {
-                    if (fboca[checkedAnswer]) result = 'Ihre Antwort ist richtig. ';
-                    else result = 'Ihre Antwort ist nicht ganz richtig. ';
-                }
-                
-                if (rp.length > 0) result += 'Sie haben ' + rp[checkedAnswer] + ' von ' + mp + ' Punkten.';
-                
-                $('#result_' + divid).text(result);
-                
+                showFeedback($id, $url, Test::$feedback);
                 });";
             });
+            
             $tpl->setCurrentBlock("buttons");
             /** @var Button $feedbackButton */
             $tpl->setVariable("BUTTONS", $default_renderer->render($feedbackButton));
             $tpl->parseCurrentBlock();
         }
-    
-//        $output = "";
-    
-//        if (!empty($feedbackOnCorrectAnswer)) {
-//            if (!$feedbackOnCorrectAnswer[$component->getCheckedId()])
-//            $output = 'Ihre Antwort ist nicht ganz richtig.';
-//        else
-//            $output = 'Ihre Antwort ist richtig.';
-//        }
-//
-//        if (!empty($reachedPoints)) {
-//            $maxPoints = $component->getMaxPoints();
-//            $output .= ' Sie haben ' . $reachedPoints[$component->getCheckedId()] . ' von ' . $maxPoints . ' Punkten.';
-//        }
-        
-//        if (!empty($feedbackOnCorrectAnswer) || !empty($reachedPoints)) {
-//            $tpl->setCurrentBlock("reached_points");
-//            $tpl->setVariable("REACHED_POINTS", trim($output));
-//            $tpl->parseCurrentBlock();
-//        }
         
         foreach ($component->getAnswers() as $key => $answer)
         {
@@ -169,8 +106,39 @@ class Renderer extends AbstractComponentRenderer
             $tpl->setVariable("FEEDBACK", "Feedback zur Antwort ".($key+1));
             $tpl->parseCurrentBlock();
         }
-        //$component->withAdditionalOnloadCode($component->getUpdateOnLoadCode());
         return $tpl->get();
+    }
+    
+    public function processButton($feedbackOnCorrectAnswer, $reachedPoints, $maxPoints): void{
+        $post = json_decode(file_get_contents('php://input'), true);
+        if (isset($post['data'])) {
+//            var result = '';
+//                if (fboca.length > 0) {
+//                    if (fboca[checkedAnswer]) result = 'Ihre Antwort ist richtig. ';
+//                    else result = 'Ihre Antwort ist nicht ganz richtig. ';
+//                }
+//
+//                if (rp.length > 0) result += 'Sie haben ' + rp[checkedAnswer] + ' von ' + mp + ' Punkten.';
+            
+            $result = 'Test2';
+            if ($feedbackOnCorrectAnswer) {
+                if ($feedbackOnCorrectAnswer[$post['data']]) $result = 'Ihre Antwort ist richtig. ';
+                else $result = 'Ihre Antwort ist nicht ganz richtig. ';
+            }
+            if ($reachedPoints) $result .= "Sie haben " . $reachedPoints[$post['data']] . " von " . $maxPoints . " Punkten.";
+            
+            
+            exit($result);
+        }
+    }
+    
+    /**
+     * @inheritdoc
+     */
+    public function registerResources(ResourceRegistry $registry)
+    {
+        parent::registerResources($registry);
+        $registry->register('./src/UI/templates/js/Question/CloseEnded/singleAnswer.js');
     }
     
     protected function getComponentInterfaceName()
