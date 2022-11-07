@@ -9,8 +9,7 @@ function feedback3_combination()
     
     $content = $f->question()->closeEnded()->singleAnswer(
         "Hier steht die Frage",
-        ["Antwort 17", "Antwort 18", "Antwort 19", "Antwort 20"],
-        0)
+        ["Antwort 17", "Antwort 18", "Antwort 19", "Antwort 20"])
                  ->withButtons($buttons)
                  ->withReachedPoints([2,0,0,0])
                  ->withFeedbackOnCorrectAnswer([true, false, false, false]);

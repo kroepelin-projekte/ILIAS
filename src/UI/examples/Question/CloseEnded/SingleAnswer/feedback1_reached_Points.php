@@ -9,8 +9,7 @@ function feedback1_reached_Points()
     
     $content = $f->question()->closeEnded()->singleAnswer(
         "Hier steht die Frage",
-        ["Antwort 8", "Antwort 9", "Antwort 10", "Antwort 11"],
-        2)
+        ["Antwort 8", "Antwort 9", "Antwort 10", "Antwort 11"])
                                            ->withButtons($buttons)
                                            ->withReachedPoints([0, 2, 0, 0]);
     return $renderer->render($content);
