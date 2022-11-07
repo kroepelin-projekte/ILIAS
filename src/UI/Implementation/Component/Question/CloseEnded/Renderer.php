@@ -69,7 +69,7 @@ class Renderer extends AbstractComponentRenderer
                 $url) {
                 Test::$feedback += [$id => [$feedbackOnCorrectAnswer, $reachedPoints, $maxPoints]];
                 return "$('#$id').click(function() {
-                showFeedback($id, $url, Test::$feedback);
+                showFeedback($id, $url);
                 });";
             });
             
