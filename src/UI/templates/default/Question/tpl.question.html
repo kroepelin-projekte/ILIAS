@@ -1,13 +1,13 @@
 <div class="ilc_question " id="{SAID}">
-    <div class="ilc_qtitle_Title">{qtitle}</div>
+    <div class="ilc_qstem_Stem">{STEM}</div>
     <!-- BEGIN single_answer -->
     <div class="ilc_answers answers answer-table ilClearFloat ilc_answers_SingleChoice">
         <!-- BEGIN answer_row -->
-        <div class="ilc_qanswer_Answer<!-- BEGIN feedback_correct_answer --> il-feedbackOnCorrectAnswer {LABEL}<!-- END feedback_correct_answer -->">
+        <div class="ilc_qanswer_Answer">
             <input type="radio" name="multiple_choice_result_{uniqid}" value="{ID}" id="answer_{ID}_{uniqid}">
             <label for="answer_{ID}_{uniqid}" class="answertext">{ANSWER}</label>
         </div>
-        <div><span name="feedback" style="display:none">{FEEDBACK}</span></div>
+        <div class="ilc_qanswer_Feedback"></div>
         <!-- END answer_row -->
     </div>
     <!-- END single_answer -->

@@ -2,11 +2,20 @@
 
 namespace ILIAS\UI\Component\Question;
 
+use ILIAS\UI\Component\Input\Field\Textarea;
+
 /**
  * Common interface to all Questions.
  */
 interface Question extends \ILIAS\UI\Component\Component
 {
+    /**
+     * Get the Question Title
+     *
+     * @return string
+     */
+    public function getQuestionTitle() : string;
+    
     /**
      * Get the Question Stem
      *
@@ -22,26 +31,27 @@ interface Question extends \ILIAS\UI\Component\Component
     public function getAnswers() : array;
     
     /**
-     * @param array $buttons
      * @return Question
      */
-    public function withButtons(array $buttons) : Question;
+    public function withFeedbackButton() : Question;
     
     /**
-     * @return array
-     */
-    public function getButtons() : array;
-    
-    /**
-     * @param string $reachedPoints
      * @return Question
      */
-    public function withReachedPoints(array $reachedPoints) : Question;
+    public function withHintButton() : Question;
+    
+    
     
     /**
-     * @return string
+     * @param int $maxPointsPossible
+     * @return Question
      */
-    public function getReachedPoints() : array;
+    public function withReachedPoints(int $maxPointsPossible) : Question;
+    
+    /**
+     * @return int
+     */
+    public function getMaxPoints() : ?int;
     
     /**
      * @param array $bestSolutions
@@ -63,30 +73,18 @@ interface Question extends \ILIAS\UI\Component\Component
     /**
      * @return array
      */
-    public function getFeedbackOnCorrectAnswer() : array;
+    public function getFeedbackOnCorrectAnswer() : ?array;
     
     /**
      * @param array $feedbackForEachAnswer
      * @return Question
      */
-    public function withSpezificFeedbackForEachAnswer(array $feedbackForEachAnswer) : Question;
+    public function withSpezificFeedbackForEachAnswer(int $modus) : Question;
     
     /**
      * @return array
      */
-    public function getSpezificFeedbackForEachAnswer() : array;
+    public function getSpezificFeedbackForEachAnswer() : ?int;
     
-    /**
-     * Get update code
-     *
-     * This method has to return JS code that calls
-     * il.UI.filter.onFieldUpdate(event, '$id', string_value);
-     * - initially "onload" and
-     * - on every input change.
-     * It must pass a readable string representation of its value in parameter 'string_value'.
-     *
-     * @param \Closure $binder
-     * @return string
-     */
-    public function getUpdateOnLoadCode() : \Closure;
+    
 }

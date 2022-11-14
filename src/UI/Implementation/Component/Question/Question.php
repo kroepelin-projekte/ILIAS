@@ -4,34 +4,41 @@ namespace ILIAS\UI\Implementation\Component\Question;
 
 use ILIAS\UI\Component as I;
 use ILIAS\UI\Implementation\Component\ComponentHelper;
+use ILIAS\UI\NotImplementedException;
+use ILIAS\UI\Implementation\Component\Button\Standard;
 
 abstract class Question implements I\Question\Question
 {
     use ComponentHelper;
     
+    protected string $title;
     protected string $questionStem;
-    
     protected array $answers;
     
-    protected array $buttons = [];
+    // Rückmeldung: richtige Lösung bzw. Mind. eine Antwort ist noch nicht richtig
+    protected ?array $feedback_OnCorrectAnswer = null;
+    protected ?int $spezificFeedbackForEachAnswer = null;
+    protected ?int $maxPointsPossible = null;
     
-    protected array $reachedPoints = [];
+    // Textarea und möglicher Punktabzug
+    protected array $lösunghinweis = [];
     
-    protected int $maxPoints = -1;
-
-    protected array $feedbackOnCorrectAnswer = [];
+    protected bool $feedbackButton = false;
+    protected bool $hintButton = false;
     
-    protected array $feedbackForEachAnswer = [];
-    
-    protected array $bestSolutions = [];
-    
-    public function __construct(string $questionStem, array $answers)
+    public function __construct(string $questionTitle, string $questionStem, array $answers)
     {
+        $this->title = $questionTitle;
         $this->questionStem = $questionStem;
         $this->answers = $answers;
     }
     
-    public function getQuestionStem() : string
+    public function getQuestionTitle(): string
+    {
+        return $this->title;
+    }
+    
+    public function getQuestionStem(): string
     {
         return $this->questionStem;
     }
@@ -41,90 +48,74 @@ abstract class Question implements I\Question\Question
         return $this->answers;
     }
     
-    public function getButtons() : array
-    {
-        return $this->buttons;
-    }
     
-    public function withButtons(array $buttons) : \ILIAS\UI\Component\Question\Question
+    public function withFeedbackButton(): \ILIAS\UI\Component\Question\Question
     {
-//        $types = array(I\Component::class);
-//        $this->checkArgListElements("buttons", $buttons, $types);
-        
         $clone = clone $this;
-        $clone->buttons = $buttons;
+        $clone->feedbackButton = true;
         return $clone;
     }
     
-    public function withReachedPoints(array $reachedPoints) : \ILIAS\UI\Component\Question\Question
+    public function getFeedbackButton(): bool {
+        return $this->feedbackButton;
+    }
+    
+    public function withHintButton(): \ILIAS\UI\Component\Question\Question
     {
         $clone = clone $this;
-        $clone->reachedPoints = $reachedPoints;
-        $clone->maxPoints = max($reachedPoints);
+        $clone->hintButton = true;
         return $clone;
     }
     
-    public function getReachedPoints() : array
-    {
-        return $this->reachedPoints;
+    public function getHintButton(): bool {
+        return $this->hintButton;
     }
     
-    public function getMaxPoints() : int
+    public function withReachedPoints(int $maxPointsPossible) : \ILIAS\UI\Component\Question\Question
     {
-        return $this->maxPoints;
+        $clone = clone $this;
+        $clone->maxPointsPossible = $maxPointsPossible;
+        return $clone;
     }
+    
+    public function getMaxPoints() : ?int
+    {
+        return $this->maxPointsPossible;
+    }
+    
     
     public function withBestSolutions(array $bestSolutions) : \ILIAS\UI\Component\Question\Question
     {
-        $clone = clone $this;
-        $clone->bestSolutions = $bestSolutions;
-        return $clone;
+        throw new NotImplementedException("NYI");
     }
     
     public function getBestSolutions() : array
     {
-        return $this->bestSolutions;
+        throw new NotImplementedException("NYI");
     }
     
     public function withFeedbackOnCorrectAnswer(
         array $feedbackOnCorrectAnswer
     ) : \ILIAS\UI\Component\Question\Question {
         $clone = clone $this;
-        $clone->feedbackOnCorrectAnswer = $feedbackOnCorrectAnswer;
+        $clone->feedback_OnCorrectAnswer = $feedbackOnCorrectAnswer;
         return $clone;
     }
     
-    public function getFeedbackOnCorrectAnswer() : array
+    public function getFeedbackOnCorrectAnswer() : ?array
     {
-        return $this->feedbackOnCorrectAnswer;
+        return $this->feedback_OnCorrectAnswer;
     }
     
-    public function withSpezificFeedbackForEachAnswer(
-        array $feedbackForEachAnswer
-    ) : \ILIAS\UI\Component\Question\Question {
+    public function withSpezificFeedbackForEachAnswer(int $modus) : \ILIAS\UI\Component\Question\Question {
         $clone = clone $this;
-        $clone->feedbackForEachAnswer = $feedbackForEachAnswer;
+        $clone->spezificFeedbackForEachAnswer = $modus;
         return $clone;
     }
     
-    public function getSpezificFeedbackForEachAnswer() : array
+    public function getSpezificFeedbackForEachAnswer() : ?int
     {
-        return $this->feedbackForEachAnswer;
+        return $this->spezificFeedbackForEachAnswer;
     }
     
-    /**
-     * @inheritDoc
-     */
-    public function getUpdateOnLoadCode() : \Closure
-    {
-        return function ($id) {
-            $code = "$('#$id').on('input', function(event) {
-				il.UI.input.onFieldUpdate(event, '$id', $('#$id input:checked').val());
-				console.log($this->reachedPoints);
-			});
-			il.UI.input.onFieldUpdate(event, '$id', $('#$id input:checked').val());
-			console.log($this->reachedPoints);";
-            return $code;
-        };
-    }
 }

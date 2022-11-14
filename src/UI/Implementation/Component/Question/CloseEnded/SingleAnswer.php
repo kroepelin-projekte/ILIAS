@@ -12,18 +12,9 @@ class SingleAnswer extends Question implements I\CloseEnded\SingleAnswer
     use ComponentHelper;
     use JavaScriptBindable;
     
-    protected ?int $checkedID = null;
 
-    public function __construct(string $questionStem, array $answers, int $checkedID = null)
+    public function __construct(string $questionTitle, string $questionStem, array $answers)
     {
-        if (isset($checkedID)) {
-            $this->checkedID = $checkedID;
-        }
-        parent::__construct($questionStem, $answers);
-    }
-    
-    public function getCheckedId() : ?int
-    {
-        return $this->checkedID;
+        parent::__construct($questionTitle, $questionStem, $answers);
     }
 }

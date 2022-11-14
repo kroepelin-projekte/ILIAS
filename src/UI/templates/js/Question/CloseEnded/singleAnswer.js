@@ -1,40 +1,57 @@
-function showFeedback(id, url) {
+function showFeedback(id, answers, fboca, mp, modus) {
   const buttonid = id.id;
   var divid = $('#' + buttonid).parent().parent().attr('id');
+  var answerdiv = $('#' + buttonid).parent().siblings();
   var checkedAnswer = $('#' + divid + ' input:checked').val();
   if (checkedAnswer) {
     console.log('----------------');
     console.log('checkedAnswer: ' + checkedAnswer);
-    data = {
-      id: buttonid,
-      checked: checkedAnswer
-    };
+    answerdiv.children(".ilc_qanswer_Answer").removeClass("il-correct").removeClass("il-notCorrect").removeClass("il-feedbackOnCorrectAnswer");
+    answerdiv.children(".ilc_qanswer_Feedback").text("");
+    var result = '';
+    var correctAnswerID = -1;
+    for (let i = 0; i < answers.length; i++) {
+      if (answers[i].points > correctAnswerID) correctAnswerID = i;
+    }
+    console.log('correct Answer: ' + correctAnswerID);
+    console.log('Points: ' + answers[checkedAnswer].points);
+    console.log('max Points: ' + mp);
 
-    fetch(url, {
-      method: 'post',
-      body: JSON.stringify(data),
-      header: {
-        'ContentType': 'application/json'
+    if (fboca !== null) {
+      if (answers[checkedAnswer].points) {
+        result = fboca[0] + ' ';
+        answerdiv
+        .children(".ilc_qanswer_Answer:eq(" + checkedAnswer + ")")
+        .addClass("il-feedbackOnCorrectAnswer")
+        .addClass("il-correct");
+      } else {
+        result = fboca[1] + ' ';
+        answerdiv
+        .children(".ilc_qanswer_Answer:eq(" + checkedAnswer + ")")
+        .addClass("il-feedbackOnCorrectAnswer")
+        .addClass("il-notCorrect");
+        answerdiv
+        .children(".ilc_qanswer_Answer:eq(" + correctAnswerID + ")")
+        .addClass("il-feedbackOnCorrectAnswer")
+        .addClass("il-notCorrect");
       }
-    })
-    .then(res => res.text())
-    .then(res => $('#result_' + divid).text(res))
+    }
+
+    if (mp !== null) result += 'Sie haben ' + answers[checkedAnswer].points + ' von ' + mp + ' Punkten.';
+
+    $('#result_' + divid).text(result);
+
+    if (modus !== null) {
+      switch (modus) {
+        case 0: answers.forEach((answer, index) => {
+                  answerdiv.children(".ilc_qanswer_Feedback:eq(" + index + ")").text(answer.feedback);
+                });
+                break;
+        case 1: answerdiv.children(".ilc_qanswer_Feedback:eq(" + checkedAnswer + ")").text(answers[checkedAnswer].feedback);
+                break;
+        case 2: answerdiv.children(".ilc_qanswer_Feedback:eq(" + correctAnswerID + ")").text(answers[correctAnswerID].feedback);
+                break;
+      }
+    }
   }
 }
-
-//                var fboca = $fboca_json;
-//                console.log('FeedbackOnCorrectAnswer: ' + fboca + ' - Länge: ' + fboca.length);
-//                var rp = $rp_json;
-//                console.log('Reached Points: ' + rp);
-//                var mp = $mp_json;
-//                console.log('MaxPoints: ' + mp);
-//
-//                var result = '';
-//                if (fboca.length > 0) {
-//                    if (fboca[checkedAnswer]) result = 'Ihre Antwort ist richtig. ';
-//                    else result = 'Ihre Antwort ist nicht ganz richtig. ';
-//                }
-//
-//                if (rp.length > 0) result += 'Sie haben ' + rp[checkedAnswer] + ' von ' + mp + ' Punkten.';
-//
-//                $('#result_' + divid).text(result);
