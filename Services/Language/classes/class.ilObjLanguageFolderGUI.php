@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -16,8 +14,9 @@ declare(strict_types=1);
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
+
+declare(strict_types=1);
 
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Refinery\Factory as Refinery;
@@ -40,6 +39,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
 {
     protected HTTPServices $http;
     protected Refinery $refinery;
+    protected \ILIAS\DI\UIServices $ui;
 
     /**
      * Constructor
@@ -49,10 +49,10 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         global $DIC;
         $this->type = "lngf";
         parent::__construct($a_data, $a_id, $a_call_by_reference, false);
-        //$_GET["sort_by"] = "language";
         $this->lng->loadLanguageModule("lng");
         $this->http = $DIC->http();
         $this->refinery = $DIC->refinery();
+        $this->ui = $DIC->ui();
     }
 
     /**
@@ -85,15 +85,24 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         if ($this->checkPermissionBool("write")) {
-            if (!$this->settings->get("lang_detection")) {
-                // Toggle Button for auto language detection (toggle off)
-                $toggleButton = $DIC->ui()->factory()->button()->toggle("", $DIC->ctrl()->getLinkTarget($this, "enableLanguageDetection"), $DIC->ctrl()->getLinkTarget($this, "disableLanguageDetection"), false)
-                    ->withLabel($this->lng->txt("language_detection"))->withAriaLabel($this->lng->txt("lng_enable_language_detection"));
-            } else {
-                // Toggle Button for auto language detection (toggle on)
-                $toggleButton = $DIC->ui()->factory()->button()->toggle("", $DIC->ctrl()->getLinkTarget($this, "enableLanguageDetection"), $DIC->ctrl()->getLinkTarget($this, "disableLanguageDetection"), true)
-                    ->withLabel($this->lng->txt("language_detection"))->withAriaLabel($this->lng->txt("lng_disable_language_detection"));
-            }
+            $modal_on = $this->ui->factory()->modal()->interruptive(
+                'ON',
+                $this->lng->txt("lng_enable_language_detection"),
+                $this->ctrl->getFormActionByClass(self::class, "enableLanguageDetection"))
+                                                     ->withActionButtonLabel("ok");
+            $modal_off = $this->ui->factory()->modal()->interruptive(
+                'OFF',
+                $this->lng->txt("lng_disable_language_detection"),
+                $this->ctrl->getFormActionByClass(self::class, "disableLanguageDetection"))
+                                                      ->withActionButtonLabel("ok");
+            $toggleButton = $this->ui->factory()->button()->toggle("",
+                $modal_on->getShowSignal(),
+                $modal_off->getShowSignal(),
+                (bool)($this->settings->get("lang_detection")))
+                                     ->withLabel($this->lng->txt("language_detection"))
+                                     ->withAriaLabel($this->lng->txt("lng_disable_language_detection"));
+            $this->toolbar->addComponent($modal_on);
+            $this->toolbar->addComponent($modal_off);
             $this->toolbar->addComponent($toggleButton);
         }
 
