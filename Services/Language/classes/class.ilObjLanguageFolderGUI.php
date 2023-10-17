@@ -32,9 +32,6 @@ use ILIAS\Refinery\Factory as Refinery;
  * @extends ilObject
  */
 
-require_once "./Services/Language/classes/class.ilObjLanguage.php";
-require_once "./Services/Object/classes/class.ilObjectGUI.php";
-
 class ilObjLanguageFolderGUI extends ilObjectGUI
 {
     protected HTTPServices $http;
@@ -89,18 +86,18 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                 'ON',
                 $this->lng->txt("lng_enable_language_detection"),
                 $this->ctrl->getFormActionByClass(self::class, "enableLanguageDetection"))
-                                                     ->withActionButtonLabel("ok");
+                                                     ->withActionButtonLabel("enablelanguagedetection");
             $modal_off = $this->ui->factory()->modal()->interruptive(
                 'OFF',
                 $this->lng->txt("lng_disable_language_detection"),
                 $this->ctrl->getFormActionByClass(self::class, "disableLanguageDetection"))
-                                                      ->withActionButtonLabel("ok");
+                                                      ->withActionButtonLabel("disablelanguagedetection");
             $toggleButton = $this->ui->factory()->button()->toggle("",
                 $modal_on->getShowSignal(),
                 $modal_off->getShowSignal(),
                 (bool)($this->settings->get("lang_detection")))
                                      ->withLabel($this->lng->txt("language_detection"))
-                                     ->withAriaLabel($this->lng->txt("lng_disable_language_detection"));
+                                     ->withAriaLabel($this->lng->txt("lng_switch_language_detection"));
             $this->toolbar->addComponent($modal_on);
             $this->toolbar->addComponent($modal_off);
             $this->toolbar->addComponent($toggleButton);

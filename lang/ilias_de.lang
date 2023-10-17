@@ -10355,6 +10355,9 @@ lm#:#lm_est_reading_time#:#Geschätzte Lesedauer
 lm#:#lm_est_reading_time_info#:#In Lernmodulen kann eine geschätzte Lesezeit ermittelt und angezeigt werden.
 lm#:#lm_page_type_lm#:#Lernmodulseite
 lm#:#lm_save_titles#:#Titel wurden gespeichert.
+lng#:#enablelanguagedetection#:#Aktivieren
+lng#:#disablelanguagedetection#:#Deaktivieren
+lng#:#lng_switch_language_detection#:#Automatische Spracherkennung umschalten
 lng#:#language_detection#:#Automatische Spracherkennung
 lng#:#lng_disable_language_detection#:#Automatische Spracherkennung deaktivieren
 lng#:#lng_download_deprecated#:#Veraltete Einträge herunterladen
