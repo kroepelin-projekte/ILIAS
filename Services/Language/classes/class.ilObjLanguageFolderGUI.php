@@ -539,6 +539,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                             break;
                         case 'refresh':
                             $ids = $this->getIdsFromQueryToken();
+                            if (current($ids) === 'ALL_OBJECTS') {
+                                array_shift($ids);
+                                $languages = ilObject::_getObjectsByType("lng");
+                                foreach ($languages as $lang) {
+                                    $langObj = new ilObjLanguage((int) $lang["obj_id"], false);
+                                    if ($langObj->isInstalled()) {
+                                        $ids[] = (string) $lang["obj_id"];
+                                    }
+                                }
+                            }
                             $modal = $this->buildConfirmModal(
                                 $ids,
                                 $action,
@@ -554,6 +564,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                             break;
                         case 'uninstall':
                             $ids = $this->getIdsFromQueryToken();
+                            if (current($ids) === 'ALL_OBJECTS') {
+                                array_shift($ids);
+                                $languages = ilObject::_getObjectsByType("lng");
+                                foreach ($languages as $lang) {
+                                    $langObj = new ilObjLanguage((int) $lang["obj_id"], false);
+                                    if ($langObj->isInstalled()) {
+                                        $ids[] = (string) $lang["obj_id"];
+                                    }
+                                }
+                            }
                             $modal = $this->buildConfirmModal(
                                 $ids,
                                 $action,
@@ -568,14 +588,41 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                             break;
                         case 'install':
                             $ids = $this->getIdsFromQueryToken();
+                            if (current($ids) === 'ALL_OBJECTS') {
+                                array_shift($ids);
+                                $languages = ilObject::_getObjectsByType("lng");
+                                foreach ($languages as $lang) {
+                                    $langObj = new ilObjLanguage((int) $lang["obj_id"], false);
+                                    if (!$langObj->isInstalled()) {
+                                        $ids[] = (string) $lang["obj_id"];
+                                    }
+                                }
+                            }
                             $this->installObject($ids);
                             break;
                         case 'install_local':
                             $ids = $this->getIdsFromQueryToken();
+                            if (current($ids) === 'ALL_OBJECTS') {
+                                array_shift($ids);
+                                $languages = ilObject::_getObjectsByType("lng");
+                                foreach ($languages as $lang) {
+                                    $ids[] = (string) $lang["obj_id"];
+                                }
+                            }
                             $this->installLocalObject($ids);
                             break;
                         case 'lang_uninstall_changes':
                             $ids = $this->getIdsFromQueryToken();
+                            if (current($ids) === 'ALL_OBJECTS') {
+                                array_shift($ids);
+                                $languages = ilObject::_getObjectsByType("lng");
+                                foreach ($languages as $lang) {
+                                    $langObj = new ilObjLanguage((int) $lang["obj_id"], false);
+                                    if ($langObj->isInstalled()) {
+                                        $ids[] = (string) $lang["obj_id"];
+                                    }
+                                }
+                            }
                             $modal = $this->buildConfirmModal(
                                 $ids,
                                 $action,
