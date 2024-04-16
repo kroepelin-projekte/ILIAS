@@ -490,13 +490,13 @@ class ilObjLanguage extends ilObject
 
         $unserialied = unserialize($row["lang_array"], ["allowed_classes" => false]);
         if (!is_array($unserialied)) {
-            /** @var ilErrorHandling $ilErr */
-            $ilErr = $DIC["ilErr"];
-            $ilErr->raiseError(
+            $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                'failure',
                 "Data for module '" . $a_module . "' of  language '" . $a_key . "' is not correctly saved. " .
                 "Please check the collation of your database tables lng_data and lng_modules. It must be utf8_unicode_ci.",
-                $ilErr->MESSAGE
+                true
             );
+            $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
     }
 
@@ -670,6 +670,7 @@ class ilObjLanguage extends ilObject
      */
     public function check(string $scope = ""): bool
     {
+        global $DIC;
         include_once "./Services/Utilities/classes/class.ilStr.php";
         $scopeExtension = "";
         if (!empty($scope)) {
@@ -689,7 +690,12 @@ class ilObjLanguage extends ilObject
 
         // dir check
         if (!is_dir($path)) {
-            $this->ilias->raiseError("Directory not found: " . $path, $this->ilias->error_obj->MESSAGE);
+            $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                'failure',
+                "Directory not found: " . $path,
+                true
+            );
+            $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
         chdir($path);
@@ -699,13 +705,23 @@ class ilObjLanguage extends ilObject
 
         // file check
         if (!is_file($lang_file)) {
-            $this->ilias->raiseError("File not found: " . $lang_file, $this->ilias->error_obj->MESSAGE);
+            $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                'failure',
+                "File not found: " . $lang_file,
+                true
+            );
+            $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
         // header check
         $content = self::cut_header(file($lang_file));
         if ($content === false) {
-            $this->ilias->raiseError("Wrong Header in " . $lang_file, $this->ilias->error_obj->MESSAGE);
+            $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                'failure',
+                "Wrong Header in " . $lang_file,
+                true
+            );
+            $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
         // check (counting) elements of each lang-entry
@@ -717,10 +733,20 @@ class ilObjLanguage extends ilObject
             ++$n;
             if ($num !== 3) {
                 $line = $n + 36;
-                $this->ilias->raiseError("Wrong parameter count in " . $lang_file . " in line $line (Value: $val)! Please check your language file!", $this->ilias->error_obj->MESSAGE);
+                $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                    'failure',
+                    "Wrong parameter count in " . $lang_file . " in line $line (Value: $val)! Please check your language file!",
+                    true
+                );
+                $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
             }
             if (!ilStr::isUtf8($separated[2])) {
-                $this->ilias->raiseError("Non UTF8 character found in " . $lang_file . " in line $line (Value: $val)! Please check your language file!", $this->ilias->error_obj->MESSAGE);
+                $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                    'failure',
+                    "Non UTF8 character found in " . $lang_file . " in line $line (Value: $val)! Please check your language file!",
+                    true
+                );
+                $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
             }
         }
 
