@@ -522,8 +522,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 $this->ctrl->redirect($this, 'import');
             }
 
-            $this->tpl->setOnScreenMessage('success',
-                sprintf($this->lng->txt("language_file_imported"), $_FILES["userfile"]["name"]), true);
+            $this->tpl->setOnScreenMessage(
+                'success',
+                sprintf($this->lng->txt("language_file_imported"), $_FILES["userfile"]["name"]),
+                true
+            );
             $this->ctrl->redirect($this, "import");
         }
 
@@ -750,7 +753,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $this->ctrl->redirect($this, "maintain");
     }
-    
+
     /**
      * View the language settings
      */
@@ -759,7 +762,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $form = $this->initNewSettingsForm();
         $this->tpl->setContent($form->getHTML());
     }
-    
+
     /**
     * Set the language settings
     */
@@ -781,26 +784,26 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $this->tpl->setContent($form->getHTML());
     }
-    
+
     protected function initNewSettingsForm(): ilPropertyFormGUI
     {
         global $DIC;
         $ilSetting = $DIC->settings();
         $translate_key = "lang_translate_" . $this->object->key;
         $translate = (bool) $ilSetting->get($translate_key, '0');
-        
+
         require_once("./Services/Form/classes/class.ilPropertyFormGUI.php");
         $form = new ilPropertyFormGUI();
         $form->setFormAction($this->ctrl->getFormAction($this));
         $form->setTitle($this->lng->txt("language_settings"));
         $form->setPreventDoubleSubmission(false);
         $form->addCommandButton('saveSettings', $this->lng->txt("language_change_settings"));
-    
+
         $ci = new ilCheckboxInputGUI($this->lng->txt("language_translation_enabled"), "translation");
         $ci->setChecked($translate);
         $ci->setInfo($this->lng->txt("language_note_translation"));
         $form->addItem($ci);
-        
+
         return $form;
     }
 
@@ -809,44 +812,13 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     */
     public function statisticsObject(): void
     {
-        $modules = ilObjLanguageExt::_getModules($this->object->key);
+        $statisticsTable = (new ilLanguageStatisticsTable(
+            $this->object,
+            $this->ui_factory,
+            $this->lng
+        ))->getTable();
 
-        $data = [];
-        $total = [];
-        foreach ($modules as $module) {
-            $row = [];
-            $row["module"] = $module;
-            $row["all"] = count($this->object->getAllValues(array($module)));
-            $row["changed"] = count($this->object->getChangedValues(array($module)));
-            $row["unchanged"] = $row["all"] - $row["changed"];
-            isset($total["all"]) ? $total["all"] += $row["all"] : $total["all"] = $row["all"];
-            isset($total["changed"]) ? $total["changed"] += $row["changed"] : $total["changed"] = $row["changed"];
-            isset($total["unchanged"]) ? $total["unchanged"] += $row["unchanged"] : $total["unchanged"] = $row["unchanged"];
-            $data[] = $row;
-        }
-        $total["module"] = "<b>" . $this->lng->txt("language_all_modules") . "</b>";
-        $total["all"] = "<b>" . $total["all"] . "</b>";
-        $total["changed"] = "<b>" . $total["changed"] . "</b>";
-        $total["unchanged"] = "<b>" . $total["unchanged"] . "</b>";
-        $data[] = $total;
-
-        // create and configure the table object
-        include_once "Services/Table/classes/class.ilTable2GUI.php";
-        $table_gui = new ilTable2GUI($this, "statistics");
-        $table_gui->setRowTemplate("tpl.lang_statistics_row.html", "Services/Language");
-        $table_gui->setEnableTitle(false);
-        $table_gui->setEnableNumInfo(false);
-        $table_gui->setLimit(count($data));
-        $table_gui->setExportFormats(array(ilTable2GUI::EXPORT_EXCEL));
-
-        $table_gui->addColumn(ucfirst($this->lng->txt("module")), "", "25%");
-        $table_gui->addColumn($this->lng->txt("language_scope_global"), "", "25%");
-        $table_gui->addColumn($this->lng->txt("language_scope_local"), "", "25%");
-        $table_gui->addColumn($this->lng->txt("language_scope_unchanged"), "", "25%");
-
-        $table_gui->setData($data);
-
-        $this->tpl->setContent($table_gui->getHTML());
+        $this->tpl->setContent($this->ui_renderer->render($statisticsTable->withRequest($this->request)));
     }
 
     /**
