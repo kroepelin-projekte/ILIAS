@@ -9091,6 +9091,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as:
 ecs#:#ecs_publish_for#:#Release for:
 ecs#:#ecs_published_for#:#Published for:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:
 ecs#:#ecs_rcrs_created_body_a#:#A new ECS Course has been created:
 ecs#:#ecs_read_remote_links#:#Update ECS Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants
@@ -16822,6 +16823,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section ‘All Users’ to the 
 tagging#:#tagging_enable_tagging#:#Enable Tagging
 tagging#:#tagging_forbidden_tags#:#Forbidden Tags
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.
 tagging#:#tagging_other_users#:#Tags of Other Users
 tagging#:#tagging_resources_for_tag#:#Resources tagged with %s
 tagging#:#tagging_search_users#:#Search Users
