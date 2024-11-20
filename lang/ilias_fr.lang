@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Options de Résultats
 assessment#:#test_scoring#:#Options de Notation
 assessment#:#test_template_reset#:#Le modèle de paramétrage a été retiré.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Ce test utilise le modèle de paramétrage : %s.<br />Si vous ne souhaitez plus utiliser de modèle de paramétrage et avoir accès à la totalité des réglages, cliquez sur le lien : %s.
 assessment#:#test_using_template_link#:#Ne plus utiliser de modèle de paramétrage
 assessment#:#text_correct#:#Texte correct
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Edition de Contenu Supplémentai
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Mode d'Edition par Défaut pour Contenu Additionnel
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.
 assessment#:#tst_all_test_competences#:#Tous les tests de compétence
 assessment#:#tst_all_user_data_deleted#:#Toutes les données utilisateur de ce test ont été détruites
@@ -7265,6 +7268,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.
 copg#:#copg_page_type_stys#:#Layout Page
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Les questions ne sont pas supportées dans ce contexte.
 copg#:#copg_reload_page#:#Reload Page
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8966,6 +8970,7 @@ ecs#:#ecs_protocol#:#Protocole
 ecs#:#ecs_publish_as#:#Publié comme :
 ecs#:#ecs_publish_for#:#Mettre à  jour pour :
 ecs#:#ecs_published_for#:#Publié pour :
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Un nouveau cours à  distance a été créé :
 ecs#:#ecs_read_remote_links#:#Mettre à  jour cours à  distance
 ecs#:#ecs_refresh_participants#:#Rafraîchir les participants ECS
@@ -12345,6 +12350,7 @@ obj#:#obj_tool_setting_skills_info#:#Active une gestion des compétences et des 
 obj#:#obj_tool_setting_tag_cloud#:#Marquer Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#The "tag cloud" block will be displayed inside the "Content" tab.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Nouvelles
 obj#:#obj_tool_setting_use_news_info#:#Activer le bloc de nouvelles et/ou la vue chronologique.
 obj#:#obj_tool_setting_use_news_open_settings#:#Ouvrir les paramètres
@@ -16293,6 +16299,7 @@ tagging#:#tagging_enable_all_users_info#:#Ajouter une section "Tous utilisateurs
 tagging#:#tagging_enable_tagging#:#Activer Tagging
 tagging#:#tagging_forbidden_tags#:#Tags interdits
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Other Users
 tagging#:#tagging_resources_for_tag#:#Ressources taggées avec %s
 tagging#:#tagging_search_users#:#Rechercher utilisateurs

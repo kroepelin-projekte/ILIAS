@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Results Options###24 10 2013 new variable
 assessment#:#test_scoring#:#Scoring Options###24 10 2013 new variable
 assessment#:#test_template_reset#:#The template has been removed.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#This test uses the template %s. If you do not want to use a template and have access to all settings, please click here: %s.
 assessment#:#test_using_template_link#:#Do not use template anymore
 assessment#:#text_correct#:#Correct Text
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Additional Content Editing with 
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Default Editing Mode for Additional Question Content###24 10 2013 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###07 02 2020 new variable
 assessment#:#tst_all_test_competences#:#All Test Competence###26 09 2014 new variable
 assessment#:#tst_all_user_data_deleted#:#All user data of this test has been deleted!
@@ -7265,6 +7268,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###30 04 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###30 04 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Questions are not supported in this context.###07 02 2017 new variable
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8966,6 +8970,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as:
 ecs#:#ecs_publish_for#:#Release for:
 ecs#:#ecs_published_for#:#Published for:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#A new Remote Course has been created:
 ecs#:#ecs_read_remote_links#:#Update Remote-Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants###27 01 2015 new variable
@@ -12345,6 +12350,7 @@ obj#:#obj_tool_setting_skills_info#:#Activates competence management and compete
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud###26 09 2014 new variable
 obj#:#obj_tool_setting_tag_cloud_info#:#The "tag cloud" block will be displayed inside the "Content" tab.###26 09 2014 new variable
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies###26 09 2014 new variable
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#News###25 10 2016 new variable
 obj#:#obj_tool_setting_use_news_info#:#Activate the news block and/or timeline view.###25 10 2016 new variable
 obj#:#obj_tool_setting_use_news_open_settings#:#Open Settings###25 10 2016 new variable
@@ -16293,6 +16299,7 @@ tagging#:#tagging_enable_all_users_info#:#یک قسمت با عنوان "همه 
 tagging#:#tagging_enable_tagging#:#فعال کردن برچسب گذاری
 tagging#:#tagging_forbidden_tags#:#برچسبهای ممنوع
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Other Users###26 09 2014 new variable
 tagging#:#tagging_resources_for_tag#:#منابع با برچسب %s گذاری شدند
 tagging#:#tagging_search_users#:#جستجوی کاربران

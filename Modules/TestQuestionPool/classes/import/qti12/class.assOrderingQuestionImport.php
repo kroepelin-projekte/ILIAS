@@ -205,11 +205,12 @@ class assOrderingQuestionImport extends assQuestionImport
         $this->object->setQuestion($this->object->QTIMaterialToString($item->getQuestiontext()));
         $this->object->setOrderingType($type);
         $this->object->setObjId($questionpool_id);
-        $thumb_size = (int) $item->getMetadataEntry("thumb_geometry");
-        if ($thumb_size !== null && $thumb_size >= $this->object->getMinimumThumbSize()) {
-            $this->object->setThumbSize($thumb_size);
-        }
-        $this->object->setElementHeight($item->getMetadataEntry("element_height") ? (int) $item->getMetadataEntry("element_height") : null);
+        $this->object->setThumbSize(
+            $this->deduceThumbSizeFromImportValue((int) $item->getMetadataEntry('thumb_geometry'))
+        );
+        $this->object->setElementHeight($item->getMetadataEntry('element_height')
+            ? (int) $item->getMetadataEntry('element_height')
+            : null);
         $this->object->setShuffle($shuffle);
         $this->object->setPoints(0);
         $this->object->saveQuestionDataToDb();

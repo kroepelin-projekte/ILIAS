@@ -1262,6 +1262,7 @@ assessment#:#test_question_set_type_random_info#:#Minden tesztkitöltő egyéni 
 assessment#:#test_results#:#Teszteredmények összefoglalója
 assessment#:#test_scoring#:#Pontozási beállítások
 assessment#:#test_template_reset#:#A sablont sikeresen eltávolította.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#A teszt ezt a sablont használja: %s. Ha nem szeretne sablont használni a teszthez, és már vannak beállításai, kattintson ide: %s.
 assessment#:#test_using_template_link#:#Ne használjon a továbbiakban sablont
 assessment#:#text_correct#:#Helyes szöveg
@@ -1300,6 +1301,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Egyszerű szöveg használata k�
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#A kérdések és a válaszok nem formázható szövegek. LaTex sem használható. Viszont a visszajelzések és a tippek újra felhasználhatóak, ha kérdés beágyazott az ILIAS-tananyagban.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Use Rich-Text-Editor (TinyMCE) for editing questions and answers, feedbacks and hints###26 04 2023 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#A kérdések, a válaszok, a visszajelzések és a tippek formázható szövegek. Viszont a visszajelzések és a tippek nem használhatóak fel újra, ha kérdés beágyazott az ILIAS-tananyagban.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#A tesztet sikeresen kitöltötte, több kitöltést nem indíthat el.
 assessment#:#tst_all_test_competences#:#Összes tesztkompetencia
 assessment#:#tst_all_user_data_deleted#:#Ennek a tesztnek minden felhasználói adatát sikeresen eltávolította.
@@ -7280,6 +7283,7 @@ copg#:#copg_page_element_not_found#:#Az oldalelem nem található.
 copg#:#copg_page_type_stys#:#Lapelrendezés
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Ebben a kontextusban a kérdéseket nem támogatjuk.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8981,6 +8985,7 @@ ecs#:#ecs_protocol#:#Protokoll
 ecs#:#ecs_publish_as#:#Közzététel mint:
 ecs#:#ecs_publish_for#:#Kibocsátás ennek:
 ecs#:#ecs_published_for#:#Publikálva neki:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Új ECS-kurzus jött létre:
 ecs#:#ecs_read_remote_links#:#ECS-kurzusok frissítése
 ecs#:#ecs_refresh_participants#:#ECS-résztvevők frissítése
@@ -12360,6 +12365,7 @@ obj#:#obj_tool_setting_skills_info#:#Aktiválja a kompetenciamenedzsmentet és a
 obj#:#obj_tool_setting_tag_cloud#:#Címkefelhő
 obj#:#obj_tool_setting_tag_cloud_info#:#'Címkefelhő' blokk megjelenik a 'Tartalom' fül alatt.
 obj#:#obj_tool_setting_taxonomies#:#Taxonómiák
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Hírek
 obj#:#obj_tool_setting_use_news_info#:#Hírblokk, illetve idővonal nézet bekapcsolása. Amennyiben aktív, a felhasználók értesítést kérhetnek a módosulásról.
 obj#:#obj_tool_setting_use_news_open_settings#:#Beállítások megnyitása
@@ -16308,6 +16314,7 @@ tagging#:#tagging_enable_all_users_info#:#A Tartalomtár objektumainak 'Informá
 tagging#:#tagging_enable_tagging#:#Címkézés engedélyezése
 tagging#:#tagging_forbidden_tags#:#Tiltott címkék
 tagging#:#tagging_no_obj_for_tag#:#Egy erőforrásnak sincs címkéjé: %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Más felhasználók címkéi
 tagging#:#tagging_resources_for_tag#:#Források ezzel a címkével: %s
 tagging#:#tagging_search_users#:#Felhasználók keresése

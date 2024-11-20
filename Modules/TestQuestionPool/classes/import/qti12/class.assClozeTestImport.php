@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -48,43 +49,32 @@ class assClozeTestImport extends assQuestionImport
         ilSession::clear('import_mob_xhtml');
         $presentation = $item->getPresentation();
 
-        $packageIliasVersion = $item->getIliasSourceVersion('ILIAS_VERSION');
-        $seperate_question_field = $item->getMetadataEntry("question");
+        $questiontext = $this->processNonAbstractedImageReferences(
+            $item->getMetadataEntry("question") ?? '&nbsp;',
+            $item->getIliasSourceNic()
+        );
 
-        $questiontext = '';
-        if (!$packageIliasVersion || version_compare($packageIliasVersion, '5.0.0', '<')) {
-            $questiontext = '&nbsp;';
-        } elseif ($seperate_question_field) {
-            $questiontext = $this->processNonAbstractedImageReferences(
-                $seperate_question_field,
-                $item->getIliasSourceNic()
-            );
-        }
-
-        $clozetext = array();
-        $shuffle = 0;
-        $now = getdate();
-        $created = sprintf("%04d%02d%02d%02d%02d%02d", $now['year'], $now['mon'], $now['mday'], $now['hours'], $now['minutes'], $now['seconds']);
-        $gaps = array();
+        $clozetext_array = [];
+        $gaps = [];
         foreach ($presentation->order as $entry) {
             switch ($entry["type"]) {
                 case "material":
 
-                    $materialString = $this->object->QTIMaterialToString(
+                    $material_string = $this->object->QTIMaterialToString(
                         $presentation->material[$entry["index"]]
                     );
 
                     if ($questiontext === '&nbsp;') {
-                        $questiontext = $materialString;
+                        $questiontext = $material_string;
                     } else {
-                        array_push($clozetext, $materialString);
+                        array_push($clozetext_array, $material_string);
                     }
 
                     break;
                 case "response":
                     $response = $presentation->response[$entry["index"]];
                     $rendertype = $response->getRenderType();
-                    array_push($clozetext, "<<" . $response->getIdent() . ">>");
+                    array_push($clozetext_array, "<<" . $response->getIdent() . ">>");
 
                     switch (strtolower(get_class($response->getRenderType()))) {
                         case "ilqtirenderfib":
@@ -292,7 +282,7 @@ class assClozeTestImport extends assQuestionImport
         }
 
         $this->object->setQuestion($questiontext);
-        $clozetext = join("", $clozetext);
+        $clozetext = join("", $clozetext_array);
 
         foreach ($gaptext as $idx => $val) {
             $clozetext = str_replace("<<" . $idx . ">>", $val, $clozetext);
@@ -323,8 +313,7 @@ class assClozeTestImport extends assQuestionImport
             $m = $this->object->QTIMaterialToString($material);
             $feedbacksgeneric[$correctness] = $m;
         }
-        $questiontext = $this->object->getQuestion();
-        $clozetext = $this->object->getClozeText();
+
         if (is_array(ilSession::get("import_mob_xhtml"))) {
             foreach (ilSession::get("import_mob_xhtml") as $mob) {
                 if ($tst_id > 0) {

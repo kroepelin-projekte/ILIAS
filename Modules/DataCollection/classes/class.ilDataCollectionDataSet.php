@@ -200,9 +200,9 @@ class ilDataCollectionDataSet extends ilDataSet
                 $new_table_id = $a_mapping->getMapping('Modules/DataCollection', 'il_dcl_table', $a_rec['table_id']);
                 if ($new_table_id) {
                     $datatype_id = $a_rec['datatype_id'];
-                    $datatype = $a_rec['datatype_title'];
+                    $datatype = $a_rec['datatype_title'] ?? null;
                     $datatypes = ilDclDatatype::getAllDatatype();
-                    if (ilDclFieldTypePlugin::isPluginDatatype($datatype)) {
+                    if ($datatype !== null && ilDclFieldTypePlugin::isPluginDatatype($datatype)) {
                         $datatype_id = null;
                         foreach ($datatypes as $dt) {
                             if ($dt->getTitle() === $datatype) {

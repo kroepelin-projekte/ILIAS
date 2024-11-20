@@ -439,14 +439,14 @@ class ilObjectTranslationGUI
         if ($form->checkInput()) {
             $ml = $form->getInput("master_lang");
             $this->obj_trans->setMasterLanguage($ml);
-            $this->obj_trans->addLanguage(
-                $ml,
-                $this->obj->getTitle(),
-                $this->obj->getDescription(),
-                true
-            );
-            $this->obj_trans->setDefaultTitle($this->obj->getTitle());
-            $this->obj_trans->setDefaultDescription($this->obj->getDescription());
+            if (!in_array($ml, $this->obj_trans->getLanguages())) {
+                $this->obj_trans->addLanguage(
+                    $ml,
+                    $this->obj->getTitle(),
+                    $this->obj->getDescription(),
+                    true
+                );
+            }
             $this->obj_trans->save();
         }
 

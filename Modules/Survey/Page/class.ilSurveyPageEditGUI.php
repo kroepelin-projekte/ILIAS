@@ -157,9 +157,15 @@ class ilSurveyPageEditGUI
                             switch ($subcmd) {
                                 case "deleteQuestion":
                                     $has_content = true;
-                                    $this->deleteQuestion([$id]);
+                                    $ids = (!is_array($id))
+                                        ? [$id]
+                                        : $id;
+                                    $this->deleteQuestion($ids);
                                     break;
                                 default:
+                                    if ($id === 0 && in_array($subcmd, ["multiCut", "multiCopy"])) {
+                                        $id = [];
+                                    }
                                     $has_content = $this->$subcmd($id, $this->svy_request->getHForm("node"));
                                     break;
 
@@ -752,7 +758,6 @@ class ilSurveyPageEditGUI
     protected function deleteQuestion(array $a_id): void
     {
         $ilCtrl = $this->ctrl;
-
         $ilCtrl->setParameter($this->editor_gui, "pgov", $this->current_page);
         $this->editor_gui->removeQuestionsForm(array(), $a_id, array());
     }
@@ -763,7 +768,6 @@ class ilSurveyPageEditGUI
     protected function confirmRemoveQuestions(): void
     {
         $ilCtrl = $this->ctrl;
-
         $ids = $this->svy_request->getQuestionIds();
 
         $pages = $this->object->getSurveyPages();

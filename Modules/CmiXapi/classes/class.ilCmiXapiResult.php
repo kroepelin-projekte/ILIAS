@@ -224,13 +224,12 @@ class ilCmiXapiResult
 
         $results = [];
 
-        if ($row = $DIC->database()->fetchAssoc($res)) {
+        while ($row = $DIC->database()->fetchAssoc($res)) {
             $result = new self();
             $result->assignFromDbRow($row);
 
             $results[$result->getUsrId()] = $result;
         }
-
         return $results;
     }
 }

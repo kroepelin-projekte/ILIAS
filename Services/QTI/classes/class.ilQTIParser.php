@@ -234,12 +234,12 @@ class ilQTIParser extends ilSaxParser
     }
 
     /**
-    * set event handler
-    * should be overwritten by inherited class
-    * @access	private
-    *
-    * @param XMLParser|resource $a_xml_parser
-    */
+     * set event handler
+     * should be overwritten by inherited class
+     * @access    private
+     *
+     * @param XMLParser|resource $a_xml_parser
+     */
     public function setHandlers($a_xml_parser): void
     {
         xml_set_object($a_xml_parser, $this);
@@ -787,7 +787,7 @@ class ilQTIParser extends ilSaxParser
             case "material":
                 if ($this->material) {
                     $mat = $this->material->getMaterial(0);
-                    if(!is_array($mat)) {
+                    if (!is_array($mat)) {
                         $this->material = null;
                         break;
                     }
@@ -847,7 +847,7 @@ class ilQTIParser extends ilSaxParser
                 $this->matimage = null;
                 break;
 
-            // add support for matbreak element
+                // add support for matbreak element
             case "matbreak":
                 $this->mattext = new ilQTIMattext();
                 $this->mattext->setContent('<br />');
@@ -1253,7 +1253,7 @@ class ilQTIParser extends ilSaxParser
     {
         $matches = null;
 
-        if (preg_match('/^(\d+\.\d+\.\d+) .*$/', $versionDateString, $matches)) {
+        if (preg_match('/^(\d+\.\d+(?:\.\d+)?)(?: .*)?$/', $versionDateString, $matches)) {
             return $matches[1];
         }
 

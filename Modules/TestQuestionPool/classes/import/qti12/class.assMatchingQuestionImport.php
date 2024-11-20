@@ -193,8 +193,10 @@ class assMatchingQuestionImport extends assQuestionImport
         $this->object->setOwner($ilUser->getId());
         $this->object->setQuestion($this->object->QTIMaterialToString($item->getQuestiontext()));
         $this->object->setObjId($questionpool_id);
-        $extended_shuffle = $item->getMetadataEntry("shuffle");
-        $this->object->setThumbGeometry($item->getMetadataEntry("thumb_geometry"));
+        $extended_shuffle = $item->getMetadataEntry('shuffle');
+        $this->object->setThumbGeometry(
+            $this->deduceThumbSizeFromImportValue((int) $item->getMetadataEntry('thumb_geometry'))
+        );
 
         if (strlen($item->getMetadataEntry('matching_mode'))) {
             $this->object->setMatchingMode($item->getMetadataEntry('matching_mode'));

@@ -101,7 +101,7 @@ class ilObjLinkResourceListGUI extends ilObjectListGUI
     public function getCommandLink(string $cmd): string
     {
         $cmd_class = '';
-        if ($this->request_wrapper->has('cmd_class')) {
+        if ($this->request_wrapper->has('cmdClass')) {
             $cmd_class = $this->request_wrapper->retrieve(
                 'cmdClass',
                 $this->refinery->kindlyTo()->string()

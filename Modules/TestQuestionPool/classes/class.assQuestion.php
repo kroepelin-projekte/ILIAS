@@ -58,8 +58,9 @@ abstract class assQuestion
         self::IMG_MIME_TYPE_GIF => ['binary']
     );
 
-    protected const DEFAULT_THUMB_SIZE = 150;
-    protected const MINIMUM_THUMB_SIZE = 20;
+    private const DEFAULT_THUMB_SIZE = 150;
+    private const MINIMUM_THUMB_SIZE = 20;
+    private const MAXIMUM_THUMB_SIZE = 8192;
 
     public const TRIM_PATTERN = '/^[\p{C}\p{Z}]+|[\p{C}\p{Z}]+$/u';
 
@@ -566,6 +567,12 @@ abstract class assQuestion
     public function getMinimumThumbSize(): int
     {
         return self::MINIMUM_THUMB_SIZE;
+    }
+
+    public function getMaximumThumbSize(): int
+    {
+        return self::MAXIMUM_THUMB_SIZE;
+
     }
 
     public function getOutputType(): int
@@ -3730,7 +3737,7 @@ abstract class assQuestion
             "value1" => array("clob", $value1),
             "value2" => array("clob", $value2),
             "pass" => array("integer", $pass),
-            "tstamp" => array("integer", ((int)$tstamp > 0) ? (int)$tstamp : time()),
+            "tstamp" => array("integer", ((int) $tstamp > 0) ? (int) $tstamp : time()),
             'authorized' => array('integer', (int) $authorized)
         );
 

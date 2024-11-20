@@ -183,8 +183,8 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
             $this->setOwner($data["owner"]);
             include_once("./Services/RTE/classes/class.ilRTE.php");
             $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc((string) $data["question_text"], 1));
-            $this->ordering_type = strlen($data["ordering_type"]) ? $data["ordering_type"] : OQ_TERMS;
-            if ($data['thumb_geometry'] !== null && $data['thumb_geometry'] >= self::MINIMUM_THUMB_SIZE) {
+            $this->ordering_type = $data["ordering_type"] !== null ? (int) $data["ordering_type"] : OQ_TERMS;
+            if ($data['thumb_geometry'] !== null && $data['thumb_geometry'] >= $this->getMinimumThumbSize()) {
                 $this->setThumbSize($data['thumb_geometry']);
             }
             $this->element_height = $data["element_height"] ? (int) $data['element_height'] : null;
@@ -825,7 +825,7 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         $target_filepath = $this->getImagePath() . $target_filename;
         if (ilFileUtils::moveUploadedFile($upload_file, $target_filename, $target_filepath)) {
             $thumb_path = $this->getImagePath() . $this->getThumbPrefix() . $target_filename;
-            ilShellUtil::convertImage($target_filepath, $thumb_path, "JPEG", (string)$this->getThumbSize());
+            ilShellUtil::convertImage($target_filepath, $thumb_path, "JPEG", (string) $this->getThumbSize());
 
             return $target_filename;
         }
@@ -841,7 +841,7 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         if (ilFileUtils::rename($existing_image_path, $target_filepath)) {
             unlink($this->getImagePath() . $this->getThumbPrefix() . $existing_image_name);
             $thumb_path = $this->getImagePath() . $this->getThumbPrefix() . $target_filename;
-            ilShellUtil::convertImage($target_filepath, $thumb_path, "JPEG", (string)$this->getThumbSize());
+            ilShellUtil::convertImage($target_filepath, $thumb_path, "JPEG", (string) $this->getThumbSize());
 
             return $target_filename;
         }
@@ -871,7 +871,7 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
     public function saveWorkingData($active_id, $pass = null, $authorized = true): bool
     {
         global $DIC;
-        if($DIC->testQuestionPool()->internal()->request()->raw('test_answer_changed') === null) {
+        if ($DIC->testQuestionPool()->internal()->request()->raw('test_answer_changed') === null) {
             return true;
         }
 
@@ -1088,7 +1088,7 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
                     $ext = 'JPEG';
                     break;
             }
-            ilShellUtil::convertImage($filename, $thumbpath, $ext, (string)$this->getThumbSize());
+            ilShellUtil::convertImage($filename, $thumbpath, $ext, (string) $this->getThumbSize());
         }
     }
 

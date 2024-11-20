@@ -18,18 +18,14 @@
 
 declare(strict_types=1);
 
-use ILIAS\Setup;
+use ILIAS\Setup\Migration;
 use ILIAS\Setup\Environment;
-use ILIAS\Setup\CLI\IOWrapper;
 
-class ilFixMissingQuestionDuplicationMigration implements Setup\Migration
+class ilFixMissingQuestionDuplicationMigration implements Migration
 {
     private ilDBInterface $db;
 
-    /**
-     * @var IOWrapper
-     */
-    private mixed $io;
+    private bool $ilias_is_initialized = false;
 
     public function getLabel(): string
     {
@@ -50,14 +46,16 @@ class ilFixMissingQuestionDuplicationMigration implements Setup\Migration
 
     public function prepare(Environment $environment): void
     {
-        //This is necessary optherwise questions cannot be copied
-        ilContext::init(ilContext::CONTEXT_CRON);
-        ilInitialisation::initILIAS();
         $this->db = $environment->getResource(Environment::RESOURCE_DATABASE);
     }
 
     public function step(Environment $environment): void
     {
+        if (!$this->ilias_is_initialized) {
+            \ilContext::init(\ilContext::CONTEXT_CRON);
+            \ilInitialisation::initILIAS();
+            $this->ilias_is_initialized = true;
+        }
         $query_main = 'SELECT qst.question_id FROM tst_tests AS tst'
             . '   INNER JOIN tst_test_question AS tst_qst'
             . '      ON tst.test_id = tst_qst.test_fi'

@@ -1262,6 +1262,7 @@ assessment#:#test_question_set_type_random_info#:#Varje deltagare får svara på
 assessment#:#test_results#:#Meddelande av testresultatet
 assessment#:#test_scoring#:#Utvärdering av testet
 assessment#:#test_template_reset#:#Mallen har tagits bort.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Detta test använder mallen %s. Om du inte vill använda en mall och alla inställningar, klicka här
 assessment#:#test_using_template_link#:#Använd inte mallen längre
 assessment#:#text_correct#:#Korrigera text
@@ -1300,6 +1301,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Oformaterad text för frågor oc
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#Tillhandahåller inte formatering av text i frågor och svar, men tillåter utformning av feedback och lösningsanteckningar med ILIAS sidredigerare och återanvändning i frågor i ILIAS inlärningsmoduler.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Riktig textredigerare (TinyMCE) för redigering av frågor, svar, feedback och lösningsanteckningar.
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Tillåter formaterad text för frågor, svar, feedback och lösningsanteckningar. Feedback och lösningsanteckningar antas dock inte när frågor integreras i ILIAS inlärningsmoduler.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#Du har klarat testet. Testet kan inte påbörjas igen.
 assessment#:#tst_all_test_competences#:#Alla testfärdigheter
 assessment#:#tst_all_user_data_deleted#:#Uppgifterna för alla testdeltagare har raderats!
@@ -7280,6 +7283,7 @@ copg#:#copg_page_element_not_found#:# Okänt sidelement.
 copg#:#copg_page_type_stys#:#Sidans layout
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Inga frågor stöds i detta sammanhang.
 copg#:#copg_reload_page#:#Reload sida
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8981,6 +8985,7 @@ ecs#:#ecs_protocol#:#Protokoll
 ecs#:#ecs_publish_as#:#Publicera under
 ecs#:#ecs_publish_for#:#Släpp för
 ecs#:#ecs_published_for#:#Släppt för
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#En ny ECS-kurs skapades
 ecs#:#ecs_read_remote_links#:#Uppdatera kursinformation
 ecs#:#ecs_refresh_participants#:#Uppdatera ECS deltagare
@@ -12360,6 +12365,7 @@ obj#:#obj_tool_setting_skills_info#:#Funktionen gör det möjligt att välja kom
 obj#:#obj_tool_setting_tag_cloud#:#Tag Moln
 obj#:#obj_tool_setting_tag_cloud_info#:#Ett taggmoln visas i blocket "Urval efter ämne" på fliken "Innehåll".
 obj#:#obj_tool_setting_taxonomies#:#Taxonomier
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Nyheter
 obj#:#obj_tool_setting_use_news_info#:#Användning av News-blocket eller Timeline för nyheter. Användare kan aktivera aviseringar för nyheter så snart blocket eller tidslinjen är aktiv.
 obj#:#obj_tool_setting_use_news_open_settings#:#Öppna inställningar för block och tidslinje
@@ -16308,6 +16314,7 @@ tagging#:#tagging_enable_all_users_info#:# Lägger till ett "Alla användare"-om
 tagging#:#tagging_enable_tagging#:#Aktivera taggning
 tagging#:#tagging_forbidden_tags#:#Förbjudna taggar
 tagging#:#tagging_no_obj_for_tag#:#Det finns inget innehåll taggat med '%s'.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Tags från andra användare
 tagging#:#tagging_resources_for_tag#:#Innehåll taggat med %s
 tagging#:#tagging_search_users#:#Sök användare

@@ -871,7 +871,8 @@ class ilRbacReview
 
         $res = $this->db->query($query);
         while ($row = $this->db->fetchAssoc($res)) {
-            $prefix = substr($row["title"], 0, 3) == "il_";
+            $row['title'] = $row['title'] ?? '';
+            $prefix = substr($row['title'], 0, 3) == "il_";
 
             // all (assignable) internal local roles only
             if ($a_filter == 4 && !$prefix) {
@@ -883,8 +884,7 @@ class ilRbacReview
                 continue;
             }
 
-            $row['title'] = (string) $row['title'];
-            $row['description'] = (string) $row['description'];
+            $row['description'] = $row['description'] ?? '';
             $row["desc"] = $row["description"];
             $row["user_id"] = (int) $row["owner"];
             $row['obj_id'] = (int) $row['obj_id'];

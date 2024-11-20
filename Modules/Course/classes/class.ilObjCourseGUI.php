@@ -744,6 +744,7 @@ class ilObjCourseGUI extends ilContainerGUI
                 $GLOBALS['DIC']->language()->txt('crs_tile_and_objective_view_not_supported')
             );
             $this->editObject($form);
+            return;
         }
 
         // Additional checks: both tile and session limitation activated (not supported)

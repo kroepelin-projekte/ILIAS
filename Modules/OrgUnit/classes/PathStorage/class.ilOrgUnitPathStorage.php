@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -15,6 +16,8 @@
  *
  ********************************************************************
  */
+
+declare(strict_types=1);
 
 /**
  * Class ilOrgUnitPathStorage
@@ -128,9 +131,9 @@ class ilOrgUnitPathStorage extends ActiveRecord
         return ilOrgUnitPathStorage::getArray('ref_id', 'path');
     }
 
-    public static function writePathByRefId(string $ref_id): void
+    public static function writePathByRefId(int $ref_id): void
     {
-        $original_ref_id = (int) $ref_id;
+        $original_ref_id = $ref_id;
         $names = self::getAllOrguNames();
         $root_ref_id = ilObjOrgUnit::getRootOrgRefId();
         $tree = ilObjOrgUnitTree::_getInstance();
@@ -150,7 +153,7 @@ class ilOrgUnitPathStorage extends ActiveRecord
             $last = array_pop($path);
             $middle = implode(self::GLUE_SIMPLE, $path);
             if (strlen($middle) > self::MAX_MIDDLE_PATH_LENGTH) {
-                $middle = substr($middle, 0, self::MAX_MIDDLE_PATH_LENGTH) . " ...";
+                $middle = mb_substr($middle, 0, self::MAX_MIDDLE_PATH_LENGTH) . " ...";
             }
             $expression = implode(self::GLUE_SIMPLE, [$first, $middle, $last]);
         } else {

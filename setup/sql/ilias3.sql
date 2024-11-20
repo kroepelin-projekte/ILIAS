@@ -818,7 +818,7 @@ CREATE TABLE `ass_log` (
   `ass_log_id` int(11) NOT NULL DEFAULT 0,
   `user_fi` int(11) NOT NULL DEFAULT 0,
   `obj_fi` int(11) NOT NULL DEFAULT 0,
-  `logtext` varchar(4000) DEFAULT NULL,
+  `logtext` text DEFAULT NULL,
   `question_fi` int(11) DEFAULT NULL,
   `original_fi` int(11) DEFAULT NULL,
   `ref_id` int(11) DEFAULT NULL,
@@ -7088,6 +7088,8 @@ INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',7,'2024-05-28 
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',8,'2024-06-25 14:05:10.427670','2024-06-25 14:05:10.428311');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',9,'2024-08-13 13:24:47.172854','2024-08-13 13:24:47.173513');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',10,'2024-10-01 13:17:03.393288','2024-10-01 13:17:03.393692');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',11,'2024-11-19 15:14:55.058607','2024-11-19 15:14:55.066263');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',12,'2024-11-19 15:14:55.066603','2024-11-19 15:14:55.066994');
 INSERT INTO `il_db_steps` VALUES ('ilECSDBUpdateSteps',1,'2023-03-31 13:10:08.531142','2023-03-31 13:10:08.536140');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',1,'2023-03-31 13:10:08.954044','2023-03-31 13:10:08.962950');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',2,'2023-03-31 13:10:08.963397','2023-03-31 13:10:08.967878');
@@ -7105,6 +7107,7 @@ INSERT INTO `il_db_steps` VALUES ('ILIAS\\AdvancedMetaData\\Setup\\DBUpdateSteps
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\AdvancedMetaData\\Setup\\DBUpdateSteps8',4,'2024-08-13 13:24:47.161441','2024-08-13 13:24:47.163504');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Blog\\Setup\\BlogDBUpdateSteps',1,'2023-03-31 13:10:08.060739','2023-03-31 13:10:08.065162');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Blog\\Setup\\BlogDBUpdateSteps',2,'2023-03-31 13:10:08.065756','2023-03-31 13:10:08.066454');
+INSERT INTO `il_db_steps` VALUES ('ILIAS\\BookingManager\\Setup\\ilBookingManager8HotfixDBUpdateSteps',1,'2024-11-19 15:14:55.054833','2024-11-19 15:14:55.055302');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\BookingManager\\Setup\\ilBookingManagerDBUpdateSteps',1,'2023-03-31 13:10:08.067151','2023-03-31 13:10:08.073425');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\BookingManager\\Setup\\ilBookingManagerDBUpdateSteps',2,'2023-03-31 13:10:08.073902','2023-03-31 13:10:08.079634');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\BookingManager\\Setup\\ilBookingManagerDBUpdateSteps',3,'2023-03-31 13:10:08.080091','2023-03-31 13:10:08.085665');
@@ -7156,6 +7159,7 @@ INSERT INTO `il_db_steps` VALUES ('ILIAS\\Style\\Content\\Setup\\ilStyleDBUpdate
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Style\\Content\\Setup\\ilStyleDBUpdateSteps',11,'2023-03-31 13:10:08.281066','2023-03-31 13:10:08.286593');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Style\\Content\\Setup\\ilStyleDBUpdateSteps',12,'2023-04-26 17:22:12.948408','2023-04-26 17:22:12.959763');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\SurveyQuestionPool\\Setup\\SurveyQuestionPoolDBUpdateSteps',1,'2024-08-13 13:24:47.169939','2024-08-13 13:24:47.171748');
+INSERT INTO `il_db_steps` VALUES ('ILIAS\\Wiki\\Setup\\ilWiki8HotfixDBUpdateSteps',1,'2024-11-19 15:14:55.057230','2024-11-19 15:14:55.057554');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Wiki\\Setup\\ilWikiDBUpdateSteps',1,'2023-03-31 13:10:08.287295','2023-03-31 13:10:08.316859');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Wiki\\Setup\\ilWikiDBUpdateSteps',2,'2023-03-31 13:10:08.317370','2023-03-31 13:10:08.321696');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Wiki\\Setup\\ilWikiDBUpdateSteps',3,'2023-03-31 13:10:08.322335','2023-03-31 13:10:08.333760');
@@ -7253,6 +7257,7 @@ INSERT INTO `il_db_steps` VALUES ('ilStudyProgrammeProgressTableUpdateSteps',3,'
 INSERT INTO `il_db_steps` VALUES ('ilStudyProgrammeSettingsTableUpdateSteps',1,'2023-03-31 13:10:08.836404','2023-03-31 13:10:08.840584');
 INSERT INTO `il_db_steps` VALUES ('ilStudyProgrammeSettingsTableUpdateSteps',2,'2023-03-31 13:10:08.841037','2023-03-31 13:10:08.852124');
 INSERT INTO `il_db_steps` VALUES ('ilTest8DBUpdateSteps',1,'2023-03-31 13:10:08.889188','2023-03-31 13:10:08.894449');
+INSERT INTO `il_db_steps` VALUES ('ilTest8DBUpdateSteps',2,'2024-11-19 15:14:55.072754','2024-11-19 15:14:55.077456');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',1,'2023-03-31 13:10:08.858537','2023-03-31 13:10:08.859520');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',2,'2023-03-31 13:10:08.859960','2023-03-31 13:10:08.864478');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',3,'2023-03-31 13:10:08.864934','2023-03-31 13:10:08.870661');
@@ -7338,7 +7343,6 @@ INSERT INTO `il_dcl_datatype` VALUES (7,'rating','integer',0,100);
 INSERT INTO `il_dcl_datatype` VALUES (8,'ilias_reference','integer',2,90);
 INSERT INTO `il_dcl_datatype` VALUES (9,'mob','integer',2,60);
 INSERT INTO `il_dcl_datatype` VALUES (11,'formula','text',0,110);
-INSERT INTO `il_dcl_datatype` VALUES (12,'plugin','text',0,120);
 INSERT INTO `il_dcl_datatype` VALUES (14,'text_selection','text',1,10);
 INSERT INTO `il_dcl_datatype` VALUES (15,'date_selection','text',1,50);
 
@@ -7411,39 +7415,6 @@ CREATE TABLE `il_dcl_field_prop` (
 
 --
 -- Dumping data for table `il_dcl_field_prop`
---
-
-
---
--- Table structure for table `il_dcl_field_prop_b`
---
-
-CREATE TABLE `il_dcl_field_prop_b` (
-  `id` int(11) NOT NULL DEFAULT 0,
-  `field_id` int(11) NOT NULL DEFAULT 0,
-  `datatype_prop_id` int(11) NOT NULL DEFAULT 0,
-  `value` varchar(256) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `i1_idx` (`field_id`),
-  KEY `i2_idx` (`datatype_prop_id`)
-) ;
-
---
--- Dumping data for table `il_dcl_field_prop_b`
---
-
-
---
--- Table structure for table `il_dcl_field_prop_s_b`
---
-
-CREATE TABLE `il_dcl_field_prop_s_b` (
-  `sequence` int(11) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`sequence`)
-) ;
-
---
--- Dumping data for table `il_dcl_field_prop_s_b`
 --
 
 
@@ -8271,13 +8242,13 @@ CREATE TABLE `il_md_cpr_selections` (
 -- Dumping data for table `il_md_cpr_selections`
 --
 
-INSERT INTO `il_md_cpr_selections` VALUES (1,'Attribution Non-commercial No Derivatives (by-nc-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (2,'Attribution Non-commercial Share Alike (by-nc-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (3,'Attribution Non-commercial (by-nc)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\">Creative Commons Attribution-NonCommercial 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (4,'Attribution No Derivatives (by-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\">Creative Commons Attribution-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (5,'Attribution Share Alike (by-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\">Creative Commons Attribution-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (6,'Attribution (by)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0);
-INSERT INTO `il_md_cpr_selections` VALUES (7,'All rights reserved','','This work has all rights reserved by the owner.','en',0,1,1,0,0,NULL,NULL,NULL,NULL,0);
+INSERT INTO `il_md_cpr_selections` VALUES (1,'Attribution Non-commercial No Derivatives (by-nc-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License','http://creativecommons.org/licenses/by-nc-nd/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-nd.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (2,'Attribution Non-commercial Share Alike (by-nc-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License','http://creativecommons.org/licenses/by-nc-sa/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (3,'Attribution Non-commercial (by-nc)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\">Creative Commons Attribution-NonCommercial 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial 4.0 International License','http://creativecommons.org/licenses/by-nc/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (4,'Attribution No Derivatives (by-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\">Creative Commons Attribution-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NoDerivatives 4.0 International License','http://creativecommons.org/licenses/by-nd/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nd.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (5,'Attribution Share Alike (by-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\">Creative Commons Attribution-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-ShareAlike 4.0 International License','http://creativecommons.org/licenses/by-sa/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-sa.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (6,'Attribution (by)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution 4.0 International License','http://creativecommons.org/licenses/by/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by.svg','Creative Commons License',1);
+INSERT INTO `il_md_cpr_selections` VALUES (7,'All rights reserved','','This work has all rights reserved by the owner.','en',0,1,1,0,0,'This work has all rights reserved by the owner.','','','',1);
 
 --
 -- Table structure for table `il_md_cpr_selections_seq`
@@ -9455,7 +9426,7 @@ INSERT INTO `il_object_def` VALUES ('prgr','StudyProgrammeReference','Modules/St
 INSERT INTO `il_object_def` VALUES ('prgs','StudyProgrammeAdmin','Modules/StudyProgramme','Modules/StudyProgramme/classes',0,0,'sys',0,0,0,1,1,0,0,NULL,0,0,1,0,1,0,0,0,0);
 INSERT INTO `il_object_def` VALUES ('prss','PersonalWorkspaceSettings','Services/PersonalWorkspace','Services/PersonalWorkspace/classes',0,0,'sys',0,0,0,1,1,0,0,NULL,0,0,1,0,1,0,0,0,0);
 INSERT INTO `il_object_def` VALUES ('prtf','Portfolio','Modules/Portfolio','Modules/Portfolio/classes',0,0,'0',0,0,0,0,0,0,0,NULL,0,0,0,0,0,0,0,0,0);
-INSERT INTO `il_object_def` VALUES ('prtt','PortfolioTemplate','Modules/Portfolio','Modules/Portfolio/Template',0,0,'0',0,1,1,1,0,0,500,NULL,500,1,1,0,0,0,0,0,0);
+INSERT INTO `il_object_def` VALUES ('prtt','PortfolioTemplate','Modules/Portfolio','Modules/Portfolio/Template',1,0,'0',0,1,1,1,0,0,500,NULL,500,1,1,0,0,0,0,0,0);
 INSERT INTO `il_object_def` VALUES ('ps','PrivacySecurity','Services/PrivacySecurity','Services/PrivacySecurity/classes',0,0,'sys',0,0,0,1,1,0,0,NULL,0,0,1,0,1,0,0,0,0);
 INSERT INTO `il_object_def` VALUES ('qpl','QuestionPool','Modules/TestQuestionPool','Modules/TestQuestionPool/classes',1,1,'0',0,1,1,1,0,0,210,NULL,200,1,1,0,0,0,0,0,0);
 INSERT INTO `il_object_def` VALUES ('rcat','RemoteCategory','Modules/RemoteCategory','Modules/RemoteCategory/classes',1,0,'0',0,1,1,1,0,0,30,'cat',40,0,0,0,0,0,0,0,0);
@@ -13142,7 +13113,7 @@ INSERT INTO `object_data` VALUES (34,'typ','lm','Learning module Object',-1,'200
 INSERT INTO `object_data` VALUES (35,'typ','notf','Note Folder Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL);
 INSERT INTO `object_data` VALUES (36,'typ','note','Note Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL);
 INSERT INTO `object_data` VALUES (37,'typ','frm','Forum object',-1,'2002-07-15 15:54:22','2003-08-15 12:36:40','',NULL);
-INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2024-10-01 13:17:03','',NULL);
+INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2024-11-19 15:18:20','',NULL);
 INSERT INTO `object_data` VALUES (71,'lng','de','not_installed',6,'2003-08-15 10:25:19','2015-12-22 16:29:24','',NULL);
 INSERT INTO `object_data` VALUES (72,'lng','es','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL);
 INSERT INTO `object_data` VALUES (73,'lng','it','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL);
@@ -20135,7 +20106,7 @@ INSERT INTO `settings` VALUES ('common','ilfrmnoti1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmreadidx1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmthri2','1');
 INSERT INTO `settings` VALUES ('common','ilGlobalTstPoolUsageSettingInitilisation','1');
-INSERT INTO `settings` VALUES ('common','ilias_version','8.15.0');
+INSERT INTO `settings` VALUES ('common','ilias_version','8.16.0');
 INSERT INTO `settings` VALUES ('common','ilinc_akclassvalues_required','1');
 INSERT INTO `settings` VALUES ('common','ilmpathix','1');
 INSERT INTO `settings` VALUES ('common','iloscmsgidx1','1');
@@ -25120,4 +25091,4 @@ CREATE TABLE `xmlvalue_seq` (
 
 
 
--- Dump completed on 2024-10-01 13:17:04
+-- Dump completed on 2024-11-19 15:18:21

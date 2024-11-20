@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Objava rezultata testa
 assessment#:#test_scoring#:#Ocjenjivanje testa
 assessment#:#test_template_reset#:#Predložak je uklonjen.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Ovaj test koristi predložak %s. Ako ne želite koristiti predložak te želite imati pristup svim postavkama, kliknite ovdje: %s.
 assessment#:#test_using_template_link#:#Ne koristite predložak više
 assessment#:#text_correct#:#Ispravan tekst
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Za uređivanje povratnih informa
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###04 06 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Za uređivanje povratnih informacija i savjeta koristite urednika rich-text
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###04 06 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###04 06 2021 new variable
 assessment#:#tst_all_test_competences#:#Sva kompetencije testa
 assessment#:#tst_all_user_data_deleted#:#Svi korisnički podaci ovog testa su uklonjeni!
@@ -7265,6 +7268,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###04 06 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###04 06 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Pitanja nisu podržana u ovom kontekstu.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8966,6 +8970,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as:
 ecs#:#ecs_publish_for#:#Release for:
 ecs#:#ecs_published_for#:#Published for:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#A new ECS Course has been created:
 ecs#:#ecs_read_remote_links#:#Update ECS Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants
@@ -12345,6 +12350,7 @@ obj#:#obj_tool_setting_skills_info#:#Aktivira upravljanje kompetencijama i dodje
 obj#:#obj_tool_setting_tag_cloud#:#Oznaka oblaka
 obj#:#obj_tool_setting_tag_cloud_info#:#Blok ‘Oznaka oblaka’ prikazat će se unutar kartice ‘Sadržaj’.
 obj#:#obj_tool_setting_taxonomies#:#Taksonomije
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Vijesti
 obj#:#obj_tool_setting_use_news_info#:#Aktiviraj blok vijesti i/ili prikaz vremenske trake.
 obj#:#obj_tool_setting_use_news_open_settings#:#Otvori postavke
@@ -16293,6 +16299,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section ‘All Users’ to the 
 tagging#:#tagging_enable_tagging#:#Enable Tagging
 tagging#:#tagging_forbidden_tags#:#Forbidden Tags
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Tags of Other Users
 tagging#:#tagging_resources_for_tag#:#Resources tagged with %s
 tagging#:#tagging_search_users#:#Search Users

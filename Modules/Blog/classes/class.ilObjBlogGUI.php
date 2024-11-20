@@ -1347,7 +1347,7 @@ class ilObjBlogGUI extends ilObject2GUI implements ilDesktopItemHandling
         foreach (ilBlogPosting::getAllPostings($a_obj_id) as $posting) {
             if ($this->author &&
                 ($posting["author"] == $this->author ||
-                (is_array($posting["editors"]) && in_array($this->author, $posting["editors"])))) {
+                (is_array($posting["editors"] ?? false) && in_array($this->author, $posting["editors"])))) {
                 $author_found = true;
             }
 

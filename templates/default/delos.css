@@ -5025,6 +5025,7 @@ pre {
   color: #161616;
   background-color: #f9f9f9;
   border: 1px solid #dddddd;
+  font-family: monospace;
 }
 pre code {
   padding: 0;

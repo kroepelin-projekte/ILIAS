@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Renderer as UIRenderer;
@@ -106,7 +106,7 @@ class ilObjTestSettingsScoringResultsGUI extends ilTestSettingsGUI
 
         if ($templateId) {
             $this->settingsTemplate = new ilSettingsTemplate(
-                (int)$templateId,
+                (int) $templateId,
                 ilObjAssessmentFolderGUI::getSettingsTemplateConfig()
             );
         }
@@ -279,11 +279,10 @@ class ilObjTestSettingsScoringResultsGUI extends ilTestSettingsGUI
             return false;
         }
 
-        if (
-            $this->testOBJ->getScoreReporting() == ilObjTest::SCORE_REPORTING_DATE
-            && $this->testOBJ->getReportingDate() > time()
-        ) {
-            return false;
+        if ($this->testOBJ->getScoreReporting() == ilObjTest::SCORE_REPORTING_DATE) {
+            /** @var DateTimeImmutable $reporting_date */
+            $reporting_date = $this->testOBJ->getScoreSettings()->getResultSummarySettings()->getReportingDate();
+            return $reporting_date <= new DateTimeImmutable('now', new DateTimeZone('UTC'));
         }
 
         return true;
