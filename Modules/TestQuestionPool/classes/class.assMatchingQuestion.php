@@ -274,19 +274,19 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
 
         if ($result->numRows() == 1) {
             $data = $this->db->fetchAssoc($result);
-            $this->setId((int)$question_id);
-            $this->setObjId((int)$data["obj_fi"]);
+            $this->setId((int) $question_id);
+            $this->setObjId((int) $data["obj_fi"]);
             $this->setTitle((string) $data["title"]);
             $this->setComment((string) $data["description"]);
-            $this->setOriginalId((int)$data["original_id"]);
-            $this->setNrOfTries((int)$data['nr_of_tries']);
+            $this->setOriginalId((int) $data["original_id"]);
+            $this->setNrOfTries((int) $data['nr_of_tries']);
             $this->setAuthor($data["author"]);
-            $this->setPoints((float)$data["points"]);
-            $this->setOwner((int)$data["owner"]);
+            $this->setPoints((float) $data["points"]);
+            $this->setOwner((int) $data["owner"]);
             $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc((string) $data["question_text"], 1));
-            $this->setThumbGeometry((int)$data["thumb_geometry"]);
+            $this->setThumbGeometry((int) $data["thumb_geometry"]);
             $this->setShuffle($data["shuffle"] != '0');
-            $this->setShuffleMode((int)$data['shuffle']);
+            $this->setShuffleMode((int) $data['shuffle']);
             $this->setMatchingMode($data['matching_mode'] === null ? self::MATCHING_MODE_1_ON_1 : $data['matching_mode']);
 
             try {
@@ -310,7 +310,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         $this->terms = [];
         if ($result->numRows() > 0) {
             while ($data = $this->db->fetchAssoc($result)) {
-                $term = $this->createMatchingTerm($data['term'] ?? '', $data['picture'] ?? '', (int)$data['ident']);
+                $term = $this->createMatchingTerm($data['term'] ?? '', $data['picture'] ?? '', (int) $data['ident']);
                 $this->terms[] = $term;
                 $termids[$data['term_id']] = $term;
             }
@@ -326,7 +326,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         $this->definitions = [];
         if ($result->numRows() > 0) {
             while ($data = $this->db->fetchAssoc($result)) {
-                $definition = $this->createMatchingDefinition($data['definition'] ?? '', $data['picture'] ?? '', (int)$data['ident']);
+                $definition = $this->createMatchingDefinition($data['definition'] ?? '', $data['picture'] ?? '', (int) $data['ident']);
                 array_push($this->definitions, $definition);
                 $definitionids[$data['def_id']] = $definition;
             }
@@ -343,12 +343,12 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
                 $pair = $this->createMatchingPair(
                     $termids[$data['term_fi']],
                     $definitionids[$data['definition_fi']],
-                    (float)$data['points']
+                    (float) $data['points']
                 );
                 array_push($this->matchingpairs, $pair);
             }
         }
-        parent::loadFromDb((int)$question_id);
+        parent::loadFromDb((int) $question_id);
     }
 
 
@@ -868,7 +868,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         if (is_null($pass)) {
             $pass = $this->getSolutionMaxPass($active_id);
         }
-        $result = $this->getCurrentSolutionResultSet($active_id, (int)$pass, $authorizedSolution);
+        $result = $this->getCurrentSolutionResultSet($active_id, (int) $pass, $authorizedSolution);
         while ($data = $this->db->fetchAssoc($result)) {
             if (strcmp($data["value1"], "") != 0) {
                 if (!isset($found_values[$data['value2']])) {
@@ -1041,7 +1041,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
             } else {
                 // create thumbnail file
                 $thumbpath = $imagepath . $this->getThumbPrefix() . $savename;
-                ilShellUtil::convertImage($imagepath . $savename, $thumbpath, "JPEG", (string)$this->getThumbGeometry());
+                ilShellUtil::convertImage($imagepath . $savename, $thumbpath, "JPEG", (string) $this->getThumbGeometry());
             }
             if ($result && (strcmp($image_filename, $previous_filename) != 0) && (strlen($previous_filename))) {
                 $this->deleteImagefile($previous_filename);
@@ -1392,6 +1392,8 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
             ];
         }
         $result['terms'] = $terms;
+
+        $this->setShuffler($this->randomGroup->shuffleArray(new RandomSeed()));
 
         $definitions = [];
         foreach ($this->getShuffler()->transform($this->getDefinitions()) as $def) {

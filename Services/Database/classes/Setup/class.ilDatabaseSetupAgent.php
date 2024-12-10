@@ -121,4 +121,14 @@ class ilDatabaseSetupAgent implements Setup\Agent
             new Setup\ilMysqlMyIsamToInnoDbMigration()
         ];
     }
+
+    public function getNamedObjectives(?Setup\Config $config = null): array
+    {
+        return [
+            'resetFailedSteps' => new Setup\ObjectiveConstructor(
+                'reset null-states in il_db_steps',
+                static fn (): Setup\Objective => new ilDatabaseResetStepsObjective()
+            )
+        ];
+    }
 }

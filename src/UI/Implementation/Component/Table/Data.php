@@ -70,7 +70,7 @@ class Data extends Table implements T\Data, JSBindable
     protected Signal $selection_signal;
     protected Signal $async_action_signal;
     protected ?ServerRequestInterface $request = null;
-    protected int $number_of_rows = 800;
+    protected int $number_of_rows = 25;
     /**
      * @var string[]
      */
@@ -401,14 +401,17 @@ class Data extends Table implements T\Data, JSBindable
         $view_controls = $this->getViewControls($total_count);
 
         if ($request = $this->getRequest()) {
-            $view_controls = $this->applyValuesToViewcontrols($view_controls, $request);
-            $data = $view_controls->getData();
+            # This retrieves container data from the request
+            $data = $this->applyValuesToViewcontrols($view_controls, $request)->getData();
             $range = $data[self::VIEWCONTROL_KEY_PAGINATION];
             $range = ($range instanceof Range) ? $range->croppedTo($total_count ?? PHP_INT_MAX) : null;
             $table = $table
                 ->withRange($range)
                 ->withOrder($data[self::VIEWCONTROL_KEY_ORDERING] ?? null)
                 ->withSelectedOptionalColumns($data[self::VIEWCONTROL_KEY_FIELDSELECTION] ?? null);
+
+            # This retrieves the view controls that should be displayed
+            $view_controls = $table->applyValuesToViewcontrols($table->getViewControls($total_count), $request);
         }
 
         return [

@@ -447,7 +447,7 @@ class ilPCParagraphGUI extends ilPageContentGUI
         $lng = $this->lng;
 
         $a_tpl->setCurrentBlock("help_item");
-        $a_tpl->setVariable("TXT_HELP", "<b>" . $lng->txt("cont_syntax_help") . "</b>");
+        $a_tpl->setVariable("TXT_HELP", "<strong>" . $lng->txt("cont_syntax_help") . "</strong>");
         $a_tpl->parseCurrentBlock();
         $a_tpl->setCurrentBlock("help_item");
         $a_tpl->setVariable("TXT_HELP", "* " . $lng->txt("cont_bullet_list"));

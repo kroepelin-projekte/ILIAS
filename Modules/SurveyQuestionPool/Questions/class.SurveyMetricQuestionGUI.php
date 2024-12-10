@@ -140,7 +140,7 @@ class SurveyMetricQuestionGUI extends SurveyQuestionGUI
         $res = array();
 
         if (is_array($a_working_data)) {
-            $res[] = array("value" => $a_working_data[0]["value"]);
+            $res[] = array("value" => ($a_working_data[0]["value"] ?? null));
         }
 
         return $res;
@@ -174,7 +174,7 @@ class SurveyMetricQuestionGUI extends SurveyQuestionGUI
         $template->setVariable("TEXT_ANSWER", $this->lng->txt("answer"));
         $template->setVariable("QUESTION_ID", $this->object->getId());
 
-        if (!is_array($working_data) || !trim($user_answer)) {
+        if (!is_array($working_data) || !trim((string) $user_answer)) {
             $len = 10;
             $solution_text = str_repeat("&#160;", 10);
         } else {

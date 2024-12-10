@@ -289,7 +289,7 @@ class ilArtifactComponentRepository implements ilComponentRepositoryWrite
         $plugin = $this->getPluginById($plugin_id);
         if ($plugin->getCurrentVersion() !== null && $plugin->getCurrentVersion()->isGreaterThan($version)) {
             throw new \RuntimeException(
-                "Cannot upgrade plugins version from $version to {$plugin->getCurrentVersion()}"
+                "Cannot downgrade plugins version from {$plugin->getCurrentVersion()} to $version"
             );
         }
         if ($plugin->getCurrentDBVersion() !== null && $plugin->getCurrentDBVersion() > $db_version) {

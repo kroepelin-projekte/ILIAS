@@ -37,6 +37,27 @@ class ilExcel
     public const FORMAT_BIFF = 'Xls';
     protected string $format;
 
+    private array $noncharacters = [
+        '\x{FFFE}-\x{FFFF}',
+        '\x{1FFFE}-\x{1FFFF}',
+        '\x{2FFFE}-\x{2FFFF}',
+        '\x{3FFFE}-\x{3FFFF}',
+        '\x{4FFFE}-\x{4FFFF}',
+        '\x{5FFFE}-\x{5FFFF}',
+        '\x{6FFFE}-\x{6FFFF}',
+        '\x{7FFFE}-\x{7FFFF}',
+        '\x{8FFFE}-\x{8FFFF}',
+        '\x{9FFFE}-\x{9FFFF}',
+        '\x{AFFFE}-\x{AFFFF}',
+        '\x{BFFFE}-\x{BFFFF}',
+        '\x{CFFFE}-\x{CFFFF}',
+        '\x{DFFFE}-\x{DFFFF}',
+        '\x{EFFFE}-\x{EFFFF}',
+        '\x{FFFFE}-\x{FFFFF}',
+        '\x{10FFFE}-\x{10FFFF}',
+        '\x{FDD0}-\x{FDEF}'
+    ];
+
     protected ilLanguage $lng;
     protected Spreadsheet $workbook;
     protected string $type;
@@ -158,15 +179,23 @@ class ilExcel
      * Prepare value for cell
      * @param mixed $a_value
      * @return mixed
+     * @throws InvalidArgumentException
      */
     protected function prepareValue($a_value)
     {
         if (is_bool($a_value)) {
-            $a_value = $this->prepareBooleanValue($a_value);
-        } elseif ($a_value instanceof ilDateTime) {
-            $a_value = $this->prepareDateValue($a_value);
-        } elseif (is_string($a_value)) {
-            $a_value = $this->prepareString($a_value);
+            return $this->prepareBooleanValue($a_value);
+        }
+
+        if ($a_value instanceof ilDateTime) {
+            return $this->prepareDateValue($a_value);
+        }
+
+        if (is_string($a_value)) {
+            if (!mb_check_encoding($a_value, 'UTF-8')) {
+                throw new InvalidArgumentException('Invalid UTF-8 passed.');
+            }
+            return $this->prepareString($a_value);
         }
 
         return $a_value;
@@ -200,7 +229,9 @@ class ilExcel
 
     protected function prepareString(string $a_value): string
     {
-        return strip_tags($a_value); // #14542
+        return $this->cleanupNonCharachters(
+            strip_tags($a_value)
+        ); // #14542
     }
 
     /**
@@ -550,5 +581,10 @@ class ilExcel
     public function mergeCells(string $coordinatesRange): void
     {
         $this->workbook->getActiveSheet()->mergeCells($coordinatesRange);
+    }
+
+    private function cleanupNonCharachters(string $string): string
+    {
+        return mb_ereg_replace('[' . implode('', $this->noncharacters) . ']', '', $string);
     }
 }

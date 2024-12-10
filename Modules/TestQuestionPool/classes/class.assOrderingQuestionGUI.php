@@ -279,6 +279,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             $thumb_size->setRequired(true);
             $thumb_size->setMaxLength(6);
             $thumb_size->setMinValue($this->object->getMinimumThumbSize());
+            $thumb_size->setMaxValue($this->object->getMaximumThumbSize());
             $thumb_size->setSize(6);
             $thumb_size->setInfo($this->lng->txt('thumb_size_info'));
             $form->addItem($thumb_size);

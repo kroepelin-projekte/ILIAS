@@ -667,6 +667,9 @@ class ilExerciseManagementCollectFilesJob extends AbstractJob
             " WHERE ass_id = " . $ilDB->quote($this->assignment->getId(), "integer"));
 
         while ($rec = $ilDB->fetchAssoc($set)) {
+            if (!\ilObjUser::userExists([(int) $rec['usr_id']])) {
+                continue;
+            }
             $members[] = $rec['usr_id'];
         }
 

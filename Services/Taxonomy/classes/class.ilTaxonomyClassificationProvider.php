@@ -132,7 +132,17 @@ class ilTaxonomyClassificationProvider extends ilClassificationProvider
                         }
                     }
 
-                    self::$valid_tax_map[$node["ref_id"]] = $node_valid;
+                    $id_and_title = array_map(static function (int $id) {
+                        return [
+                           "id" => $id,
+                           "title" => ilObject::_lookupTitle($id)
+                        ];
+                    }, $node_valid);
+                    $id_and_title = ilArrayUtil::sortArray($id_and_title, "title");
+                    $sorted_ids = array_map(static function (array $id_and_title) {
+                        return (int) $id_and_title["id"];
+                    }, $id_and_title);
+                    self::$valid_tax_map[$node["ref_id"]] = $sorted_ids;
                 }
             }
         }

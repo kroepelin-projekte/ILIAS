@@ -560,11 +560,11 @@ class ilMediaAliasItem
         );
         if (is_object($ma_nodes[$a_nr - 1])) {
             $title = $this->getTitleOfArea($a_nr);
-            $this->dom_util->deleteAllChildsByName($ma_nodes[$a_nr - 1]->myDOMNode, array("IntLink", "ExtLink"));
+            $this->dom_util->deleteAllChildsByName($ma_nodes[$a_nr - 1], array("IntLink", "ExtLink"));
             $attributes = array("Type" => $a_type, "Target" => $a_target,
                 "TargetFrame" => $a_target_frame);
             $this->dom_util->setFirstOptionalElement(
-                $ma_nodes[$a_nr - 1]->myDOMNode,
+                $ma_nodes[$a_nr - 1],
                 "IntLink",
                 array(""),
                 $title,

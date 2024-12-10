@@ -699,7 +699,7 @@ class ilMapArea
      * @param string $c coordinate string
      * @return int number of coordinates
      */
-    public static function countCoords(string $c): int
+    public static function countCoords(string $c): float
     {
         if ($c == "") {
             return 0;

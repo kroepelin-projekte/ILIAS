@@ -238,7 +238,7 @@ class ilDclFieldListTableGUI extends ilTable2GUI
 
         $this->tpl->setVariable('TITLE', $a_set->getTitle());
         $this->tpl->setVariable('DESCRIPTION', $a_set->getDescription());
-        $this->tpl->setVariable('DATATYPE', $a_set->getDatatypeTitle());
+        $this->tpl->setVariable('DATATYPE', $a_set->getPresentationTitle());
 
         if (!$a_set->isStandardField()) {
             if ($a_set->isUnique()) {

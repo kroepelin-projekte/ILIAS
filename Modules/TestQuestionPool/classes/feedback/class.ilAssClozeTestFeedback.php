@@ -62,7 +62,7 @@ class ilAssClozeTestFeedback extends ilAssMultiOptionQuestionFeedback
         $answers = [];
 
         foreach ($gap->getItems($this->randomGroup()->dontShuffle()) as $item) {
-            $answers[] = '"' . $item->getAnswertext() . '"';
+            $answers[] = '"' . ilLegacyFormElementsUtil::prepareFormOutput($item->getAnswertext()) . '"';
         }
 
         $answers = implode(' / ', $answers);
@@ -79,7 +79,7 @@ class ilAssClozeTestFeedback extends ilAssMultiOptionQuestionFeedback
         return sprintf(
             $this->lng->txt('ass_cloze_gap_fb_txt_match_label'),
             $gapIndex + 1,
-            $item->getAnswertext()
+            ilLegacyFormElementsUtil::prepareFormOutput($item->getAnswertext())
         );
     }
 
@@ -98,7 +98,7 @@ class ilAssClozeTestFeedback extends ilAssMultiOptionQuestionFeedback
         return sprintf(
             $this->lng->txt('ass_cloze_gap_fb_sel_opt_label'),
             $gapIndex + 1,
-            $item->getAnswertext()
+            ilLegacyFormElementsUtil::prepareFormOutput($item->getAnswertext())
         );
     }
 

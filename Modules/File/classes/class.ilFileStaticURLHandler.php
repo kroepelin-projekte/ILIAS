@@ -18,11 +18,13 @@
 
 use ILIAS\StaticURL\Handler\Handler;
 use ILIAS\StaticURL\Request\Request;
-use ILIAS\StaticURL\Handler\ilCtrlInterface;
 use ILIAS\StaticURL\Context;
 use ILIAS\StaticURL\Response\Response;
 use ILIAS\StaticURL\Response\Factory;
 use ILIAS\StaticURL\Handler\BaseHandler;
+use ILIAS\File\Capabilities\CapabilityBuilder;
+use ILIAS\Services\WOPI\Discovery\ActionDBRepository;
+use ILIAS\File\Capabilities\Capabilities;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -31,6 +33,25 @@ class ilFileStaticURLHandler extends BaseHandler implements Handler
 {
     public const DOWNLOAD = 'download';
     public const VERSIONS = 'versions';
+    public const EDIT = 'edit';
+    public const VIEW = 'view';
+    /**
+     * @readonly
+     */
+    private CapabilityBuilder $capabilities;
+
+    public function __construct()
+    {
+        global $DIC;
+        parent::__construct();
+        $this->capabilities = new CapabilityBuilder(
+            new ilObjFileInfoRepository(),
+            $DIC->access(),
+            $DIC->ctrl(),
+            new ActionDBRepository($DIC->database()),
+            $DIC->http()
+        );
+    }
 
     public function getNamespace(): string
     {
@@ -47,18 +68,23 @@ class ilFileStaticURLHandler extends BaseHandler implements Handler
             ilObjectGUI::_gotoSharedWorkspaceNode((int) $ref_id);
         }
 
-        $uri = match ($additional_params) {
-            self::DOWNLOAD => $context->ctrl()->getLinkTargetByClass(
-                [ilRepositoryGUI::class, ilObjFileGUI::class],
-                ilObjFileGUI::CMD_SEND_FILE
-            ),
-            self::VERSIONS => $context->ctrl()->getLinkTargetByClass(
-                [ilRepositoryGUI::class, ilObjFileGUI::class, ilFileVersionsGUI::class]
-            ),
-            default => $context->ctrl()->getLinkTargetByClass([ilRepositoryGUI::class, ilObjFileGUI::class]),
+        $capabilities = $this->capabilities->get($ref_id);
+
+        $capability = match ($additional_params) {
+            self::DOWNLOAD => $capabilities->get(Capabilities::DOWNLOAD),
+            self::VERSIONS => $capabilities->get(Capabilities::MANAGE_VERSIONS),
+            self::EDIT => $capabilities->get(Capabilities::EDIT_EXTERNAL),
+            self::VIEW => $capabilities->get(Capabilities::VIEW_EXTERNAL),
+            default => $capabilities->get(Capabilities::INFO_PAGE),
         };
 
-        return $response_factory->can($uri);
+        if (!$capability->isUnlocked() || $capability->getUri() === null) {
+            return $response_factory->loginFirst();
+        }
+
+        $uri = $capability->getUri();
+
+        return $response_factory->can($uri->getPath() . '?' . $uri->getQuery());
     }
 
 }

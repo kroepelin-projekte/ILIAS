@@ -196,9 +196,8 @@ class ilStudyProgrammeMembersTableGUI extends ilTable2GUI
                         $out = [];
                         foreach ($completion_by_obj_ids as $completion_by_obj_id) {
                             $type = ilObject::_lookupType($completion_by_obj_id);
-                            if ($type === 'crsr') {
-                                $target_obj_id = ilContainerReference::_lookupTargetId($completion_by_obj_id);
-                                $out[] = $this->getCompletionLink($target_obj_id, $completion_by);
+                            if ($type === 'crs') {
+                                $out[] = $this->getCompletionLink($completion_by_obj_id, $completion_by);
                             } else {
                                 $target_obj_id = $completion_by_obj_id;
                                 $out[] = $this->getCompletionLink(
@@ -350,7 +349,7 @@ class ilStudyProgrammeMembersTableGUI extends ilTable2GUI
             'markAccreditedMulti' => $this->lng->txt('prg_multi_mark_accredited'),
             'unmarkAccreditedMulti' => $this->lng->txt('prg_multi_unmark_accredited'),
         ];
-        if($this->prg->isCertificateActive()) {
+        if ($this->prg->isCertificateActive()) {
             $permissions_for_edit_individual_plan['updateCertificateMulti'] = $this->lng->txt('prg_multi_update_certificate');
             $permissions_for_edit_individual_plan['removeCertificateMulti'] = $this->lng->txt('prg_multi_remove_certificate');
         }

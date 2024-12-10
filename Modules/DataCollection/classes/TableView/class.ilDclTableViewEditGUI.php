@@ -34,6 +34,7 @@ class ilDclTableViewEditGUI
     protected ilDclTableViewEditFieldsTableGUI $table_gui;
     protected ilTabsGUI $tabs_gui;
     public ilDclTable $table;
+    protected ilHelpGUI $help;
     protected ILIAS\HTTP\Services $http;
     protected ILIAS\Refinery\Factory $refinery;
 
@@ -52,6 +53,7 @@ class ilDclTableViewEditGUI
         $this->parent_obj = $parent_obj;
         $this->tableview = $tableview;
         $this->tabs_gui = $ilTabs;
+        $this->help = $DIC->help();
         $this->http = $DIC->http();
         $this->refinery = $DIC->refinery();
 
@@ -85,40 +87,25 @@ class ilDclTableViewEditGUI
 
         switch ($next_class) {
             case 'ildcldetailedviewdefinitiongui':
+                $this->help->setSubScreenId('detailed_view');
                 $this->setTabs('detailed_view');
                 $recordedit_gui = new ilDclDetailedViewDefinitionGUI($this->tableview->getId());
                 $ret = $this->ctrl->forwardCommand($recordedit_gui);
                 if ($ret != "") {
                     $this->tpl->setContent($ret);
                 }
-                global $DIC;
-                $ilTabs = $DIC['ilTabs'];
-                $ilTabs->removeTab('edit');
-                $ilTabs->removeTab('history');
-                $ilTabs->removeTab('clipboard'); // Fixme
-                $ilTabs->removeTab('pg');
                 break;
             case 'ildclcreateviewdefinitiongui':
+                $this->help->setSubScreenId('record_create');
                 $this->setTabs('create_view');
                 $creation_gui = new ilDclCreateViewDefinitionGUI($this->tableview->getId());
                 $this->ctrl->forwardCommand($creation_gui);
-                global $DIC;
-                $ilTabs = $DIC['ilTabs'];
-                $ilTabs->removeTab('edit');
-                $ilTabs->removeTab('history');
-                $ilTabs->removeTab('clipboard'); // Fixme
-                $ilTabs->removeTab('pg');
                 break;
             case 'ildcleditviewdefinitiongui':
+                $this->help->setSubScreenId('record_edit');
                 $this->setTabs('edit_view');
                 $edit_gui = new ilDclEditViewDefinitionGUI($this->tableview->getId());
                 $this->ctrl->forwardCommand($edit_gui);
-                global $DIC;
-                $ilTabs = $DIC['ilTabs'];
-                $ilTabs->removeTab('edit');
-                $ilTabs->removeTab('history');
-                $ilTabs->removeTab('clipboard'); // Fixme
-                $ilTabs->removeTab('pg');
                 break;
             default:
                 switch ($cmd) {
@@ -130,15 +117,18 @@ class ilDclTableViewEditGUI
                         }
                         break;
                     case 'add':
+                        $this->help->setSubScreenId('create');
                         $ilDclTableViewEditFormGUI = new ilDclTableViewEditFormGUI($this, $this->tableview);
                         $this->tpl->setContent($ilDclTableViewEditFormGUI->getHTML());
                         break;
                     case 'editGeneralSettings':
+                        $this->help->setSubScreenId('edit');
                         $this->setTabs('general_settings');
                         $ilDclTableViewEditFormGUI = new ilDclTableViewEditFormGUI($this, $this->tableview);
                         $this->tpl->setContent($ilDclTableViewEditFormGUI->getHTML());
                         break;
                     case 'editFieldSettings':
+                        $this->help->setSubScreenId('overview');
                         $this->setTabs('field_settings');
                         $this->initTableGUI();
                         $this->tpl->setContent($this->table_gui->getHTML());

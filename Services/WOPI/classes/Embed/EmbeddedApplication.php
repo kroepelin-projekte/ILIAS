@@ -26,6 +26,7 @@ use ILIAS\ResourceStorage\Identification\ResourceIdentification;
 use ILIAS\ResourceStorage\Stakeholder\ResourceStakeholder;
 use ILIAS\Services\WOPI\Handler\RequestHandler;
 use ILIAS\FileDelivery\Token\DataSigner;
+use ILIAS\Services\WOPI\Discovery\ActionTarget;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -42,6 +43,8 @@ class EmbeddedApplication
         protected Action $action,
         protected ResourceStakeholder $stakeholder,
         protected URI $back_target,
+        protected bool $inline = false,
+        protected ?bool $edit = null,
         ?URI $ilias_base_url = null
     ) {
         global $DIC;
@@ -51,7 +54,8 @@ class EmbeddedApplication
         $payload = [
             'resource_id' => $this->identification->serialize(),
             'user_id' => $DIC->user()->getId(),
-            'stakeholder' => $this->stakeholder::class
+            'stakeholder' => $this->stakeholder::class,
+            'editable' => $edit ?? ($this->action->getName() === ActionTarget::EDIT->value)
         ];
         $this->token = $data_signer->sign($payload, 'wopi', new \DateTimeImmutable("now + $this->ttl seconds"));
         $this->ilias_base_url = $ilias_base_url ?? new URI(ILIAS_HTTP_PATH);
@@ -72,8 +76,17 @@ class EmbeddedApplication
         return $this->back_target;
     }
 
-    public function getActionLauncherURL(): URI
+    public function isInline(): bool
     {
+        return $this->inline;
+    }
+
+    public function getActionLauncherURL(): ?URI
+    {
+        if ($this->action === null) {
+            return null;
+        }
+
         $appendices = $this->getAppendices();
 
         $url = rtrim((string) $this->action->getLauncherUrl(), '/?#')

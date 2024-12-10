@@ -41,7 +41,8 @@ class InlineSrcBuilder implements SrcBuilder
     public function getRevisionURL(
         Revision $revision,
         bool $signed = true,
-        float $valid_for_at_least_minutes  = 60.0
+        float $valid_for_at_least_minutes = 60.0,
+        string $filename = null
     ): string {
         if ($signed) {
             throw new \RuntimeException('InlineSrcBuilder does not support signed URLs');
@@ -49,13 +50,13 @@ class InlineSrcBuilder implements SrcBuilder
         $sream_resolver = $revision->maybeStreamResolver();
         if ($sream_resolver !== null) {
             $stream = $sream_resolver->getStream();
-            if($sream_resolver->isInMemory()) {
+            if ($sream_resolver->isInMemory()) {
                 return $this->buildDataURLFromStream($stream);
             }
 
             $this->file_delivery->buildTokenURL(
                 $stream,
-                $revision->getTitle(),
+                $filename ?? $revision->getTitle(),
                 Disposition::INLINE,
                 6, // FSX TODO
                 1

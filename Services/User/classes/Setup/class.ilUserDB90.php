@@ -120,4 +120,28 @@ class ilUserDB90 implements ilDatabaseUpdateSteps
         $query = 'DELETE FROM settings WHERE module="common" AND keyword="user_adm_alpha_nav";';
         $this->db->manipulate($query);
     }
+
+    public function step_10(): void
+    {
+        $query = 'SELECT value FROM settings WHERE module = %s AND keyword = %s';
+        $res = $this->db->queryF(
+            $query,
+            [\ilDBConstants::T_TEXT, \ilDBConstants::T_TEXT],
+            ['common', 'ps_login_max_attempts']
+        );
+
+        // We should adjust the usr_data values, even if the "Max. Login Attempts" are currently not set
+        $max_login_attempts = min(
+            (int) ($this->db->fetchAssoc($res)['value'] ?? ilSecuritySettings::MAX_LOGIN_ATTEMPTS),
+            ilSecuritySettings::MAX_LOGIN_ATTEMPTS
+        );
+
+        $max_login_attempts_exceeded = $max_login_attempts + 1;
+
+        $this->db->manipulateF(
+            'UPDATE usr_data SET login_attempts = %s WHERE login_attempts > %s',
+            [\ilDBConstants::T_INTEGER, \ilDBConstants::T_INTEGER],
+            [$max_login_attempts_exceeded, $max_login_attempts_exceeded]
+        );
+    }
 }

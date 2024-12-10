@@ -261,7 +261,8 @@ class ilTestService
                 'marked' => $marked,
                 'sequence' => $value["sequence"],
                 'obligatory' => $value['obligatory'],
-                'isAnswered' => $value['isAnswered']
+                'isAnswered' => $value['isAnswered'],
+                'has_authorized_answer' => $value['has_authorized_answer'],
             );
 
             $firstQuestion = false;

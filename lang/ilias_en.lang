@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Use plain text for questions and
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Use Rich-Text-Editor (TinyMCE) for editing questions and answers, feedbacks and hints
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.
 assessment#:#tst_all_test_competences#:#All Test Competence
 assessment#:#tst_all_user_data_deleted#:#All user data for this test has been removed!
@@ -1362,7 +1364,7 @@ assessment#:#tst_enable_questionlist#:#Show 'List of Questions’
 assessment#:#tst_enable_questionlist_description#:#Participants can switch on a list of the test questions on the left of the actual question.
 assessment#:#tst_ending_time#:#Finishing Time
 assessment#:#tst_ending_time_before_starting_time#:#Please enter a date for the end of the test that is after the start date.
-assessment#:#tst_ending_time_desc#:#Time from which participants can no longer submit answers. <b>Important</b>: Do <b>not</b> use this option for e-exams/distance exams. Instead, use the function 'Limit Duration of Test' (see below). Only then will the test be ended on the server side and each participant's last entry in Essay-Questions automatically saved as auto-save-content.
+assessment#:#tst_ending_time_desc#:#Time from which participants can no longer submit answers. <strong>Important</strong>: Do <strong>not</strong> use this option for e-exams/distance exams. Instead, use the function 'Limit Duration of Test' (see below). Only then will the test be ended on the server side and each participant's last entry in Essay-Questions automatically saved as auto-save-content.
 assessment#:#tst_enter_questionpool#:#Please enter a question pool name where the new question will be stored
 assessment#:#tst_eval_question_points#:#Question Results for Pass %s
 assessment#:#tst_eval_results_by_pass#:#List of Answers for Pass %s
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Show Answers
 assessment#:#tst_show_cancel#:#Suspend Test
 assessment#:#tst_show_cancel_description#:#Participants are presented with a button to stop the test run and to continue it later. Caution: Suspending the test does not stop the countdown of the maximum duration of the test.
 assessment#:#tst_show_comp_results#:#Competence Results
-assessment#:#tst_show_pass_details#:#Show ‘Table of Detailed Test Results’ for each Test Attempt upon Selected Point in Time
-assessment#:#tst_show_pass_details_desc#:#The summary of results will be appended at the point in time indicated in the setting above: A ‘Table of Detailed Test Results’ will show the title of the questions and the points scored in a particular test attempt. <br> Other than that the table will be displayed after the last test attempt possible (setting in link ‘General’, option ‘Limit Number of Test Attempts) or after the test is officially finished (setting in link ‘General’, option ‘Finishing Time’). <br> Further settings about the content of the ‘Table of Detailed Test Results’ can be made in the section ‘Further Details to be Included in Test Results’ of this form.
 assessment#:#tst_show_results#:#Test Results
 assessment#:#tst_show_side_list#:#Show List of Questions
 assessment#:#tst_show_solution_answers_only#:#Print View of Results (Answers Only)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Update Automatically
 auth#:#auth_oidc_update_role_info#:#Only Synchronise Automatically the First Time a User Logs In.
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login Page
+auth#:#auth_required_password#:#Please enter a password.
+auth#:#auth_required_username#:#Please enter a username.
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Add new Identity Provider
 auth#:#auth_saml_add_idp_md_error#:#The given value was not a valid XML document. Ensure the XML contains a valid Identity Provider.
@@ -2784,12 +2786,12 @@ certificate#:#certificate_text#:#Certificate Text
 certificate#:#certificate_text_info#:#Please enter the certificate text. If the WYSIWYG editor is disabled in the ILIAS administration, you can still use valid XHTML to format the text.<br><br>
 certificate#:#certificate_unit_description#:#Enter units of measure as VALUE[cm|mm|in|pt|pc|px|em], e.g. 10mm or 3in
 certificate#:#certificate_usage#:#Please note that the usage of certificates is only available if the ILIAS Java-Server is running. The configuration for Java-Server is available in Administration » General Settings » Server, sub-tab Java-Server.
-certificate#:#certificate_var_max_points#:#46
-certificate#:#certificate_var_result_mark_long#:#Good
-certificate#:#certificate_var_result_mark_short#:#B
-certificate#:#certificate_var_result_passed#:#passed
-certificate#:#certificate_var_result_percent#:#83%
-certificate#:#certificate_var_result_points#:#38
+certificate#:#certificate_var_max_points#:#Maximum number of points in the test used
+certificate#:#certificate_var_result_mark_long#:#Achieved mark presented in 'official form'
+certificate#:#certificate_var_result_mark_short#:#Achieved mark presented in 'short form'
+certificate#:#certificate_var_result_passed#:#Information on whether the test was passed or not
+certificate#:#certificate_var_result_percent#:#Percentage achieved in the test
+certificate#:#certificate_var_result_points#:#Number of points achieved in the test
 certificate#:#certificate_var_user_birthday#:#1977-05-08
 certificate#:#certificate_var_user_city#:#Anytown, NY
 certificate#:#certificate_var_user_country#:#USA
@@ -3032,13 +3034,13 @@ cmix#:#activity_id_info#:#This ID is primarily used for the display of data from
 cmix#:#answered_info#:#Indicates the actor replied to a question, where the object is generally an activity representing the question. The text of the answer will often be included in the response inside result.
 cmix#:#answered_label#:#Statements with the verb 'answered'
 cmix#:#btn_change_registration#:#Submit
-cmix#:#btn_create_lrs_type#:#Add LRS-Type
+cmix#:#btn_create_lrs_type#:#Add LRS Type
 cmix#:#btn_create_registration#:#Submit
 cmix#:#change_registration#:#E-Mail address for Registration
 cmix#:#cmix_add#:#Add xAPI/cmi5 Object
 cmix#:#cmix_add_cmi5_lm#:#cmi5 Learning Module
 cmix#:#cmix_add_cmi5_lm_info#:#This option should be used when the content is a cmi5 compliant learning module. Related features like suitable reportings are available without further configurations.
-cmix#:#cmix_add_lrs_type#:#LRS-Type
+cmix#:#cmix_add_lrs_type#:#LRS Type
 cmix#:#cmix_add_source#:#Source
 cmix#:#cmix_add_source_external_app#:#Resource not launched by ILIAS
 cmix#:#cmix_add_source_external_app_info#:#Use this option for separately launched resources as e.g. apps or simulations. Users must agree to the fetching of data.
@@ -3100,14 +3102,14 @@ cmix#:#conf_bypass_proxy_disabled#:#xAPI-Proxy to get immediately data
 cmix#:#conf_bypass_proxy_enabled#:#CronJob to check Learning Record Store
 cmix#:#conf_bypass_proxy_info#:#In most cases it is recommended to use the xAPI-Proxy. Use the CronJob in case of Limitations regarding Resource or Server.
 cmix#:#conf_cronjob_neccessary#:#CronJob necessary for Learning Progress
-cmix#:#conf_cronjob_neccessary_info#:#By activating this option, xAPI-Objects using this LRS-Type could not use the xAPI-Proxy to get immediately data for Detection of Learning Progress. Use only the CronJob in case of limitations regarding resources or server.
+cmix#:#conf_cronjob_neccessary_info#:#By activating this option, xAPI-Objects using this LRS type could not use the xAPI-Proxy to get immediately data for Detection of Learning Progress. Use only the CronJob in case of limitations regarding resources or server.
 cmix#:#conf_delete_data#:#Delete Data in LRS
 cmix#:#conf_delete_data_info#:#Deletion is currently only possible with the Learning Record Store (LRS) LearningLocker. Only use the options for deleting the user identification if the data has been pseudonymized in the LRS.
-cmix#:#conf_delete_data_opt0#:#never
-cmix#:#conf_delete_data_opt1#:#never - but if users are deleted and if xAPI/cmi objects are moved to the trash or deleted, data will no longer be assignable for ILIAS by deleting the - user identification
-cmix#:#conf_delete_data_opt11#:#when users are deleted and when xAPI/cmi objects are moved to the trash or deleted
-cmix#:#conf_delete_data_opt12#:#additionally when users are removed from courses or groups
-cmix#:#conf_delete_data_opt2#:#never - but additionally when users are removed from courses or groups, data will no longer be assignable for ILIAS by deleting the user identification
+cmix#:#conf_delete_data_opt0#:#Never
+cmix#:#conf_delete_data_opt1#:#Never - but if users are deleted and if xAPI/cmi objects are moved to the trash or deleted, data will no longer be assignable for ILIAS by deleting the - user identification
+cmix#:#conf_delete_data_opt11#:#When users are deleted and when xAPI/cmi objects are moved to the trash or deleted
+cmix#:#conf_delete_data_opt12#:#Additionally when users are removed from courses or groups
+cmix#:#conf_delete_data_opt2#:#Never - but additionally when users are removed from courses or groups, data will no longer be assignable for ILIAS by deleting the user identification
 cmix#:#conf_description#:#Description
 cmix#:#conf_external_lrs#:#External LRS
 cmix#:#conf_keep_lp#:#Keep Learning Progress
@@ -3126,8 +3128,8 @@ cmix#:#conf_new_window#:#New Window
 cmix#:#conf_new_window_info#:#The content is opened in a new window. When leaving the content this window gets closed.
 cmix#:#conf_own_window#:#Own Window
 cmix#:#conf_own_window_info#:#The content is opened in the same window and replaces the ILIAS Screen. When leaving the content the user returns to ILIAS.
-cmix#:#conf_privacy_comment_default#:#Indication to user
-cmix#:#conf_privacy_ident#:#User identification
+cmix#:#conf_privacy_comment_default#:#Indication to User
+cmix#:#conf_privacy_ident#:#User Identification
 cmix#:#conf_privacy_ident_il_uuid_ext_account#:#External User ID combined with a unique ILIAS platform id formatted as an E-Mail address
 cmix#:#conf_privacy_ident_il_uuid_ext_account_info#:#This is identical to each call, but may allow a direct conclusion about the user.
 cmix#:#conf_privacy_ident_il_uuid_login#:#ILIAS Login combined with a unique ILIAS platform id formatted as an E-Mail address
@@ -3176,19 +3178,19 @@ cmix#:#conf_user_ident_info#:#Standard is frequently the email address. The uniq
 cmix#:#conf_user_ident_real_email#:#E-Mail Address
 cmix#:#conf_user_ident_real_email_info#:#Sends E-Mail Address of user as identification (Warning: an E-Mail Address might be used by multiple users!)
 cmix#:#conf_user_name#:#User name
-cmix#:#conf_user_name_firstname#:#First name
+cmix#:#conf_user_name_firstname#:#First Name
 cmix#:#conf_user_name_firstname_info#:#Sends the first name of the user name from ILIAS
-cmix#:#conf_user_name_fullname#:#Entire name
+cmix#:#conf_user_name_fullname#:#Entire Name
 cmix#:#conf_user_name_fullname_info#:#Sends title, first name and last name
 cmix#:#conf_user_name_info#:#Sending an user name is usually not required.
-cmix#:#conf_user_name_lastname#:#Title and last name
+cmix#:#conf_user_name_lastname#:#Title and Last Name
 cmix#:#conf_user_name_lastname_info#:#Sends Mister or Ms/Mrs. (unless otherwise specified) and the last name
 cmix#:#conf_user_name_none#:#No one
 cmix#:#conf_user_name_none_info#:#Sends '-' instead of a name
 cmix#:#conf_user_registered_mail#:#Registered E-Mail-Address
 cmix#:#content_privacy_ident#:#User identification for resource
 cmix#:#content_privacy_name#:#User name for resource
-cmix#:#create_lrs_type_form#:#New LRS-Type
+cmix#:#create_lrs_type_form#:#New LRS type
 cmix#:#create_registration#:#Register your E-Mail address
 cmix#:#cron_xapi_del#:#Delete xAPI/cmi5 data in the Learning Record Store
 cmix#:#cron_xapi_del_desc#:#Data are deleted according to the settings of the xAPI/cmi5 objects.
@@ -3198,7 +3200,7 @@ cmix#:#description_info#:#The description will be shown below the title.
 cmix#:#download_certificate#:#Download Certificate
 cmix#:#duration_info#:#The duration can be entered e.g. for answering a task. The duration is set to the default value 0 seconds (PT00.000S) by this option.
 cmix#:#duration_label#:#Duration
-cmix#:#edit_lrs_type_form#:#LRS-Type
+cmix#:#edit_lrs_type_form#:#LRS Type
 cmix#:#failed_info#:#Indicates the actor did not successfully pass an activity to a level of predetermined satisfaction.
 cmix#:#failed_label#:#Statements with the verb 'failed'
 cmix#:#fetch_xapi_statements#:#Fetch results from Learning Record Store
@@ -3228,14 +3230,14 @@ cmix#:#highscore_top_table#:#Top Ranking
 cmix#:#highscore_top_table_description#:#Participants are presented with a table containing the top rankings.
 cmix#:#highscore_wtime#:#Duration
 cmix#:#highscore_wtime_description#:#A column containing the duration will be included in the ranking.
-cmix#:#info_availability#:#Hereby you can operate the availability of the LRS-type within the magazine. All types can set on "allow existing ones" instead of being deleted.
+cmix#:#info_availability#:#Hereby you can operate the availability of the LRS type within the magazine. All types can set on "allow existing ones" instead of being deleted.
 cmix#:#info_description#:#This description will be shown when choosing the type for new objects.
 cmix#:#info_external_lrs#:#A hint will be shown to users when dealing with an external LRS. An external LRS is characterized by insufficient influence on the LRS the by the operator of the ILIAS-installation. This is the case when there are no rights to delete.
 cmix#:#info_lrs_endpoint#:#URL of the endpoint without '/' at the end
 cmix#:#info_lrs_key#:#Key or login for access, i.e. 12345
 cmix#:#info_lrs_secret#:#Shared secret / Password, i.e. secret
 cmix#:#info_privacy_comment_default#:#Please insert, if required, an additional indication on data security when using this LRS.
-cmix#:#info_remarks#:#Place to write down your comments on this LRS-type here.
+cmix#:#info_remarks#:#Place to write down your comments on this LRS type here.
 cmix#:#info_title#:#This title will be shown when choosing the type for new objects.
 cmix#:#initialized_info#:#Indicates the activity provider has determined that the actor successfully started an activity.
 cmix#:#initialized_label#:#Statements with the verb 'initialized'
@@ -3262,7 +3264,7 @@ cmix#:#show_debug#:#Display Learning Experiences
 cmix#:#show_debug_info#:#Shows tab ‘Learning Experiences’ with information about own interaction with cmi5 module. Data of other users is displayed if permission ‘View learning experiences of other users’ is given.
 cmix#:#tab_export#:#Export
 cmix#:#tab_info#:#Info
-cmix#:#tab_lrs_types#:#LRS-Types
+cmix#:#tab_lrs_types#:#LRS Types
 cmix#:#tab_scoring#:#Ranking
 cmix#:#tab_settings#:#Settings
 cmix#:#tab_statements#:#Learning Experiences
@@ -3270,7 +3272,7 @@ cmix#:#tbl_action_raw_data#:#View Raw Data
 cmix#:#tbl_lrs_type_availability#:#Availability
 cmix#:#tbl_lrs_type_title#:#Title
 cmix#:#tbl_lrs_type_usages#:#Usages Count
-cmix#:#tbl_lrs_types_header#:#LRS-Types
+cmix#:#tbl_lrs_types_header#:#LRS Types
 cmix#:#tbl_statements_actor#:#User
 cmix#:#tbl_statements_date#:#Date
 cmix#:#tbl_statements_object#:#Object
@@ -3528,7 +3530,7 @@ common#:#auth_allow_local#:#Allow Local Authentication
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Allows CAS users to authenticate themselves with their local ILIAS username and a local password.
 common#:#auth_cas_auth#:#Configure CAS Authentication
-common#:#auth_cas_auth_desc#:#CAS requires PHP 4.3.1 or higher with CURL support (7.5 or higher)
+common#:#auth_cas_auth_desc#:#For CAS authentication to work, the server setting prevent_super_global_replacement in client.ini.php must be set.
 common#:#auth_cas_port_desc#:#E.g. 443 if the full CAS server URI is https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#E.g. auth.yourserver.com if the full CAS server URI is https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#Local URI, e.g. cas if the full CAS server URI is https://auth.yourserver.com:443/cas/
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#Copy all
 common#:#copy_n_of_suffix#:#- Copy (%1$s)
 common#:#copy_of#:#Copy of
 common#:#copy_of_suffix#:#- Copy
+common#:#copy_perma_link#:#Copy link to clipboard
 common#:#copy_selected_items#:#Copy
 common#:#count#:#Count
 common#:#counter_novelty#:#News
@@ -3908,7 +3911,7 @@ common#:#dislike#:#Dislike
 common#:#domain#:#Domain
 common#:#down#:#Down
 common#:#download#:#Download
-common#:#download_all_returned_files#:#Download all Submissions
+common#:#download_all_returned_files#:#Download All Submissions
 common#:#download_link#:#Download Link
 common#:#download_multiple_objects#:#Download Multiple Objects
 common#:#download_selected_items#:#Download
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Include News of Personal Items
 common#:#pdf_export#:#PDF Export
 common#:#perm_settings#:#Permissions
 common#:#perma_link#:#Permanent Link
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.
 common#:#permission#:#Permission
 common#:#permission_denied#:#Permission Denied
 common#:#permission_settings#:#Object Permission Settings
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.
 copg#:#copg_page_type_stys#:#Layout Page
 copg#:#copg_par_format_selection#:#Paragraph Format Selection
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.
 copg#:#copg_questions_not_supported_here#:#Questions are not supported in this context.
 copg#:#copg_reload_page#:#Reload Page
 copg#:#copg_remove_formats#:#Remove Formatting
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Do you really want to delete this table with it
 dcl#:#dcl_confirm_storing_records#:#Please validate and confirm your input.
 dcl#:#dcl_confirm_storing_records_no_permission#:#You have no permission to change the record afterwards.
 dcl#:#dcl_copy#:#Copy Data Collection
+dcl#:#dcl_copy_field#:#Copy
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.
+dcl#:#dcl_copy_title#:#Copy of table and field
 dcl#:#dcl_create_date#:#Creation Date
 dcl#:#dcl_create_entry_rules#:#Entry Creation
 dcl#:#dcl_create_field#:#Create Field
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Delete Views
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete
 dcl#:#dcl_deleted_records#:#Successfully deleted %s Entries
+dcl#:#dcl_deprecated_copy#:#(Deprecated)
 dcl#:#dcl_desc#:#Descending Order (DESC)
 dcl#:#dcl_description#:#Field Description
 dcl#:#dcl_detailed_view#:#Single
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Integer
 dcl#:#dcl_number_desc#:#Field for integer values (max. 9 digits). No decimals or fractions.
 dcl#:#dcl_online_info#:#Only if the Data Collection is online, users are able to use the Data Collection.
 dcl#:#dcl_order#:#Order
+dcl#:#dcl_origin_not_found#:#Origin field was not found!
 dcl#:#dcl_own_entries#:#Only own entries
 dcl#:#dcl_owner#:#Owner
 dcl#:#dcl_owner_description#:#The owner of the entry.
@@ -9357,8 +9367,8 @@ exc#:#exc_msg_participants_removed#:#The participants have been removed from the
 exc#:#exc_msg_public_submission#:#All submissions will be published after the deadline.
 exc#:#exc_msg_saved_grades#:#Grades and comments have been saved.
 exc#:#exc_msg_sure_to_deassign_participant#:#Are you sure that you want to remove the participants from all assignments of the exercise? This will also delete all their handed in resources!
-exc#:#exc_multi_feedb_info#:#On this screen you can upload multiple feedbacks in one file. First click on ‘Download ZIP Structure’, save the ZIP file and extract it on your local computer. Put the feedback files into the corresponding user directories. Now compress the whole directory as one ZIP file again. Browse your local filesystem for the file and select it as the ‘Multi-Feedback File’ in the form below. After that click ‘Upload’. A confirmation screen will list the files. Please avoid using any special characters in your file names.
-exc#:#exc_multi_feedback#:#Evaluation for many Participants
+exc#:#exc_multi_feedb_info#:#On this screen you can upload feedback for multiple participants in one file. First click on ‘Download ZIP Structure’, save the ZIP file and extract it on your local computer. Then put the feedback files into the corresponding user directories. Now compress the whole directory as one ZIP file again. Browse your local filesystem for the file and select it as the ‘Multi-Feedback File’ in the form below. After that click ‘Upload’. A confirmation screen will list the files. Please avoid using any special characters in your file names.
+exc#:#exc_multi_feedback#:#Evaluate Multiple Participants
 exc#:#exc_multi_feedback_file#:#Multi-Feedback File
 exc#:#exc_multi_feedback_files#:#Multi-Feedback Files
 exc#:#exc_needs_deadline#:#This feature does only work with an assignment deadline.
@@ -9711,7 +9721,7 @@ export#:#export_resource#:#Resource
 export#:#export_save_selection#:#Start Export
 export#:#export_select_resources#:#Select Resources
 export#:#no_file#:#No file
-file#:#action_download#:#Download file
+file#:#action_download#:#Download file or view content
 file#:#action_show#:#Redirect user to the file’s ‘Info’ tab
 file#:#add_icon#:#Add Icon
 file#:#amount_of_downloads#:#Downloads
@@ -12787,7 +12797,7 @@ notifications_adm#:#osd_delay_desc#:#Delay of the visible presentation in millis
 notifications_adm#:#osd_error_presentation_time_too_small#:#The Presentation Time has to be at least than 1000 miliseconds.
 notifications_adm#:#osd_error_refresh_interval_smaller_than_delay_and_vanish_combined#:#The Refresh Interval has to be greater than the Presentation Time and the Presentation Delay combined.
 notifications_adm#:#osd_error_refresh_interval_too_small#:#The Refresh Interval has to be at least than 3000 miliseconds.
-notifications_adm#:#osd_interval#:#Refreshinterval
+notifications_adm#:#osd_interval#:#Refresh interval
 notifications_adm#:#osd_interval_desc#:#Polling interval for checking of new notifications in miliseconds. A lower number will notify the user more quickly but increases the number of requests the web server must handle.
 notifications_adm#:#osd_play_sound#:#Play a Sound
 notifications_adm#:#osd_play_sound_desc#:#Play a sound when receiving a new notficiation.
@@ -12861,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Activates competence management and compete
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#The ‘Tag Cloud’ block will be displayed inside the ‘Content’ tab.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.
 obj#:#obj_tool_setting_use_news#:#News
 obj#:#obj_tool_setting_use_news_info#:#Use of the news block and/or timeline view. Users can subscribe for notifications if the news block or the timeline are activated.
 obj#:#obj_tool_setting_use_news_open_settings#:#Open Settings of News Block and Timeline
@@ -13203,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses
 prg#:#prg_acknowledge_completed_courses#:#Acknowledge Completed Courses
 prg#:#prg_add#:#Add Study Programme
 prg#:#prg_added_course_ref_successful#:#New course link was added successfully
@@ -14663,7 +14675,7 @@ registration#:#reg_direct_info#:#New user registration requests are automaticall
 registration#:#reg_disabled#:#No Registration Possible
 registration#:#reg_domain#:#Domain
 registration#:#reg_domain_already_assigned_p#:#The domains '%s' were already entered for another role.
-registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role. 
+registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role.
 registration#:#reg_email#:#Automatic Role Assignment
 registration#:#reg_email_domains#:#The following e-mail address domains are valid: %s
 registration#:#reg_email_domains_code#:#With a registration code any E-Mail-Address is valid.
@@ -15186,8 +15198,8 @@ search#:#lucene_show_sub_relevance#:#Show Sub-Item Relevance
 search#:#lucene_size_frag_info#:#Please choose the maximum size of highlighted text fragments. To do this, enter the number of characters including spaces.
 search#:#lucene_size_fragments#:#Size of Text Fragments
 search#:#lucene_tbl_create_ini#:#Create Java-Server Ini-File
-search#:#search_add_members_from_container_crs#:#Add Users of Current Course
-search#:#search_add_members_from_container_grp#:#Add Users of Current Group
+search#:#search_add_members_from_container_crs#:#Add Users From Current Course
+search#:#search_add_members_from_container_grp#:#Add Users From Current Group
 search#:#search_adv_md#:#Custom Metadata
 search#:#search_advanced#:#Advanced Search
 search#:#search_all_words#:#All words <small>(<i>AND</i>)</small>

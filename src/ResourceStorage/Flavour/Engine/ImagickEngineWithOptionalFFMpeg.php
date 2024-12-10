@@ -25,6 +25,9 @@ namespace ILIAS\ResourceStorage\Flavour\Engine;
  */
 class ImagickEngineWithOptionalFFMpeg extends ImagickEngine
 {
+    /**
+     * @readonly
+     */
     private FFMpegEngine $ffmpeg;
 
     protected array $supported;

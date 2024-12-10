@@ -1,20 +1,22 @@
 <?php
 
-declare(strict_types=1);
-
-/******************************************************************************
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
  *
- * This file is part of ILIAS, a powerful learning management system.
- *
- * ILIAS is licensed with the GPL-3.0, you should have received a copy
- * of said license along with the source code.
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
  *
  * If this is not the case or you just want to try ILIAS, you'll find
  * us at:
- *      https://www.ilias.de
- *      https://github.com/ILIAS-eLearning
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
  *
- *****************************************************************************/
+ *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * CAS authentication provider
@@ -40,17 +42,25 @@ class ilAuthProviderCAS extends ilAuthProvider
         $this->getLogger()->debug('Starting cas authentication attempt... ');
 
         try {
-            phpCAS::setDebug(false);
-            phpCAS::setVerbose(true);
+            // Uncomment the following line to get trace-level loggin by CAS
+            //phpCAS::setLogger($this->getLogger());
+            // Caution: If you set this to "true", there might be output
+            // and the redirect won't work and you get an ILIAS Whoopsy
+            // Though, you may need to for debugging other issues.
+            phpCAS::setVerbose(false);
+            $this->getLogger()->debug('Create client... ');
             phpCAS::client(
                 CAS_VERSION_2_0,
                 $this->getSettings()->getServer(),
                 $this->getSettings()->getPort(),
-                $this->getSettings()->getUri()
+                $this->getSettings()->getUri(),
+                ilUtil::_getHttpPath()
             );
 
             phpCAS::setNoCasServerValidation();
+            $this->getLogger()->debug('Fore CAS auth... ');
             phpCAS::forceAuthentication();
+            $this->getLogger()->debug('Fore CAS auth done.');
         } catch (Exception $e) {
             $this->getLogger()->error('Cas authentication failed with message: ' . $e->getMessage());
             $this->handleAuthenticationFail($status, 'err_wrong_login');
@@ -58,9 +68,11 @@ class ilAuthProviderCAS extends ilAuthProvider
         }
 
         if (phpCAS::getUser() === '') {
+            $this->getLogger()->debug('CAS user is empty.');
             return $this->handleAuthenticationFail($status, 'err_wrong_login');
         }
         $this->getCredentials()->setUsername(phpCAS::getUser());
+        $this->getLogger()->debug('user name set to CAS user.');
 
         // check and handle ldap data sources
         if (ilLDAPServer::isDataSourceActive(ilAuthUtils::AUTH_CAS)) {

@@ -95,7 +95,7 @@ class SkillDeletionManager
 
     public function deleteNode(int $node_id, \ilSkillTree $tree = null): void
     {
-        if ($node_id != \ilTree::POS_FIRST_NODE) {
+        if ($node_id != \ilTree::POS_FIRST_NODE || $node_id !== 0) {
             if (!$tree) {
                 $tree = $this->tree_repo->getTreeForNodeId($node_id);
             }

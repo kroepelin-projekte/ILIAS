@@ -1001,6 +1001,15 @@ class ilSurveyParticipantsGUI
 
     public function importExternalRecipientsFromFileObject(): void
     {
+        $this->handleWriteAccess();
+        $form = $this->getImportExternalMailRecipientsFromFileForm();
+
+        if (!$form->checkInput()) {
+            $this->setParticipantSubTabs("codes");
+            $this->tpl->setContent($form->getHTML());
+            return;
+        }
+
         if (trim($_FILES['externalmails']['tmp_name'])) {
             $reader = new ilCSVReader();
             $reader->open($_FILES['externalmails']['tmp_name']);
@@ -1061,10 +1070,15 @@ class ilSurveyParticipantsGUI
 
     public function importExternalMailRecipientsFromFileFormObject(): void
     {
-        $ilAccess = $this->access;
-
         $this->handleWriteAccess();
-        $this->setParticipantSubTabs("mail_survey_codes");
+        $this->setParticipantSubTabs("codes");
+        $form = $this->getImportExternalMailRecipientsFromFileForm();
+        $this->tpl->setContent($form->getHTML());
+    }
+
+    public function getImportExternalMailRecipientsFromFileForm(): ilPropertyFormGUI
+    {
+        $ilAccess = $this->access;
 
         $form_import_file = new ilPropertyFormGUI();
         $form_import_file->setFormAction($this->ctrl->getFormAction($this));
@@ -1085,8 +1099,7 @@ class ilSurveyParticipantsGUI
         if ($ilAccess->checkAccess("write", "", $this->edit_request->getRefId())) {
             $form_import_file->addCommandButton("codes", $this->lng->txt("cancel"));
         }
-
-        $this->tpl->setContent($form_import_file->getHTML());
+        return $form_import_file;
     }
 
     public function importExternalMailRecipientsFromTextFormObject(): void

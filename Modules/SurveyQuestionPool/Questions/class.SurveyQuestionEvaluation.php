@@ -260,7 +260,7 @@ abstract class SurveyQuestionEvaluation
                     } elseif ($item[1]) {
                         $tmp = "\"" . nl2br($item[1]) . "\"";
                     }
-                    $parsed_results[$item[2]] = $tmp;
+                    $parsed_results[(int) $item[2]] = $tmp;
                 }
             }
         }

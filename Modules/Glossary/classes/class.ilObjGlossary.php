@@ -163,11 +163,11 @@ class ilObjGlossary extends ilObject implements ilAdvancedMetaDataSubItems
         $this->snippet_length = $a_val;
     }
 
-    public function getSnippetLength(): ?int
+    public function getSnippetLength(): int
     {
         return ($this->snippet_length > 0)
             ? $this->snippet_length
-            : null;
+            : 200;
     }
 
     public function setOnline(bool $a_online): void

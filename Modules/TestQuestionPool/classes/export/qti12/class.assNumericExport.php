@@ -87,10 +87,7 @@ class assNumericExport extends assQuestionExport
             "numtype" => "Decimal"
         ];
         $a_xml_writer->xmlStartTag("response_num", $attrs);
-        $solution = $this->object->getSuggestedSolution(0);
-        if ($solution !== null) {
-            $a_xml_writer = $this->addSuggestedSolutionLink($a_xml_writer, $solution);
-        }
+        $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
         // shuffle output
         $attrs = [
             "fibtype" => "Decimal",

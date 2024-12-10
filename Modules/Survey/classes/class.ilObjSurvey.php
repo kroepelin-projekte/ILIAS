@@ -3725,9 +3725,9 @@ class ilObjSurvey extends ilObject
 
                 if ($row["externaldata"]) {
                     $ext = unserialize((string) $row["externaldata"], ['allowed_classes' => false]);
-                    $item['email'] = $ext['email'];
-                    $item['last_name'] = $ext['lastname'];
-                    $item['first_name'] = $ext['firstname'];
+                    $item['email'] = $ext['email'] ?? "";
+                    $item['last_name'] = $ext['lastname'] ?? "";
+                    $item['first_name'] = $ext['firstname'] ?? "";
                 }
 
                 $codes[] = $item;
@@ -3915,7 +3915,7 @@ class ilObjSurvey extends ilObject
 
         $row = $this->db->fetchAssoc($result);
 
-        return $row['state'];
+        return $row['state'] ?? false;
     }
 
     /**

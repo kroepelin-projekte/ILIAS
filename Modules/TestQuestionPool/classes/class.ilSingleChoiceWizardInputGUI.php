@@ -52,6 +52,7 @@ class ilSingleChoiceWizardInputGUI extends ilTextInputGUI
         parent::__construct($a_title, $a_postvar);
         $this->setSuffixes(['jpg', 'jpeg', 'png', 'gif']);
         $this->setSize('25');
+        $this->setMaxLength(1000);
         $this->validationRegexp = '';
 
         global $DIC;
@@ -245,6 +246,11 @@ class ilSingleChoiceWizardInputGUI extends ilTextInputGUI
                 foreach ($foundvalues['answer'] as $aidx => $answervalue) {
                     if (((strlen($answervalue)) == 0) && (!isset($foundvalues['imagename'][$aidx]) || strlen($foundvalues['imagename'][$aidx]) == 0)) {
                         $this->setAlert($lng->txt("msg_input_is_required"));
+                        return false;
+                    }
+
+                    if (mb_strlen($answervalue) > $this->getMaxLength()) {
+                        $this->setAlert($lng->txt("msg_input_char_limit_max"));
                         return false;
                     }
                 }
@@ -457,6 +463,7 @@ class ilSingleChoiceWizardInputGUI extends ilTextInputGUI
                 $tpl->setVariable("MULTILINE_ID", $this->getPostVar() . "[answer][$i]");
                 $tpl->setVariable("MULTILINE_ROW_NUMBER", $i);
                 $tpl->setVariable("MULTILINE_POST_VAR", $this->getPostVar());
+                $tpl->setVariable("MAXLENGTH", $this->getMaxLength());
                 if ($this->getDisabled()) {
                     $tpl->setVariable("DISABLED_MULTILINE", " disabled=\"disabled\"");
                 }

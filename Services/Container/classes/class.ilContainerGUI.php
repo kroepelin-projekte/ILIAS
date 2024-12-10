@@ -506,14 +506,18 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
             $this->ctrl->setParameter($this, "type", "");
             $this->ctrl->setParameter($this, "item_ref_id", "");
 
-            $toolbar->addFormButton(
-                $this->lng->txt('paste_clipboard_items'),
-                'paste'
+            $toolbar->addComponent(
+                $this->ui->factory()->button()->standard(
+                    $this->lng->txt('paste_clipboard_items'),
+                    $this->ctrl->getLinkTargetByClass([ilRepositoryGUI::class, static::class], 'paste')
+                )
             );
 
-            $toolbar->addFormButton(
-                $this->lng->txt('clear_clipboard'),
-                'clear'
+            $toolbar->addComponent(
+                $this->ui->factory()->button()->standard(
+                    $this->lng->txt('clear_clipboard'),
+                    $this->ctrl->getLinkTargetByClass([ilRepositoryGUI::class, static::class], 'clear')
+                )
             );
 
             $main_tpl->addAdminPanelToolbar($toolbar, true, false);
@@ -1766,11 +1770,10 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
                 // get subnodes of top nodes
                 $subnodes[$ref_id] = $this->tree->getSubTree($top_node);
             }
-
             // now move all subtrees to new location
             foreach ($subnodes as $key => $subnode) {
                 // first paste top_node....
-                $obj_data = ilObjectFactory::getInstanceByRefId($ref_id);
+                $obj_data = ilObjectFactory::getInstanceByRefId($key);
                 $new_ref_id = $obj_data->createReference();
                 $obj_data->putInTree($this->requested_ref_id);
                 $obj_data->setPermissions($this->requested_ref_id);

@@ -45,6 +45,9 @@ class ZipTest extends TestCase
         if (file_exists($this->unzips_dir . self::ZIPPED_ZIP)) {
             unlink($this->unzips_dir . self::ZIPPED_ZIP);
         }
+        if (!file_exists($this->unzips_dir)) {
+            mkdir($this->unzips_dir);
+        }
     }
 
     protected function tearDown(): void
@@ -74,15 +77,11 @@ class ZipTest extends TestCase
         $legacy = new LegacyArchives();
 
         define('CLIENT_WEB_DIR', __DIR__);
-        define('ILIAS_WEB_DIR', __DIR__);
+        define('ILIAS_WEB_DIR', 'public/data');
         define('CLIENT_ID', 'test');
         define('CLIENT_DATA_DIR', __DIR__);
         define('ILIAS_ABSOLUTE_PATH', __DIR__);
 
-        if (is_dir($this->unzips_dir)) {
-            $this->recurseRmdir($this->unzips_dir);
-        }
-        mkdir($this->unzips_dir);
         $legacy->zip($this->zips_dir, $this->unzips_dir . self::ZIPPED_ZIP, false);
         $this->assertFileExists($this->unzips_dir . self::ZIPPED_ZIP);
 
@@ -94,7 +93,7 @@ class ZipTest extends TestCase
             $parts = explode('/', $path);
             $depth = max($depth, count($parts));
         }
-        $this->assertEquals(1, $depth);
+        $this->assertEquals(2, $depth);
         $this->recurseRmdir($this->unzips_dir);
     }
 
@@ -103,7 +102,7 @@ class ZipTest extends TestCase
         $legacy = new LegacyArchives();
 
         define('CLIENT_WEB_DIR', __DIR__);
-        define('ILIAS_WEB_DIR', __DIR__);
+        define('ILIAS_WEB_DIR', 'public/data');
         define('CLIENT_ID', 'test');
         define('CLIENT_DATA_DIR', __DIR__);
         define('ILIAS_ABSOLUTE_PATH', __DIR__);
@@ -265,18 +264,18 @@ class ZipTest extends TestCase
 
     // PROVIDERS
 
-    public function getZips(): array
+    public static function getZips(): array
     {
         return [
-            ['1_folder_mac.zip', false, 10, $this->directories_one, 15, $this->files_one],
-            ['1_folder_win.zip', false, 10, $this->directories_one, 15, $this->files_one],
-            ['3_folders_mac.zip', true, 9, $this->directories_three, 12, $this->files_three],
-            ['3_folders_win.zip', true, 9, $this->directories_three, 12, $this->files_three],
-            ['1_folder_1_file_mac.zip', true, 3, $this->directories_mixed, 5, $this->files_mixed]
+            ['1_folder_mac.zip', false, 10, self::$directories_one, 15, self::$files_one],
+            ['1_folder_win.zip', false, 10, self::$directories_one, 15, self::$files_one],
+            ['3_folders_mac.zip', true, 9, self::$directories_three, 12, self::$files_three],
+            ['3_folders_win.zip', true, 9, self::$directories_three, 12, self::$files_three],
+            ['1_folder_1_file_mac.zip', true, 3, self::$directories_mixed, 5, self::$files_mixed]
         ];
     }
 
-    protected array $files_mixed = [
+    protected static array $files_mixed = [
         0 => '03_Test.pdf',
         1 => 'Ordner A/01_Test.pdf',
         2 => 'Ordner A/02_Test.pdf',
@@ -284,13 +283,13 @@ class ZipTest extends TestCase
         4 => 'Ordner A/Ordner A_2/08_Test.pdf'
     ];
 
-    protected array $directories_mixed = [
+    protected static array $directories_mixed = [
         0 => 'Ordner A/',
         1 => 'Ordner A/Ordner A_1/',
         2 => 'Ordner A/Ordner A_2/'
     ];
 
-    protected array $directories_one = [
+    protected static array $directories_one = [
         0 => 'Ordner 0/',
         1 => 'Ordner 0/Ordner A/',
         2 => 'Ordner 0/Ordner A/Ordner A_1/',
@@ -302,7 +301,7 @@ class ZipTest extends TestCase
         8 => 'Ordner 0/Ordner C/Ordner C_1/',
         9 => 'Ordner 0/Ordner C/Ordner C_2/'
     ];
-    protected array $directories_three = [
+    protected static array $directories_three = [
         0 => 'Ordner A/',
         1 => 'Ordner A/Ordner A_1/',
         2 => 'Ordner A/Ordner A_2/',
@@ -314,7 +313,7 @@ class ZipTest extends TestCase
         8 => 'Ordner C/Ordner C_2/'
     ];
 
-    protected array $files_one = [
+    protected static array $files_one = [
         0 => 'Ordner 0/13_Test.pdf',
         1 => 'Ordner 0/14_Test.pdf',
         2 => 'Ordner 0/15_Test.pdf',
@@ -332,7 +331,7 @@ class ZipTest extends TestCase
         14 => 'Ordner 0/Ordner C/Ordner C_2/12_Test.pdf'
     ];
 
-    protected array $files_three = [
+    protected static array $files_three = [
         0 => 'Ordner A/01_Test.pdf',
         1 => 'Ordner A/02_Test.pdf',
         2 => 'Ordner A/Ordner A_2/07_Test.pdf',

@@ -84,6 +84,10 @@ class assSingleChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringA
      */
     protected function getEditAnswersSingleLine($checkonly = false): bool
     {
+        if ($this->object->getSelfAssessmentEditingMode()) {
+            return $this->object->isSingleline();
+        }
+
         if ($checkonly) {
             $types = $_POST['types'] ?? '0';
             return $types === '0' ? true : false;
@@ -605,6 +609,7 @@ class assSingleChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringA
             $thumb_size = new ilNumberInputGUI($this->lng->txt("thumb_size"), "thumb_size");
             $thumb_size->setSuffix($this->lng->txt("thumb_size_unit_pixel"));
             $thumb_size->setMinValue($this->object->getMinimumThumbSize());
+            $thumb_size->setMaxValue($this->object->getMaximumThumbSize());
             $thumb_size->setDecimals(0);
             $thumb_size->setSize(6);
             $thumb_size->setInfo($this->lng->txt('thumb_size_info'));
@@ -704,7 +709,6 @@ class assSingleChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringA
         if ($this->object->getSelfAssessmentEditingMode()) {
             $choices->setSize(40);
         }
-        $choices->setMaxLength(800);
         if ($this->object->getAnswerCount() == 0) {
             $this->object->addAnswer("", 0, 0);
         }
@@ -804,7 +808,7 @@ class assSingleChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringA
                 break;
 
             case 2:
-                if (strcmp((string)$user_solution, $answer_id) == 0) {
+                if (strcmp((string) $user_solution, $answer_id) == 0) {
                     $feedbackOutputRequired = true;
                 }
                 break;

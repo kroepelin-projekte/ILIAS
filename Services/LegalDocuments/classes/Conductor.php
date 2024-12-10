@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LegalDocuments;
 
+use ILIAS\UI\Component\Modal\Modal;
 use ILIAS\LegalDocuments\PageFragment;
 use ILIAS\DI\Container;
 use ILIAS\LegalDocuments\ConsumerSlots\SelfRegistration;
@@ -102,7 +103,7 @@ class Conductor
 
     public function modifyFooter(Footer $footer): Footer
     {
-        return array_reduce($this->internal->all('footer'), fn($footer, Closure $proc) => $proc($footer), $footer);
+        return $this->footerBridge($footer, array_reduce($this->internal->all('footer'), fn(Closure $footer, Closure $proc) => $proc($footer), $this->collectFooterItems([]))());
     }
 
     public function agree(string $gui, string $cmd): void
@@ -273,5 +274,38 @@ class Conductor
             $this->container,
             $action
         )));
+    }
+
+    private function footerBridge(Footer $footer, array $collection): Footer
+    {
+        $new_links = [];
+        $add_item = function (string $id, string $title, object $obj) use (&$footer, &$new_links): void {
+            if ($obj instanceof Modal) {
+                $footer = $footer->withAdditionalModalAndTrigger($obj, $this->container->ui()->factory()->button()->shy($title, ''));
+            } else {
+                $new_links[] = $this->container->ui()->factory()->link()->standard($title, (string) $obj);
+            }
+        };
+
+        foreach ($collection as $args) {
+            $add_item(...$args);
+        }
+
+        $old_links = $footer->getLinks();
+        $modals = $footer->getModals();
+        $new_footer = $this->container->ui()->factory()->mainControls()->footer(array_merge($old_links, $new_links), $footer->getText());
+        $new_footer = $footer->getPermanentURL() ? $new_footer->withPermanentURL($footer->getPermanentURL()) : $new_footer;
+
+        return array_reduce($modals, static fn(Footer $f, array $m) => $f->withAdditionalModalAndTrigger(...$m), $new_footer);
+    }
+
+    private function collectFooterItems(array $items): Closure
+    {
+        return function (...$args) use ($items) {
+            if ($args === []) {
+                return $items;
+            }
+            return $this->collectFooterItems(array_merge($items, [$args]));
+        };
     }
 }

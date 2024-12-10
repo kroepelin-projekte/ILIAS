@@ -1268,7 +1268,10 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
 
             $status = ILIAS\UI\Component\Listing\Workflow\Step::NOT_STARTED;
 
-            if ($row['worked_through'] || $row['isAnswered']) {
+            if (
+                ($row['worked_through'] || $row['isAnswered'])
+                && $row['has_authorized_answer']
+            ) {
                 $status = ILIAS\UI\Component\Listing\Workflow\Step::IN_PROGRESS;
             }
 

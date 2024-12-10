@@ -270,14 +270,17 @@ class ilBadgeManagementGUI
         $form->addItem($active);
 
         $title = new ilTextInputGUI($lng->txt('title'), 'title');
+        $title->setMaxLength(255);
         $title->setRequired(true);
         $form->addItem($title);
 
         $desc = new ilTextAreaInputGUI($lng->txt('description'), 'desc');
+        $desc->setMaxNumOfChars(4000);
         $desc->setRequired(true);
         $form->addItem($desc);
 
         $crit = new ilTextAreaInputGUI($lng->txt('badge_criteria'), 'crit');
+        $crit->setMaxNumOfChars(4000);
         $crit->setRequired(true);
         $form->addItem($crit);
 
@@ -328,6 +331,7 @@ class ilBadgeManagementGUI
         }
 
         $valid = new ilTextInputGUI($lng->txt('badge_valid'), 'valid');
+        $valid->setMaxLength(255);
         $form->addItem($valid);
 
         $custom = $a_type->getConfigGUIInstance();

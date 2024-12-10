@@ -109,6 +109,8 @@ class ilBookingReservationsTableGUI extends ilTable2GUI
         $this->addColumn("", "", 1);
         $this->addColumn($this->lng->txt("title"), "title");
 
+        $this->lng->loadLanguageModule("crs");
+
         $selected = $this->getSelectedColumns();
         $cols = $this->getSelectableColumns();
 
@@ -570,10 +572,11 @@ class ilBookingReservationsTableGUI extends ilTable2GUI
                     $user_ids = array_diff($user_ids, ilMemberAgreement::lookupAcceptedAgreements($parent_obj_id));
                 }
                 $odf_data = ilCourseUserData::_getValuesByObjId($parent_obj_id);
-
                 $usr_data = [];
                 foreach ($odf_data as $usr_id => $fields) {
-                    if (in_array($usr_id, $user_ids, true)) {
+                    // this currently does not with strict mode, since
+                    // $user_ids holds strings
+                    if (in_array($usr_id, $user_ids)) {
                         foreach ($fields as $field_id => $value) {
                             if (in_array($field_id, $odf_ids, true)) {
                                 $usr_data[$usr_id]['odf_' . $field_id] = $value;
@@ -707,7 +710,7 @@ class ilBookingReservationsTableGUI extends ilTable2GUI
         foreach ($this->getSelectedColumns() as $col) {
             if (isset($user_cols[$col])) {
                 $this->tpl->setCurrentBlock("user_col");
-                $this->tpl->setVariable("VALUE_USER_COL", $a_set[$col] . " ");
+                $this->tpl->setVariable("VALUE_USER_COL", ($a_set[$col] ?? "") . " ");
                 $this->tpl->parseCurrentBlock();
             }
         }

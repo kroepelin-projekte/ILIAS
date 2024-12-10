@@ -198,11 +198,13 @@ class assKprimChoiceImport extends assQuestionImport
         $this->object->setQuestion($this->QTIMaterialToString($item->getQuestiontext()));
         $this->object->setObjId($questionpool_id);
         $this->object->setShuffleAnswersEnabled($shuffle);
-        $this->object->setAnswerType($item->getMetadataEntry("answer_type"));
-        $this->object->setOptionLabel($item->getMetadataEntry("option_label_setting"));
-        $this->object->setCustomTrueOptionLabel($item->getMetadataEntry("custom_true_option_label"));
-        $this->object->setCustomFalseOptionLabel($item->getMetadataEntry("custom_false_option_label"));
-        $this->object->setThumbSize((int) $item->getMetadataEntry("thumb_size"));
+        $this->object->setAnswerType($item->getMetadataEntry('answer_type'));
+        $this->object->setOptionLabel($item->getMetadataEntry('option_label_setting'));
+        $this->object->setCustomTrueOptionLabel($item->getMetadataEntry('custom_true_option_label'));
+        $this->object->setCustomFalseOptionLabel($item->getMetadataEntry('custom_false_option_label'));
+        $this->object->setThumbSize(
+            $this->deduceThumbSizeFromImportValue((int) $item->getMetadataEntry('thumb_size'))
+        );
 
         $this->object->saveToDb();
 
@@ -312,15 +314,7 @@ class assKprimChoiceImport extends assQuestionImport
             );
         }
         $this->object->saveToDb();
-        if (count($item->suggested_solutions)) {
-            foreach ($item->suggested_solutions as $suggested_solution) {
-                $this->importSuggestedSolution(
-                    $this->object->getId(),
-                    $suggested_solution["solution"]->getContent(),
-                    $suggested_solution["gap_index"]
-                );
-            }
-        }
+        $this->importSuggestedSolutions($this->object->getId(), $item->suggested_solutions);
         if ($tst_id > 0) {
             $q_1_id = $this->object->getId();
             $question_id = $this->object->duplicate(true, "", "", -1, $tst_id);

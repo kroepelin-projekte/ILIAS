@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Допълнително ред�
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#Не се форматира текстът във въпросите и отговорите. Не се използва и LaTex. Но обратната връзка и подсказките могат да се използват повторно, когато въпросът е вграден в учебния модул на ILIAS.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Режим на редактиране по подразбиране за допълнително съдържание на въпроса
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Позволява форматиране на текста на въпросите, отговорите, отзивите и подсказките. Но обратната връзка и подсказките не могат да се използват повторно, когато въпросът е вграден в учебния модул на ILIAS.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#Издържахте теста. Тестът не може да бъде стартиран отново.
 assessment#:#tst_all_test_competences#:#Всички тестови компетентности
 assessment#:#tst_all_user_data_deleted#:#Всички потребителски данни за този тест бяха изтрити!
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Показване на отговорит�
 assessment#:#tst_show_cancel#:#Показване на опцията за временно спиране на теста
 assessment#:#tst_show_cancel_description#:#Ако е маркирано, по време на изпълнението на теста се показва бутон за спиране на теста
 assessment#:#tst_show_comp_results#:#Показване на резултатите от компетенциите
-assessment#:#tst_show_pass_details#:#Показване на подробностите за преминаването на текущите тестове
-assessment#:#tst_show_pass_details_desc#:#Ако е избрано, заглавията на въпросите и достигнатите точки за всеки въпрос в теста са достъпни, ако тестът не е завършен.
 assessment#:#tst_show_results#:#Показване на резултатите от теста
 assessment#:#tst_show_side_list#:#Показване на списъка с въпроси отстрани
 assessment#:#tst_show_solution_answers_only#:#Поглед за печат на резултатите (само отговори)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Автоматично актуализир
 auth#:#auth_oidc_update_role_info#:#Прилага се само за първото влизане (автоматична синхронизация)
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Страница за влизане
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:# Добавяне на нов доставчик на идентичност
 auth#:#auth_saml_add_idp_md_error#:#Подадената стойност не е валиден XML документ. Уверете се, че XML съдържа валиден доставчик на идентичност.
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#Копиране на всичко
 common#:#copy_n_of_suffix#:#- Копиране (%1$s)
 common#:#copy_of#:#Копиране на
 common#:#copy_of_suffix#:#- Копие
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Copy
 common#:#count#:#Броене
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Включване на новини за лични п
 common#:#pdf_export#:#PDF Export
 common#:#perm_settings#:#Права за достъп
 common#:#perma_link#:#Постоянна връзка
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Разрешение
 common#:#permission_denied#:#Разрешениетото отказано
 common#:#permission_settings#:#Настройки на правата за достъп
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Елементът на страницат�
 copg#:#copg_page_type_stys#:#Страница за оформление
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Въпросите не се поддържат в този контекст.
 copg#:#copg_reload_page#:#Презареждане на страницата###22 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:# Наистина ли искате да изт
 dcl#:#dcl_confirm_storing_records#:#Моля, валидирайте и потвърдете въведените данни.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Нямате разрешение да променяте записа след това.
 dcl#:#dcl_copy#:#Събиране на данни с копие
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Дата на създаване
 dcl#:#dcl_create_entry_rules#:#Създаване на записи###22 06 2022 new variable
 dcl#:#dcl_create_field#:#Създаване на поле
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Изтриване на изгледи
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Успешно изтрити %s записи
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Намаляващ ред (DESC)
 dcl#:#dcl_description#:#Описание на полето
 dcl#:#dcl_detailed_view#:#Подробен изглед
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Integer
 dcl#:#dcl_number_desc#:#Поле за целочислени стойности (максимум 9 цифри). Не се използват десетични дроби и дробни числа.
 dcl#:#dcl_online_info#:# Само ако събирането на данни е онлайн, потребителите могат да използват събирането на данни.
 dcl#:#dcl_order#:#Order
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Само собствени записи
 dcl#:#dcl_owner#:#Собственик
 dcl#:#dcl_owner_description#:#Собственикът на записа.
@@ -9091,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Публикувайте като:
 ecs#:#ecs_publish_for#:#Издаване за:
 ecs#:#ecs_published_for#:#Публикувано за:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Създаден е нов дистанционен курс:
 ecs#:#ecs_read_remote_links#:#Актуализиране на дистанционните курсове
 ecs#:#ecs_refresh_participants#:#Обновяване на ECS-участниците
@@ -12860,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Активира управлението �
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#Блокът "облак от етикети" ще се показва в раздела "Съдържание".
 obj#:#obj_tool_setting_taxonomies#:#Таксономии
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Новини
 obj#:#obj_tool_setting_use_news_info#:#Активиране на блока с новини и/или изгледа на времевата линия.
 obj#:#obj_tool_setting_use_news_open_settings#:#Настройки за отваряне
@@ -13202,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Контрол на достъпа по позиции на организационната единица
 prg#:#prg_access_by_orgu_byline#:#Ако е разрешено, допълнителни правила за контрол на достъпа могат да бъдат дефинирани по длъжности в организационните единици.
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Потвърждаване на завършените курсове
 prg#:#prg_add#:#Добавяне на учебна програма
 prg#:#prg_added_course_ref_successful#:#Новата препратка към курса е добавена успешно
@@ -16822,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#Прибавя раздел "Всич�
 tagging#:#tagging_enable_tagging#:#Активиране на маркирането
 tagging#:#tagging_forbidden_tags#:#Забранени етикети
 tagging#:#tagging_no_obj_for_tag#:#Няма ресурси, маркирани с %s.###16 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Етикети на други потребители###22 06 2022 new variable
 tagging#:#tagging_resources_for_tag#:#Ресурси, маркирани с %s
 tagging#:#tagging_search_users#:#Търсене на потребители###22 06 2022 new variable

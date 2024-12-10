@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * Class ilLTIConsumeProviderFormGUI
@@ -532,6 +532,7 @@ class ilLTIConsumeProviderFormGUI extends ilPropertyFormGUI
         $publicKey = new ilTextAreaInputGUI($lng->txt('lti_con_key_type_rsa_public_key'), 'public_key');
         $publicKey->setRows(6);
         $publicKey->setRequired(true);
+        $publicKey->setValue($this->provider->getPublicKey());
         $publicKey->setInfo($lng->txt('lti_con_key_type_rsa_public_key_info'));
         $keyRsa->addSubItem($publicKey);
         //JWK
@@ -972,6 +973,7 @@ class ilLTIConsumeProviderFormGUI extends ilPropertyFormGUI
         $template = new ilTemplate('tpl.lti_dyn_reg_request.html', true, true, "Modules/LTIConsumer");
         $template->setVariable('LTI_TOOL_REG_URL', $toolRegUrl);
         $template->setVariable('LTI_DYN_REG_URL', $regUrl);
+        $template->setVariable('LTI_DYN_REG_URL_BY_POST', $toolRegUrl);
         $template->setVariable('LTI_REG_END_URL', ilObjLTIConsumer::getRegistrationEndUrl());
         $template->setVariable('LTI_SHOW_TOOL_CONFIG_URL', $showToolConfigUrl);
         $template->setVariable('LTI_REG_ERROR_URL', $regErrorUrl);

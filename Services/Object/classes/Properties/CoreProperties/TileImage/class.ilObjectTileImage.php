@@ -94,14 +94,14 @@ class ilObjectTileImage
     ): ?Image {
         $flavour = $this->storage_services->flavours()->get($resource, $this->flavour_definition);
         $urls = $this->storage_services->consume()->flavourUrls($flavour)->getURLsAsArray();
-        if($urls === []) {
+        if ($urls === []) {
             return null;
         }
 
         $available_widths = $this->flavour_definition->getWidths();
         array_pop($available_widths);
 
-        if(!isset($urls[count($available_widths)])) {
+        if (!isset($urls[count($available_widths)])) {
             return null;
         }
 

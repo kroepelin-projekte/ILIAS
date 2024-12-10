@@ -300,6 +300,13 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             $tpl->setVariable('LPE', $page_editor_html);
         }
 
+        if ($this->authSession->isExpired()) {
+            // The usr_id is is still the one of the former logged-in user, so we have to unset it
+            $this->authSession->setAuthenticated(false, ANONYMOUS_USER_ID);
+            $this->dic->user()->setId($this->authSession->getUserId());
+            $this->dic->user()->read();
+        }
+
         self::printToGlobalTemplate($tpl);
     }
 
@@ -496,14 +503,34 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             $fields[self::PROP_AUTH_MODE] = $auth_mode;
         }
 
-        $fields = $fields + [
+        $fields += [
             self::PROP_USERNAME => $field_factory
                 ->text($this->lng->txt('username'))
-                ->withRequired(true),
+                ->withRequired(
+                    true,
+                    $this->refinery->custom()->constraint(
+                        static function (string $value): bool {
+                            return $value !== '';
+                        },
+                        static function (Closure $lng, string $value): string {
+                            return $lng('auth_required_username');
+                        }
+                    )
+                ),
             self::PROP_PASSWORD => $field_factory
                 ->password($this->lng->txt('password'))
                 ->withRevelation(true)
-                ->withRequired(true)
+                ->withRequired(
+                    true,
+                    $this->refinery->custom()->constraint(
+                        static function (string $value): bool {
+                            return $value !== '';
+                        },
+                        static function (Closure $lng, string $value): string {
+                            return $lng('auth_required_password');
+                        }
+                    )
+                )
                 ->withAdditionalTransformation(
                     $this->refinery->custom()->transformation(
                         static function (ILIAS\Data\Password $value): string {
@@ -709,7 +736,6 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
         }
 
         if (!$form_valid) {
-            $this->mainTemplate->setOnScreenMessage('failure', $this->lng->txt('err_wrong_login'));
             $this->showLoginPage($form);
             return;
         }
@@ -1051,7 +1077,7 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
     {
         return str_replace(
             [
-                '[list-language-selection] ',
+                '[list-language-selection]',
                 '[list-registration-link]',
                 '[list-user-agreement]',
                 '[list-dpro-agreement]',

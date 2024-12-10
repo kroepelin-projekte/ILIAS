@@ -47,6 +47,17 @@ export default class TinyDomTransform {
     });
   }
 
+  removeMultiClasses(preferredClass) {
+    const r = this.tiny.dom.getRoot();
+    r.querySelectorAll('span').forEach(function(span) {
+      if (span.classList.length > 1) {
+        if (span.classList.contains(preferredClass)) {
+          span.className = preferredClass;
+        }
+      }
+    });
+  }
+
   replaceBoldUnderlineItalic(node) {
     this.replaceTag(node, 'b', 'span', { class: 'ilc_text_inline_Strong' });
     this.replaceTag(node, 'u', 'span', { class: 'ilc_text_inline_Important' });

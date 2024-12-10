@@ -1062,13 +1062,13 @@ class ilUserImportParser extends ilSaxParser
                                 }
                             }
 
-                            if (!is_array($this->prefs) || !in_array('chat_osc_accept_msg', $this->prefs)) {
+                            if (!is_array($this->prefs) || !array_key_exists('chat_osc_accept_msg', $this->prefs)) {
                                 $this->userObj->setPref('chat_osc_accept_msg', $this->settings->get('chat_osc_accept_msg', 'n'));
                             }
-                            if (!is_array($this->prefs) || !in_array('chat_broadcast_typing', $this->prefs)) {
+                            if (!is_array($this->prefs) || !array_key_exists('chat_broadcast_typing', $this->prefs)) {
                                 $this->userObj->setPref('chat_broadcast_typing', $this->settings->get('chat_broadcast_typing', 'n'));
                             }
-                            if (!is_array($this->prefs) || !in_array('bs_allow_to_contact_me', $this->prefs)) {
+                            if (!is_array($this->prefs) || !array_key_exists('bs_allow_to_contact_me', $this->prefs)) {
                                 $this->userObj->setPref('bs_allow_to_contact_me', $this->settings->get('bs_allow_to_contact_me', 'n'));
                             }
 

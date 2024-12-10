@@ -360,7 +360,7 @@ class SettingsFormGUI
         $startingtime = new \ilDateTimeInputGUI($lng->txt("start_date"), 'start_date');
         $startingtime->setShowTime(true);
         if ($start) {
-            $startingtime->setDate(new \ilDate($start, IL_CAL_TIMESTAMP));
+            $startingtime->setDate(new \ilDateTime($start, IL_CAL_TIMESTAMP));
         }
         $form->addItem($startingtime);
 
@@ -370,7 +370,7 @@ class SettingsFormGUI
         $endingtime = new \ilDateTimeInputGUI($lng->txt("end_date"), 'end_date');
         $endingtime->setShowTime(true);
         if ($end) {
-            $endingtime->setDate(new \ilDate($end, IL_CAL_TIMESTAMP));
+            $endingtime->setDate(new \ilDateTime($end, IL_CAL_TIMESTAMP));
         }
         $form->addItem($endingtime);
 

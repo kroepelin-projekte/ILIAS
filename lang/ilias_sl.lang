@@ -1267,6 +1267,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Uporabite urejevalnik strani ILI
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Za urejanje povratnih informacij in nasvetov uporabite urejevalnik obogatenega besedila
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.
 assessment#:#tst_all_test_competences#:#Vse testne kompetence
 assessment#:#tst_all_user_data_deleted#:#Podatki vseh udeležencev testa so bili izbrisani!
@@ -1841,8 +1843,6 @@ assessment#:#tst_show_answer_sheet#:#Prikaži pregled odgovorov
 assessment#:#tst_show_cancel#:#Prikaži "Prekini test"
 assessment#:#tst_show_cancel_description#:#Med izvedbo testa se udeležencem prikaže gumb za prekinitev testa. Pozor: Prekinitev testa ne ustavi odštevanja časa obdelave, ki je naveden kot 'Najdaljše trajanje obdelave‘.
 assessment#:#tst_show_comp_results#:#Rezultati kompetenc
-assessment#:#tst_show_pass_details#:#Prikaži 'Tabelo s podrobnimi rezultati testov' za vsako opravljanje testa ob izbranem času.
-assessment#:#tst_show_pass_details_desc#:#V zgoraj izbranem trenutku se objava rezultata dopolni z dodatno tabelo. <br>Ta tabela za vsako opravljanje testa prikaže naslov vprašanj in dosežene točke. <br> V nasprotnem primeru se ta tabela prikaže le po zadnjem dovoljenem opravljanju testa (nastaviti v podzavihku ‚Splošne nastavitve‘, možnost ‚Omejite število opravljanj testa') ali po zaključku testa (nastaviti v podzavihku ‚Splošne nastavitve', oddelek  ‚Zaključek'). <br>Vsebina tabele se v oddelku ‚Podrobnosti o rezultatih testa' lahko še naprej dopolnjuje.
 assessment#:#tst_show_results#:#Rezultati testa
 assessment#:#tst_show_side_list#:#Seznam vprašanj za
 assessment#:#tst_show_solution_answers_only#:#Tiskana različica rezultatov (samo odgovori)
@@ -2071,6 +2071,8 @@ auth#:#auth_oidc_update_field_info#:#Update automatically
 auth#:#auth_oidc_update_role_info#:#Use only when logging in for the first time (automatic synchronization)
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login Page
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Add new Identity Provider
 auth#:#auth_saml_add_idp_md_error#:#The given value was not a valid XML document. Ensure the XML contains a valid Identity Provider.
@@ -3766,6 +3768,7 @@ common#:#copy_all#:#Kopiraj vse
 common#:#copy_n_of_suffix#:#- Kopija (%1$s)
 common#:#copy_of#:#Kopija od
 common#:#copy_of_suffix#:#- Copy
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Kopiraj
 common#:#count#:#Število
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5248,6 +5251,7 @@ common#:#pd_items_news#:#Vključno z novostmi pri izbranih objektih
 common#:#pdf_export#:#Izvoz PDF
 common#:#perm_settings#:#Pravice
 common#:#perma_link#:#Povezava do te strani
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Pravica
 common#:#permission_denied#:#Nimate pravice za dostop
 common#:#permission_settings#:#Nastavitve pravic
@@ -7366,6 +7370,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###19 08 2022 new va
 copg#:#copg_page_type_stys#:#Layout Page
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Vprašanja v tem kontekstu niso podprta.
 copg#:#copg_reload_page#:#Reload Page###19 08 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8553,6 +8558,9 @@ dcl#:#dcl_confirm_delete_table#:#Ali res želite izbrisati to tabelo vključno z
 dcl#:#dcl_confirm_storing_records#:#Preverite podatke, preden jih shranite.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Za ponovno urejanje podatkovnega zapisa nimate pravic.
 dcl#:#dcl_copy#:#Kopiraj zbirko podatkov
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum nastanka
 dcl#:#dcl_create_entry_rules#:#Entry Creation###19 08 2022 new variable
 dcl#:#dcl_create_field#:#Dodaj polje
@@ -8577,6 +8585,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Izbriši poglede
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Izbrisanih je bilo %s podatkovnih zapisov
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Padajoči vrstni red (DESC)
 dcl#:#dcl_description#:#Opis
 dcl#:#dcl_detailed_view#:#Podroben pogled
@@ -8695,6 +8704,7 @@ dcl#:#dcl_number#:#Cela števila
 dcl#:#dcl_number_desc#:#Vnosno polje za cela števila (maksimalno 9 števk). Ulomki in decimalna števila niso dovoljeni.
 dcl#:#dcl_online_info#:#Samo če je zbirka podatkov na spletu, jo uporabniki lahko vidijo in uporabljajo.
 dcl#:#dcl_order#:#Razvrstitev
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Samo lastni vnosi
 dcl#:#dcl_owner#:#Imetnik
 dcl#:#dcl_owner_description#:#Imetnik tega vnosa.
@@ -9089,6 +9099,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as
 ecs#:#ecs_publish_for#:#Release for
 ecs#:#ecs_published_for#:#Published for
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#A new ECS Course has been created
 ecs#:#ecs_read_remote_links#:#Update ECS Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants
@@ -12858,6 +12869,7 @@ obj#:#obj_tool_setting_skills_info#:#Funkcija omogoča izbiro kompetenc in dodel
 obj#:#obj_tool_setting_tag_cloud#:#Oznaka v oblaku
 obj#:#obj_tool_setting_tag_cloud_info#:#Oznaka v oblaku "Izbira po temah" bo prikazana v zavihku "Vsebina".
 obj#:#obj_tool_setting_taxonomies#:#Taksonomije
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Novosti
 obj#:#obj_tool_setting_use_news_info#:#Uporaba bloka "Novosti" ali časovnice za novosti.
 obj#:#obj_tool_setting_use_news_open_settings#:#Odpri nastavitve
@@ -13200,6 +13212,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Prepoznaj opravljene tečaje
 prg#:#prg_add#:#Dodaj študijski program
 prg#:#prg_added_course_ref_successful#:#Nova povezava do tečaja je bila uspešno dodana.
@@ -16820,6 +16833,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section ‘All Users’ to the 
 tagging#:#tagging_enable_tagging#:#Enable Tagging
 tagging#:#tagging_forbidden_tags#:#Forbidden Tags
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Tags of Other Users
 tagging#:#tagging_resources_for_tag#:#Resources tagged with %s
 tagging#:#tagging_search_users#:#Search Users

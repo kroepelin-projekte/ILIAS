@@ -28,6 +28,7 @@ class ilDclTableEditGUI
     protected ilGlobalTemplateInterface $tpl;
     protected ilToolbarGUI $toolbar;
     protected ilPropertyFormGUI $form;
+    protected ilHelpGUI $help;
     protected ILIAS\HTTP\Services $http;
     protected ILIAS\Refinery\Factory $refinery;
     protected ilDclTableListGUI $parent_object;
@@ -48,6 +49,7 @@ class ilDclTableEditGUI
         $this->toolbar = $DIC->toolbar();
         $this->parent_object = $a_parent_obj;
         $this->obj_id = $a_parent_obj->getObjId();
+        $this->help = $DIC->help();
         $this->http = $DIC->http();
         $this->refinery = $DIC->refinery();
         $this->ui_factory = $DIC->ui()->factory();
@@ -75,7 +77,6 @@ class ilDclTableEditGUI
     public function executeCommand(): void
     {
         $cmd = $this->ctrl->getCmd();
-
         switch ($cmd) {
             case 'update':
                 $this->save("update");
@@ -88,6 +89,8 @@ class ilDclTableEditGUI
 
     public function create(): void
     {
+        $this->help->setSubScreenId('create');
+
         $this->initForm();
         $this->getStandardValues();
         $this->tpl->setContent($this->form->getHTML());
@@ -95,6 +98,8 @@ class ilDclTableEditGUI
 
     public function edit(): void
     {
+        $this->help->setSubScreenId('edit');
+
         if (!$this->table_id) {
             $this->ctrl->redirectByClass(ilDclFieldEditGUI::class, "listFields");
 

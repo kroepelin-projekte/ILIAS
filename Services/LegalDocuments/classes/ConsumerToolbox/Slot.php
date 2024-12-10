@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\LegalDocuments\ConsumerToolbox;
 
+use ILIAS\Data\URI;
+use ilLink;
 use ILIAS\Refinery\Constraint;
 use ILIAS\LegalDocuments\ConsumerToolbox\ConsumerSlots\OnlineStatusFilter;
 use ILIAS\LegalDocuments\ConsumerToolbox\ConsumerSlots\SelfRegistration;
@@ -69,9 +71,10 @@ class Slot
         return new Agreement($user, $settings, $this->blocks->ui(), $this->blocks->routing(), $this->blocks->withRequest(...));
     }
 
-    public function modifyFooter(User $user): ModifyFooter
+    public function modifyFooter(User $user, ?string $goto_target = null): ModifyFooter
     {
-        return new ModifyFooter($this->blocks->ui(), $user, $this->provide, fn($arg) => $this->container->ui()->renderer()->render($arg), $this->template(...));
+        $link = $goto_target ? static fn() => new URI(ilLink::_getLink(null, 'usr', [], $goto_target)) : null;
+        return new ModifyFooter($this->blocks->ui(), $user, $this->provide, fn($arg) => $this->container->ui()->renderer()->render($arg), $this->template(...), $link);
     }
 
     /**

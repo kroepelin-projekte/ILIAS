@@ -1526,7 +1526,7 @@ class ilObjStyleSheetGUI extends ilObjectGUI
                     $cl_str = '<div style="padding-left:30px;" class="small">' .
                         "<div><i>" . $lng->txt("sty_style_class") . "</i></div>" . $cl_str . "</div>";
                 }
-                $cgui->addItem("tid[]", $tid, $this->object->lookupTemplateName($tid) . $cl_str);
+                $cgui->addItem("tid[]", (string) $tid, $this->object->lookupTemplateName($tid) . $cl_str);
             }
 
             $cgui->addButton($lng->txt("sty_del_template_keep_classes"), "deleteTemplateKeepClasses");

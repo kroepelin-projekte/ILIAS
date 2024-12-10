@@ -1,20 +1,22 @@
 <?php
 
-declare(strict_types=1);
-
-/******************************************************************************
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
  *
- * This file is part of ILIAS, a powerful learning management system.
- *
- * ILIAS is licensed with the GPL-3.0, you should have received a copy
- * of said license along with the source code.
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
  *
  * If this is not the case or you just want to try ILIAS, you'll find
  * us at:
- *      https://www.ilias.de
- *      https://github.com/ILIAS-eLearning
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
  *
- *****************************************************************************/
+ *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * @author Stefan Meyer <meyer@leifos.com>
@@ -48,6 +50,9 @@ class ilCASSettingsGUI
         $this->lng = $DIC->language();
         $this->lng->loadLanguageModule('registration');
         $this->lng->loadLanguageModule('auth');
+
+        $this->renderer = $DIC->ui()->renderer();
+        $this->factory = $DIC->ui()->factory();
 
         $this->ref_id = $a_auth_ref_id;
 
@@ -87,7 +92,15 @@ class ilCASSettingsGUI
         $form->setFormAction($this->ctrl->getFormAction($this));
 
         $form->setTitle($this->lng->txt('auth_cas_auth'));
-        $form->setDescription($this->lng->txt("auth_cas_auth_desc"));
+
+        $drop_in_replacements_url = 'https://github.com/ILIAS-eLearning/ILIAS/tree/trunk/components/ILIAS/HTTP#dropinreplacements';
+        $drop_in_replacements_link = $this->factory->link()->standard(
+            $this->lng->txt("auth_cas_auth_desc"),
+            $drop_in_replacements_url
+        );
+        $form->setDescription($this->renderer->render(
+            $drop_in_replacements_link
+        ));
 
         // Form checkbox
         $check = new ilCheckboxInputGUI($this->lng->txt("active"), 'active');

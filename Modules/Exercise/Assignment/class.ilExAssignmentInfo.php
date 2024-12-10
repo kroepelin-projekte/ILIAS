@@ -147,7 +147,7 @@ class ilExAssignmentInfo
         }
 
         if ($state->hasSubmissionStarted()) {
-            $ret["time_to_send"] = ["txt" => $lng->txt("exc_time_to_send"), "value" => "<b>" . $state->getRemainingTimePresentation() . "</b>"];
+            $ret["time_to_send"] = ["txt" => $lng->txt("exc_time_to_send"), "value" => "<strong>" . $state->getRemainingTimePresentation() . "</strong>"];
         }
         return $ret;
     }

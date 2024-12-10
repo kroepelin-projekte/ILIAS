@@ -210,6 +210,7 @@ class ilObjectServiceSettingsGUI
         // taxonomies
         if (in_array(self::TAXONOMIES, $services)) {
             $tax = new ilCheckboxInputGUI($lng->txt('obj_tool_setting_taxonomies'), self::TAXONOMIES);
+            $tax->setInfo($lng->txt('obj_tool_setting_taxonomies_info'));
             $tax->setValue("1");
             $tax->setChecked((bool) ilContainer::_lookupContainerSetting(
                 $obj_id,

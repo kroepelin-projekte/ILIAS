@@ -259,7 +259,7 @@ final class ilEmployeeTalkTableGUI extends ilTable2GUI
             }
 
             $template_title = '';
-            if ($talkData->getTemplateId() > 0) {
+            if ($talkData->getTemplateId() > 0 && ilObject::_exists($talkData->getTemplateId())) {
                 $template = ilObjectFactory::getInstanceByObjId($talkData->getTemplateId());
                 $template_title = $template->getTitle();
             }

@@ -193,7 +193,8 @@ class ilWikiPageGUI extends ilPageObjectGUI
                     self::initEditingJS($this->tpl);
                 }
 
-                if ($this->wiki_request->getNotification() > 0) {
+                if ($this->wiki_request->getNotification() > 0
+                    && $ilUser->getId() !== ANONYMOUS_USER_ID) {
                     switch ($this->wiki_request->getNotification()) {
                         case 1:
                             ilNotification::setNotification(ilNotification::TYPE_WIKI, $ilUser->getId(), $this->getPageObject()->getParentId(), false);

@@ -106,6 +106,10 @@ class ilBookingObjectGUI
         $this->ref_id = $this->book_request->getRefId();
         $this->ctrl->saveParameter($this, "object_id");
 
+        if ($this->object_id > 0 && ilBookingObject::lookupPoolId($this->object_id) !== $this->pool_gui->getObject()->getId()) {
+            throw new ilPermissionException("Booking object pool id does not match pool id.");
+        }
+
         $this->rsv_ids = array_map('intval', $this->book_request->getReservationIdsFromString());
     }
 

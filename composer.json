@@ -44,6 +44,7 @@
 		"ext-xml": "*",
 		"ext-zip": "*",
 		"ext-imagick": "*",
+		"ext-mbstring": "*",
 		"cweagans/composer-patches": "^1.7",
 		"filp/whoops": "^2.15.1",
 		"monolog/monolog": "^2.3.5",

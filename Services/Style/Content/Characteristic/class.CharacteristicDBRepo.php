@@ -207,12 +207,68 @@ class CharacteristicDBRepo
         );
 
         foreach ($titles as $l => $title) {
-            $db->insert("style_char_title", [
-                "style_id" => ["integer", $style_id],
-                "type" => ["text", $type],
-                "characteristic" => ["text", $characteristic],
-                "lang" => ["text", $l],
-                "title" => ["text", $title]
+            $this->addTitle(
+                $style_id,
+                $type,
+                $characteristic,
+                $l,
+                $title
+            );
+        }
+    }
+
+    public function addTitle(
+        int $style_id,
+        string $type,
+        string $characteristic,
+        string $lang,
+        string $title
+    ): void {
+        $db = $this->db;
+
+        $db->insert("style_char_title", [
+            "style_id" => ["integer", $style_id],
+            "type" => ["text", $type],
+            "characteristic" => ["text", $characteristic],
+            "lang" => ["text", $lang],
+            "title" => ["text", $title]
+        ]);
+    }
+
+
+    public function cloneAllFromStyle(
+        int $from_style_id,
+        int $to_style_id
+    ): void {
+        $set = $this->db->queryF(
+            "SELECT * FROM style_char " .
+            " WHERE style_id = %s ",
+            ["integer"],
+            [$from_style_id]
+        );
+        while ($rec = $this->db->fetchAssoc($set)) {
+            $this->db->insert("style_char", [
+                "style_id" => ["integer", $to_style_id],
+                "type" => ["text", $rec["type"]],
+                "characteristic" => ["text", $rec["characteristic"]],
+                "hide" => ["integer", (int) ($rec["hide"] ?? 0)],
+                "outdated" => ["integer", (int) ($rec["outdated"] ?? 0)],
+                "order_nr" => ["integer", (int) ($rec["order_nr"] ?? 0)]
+            ]);
+        }
+        $set = $this->db->queryF(
+            "SELECT * FROM style_char_title " .
+            " WHERE style_id = %s ",
+            ["integer"],
+            [$from_style_id]
+        );
+        while ($rec = $this->db->fetchAssoc($set)) {
+            $this->db->insert("style_char_title", [
+                "style_id" => ["integer", $to_style_id],
+                "type" => ["text", $rec["type"]],
+                "characteristic" => ["text", $rec["characteristic"]],
+                "lang" => ["text", $rec["lang"]],
+                "title" => ["text", $rec["title"]]
             ]);
         }
     }

@@ -70,33 +70,6 @@ class ilPCInteractiveImageGUI extends ilPageContentGUI
         }
 
         switch ($next_class) {
-            // trigger editor
-            case "ilpciimtriggereditorgui":
-                $ilTabs->setTabActive("triggers");
-                /** @var ilPCInteractiveImage $iim */
-                $iim = $this->content_obj;
-                $image_map_edit = new ilPCIIMTriggerEditorGUI(
-                    $iim,
-                    $this->pg_obj,
-                    $this->request
-                );
-                $ret = $this->ctrl->forwardCommand($image_map_edit);
-                if ($ret != "") {
-                    $tpl->setContent($ret);
-                }
-                break;
-
-                /*
-            case "ilpageeditorserveradaptergui":
-                $adapter = new ilPageEditorServerAdapterGUI(
-                    $this->page_gui,
-                    $this->ctrl,
-                    $this->ui,
-                    $this->http_request
-                );
-                $this->ctrl->forwardCommand($adapter);
-                break;*/
-
             case strtolower(ilRepoStandardUploadHandlerGUI::class):
                 $this->forwardFormToUploadHandler();
                 break;

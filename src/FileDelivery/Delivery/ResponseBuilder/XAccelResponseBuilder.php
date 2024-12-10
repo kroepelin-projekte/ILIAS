@@ -21,7 +21,6 @@ declare(strict_types=1);
 namespace ILIAS\FileDelivery\Delivery\ResponseBuilder;
 
 use Psr\Http\Message\ResponseInterface;
-use ILIAS\FileDelivery\Token\Data\Stream;
 use ILIAS\Filesystem\Stream\FileStream;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -45,7 +44,7 @@ class XAccelResponseBuilder implements ResponseBuilder
         FileStream $stream,
     ): ResponseInterface {
         $path_to_file = $stream->getStream()->getMetadata('uri');
-        if (str_starts_with($path_to_file, './' . self::DATA . '/')) {
+        if (str_starts_with((string) $path_to_file, './' . self::DATA . '/')) {
             $path_to_file = str_replace(
                 './' . self::DATA . '/',
                 '/' . self::SECURED_DATA
@@ -58,6 +57,11 @@ class XAccelResponseBuilder implements ResponseBuilder
             self::X_ACCEL_REDIRECT_HEADER,
             $path_to_file
         );
+    }
+
+    public function supportPartial(): bool
+    {
+        return true;
     }
 
     public function supportStreaming(): bool

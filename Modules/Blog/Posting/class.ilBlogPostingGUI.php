@@ -34,7 +34,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     protected \ILIAS\Notes\Service $notes;
     protected \ILIAS\Blog\ReadingTime\ReadingTimeManager $reading_time_manager;
     protected StandardGUIRequest $blog_request;
-    protected ilTabsGUI$tabs;
+    protected ilTabsGUI $tabs;
     protected ilLocatorGUI $locator;
     protected ilSetting $settings;
     protected int $node_id;
@@ -735,6 +735,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
                 }
             }
 
+            $this->ctrl->setParameterByClass(ilObjBlogGUI::class, "blpg", "");
             $this->ctrl->redirectByClass("ilObjBlogGUI", "");
         }
     }

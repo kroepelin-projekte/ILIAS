@@ -171,7 +171,6 @@ class ilObjUserFolderGUI extends ilObjectGUI
                 break;
 
             case 'ilrepositorysearchgui':
-
                 if (!$this->access->checkRbacOrPositionPermissionAccess(
                     'read',
                     \ilObjUserFolder::ORG_OP_EDIT_USER_ACCOUNTS,
@@ -202,6 +201,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
                 break;
 
             case 'ilcustomuserfieldsgui':
+                $this->raiseErrorOnMissingWrite();
                 $this->tabs_gui->setTabActive('settings');
                 $this->setSubTabs('settings');
                 $this->tabs_gui->activateSubTab('user_defined_fields');
@@ -213,6 +213,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
                 break;
 
             case 'iluserstartingpointgui':
+                $this->raiseErrorOnMissingWrite();
                 $this->tabs_gui->setTabActive('settings');
                 $this->setSubTabs('settings');
                 $this->tabs_gui->activateSubTab('starting_points');
@@ -221,6 +222,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
                 break;
 
             case 'iluserprofileinfosettingsgui':
+                $this->raiseErrorOnMissingWrite();
                 $this->tabs_gui->setTabActive('settings');
                 $this->setSubTabs('settings');
                 $this->tabs_gui->activateSubTab('user_profile_info');
@@ -893,6 +895,17 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function deleteUsersObject(): void
     {
+        if (!$this->access->checkRbacOrPositionPermissionAccess(
+            'delete',
+            \ilObjUserFolder::ORG_OP_EDIT_USER_ACCOUNTS,
+            USER_FOLDER_ID
+        )) {
+            $this->ilias->raiseError(
+                $this->lng->txt('permission_denied'),
+                $this->ilias->error_obj->MESSAGE
+            );
+        }
+
         if (in_array($this->user->getId(), $this->getActionUserIds())) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_delete_yourself'));
             $this->viewObject();
@@ -903,11 +916,13 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function activateUsersObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->showActionConfirmation('activate');
     }
 
     public function deactivateUsersObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         if (in_array($this->user->getId(), $this->getActionUserIds())) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_deactivate_yourself'));
             $this->viewObject();
@@ -918,16 +933,19 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function restrictAccessObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->showActionConfirmation('accessRestrict');
     }
 
     public function freeAccessObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->showActionConfirmation('accessFree');
     }
 
     public function userActionObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->showActionConfirmation($this->user_request->getSelectedAction());
     }
 
@@ -1707,6 +1725,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
      */
     protected function generalSettingsObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->initFormGeneralSettings();
 
         $aset = ilUserAccountSettings::getInstance();
@@ -1795,6 +1814,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
      */
     public function saveGeneralSettingsObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->initFormGeneralSettings();
         if ($this->form->checkInput()) {
             $valid = true;
@@ -2294,6 +2314,9 @@ class ilObjUserFolderGUI extends ilObjectGUI
             'login_max_attempts'
         );
         $text->setInfo($this->lng->txt('ps_login_max_attempts_info'));
+        $text->allowDecimals(false);
+        $text->setMinValue(1);
+        $text->setMaxValue(ilSecuritySettings::MAX_LOGIN_ATTEMPTS);
         $text->setSize(1);
         $text->setMaxLength(2);
         $this->form->addItem($text);
@@ -2371,6 +2394,8 @@ class ilObjUserFolderGUI extends ilObjectGUI
      */
     public function settingsObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
+
         $this->lng->loadLanguageModule('administration');
         $this->lng->loadLanguageModule('mail');
         $this->lng->loadLanguageModule('chatroom');
@@ -2390,11 +2415,14 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function confirmSavedObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->saveGlobalUserSettingsObject('save');
     }
 
     public function saveGlobalUserSettingsObject(string $action = ''): void
     {
+        $this->raiseErrorOnMissingWrite();
+
         $checked = $this->user_request->getChecked();
         $selected = $this->user_request->getSelect();
 
@@ -2568,7 +2596,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
             }
         }
 
-        if ($selected['default_hits_per_page']) {
+        if (isset($selected['default_hits_per_page']) && $selected['default_hits_per_page']) {
             $this->ilias->setSetting(
                 'hits_per_page',
                 $selected['default_hits_per_page']
@@ -2586,23 +2614,23 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
         $this->ilias->setSetting(
             'mail_incoming_mail',
-            $selected['default_mail_incoming_mail']
+            $selected['default_mail_incoming_mail'] ?? '0'
         );
         $this->ilias->setSetting(
             'chat_osc_accept_msg',
-            $selected['default_chat_osc_accept_msg']
+            $selected['default_chat_osc_accept_msg'] ?? 'n'
         );
         $this->ilias->setSetting(
             'chat_broadcast_typing',
-            $selected['default_chat_broadcast_typing']
+            $selected['default_chat_broadcast_typing'] ?? 'n'
         );
         $this->ilias->setSetting(
             'bs_allow_to_contact_me',
-            $selected['default_bs_allow_to_contact_me']
+            $selected['default_bs_allow_to_contact_me'] ?? 'n'
         );
         $this->ilias->setSetting(
             'hide_own_online_status',
-            $selected['default_hide_own_online_status']
+            $selected['default_hide_own_online_status'] ?? 'n'
         );
 
         if ($this->usrFieldChangeListenersAccepted && count($changed_fields) > 0) {
@@ -2872,6 +2900,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function deleteExportFileObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $files = $this->user_request->getFiles();
         $export_dir = $this->object->getExportDirectory();
         foreach ($files as $file) {
@@ -3025,6 +3054,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function newAccountMailObject(ilPropertyFormGUI $form = null): void
     {
+        $this->raiseErrorOnMissingWrite();
         $this->setSubTabs('settings');
         $this->tabs_gui->setTabActive('settings');
         $this->tabs_gui->setSubTabActive('user_new_account_mail');
@@ -3131,6 +3161,7 @@ class ilObjUserFolderGUI extends ilObjectGUI
 
     public function saveNewAccountMailObject(): void
     {
+        $this->raiseErrorOnMissingWrite();
         $form = $this->initNewAccountMailForm();
 
         // If all forms in ILIAS use the UI/KS forms (here and in Services/Mail), we should move this to a proper constraint/trafo
@@ -3890,5 +3921,19 @@ class ilObjUserFolderGUI extends ilObjectGUI
         $checkbox->setValue('1');
 
         return $checkbox;
+    }
+
+    private function raiseErrorOnMissingWrite(): void
+    {
+        if (!$this->access->checkRbacOrPositionPermissionAccess(
+            'write',
+            \ilObjUserFolder::ORG_OP_EDIT_USER_ACCOUNTS,
+            USER_FOLDER_ID
+        )) {
+            $this->ilias->raiseError(
+                $this->lng->txt('permission_denied'),
+                $this->ilias->error_obj->MESSAGE
+            );
+        }
     }
 }

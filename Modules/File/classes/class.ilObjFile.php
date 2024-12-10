@@ -89,11 +89,11 @@ class ilObjFile extends ilObject2 implements ilObjFileImplementationInterface
 
     protected function initFileInfo(int $id, bool $is_ref_id): void
     {
-        $repository = new ilObjFileInfoRepository(true);
+        $repository = new ilObjFileInfoRepository();
         if ($is_ref_id) {
             $this->file_info = $repository->getByRefId($id);
         } else {
-            $this->file_info = ($repository)->getByObjectId($id);
+            $this->file_info = $repository->getByObjectId($id);
         }
     }
 

@@ -11,7 +11,7 @@ il.WOPI.bindCloseSignal = function (elementId, signalId) {
   $(`#${elementId}`).on(signalId, (e, options) => { // we need to use jQuery here since signals are working with jQuery
     const targetUrl = options.options.target_url || null;
     if (targetUrl === null) {
-      return true;
+      return false;
     }
 
     this.waitForSave().then(() => {
@@ -74,7 +74,7 @@ il.WOPI.save = function () {
 };
 
 il.WOPI.windowResize = function () {
-  const iframeHeight = document.getElementById('mainspacekeeper').clientHeight - 5;
+  const iframeHeight = document.getElementById('mainspacekeeper').clientHeight - this.offset;
   const iframeWidth = this.editorFrame.parentElement.offsetWidth - 0;
 
   this.editorFrame.setAttribute('width', iframeWidth);
@@ -84,17 +84,23 @@ il.WOPI.windowResize = function () {
 il.WOPI.init = function () {
   // BUILD IFRAME
   const frameholder = document.getElementById('c-embedded-wopi');
-  frameholder.parentElement.style.position = 'absolute';
+
+  const inline = frameholder.getAttribute('data-inline') === '1';
+  if (!inline) {
+    frameholder.parentElement.style.position = 'absolute';
+    frameholder.parentElement.style.margin = '0';
+    frameholder.parentElement.style.padding = '0';
+  }
   frameholder.parentElement.style.top = '0';
   frameholder.parentElement.style.left = '0';
   frameholder.parentElement.style.width = '100%';
-  frameholder.parentElement.style.margin = '0';
-  frameholder.parentElement.style.padding = '0';
 
   // read ttl, token and editor URL from data attributes
   const token = frameholder.getAttribute('data-token');
   const editorUrl = frameholder.getAttribute('data-editor-url');
   const ttl = frameholder.getAttribute('data-ttl');
+
+  this.offset = inline ? 150 : 10;
 
   const editorFrame = document.createElement('iframe');
   editorFrame.name = 'editor_frame';

@@ -37,6 +37,7 @@ class Consumer implements ConsumerInterface
     private readonly Closure $lazy_users;
 
     public const ID = 'tos';
+    public const GOTO_NAME = 'agreement';
 
     public function __construct(?Container $container = null)
     {
@@ -63,15 +64,15 @@ class Consumer implements ConsumerInterface
                      ->hasPublicApi($public_api);
 
         if (!$is_active) {
-            return $slot;
+            return $slot->hasPublicPage($blocks->notAvailable(...), self::GOTO_NAME);
         }
 
         $user = $build_user($this->container->user());
         $constraint = $this->container->refinery()->custom()->constraint(...);
 
         return $slot->canWithdraw($blocks->slot()->withdrawProcess($user, $global_settings, $this->userHasWithdrawn(...)))
-                    ->hasAgreement($blocks->slot()->agreement($user, $global_settings), 'agreement')
-                    ->showInFooter($blocks->slot()->modifyFooter($user))
+                    ->hasAgreement($blocks->slot()->agreement($user, $global_settings), self::GOTO_NAME)
+                    ->showInFooter($blocks->slot()->modifyFooter($user, self::GOTO_NAME))
                     ->showOnLoginPage($blocks->slot()->showOnLoginPage())
                     ->onSelfRegistration($blocks->slot()->selfRegistration($user, $build_user))
                     ->hasOnlineStatusFilter($blocks->slot()->onlineStatusFilter($this->usersWhoDidntAgree($this->container->database())))

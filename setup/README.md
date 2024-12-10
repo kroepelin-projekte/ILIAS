@@ -86,8 +86,21 @@ where the plugins can be controlled with the same options as for `install`.
 Sometimes it might happen that the database update steps detect some edge case
 or warn about a possible loss of data. In this case the update is aborted with
 a message and can be resumed after the messages were read carefully and acted
-upon. You may use the `--ignore-db-update-messages` at your own risk if you want
+upon. 
+You may use the `--ignore-db-update-messages` at your own risk if you want
 to silence the messages.
+
+When an update step failed, you might get a message about inconsistent order 
+of already performed steps when resuming the setup:
+> step 2 was started last, but step 1 was finished last. 
+> Aborting because of that mismatch.
+
+You may reset the records for those steps by running:
+```
+php setup/setup.php achieve database.resetFailedSteps
+```
+However, be sure to understand the cause for the failing steps and tend to it before 
+resetting and re-running the update.
 
 ## Report Status of ILIAS
 

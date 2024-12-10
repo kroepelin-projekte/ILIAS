@@ -69,6 +69,8 @@ class ilGlossaryTerm
         $this->setImportId((string) $term_rec["import_id"]);
         $this->setLanguage((string) $term_rec["language"]);
         $this->setGlossaryId((int) $term_rec["glo_id"]);
+        $this->setShortText((string) $term_rec["short_text"]);
+        $this->setShortTextDirty((int) $term_rec["short_text_dirty"]);
 
         $this->page_object = new ilGlossaryDefPage($this->getId());
     }
@@ -232,8 +234,8 @@ class ilGlossaryTerm
             $ilDB->quote($this->getImportId(), "text") . ", " .
             $ilDB->now() . ", " .
             $ilDB->now() . ", " .
-            $ilDB->quote($this->getShortText()) . ", " .
-            $ilDB->quote($this->getShortTextDirty()) . ")");
+            $ilDB->quote($this->getShortText(), "text") . ", " .
+            $ilDB->quote($this->getShortTextDirty(), "integer") . ")");
 
         if (!$a_omit_page_creation) {
             $this->page_object = new ilGlossaryDefPage();

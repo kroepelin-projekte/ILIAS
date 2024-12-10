@@ -366,7 +366,7 @@ class ilBookingObjectsTableGUI extends ilTable2GUI
         }
 
         if ($has_booking || $this->may_edit) {
-            if (trim($a_set['post_text']) || $a_set['post_file']) {
+            if (trim($a_set['post_text'] ?? "") || $a_set['post_file']) {
                 $items[] = $this->ui_factory->button()->shy(
                     $lng->txt('book_post_booking_information'),
                     $ilCtrl->getLinkTargetByClass($this->process_class, 'displayPostInfo')

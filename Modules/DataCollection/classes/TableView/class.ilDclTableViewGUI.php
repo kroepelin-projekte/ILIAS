@@ -56,6 +56,8 @@ class ilDclTableViewGUI
         $this->ui_factory = $DIC->ui()->factory();
         $this->renderer = $DIC->ui()->renderer();
 
+        $DIC->help()->setScreenId('dcl_views');
+
         if ($table_id == 0) {
             $table_id = $this->http->wrapper()->query()->retrieve('table_id', $this->refinery->kindlyTo()->int());
         }

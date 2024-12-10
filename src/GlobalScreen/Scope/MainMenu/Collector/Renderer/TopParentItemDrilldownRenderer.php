@@ -26,7 +26,6 @@ use ILIAS\GlobalScreen\Scope\MainMenu\Factory\AbstractChildItem;
 use ILIAS\GlobalScreen\Scope\MainMenu\Factory\Item\Link;
 use ILIAS\GlobalScreen\Scope\MainMenu\Factory\Item\LinkList;
 use ILIAS\Data\Factory;
-use Exception;
 use ILIAS\GlobalScreen\Scope\MainMenu\Factory\Item\RepositoryLink;
 use ILIAS\GlobalScreen\Scope\MainMenu\Factory\Item\Separator;
 use ILIAS\GlobalScreen\Scope\MainMenu\Factory\isTopItem;
@@ -71,11 +70,17 @@ class TopParentItemDrilldownRenderer extends BaseTypeRenderer
         switch ($type) {
             case RepositoryLink::class:
             case Link::class:
-                $act = $this->getDataFactory()->uri(
-                    $this->getBaseURL()
-                    . '/'
-                    . $item->getAction()
-                );
+                // try if the link is already e valid URI
+                try {
+                    $act = $this->getDataFactory()->uri($item->getAction());
+                } catch (\Throwable) {
+                    $act = $this->getDataFactory()->uri(
+                        $this->getBaseURL()
+                        . '/'
+                        . $item->getAction()
+                    );
+                }
+
                 $entry = $this->ui_factory->link()->bulky($symbol, $title, $act);
                 break;
 

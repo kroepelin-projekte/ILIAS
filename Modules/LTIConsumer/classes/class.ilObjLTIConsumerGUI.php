@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * Class ilObjLTIConsumerGUI
@@ -343,7 +343,7 @@ class ilObjLTIConsumerGUI extends ilObject2GUI
         $provider_id = $this->getRequestValue("provider_id");
         $DIC->ctrl()->setParameter($this, "provider_id", $provider_id);
         $DIC->language()->loadLanguageModule($new_type);
-        $form = $this->initShowToolConfig($new_type, (int)$provider_id);
+        $form = $this->initShowToolConfig($new_type, (int) $provider_id);
         $DIC->ui()->mainTemplate()->setContent($form->getHTML());
     }
 
@@ -360,7 +360,7 @@ class ilObjLTIConsumerGUI extends ilObject2GUI
         $DIC->language()->loadLanguageModule($new_type);
         ilSession::clear('lti_dynamic_registration_client_id');
         ilSession::clear('lti_dynamic_registration_custom_params');
-        $form = $this->initShowToolConfig($new_type, (int)$provider_id);
+        $form = $this->initShowToolConfig($new_type, (int) $provider_id);
         $form->setValuesByPost();
         if ($form->checkInput()) { // update only overridable fields
             $provider = $form->getProvider();
@@ -477,11 +477,15 @@ class ilObjLTIConsumerGUI extends ilObject2GUI
 
     public function saveContentSelection(ilLTIConsumeProvider $provider, string $token): void
     {
-        //ToDo: fetch with file_get_contents ok? needs caching?
-        $jwks = file_get_contents($provider->getPublicKeyset());
-        //ToDo: Errorhandling
-        $keyset = json_decode($jwks, true);
-        $keys = Firebase\JWT\JWK::parseKeySet($keyset);
+        if ($provider->getKeyType() == 'RSA_KEY') {
+            $key = $provider->getPublicKey();
+            $keys = new Firebase\JWT\Key($key, "RS256");
+        } else {
+            $jwks = file_get_contents($provider->getPublicKeyset());
+            //ToDo: Errorhandling
+            $keyset = json_decode($jwks, true);
+            $keys = Firebase\JWT\JWK::parseKeySet($keyset);
+        }
         $data = Firebase\JWT\JWT::decode($token, $keys);
         //ilObjLTIConsumer::getLogger()->debug(var_export($data,TRUE));
         $refId = $this->getRequestValue('ref_id');
@@ -850,7 +854,7 @@ class ilObjLTIConsumerGUI extends ilObject2GUI
         $newType = $this->getRequestValue('new_type');
         $refId = $this->getRequestValue('ref_id');
         if ($providerId !== null && $newType == 'lti' && $refId != null) {
-            $provider = new ilLTIConsumeProvider((int)$providerId);
+            $provider = new ilLTIConsumeProvider((int) $providerId);
             // check if post variables from contentSelectionResponse
             if ($DIC->http()->wrapper()->post()->has('JWT')) {
                 // ToDo:

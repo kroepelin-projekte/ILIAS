@@ -125,26 +125,33 @@ class ilSkinFactory
         string $name,
         ilSystemStyleMessageStack $message_stack
     ): ilSkinStyleContainer {
-        $skin_id = preg_replace('/[^A-Za-z0-9\-_]/', '', rtrim($name, '.zip'));
+        $original_skin_id = preg_replace('/[^A-Za-z0-9\-_]/', '', rtrim($name, '.zip'));
+        $skin_id = $original_skin_id;
 
         while (ilStyleDefinition::skinExists($skin_id, $this->config)) {
             $skin_id .= 'Copy';
         }
 
         $skin_path = $this->config->getCustomizingSkinPath() . $skin_id;
-        $zip_path = $skin_path . ".zip";
+        $temp_skin_path = $skin_path."temp";
+        $zip_path = $temp_skin_path . ".zip";
         rename($import_zip_path, $zip_path);
 
         $this->archives->unzip(
             Streams::ofResource(fopen($zip_path, 'rb')),
             $this->archives->unzipOptions()
-             ->withZipOutputPath($skin_path)
+             ->withZipOutputPath($temp_skin_path)
              ->withOverwrite(false)
              ->withDirectoryHandling(ZipDirectoryHandling::KEEP_STRUCTURE)
         )->extract();
-
         unlink($zip_path);
-        return $this->skinStyleContainerFromId($skin_id, $message_stack);
+        rename($temp_skin_path."/".$original_skin_id, $skin_path);
+        rmdir($temp_skin_path);
+        $container = $this->skinStyleContainerFromId($skin_id, $message_stack);
+        $container->getSkin()->setId($skin_id);
+        $container->setSkin($container->getSkin());
+        $container->updateSkin();
+        return $container;
     }
 
     /**

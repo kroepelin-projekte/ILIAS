@@ -38,9 +38,10 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
      */
     private mixed $io;
 
+    private bool $ilias_is_initialized = false;
+
     public function getLabel(): string
     {
-        return "Delete All Data of Dynamic Tests from Database.";
     }
 
     public function getDefaultAmountOfStepsPerRun(): int
@@ -58,9 +59,6 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
 
     public function prepare(Environment $environment): void
     {
-        //This is necessary for using ilObjects delete function to remove existing objects
-        \ilContext::init(\ilContext::CONTEXT_CRON);
-        \ilInitialisation::initILIAS();
         $this->db = $environment->getResource(Setup\Environment::RESOURCE_DATABASE);
         $this->io = $environment->getResource(Environment::RESOURCE_ADMIN_INTERACTION);
     }
@@ -70,15 +68,23 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
      */
     public function step(Environment $environment): void
     {
+        if (!$this->ilias_is_initialized) {
+            //This is necessary for using ilObjects delete function to remove existing objects
+            \ilContext::init(\ilContext::CONTEXT_CRON);
+            \ilInitialisation::initILIAS();
+            $this->ilias_is_initialized = true;
+        }
         $tests_query = $this->db->query(
-            'SELECT obj_fi FROM tst_tests WHERE '
+            'SELECT ref_id FROM tst_tests '
+            . 'INNER JOIN object_reference '
+            . 'ON tst_tests.obj_fi = object_reference.obj_id '
+            . 'WHERE '
             . $this->db->equals('question_set_type', 'DYNAMIC_QUEST_SET', 'text', true)
             . 'Limit 1'
         );
 
         $row_test = $this->db->fetchObject($tests_query);
-        $test = new \ilObjTest($row_test->obj_fi, false);
-        $test->delete();
+        \ilRepUtil::removeObjectsFromSystem([$row_test->ref_id]);
     }
 
     public function getRemainingAmountOfSteps(): int

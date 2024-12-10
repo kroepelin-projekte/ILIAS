@@ -119,7 +119,7 @@ class ilAssQuestionList implements ilTaxAssignedItemInfo
 
     public function setQuestionInstanceTypeFilter($questionInstanceTypeFilter): void
     {
-        $this->questionInstanceTypeFilter = (string)$questionInstanceTypeFilter;
+        $this->questionInstanceTypeFilter = (string) $questionInstanceTypeFilter;
     }
 
     public function getQuestionInstanceTypeFilter()
@@ -293,7 +293,7 @@ class ilAssQuestionList implements ilTaxAssignedItemInfo
     private function getTaxonomyFilterExpressions(): array
     {
         $expressions = [];
-        if($this->taxFiltersExcludeAnyObjectsWithTaxonomies) {
+        if ($this->taxFiltersExcludeAnyObjectsWithTaxonomies) {
             $expressions[] = 'question_id NOT IN (SELECT DISTINCT item_id FROM tax_node_assignment)';
             return $expressions;
         }
@@ -582,8 +582,8 @@ class ilAssQuestionList implements ilTaxAssignedItemInfo
             $row['author'] = $tags_trafo->transform($row['author']);
             $row['taxonomies'] = $this->loadTaxonomyAssignmentData($row['obj_fi'], $row['question_id']);
             $row['ttype'] = $this->lng->txt($row['type_tag']);
-            $row['feedback'] = $this->hasGenericFeedback((int)$row['question_id']);
-            $row['hints'] = $this->hasHints((int)$row['question_id']);
+            $row['feedback'] = $this->hasFeedback((int) $row['question_id']);
+            $row['hints'] = $this->hasHints((int) $row['question_id']);
             $row['comments'] = $this->getNumberOfCommentsForQuestion($row['question_id']);
 
             if (
@@ -615,14 +615,32 @@ class ilAssQuestionList implements ilTaxAssignedItemInfo
         $this->filter_comments = $commented;
     }
 
-    protected function hasGenericFeedback(int $question_id): bool
+    protected function hasFeedback(int $question_id): bool
     {
+        $pagetypes = [
+            \ilAssQuestionFeedback::PAGE_OBJECT_TYPE_GENERIC_FEEDBACK,
+            \ilAssQuestionFeedback::PAGE_OBJECT_TYPE_SPECIFIC_FEEDBACK,
+        ];
         $res = $this->db->queryF(
-            "SELECT * FROM qpl_fb_generic WHERE question_fi = %s",
-            ['integer'],
-            [$question_id]
+            "SELECT feedback, feedback_id FROM qpl_fb_generic
+            WHERE question_fi = %s
+            UNION ALL
+            SELECT feedback, feedback_id FROM qpl_fb_specific
+            WHERE question_fi = %s",
+            ['integer', 'integer', ],
+            [$question_id, $question_id]
         );
-        return $this->db->numRows($res) > 0;
+        while ($row = $this->db->fetchAssoc($res)) {
+            if (trim((string) $row['feedback']) !== '') {
+                return true;
+            }
+            foreach ($pagetypes as $pagetype) {
+                if (\ilPageUtil::_existsAndNotEmpty($pagetype, $row['feedback_id'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     protected function hasHints(int $question_id): bool

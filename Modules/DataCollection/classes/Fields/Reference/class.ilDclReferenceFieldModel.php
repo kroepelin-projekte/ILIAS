@@ -31,7 +31,11 @@ class ilDclReferenceFieldModel extends ilDclBaseFieldModel
         global $DIC;
         $ilDB = $DIC['ilDB'];
 
-        if ($this->hasProperty(self::PROP_N_REFERENCE)) {
+        if (
+            $this->hasProperty(self::PROP_N_REFERENCE) ||
+            $this->getProperty(self::PROP_REFERENCE) === null ||
+            ilDclCache::getFieldCache((int) $this->getProperty(self::PROP_REFERENCE))->getTableId() === 0
+        ) {
             return null;
         }
 

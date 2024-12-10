@@ -3013,7 +3013,7 @@ s     */
         $config = $this->getPageConfig();
         foreach ($this->pc_definition->getPCDefinitions() as $def) {
             $model_provider = $this->pc_definition->getPCModelProviderByName($def["name"]);
-            if ($config->getEnablePCType($def["name"])) {
+            if ($config->getEnablePCType($def["name"]) || $def["name"] === "PlaceHolder") {
                 if (!is_null($model_provider)) {
                     foreach ($model_provider->getModels(
                         $this->dom_util,

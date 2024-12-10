@@ -164,7 +164,7 @@ class ilTestSkillEvaluationGUI
     private function showCmd()
     {
         $selected_skill_profile = $this->testrequest->int(self::SKILL_PROFILE_PARAM);
-        $skill_profile_enabled = $selected_skill_profile !== null;
+        $skill_profile_enabled = $this->testrequest->isset(self::SKILL_PROFILE_PARAM);
 
         $this->init($skill_profile_enabled);
 

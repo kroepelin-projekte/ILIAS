@@ -413,6 +413,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $remarks_array = array();
         $post = (array) ($this->http->request()->getParsedBody() ?? []);
         foreach ($post as $key => $value) {
+            $orginal_key = $key;
             // mantis #25237
             // @see https://php.net/manual/en/language.variables.external.php
             $key = str_replace(["_POSTDOT_", "_POSTSPACE_"], [".", " "], $key);
@@ -429,7 +430,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 $save_array[$key] = $value;
 
                 // the comment has the key of the language with the suffix
-                $remarks_array[$key] = $post[$key . $this->lng->separator . "comment"];
+                $remarks_array[$key] = $post[$orginal_key . $this->lng->separator . "comment"];
             }
         }
 
@@ -754,7 +755,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $this->ctrl->redirect($this, "maintain");
     }
-    
+
     /**
      * View the language settings
      */
@@ -763,7 +764,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $form = $this->initNewSettingsForm();
         $this->tpl->setContent($form->getHTML());
     }
-    
+
     /**
     * Set the language settings
     */
@@ -785,26 +786,26 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $this->tpl->setContent($form->getHTML());
     }
-    
+
     protected function initNewSettingsForm(): ilPropertyFormGUI
     {
         global $DIC;
         $ilSetting = $DIC->settings();
         $translate_key = "lang_translate_" . $this->object->key;
         $translate = (bool) $ilSetting->get($translate_key, '0');
-        
+
         require_once("./Services/Form/classes/class.ilPropertyFormGUI.php");
         $form = new ilPropertyFormGUI();
         $form->setFormAction($this->ctrl->getFormAction($this));
         $form->setTitle($this->lng->txt("language_settings"));
         $form->setPreventDoubleSubmission(false);
         $form->addCommandButton('saveSettings', $this->lng->txt("language_change_settings"));
-    
+
         $ci = new ilCheckboxInputGUI($this->lng->txt("language_translation_enabled"), "translation");
         $ci->setChecked($translate);
         $ci->setInfo($this->lng->txt("language_note_translation"));
         $form->addItem($ci);
-        
+
         return $form;
     }
 

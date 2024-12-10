@@ -55,6 +55,8 @@ class ilDclFieldListGUI
         $this->ui_factory = $DIC->ui()->factory();
         $this->renderer = $DIC->ui()->renderer();
 
+        $DIC->help()->setScreenId('dcl_fields');
+
         $this->ctrl->saveParameterByClass(ilDclTableEditGUI::class, 'table_id');
         $locator->addItem(
             ilDclCache::getTableCache($this->table_id)->getTitle(),

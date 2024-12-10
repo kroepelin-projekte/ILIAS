@@ -170,6 +170,8 @@ class ilDclRecordEditGUI
      */
     public function create(): void
     {
+        global $DIC;
+        $DIC->help()->setSubScreenId('create');
         $this->initForm();
         $this->tpl->setContent($this->form->getHTML());
     }

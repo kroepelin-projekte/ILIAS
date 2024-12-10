@@ -193,8 +193,10 @@ class assMatchingQuestionImport extends assQuestionImport
         $this->object->setOwner($ilUser->getId());
         $this->object->setQuestion($this->QTIMaterialToString($item->getQuestiontext()));
         $this->object->setObjId($questionpool_id);
-        $extended_shuffle = $item->getMetadataEntry("shuffle");
-        $this->object->setThumbGeometry($item->getMetadataEntry("thumb_geometry"));
+        $extended_shuffle = $item->getMetadataEntry('shuffle');
+        $this->object->setThumbGeometry(
+            $this->deduceThumbSizeFromImportValue((int) $item->getMetadataEntry('thumb_geometry'))
+        );
 
         if (strlen($item->getMetadataEntry('matching_mode'))) {
             $this->object->setMatchingMode($item->getMetadataEntry('matching_mode'));
@@ -246,15 +248,7 @@ class assMatchingQuestionImport extends assQuestionImport
             $this->fetchAdditionalContentEditingModeInformation($item)
         );
         $this->object->saveToDb();
-        if (count($item->suggested_solutions)) {
-            foreach ($item->suggested_solutions as $suggested_solution) {
-                $this->importSuggestedSolution(
-                    $this->object->getId(),
-                    $suggested_solution["solution"]->getContent(),
-                    $suggested_solution["gap_index"]
-                );
-            }
-        }
+        $this->importSuggestedSolutions($this->object->getId(), $item->suggested_solutions);
         foreach ($responses as $response) {
             $subset = $response["subset"];
             foreach ($subset as $ident) {

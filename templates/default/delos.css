@@ -2066,7 +2066,7 @@ ul, ol, p {
 }
 
 ol, ul {
-  padding-left: 40px;
+  padding-left: 15px;
   list-style-image: none;
 }
 
@@ -3996,6 +3996,7 @@ hr.il-divider-with-label {
   border: none;
   box-shadow: none;
   outline: none;
+  height: auto;
   line-height: 1.428571429;
   font-weight: 600 !important;
 }
@@ -6220,7 +6221,7 @@ footer {
   font-size: 0.75rem;
   padding: 3px 12px;
 }
-.il-maincontrols-footer .il-footer-content div {
+.il-maincontrols-footer .il-footer-content div:not(.c-tooltip) {
   display: inline-block;
 }
 .il-maincontrols-footer .il-footer-links ul {
@@ -6649,8 +6650,15 @@ div.alert ul > li:before {
 .modal.il-modal-lightbox-dark .modal-content .modal-header {
   border-bottom-color: white;
 }
+.modal.il-modal-lightbox-dark .modal-content .modal-title {
+  padding: 0px;
+}
+.modal.il-modal-lightbox-dark .modal-content .carousel-inner {
+  padding: 0px;
+}
 .modal.il-modal-lightbox-dark .modal-content .carousel-control {
   color: white;
+  width: 15%;
 }
 .modal.il-modal-lightbox-dark .close {
   color: white;
@@ -6715,6 +6723,7 @@ div.alert ul > li:before {
   font-size: 1rem;
   margin: 0;
   line-height: 1.428571429;
+  padding: 0px 39px;
 }
 
 .modal-body {
@@ -10325,6 +10334,7 @@ tbody.collapse.in {
   overflow: hidden;
   width: 100%;
   min-height: 400px;
+  padding: 0px 24px;
 }
 .carousel-inner .item:not(.text-only) .item-content {
   display: flex;
@@ -10377,6 +10387,9 @@ tbody.collapse.in {
     transform: translate3d(0, 0, 0);
     left: 0;
   }
+  .carousel-inner > .item.next.left.text-only, .carousel-inner > .item.prev.right.text-only, .carousel-inner > .item.active.text-only {
+    padding: 0 15px;
+  }
 }
 .carousel-inner > .active,
 .carousel-inner > .next,
@@ -10414,7 +10427,7 @@ tbody.collapse.in {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 15%;
+  width: 20px;
   filter: alpha(opacity=50);
   opacity: 0.5;
   font-size: 20px;
@@ -13839,6 +13852,15 @@ span.ilIcalIcon .btn {
   padding-right: 4px;
 }
 
+.calrecurrenceinput.form-inline label {
+  padding-right: unset;
+  vertical-align: unset;
+}
+
+.calrecurrenceinput.form-inline .form-control {
+  vertical-align: middle;
+}
+
 /* Services/Chart */
 td.legendColorBox, td.legendLabel {
   padding: 3px;
@@ -14873,6 +14895,10 @@ p#copg-auto-save {
   text-align: center;
   color: #6f6f6f;
   padding: 20px;
+}
+.copg-new-content-placeholder .icon,
+.copg-content-placeholder-lso-curriculum .icon {
+  filter: invert(50%);
 }
 
 .il-copg-drag {

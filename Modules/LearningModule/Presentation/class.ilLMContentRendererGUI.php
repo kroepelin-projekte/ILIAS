@@ -322,8 +322,8 @@ class ilLMContentRendererGUI
         ilFileUtils::makeDirParents($directory);
         $file = $directory . "/" . $title;
         if (!($fp = fopen($file, "w+"))) {
-            die("<b>Error</b>: Could not open \"" . $file . "\" for writing" .
-                " in <b>" . __FILE__ . "</b> on line <b>" . __LINE__ . "</b><br />");
+            die("<strong>Error</strong>: Could not open \"" . $file . "\" for writing" .
+                " in <strong>" . __FILE__ . "</strong> on line <strong>" . __LINE__ . "</strong><br />");
         }
         chmod($file, 0770);
         fwrite($fp, $text);

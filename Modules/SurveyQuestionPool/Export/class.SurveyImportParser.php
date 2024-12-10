@@ -792,7 +792,9 @@ class SurveyImportParser extends ilSaxParser
     {
         $ret = [];
         foreach ($attribs as $k => $v) {
-            $ret[$k] = $this->trimAndStrip((string) $v);
+            $ret[$k] = ((string) $v !== "<>")
+                ? $this->trimAndStrip((string) $v)
+                : "<>";
         }
         return $ret;
     }

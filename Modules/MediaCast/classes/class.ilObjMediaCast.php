@@ -481,10 +481,10 @@ class ilObjMediaCast extends ilObject
             $mc_item->setContextObjId($a_new_obj->getId());
             $mc_item->setContextObjType($a_new_obj->getType());
             $mc_item->setUserId($ilUser->getId());
-            $mc_item->setPlaytime($item["playtime"]);
-            $mc_item->setTitle($item["title"]);
-            $mc_item->setContent($item["content"]);
-            $mc_item->setVisibility($item["visibility"]);
+            $mc_item->setPlaytime($item["playtime"] ?? "");
+            $mc_item->setTitle($item["title"] ?? "");
+            $mc_item->setContent($item["content"] ?? "");
+            $mc_item->setVisibility($item["visibility"] ?? "users");
             $mc_item->create();
             $this->mob_mapping[$mob_id] = $new_mob->getId();
             $item_mapping[$item["id"]] = $mc_item->getId();

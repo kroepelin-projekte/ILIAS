@@ -446,22 +446,40 @@ class ilAuthFrontend
     {
         $this->logger->debug('Authentication failed for all authentication methods.');
 
-        $user_id = ilObjUser::_lookupId($this->getCredentials()->getUsername());
-        if (is_int($user_id) && $user_id !== ANONYMOUS_USER_ID) {
-            ilObjUser::_incrementLoginAttempts($user_id);
-            $login_attempts = ilObjUser::_getLoginAttempts($user_id);
+        $this->handleLoginAttempts();
 
-            $this->logger->notice('Increased login attempts for user: ' . $this->getCredentials()->getUsername());
-
-            $security = ilSecuritySettings::_getInstance();
-            $max_attempts = $security->getLoginMaxAttempts();
-
-            if ($max_attempts && $login_attempts >= $max_attempts) {
-                $this->getStatus()->setReason('auth_err_login_attempts_deactivation');
-                $this->logger->warning('User account set to inactive due to exceeded login attempts.');
-                ilObjUser::_setUserInactive($user_id);
-            }
-        }
         return false;
+    }
+
+    protected function handleLoginAttempts(): void
+    {
+        $security = ilSecuritySettings::_getInstance();
+        $max_attempts = $security->getLoginMaxAttempts();
+        if ($max_attempts < 1) {
+            return;
+        }
+
+        $usr_id = ilObjUser::_lookupId($this->getCredentials()->getUsername());
+        if ($usr_id === ANONYMOUS_USER_ID || !is_int($usr_id)) {
+            return;
+        }
+
+        $num_login_attempts = ilObjUser::_getLoginAttempts($usr_id);
+
+        if ($num_login_attempts <= $max_attempts) {
+            ilObjUser::_incrementLoginAttempts($usr_id);
+        }
+
+        if ($num_login_attempts >= $max_attempts) {
+            ilObjUser::_setUserInactive($usr_id);
+
+            $this->logger->warning(
+                sprintf(
+                    'User account %s with id %s set to inactive due to exceeded login attempts.',
+                    $this->getCredentials()->getUsername(),
+                    $usr_id
+                )
+            );
+        }
     }
 }

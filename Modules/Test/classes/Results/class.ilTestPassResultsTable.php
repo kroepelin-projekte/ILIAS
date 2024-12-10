@@ -198,9 +198,6 @@ class ilTestPassResultsTable
             $stats_fields[$lng->txt('tst_question_hints_requested_hint_count_header')] = (string)$question->getNumberOfRequestedHints();
             $stats = $ui_factory->listing()->characteristicValue()->text($stats_fields);
 
-            $user_answer = $question->getUserAnswer();
-            $best_solution = $env->getShowBestSolution() ? $question->getBestSolution() : '';
-
 
             $feedback = $ui_factory->listing()->descriptive([
                 $lng->txt('tst_feedback') => $question->getFeedback()
@@ -219,11 +216,17 @@ class ilTestPassResultsTable
                 ]);
             }
 
+            $user_answer = $question->getUserAnswer();
+            $answer_contents = [
+                $ui_factory->listing()->descriptive([$lng->txt('tst_header_participant') => $user_answer])
+            ];
+            if ($env->getShowBestSolution()) {
+                $answer_contents[] = $ui_factory->listing()->descriptive([
+                    $lng->txt('tst_header_solution') => $question->getBestSolution()
+                ]);
+            }
 
-            $answers = $ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(
-                $ui_factory->listing()->descriptive([$lng->txt('tst_header_participant') => $user_answer]),
-                $ui_factory->listing()->descriptive([$lng->txt('tst_header_solution') => $best_solution])
-            );
+            $answers = $ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(...$answer_contents);
             $contents[] = $answers;
 
             $content = $ui_factory->layout()->alignment()->vertical(...$contents);

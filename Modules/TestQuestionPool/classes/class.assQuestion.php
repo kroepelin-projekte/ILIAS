@@ -47,8 +47,9 @@ abstract class assQuestion
 {
     protected const HAS_SPECIFIC_FEEDBACK = true;
 
-    protected const DEFAULT_THUMB_SIZE = 150;
-    protected const MINIMUM_THUMB_SIZE = 20;
+    private const DEFAULT_THUMB_SIZE = 150;
+    private const MINIMUM_THUMB_SIZE = 20;
+    private const MAXIMUM_THUMB_SIZE = 8192;
     public const TRIM_PATTERN = '/^[\p{C}\p{Z}]+|[\p{C}\p{Z}]+$/u';
 
     protected \ILIAS\TestQuestionPool\QuestionInfoService $questioninfo;
@@ -304,14 +305,29 @@ abstract class assQuestion
         $import_mapping = $import->fromXML($item, $questionpool_id, $tst_id, $tst_object, $question_counter, $import_mapping);
 
         foreach ($solutionhints as $hint) {
-            $h = new ilAssQuestionHint();
-            $h->setQuestionId($import->getQuestionId());
-            $h->setIndex($hint['index'] ?? "");
-            $h->setPoints($hint['points'] ?? "");
-            $h->setText($hint['txt'] ?? "");
-            $h->save();
+            $this->importHint($import->getQuestionId(), $hint);
         }
         return $import_mapping;
+    }
+
+    private function importHint(int $question_id, array $hint_array): void
+    {
+        $hint = new ilAssQuestionHint();
+        $hint->setQuestionId($question_id);
+        $hint->setIndex($hint_array['index'] ?? '');
+        $hint->setPoints($hint_array['points'] ?? '');
+        if ($this->getAdditionalContentEditingMode() === self::ADDITIONAL_CONTENT_EDITING_MODE_IPE) {
+            $hint->save();
+            $hint_page = (new ilAssHintPage());
+            $hint_page->setParentId($question_id);
+            $hint_page->setId($hint->getId());
+            $hint_page->setXMLContent($hint_array['txt']);
+            $hint_page->createFromXML();
+            return;
+        }
+
+        $hint->setText($hint_array['txt'] ?? '');
+        $hint->save();
     }
 
     /**
@@ -435,6 +451,11 @@ abstract class assQuestion
         return self::MINIMUM_THUMB_SIZE;
     }
 
+    public function getMaximumThumbSize(): int
+    {
+        return self::MAXIMUM_THUMB_SIZE;
+    }
+
     public function getAuthor(): string
     {
         return $this->author;
@@ -486,10 +507,6 @@ abstract class assQuestion
         return $this->external_id;
     }
 
-    /**
-     * @return string HTML
-     * @throws ilWACException
-     */
     public static function _getSuggestedSolutionOutput(int $question_id): string
     {
         $question = self::instantiateQuestion($question_id);
@@ -499,10 +516,6 @@ abstract class assQuestion
         return $question->getSuggestedSolutionOutput();
     }
 
-    /**
-     * @return string HTML
-     * @throws ilWACException
-     */
     public function getSuggestedSolutionOutput(): string
     {
         $output = [];
@@ -1437,7 +1450,7 @@ abstract class assQuestion
             fn($n) => $n->getContext()->getSubObjId() === $source_id
         );
 
-        foreach($notes as $note) {
+        foreach ($notes as $note) {
             $new_context = $data_service->context(
                 $parent_target_id,
                 $target_id,
@@ -1467,7 +1480,7 @@ abstract class assQuestion
             $notes,
             fn($n) => $n->getContext()->getSubObjId() === $source_id
         );
-        foreach($notes as $note) {
+        foreach ($notes as $note) {
             $repo->deleteNote($note->getId());
         }
     }
@@ -1593,7 +1606,7 @@ abstract class assQuestion
     protected function copySuggestedSolutions(int $target_question_id): void
     {
         $update = [];
-        foreach($this->getSuggestedSolutions() as $index => $solution) {
+        foreach ($this->getSuggestedSolutions() as $index => $solution) {
             $solution = $solution->withQuestionId($target_question_id);
             $update[] = $solution;
         }
@@ -1620,8 +1633,8 @@ abstract class assQuestion
                     $resolved_link = ilInternalLink::_getIdForImportId("MediaObject", $internal_link);
                     break;
             }
-            if ($resolved_link !== null) {
-                $resolved_link = $internal_link;
+            if ($resolved_link === null | $resolved_link === 0) {
+                $resolved_link = "il__{$matches[2]}_{$matches[3]}";
             }
         } else {
             $resolved_link = $internal_link;

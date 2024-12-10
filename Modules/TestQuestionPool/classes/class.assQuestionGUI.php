@@ -1165,10 +1165,12 @@ abstract class assQuestionGUI
 
         $output = "";
 
-        $solution = $this->object->getSuggestedSolution(0);
+        $solution = $this->object->getSuggestedSolution();
         $options = $this->getTypeOptions();
 
-        $solution_type = $this->request->raw('solutiontype');
+        $solution_type = $this->ctrl->getCmd() === 'cancelSuggestedSolution'
+            ? $solution->getType()
+            : $this->request->string('solutiontype');
         if (is_string($solution_type) && strcmp($solution_type, "file") == 0
             && (!$solution || $solution->getType() !== assQuestionSuggestedSolution::TYPE_FILE)
         ) {
@@ -1231,7 +1233,7 @@ abstract class assQuestionGUI
                 $file->enableFileNameSelection("filename");
 
                 //$file->setSuffixes(array("doc","xls","png","jpg","gif","pdf"));
-                if ($_FILES && $_FILES["file"]["tmp_name"] && $file->checkInput()) {
+                if ($save && $_FILES && $_FILES["file"]["tmp_name"] && $file->checkInput()) {
                     if (!file_exists($this->object->getSuggestedSolutionPath())) {
                         ilFileUtils::makeDirParents($this->object->getSuggestedSolutionPath());
                     }

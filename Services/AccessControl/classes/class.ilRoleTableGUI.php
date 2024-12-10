@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -16,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * TableGUI for the presentation og roles and role templates
@@ -258,28 +259,16 @@ class ilRoleTableGUI extends ilTable2GUI
 
         $filter_orig = '';
         if ($this->getType() == self::TYPE_VIEW) {
-            $filter_orig = $title_filter = $this->filter[self::FILTER_TITLE];
+            $filter_orig = $this->filter[self::FILTER_TITLE];
             $type_filter = $this->filter[self::FILTER_ROLE_TYPE];
         } else {
-            $filter_orig = $title_filter = $this->getRoleTitleFilter();
+            $filter_orig = $this->getRoleTitleFilter();
             $type_filter = ilRbacReview::FILTER_ALL;
         }
 
-        // the translation must be filtered
-        if ($type_filter == ilRbacReview::FILTER_INTERNAL || $type_filter == ilRbacReview::FILTER_ALL) {
-            // roles like il_crs_... are filtered manually
-            $title_filter = '';
-        }
-
-        $role_list = $this->rbacreview->getRolesByFilter(
-            $type_filter,
-            0,
-            ''
-        );
-
         $counter = 0;
         $rows = [];
-        foreach ($role_list as $role) {
+        foreach ($this->rbacreview->getRolesByFilter($type_filter, 0, '') as $role) {
             if (
                 $role['parent'] and
                 (

@@ -277,10 +277,18 @@ class ilMimeMail
         $bracket_path = './Services/Mail/templates/default/tpl.html_mail_template.html';
 
         if ($skin !== 'default') {
-            $tplpath = './Customizing/global/skin/' . $skin . '/' . $style . '/Services/Mail/tpl.html_mail_template.html';
+            $locations = [
+                $skin,
+                $skin . '/' . $style
+            ];
 
-            if (is_file($tplpath)) {
-                $bracket_path = './Customizing/global/skin/' . $skin . '/' . $style . '/Services/Mail/tpl.html_mail_template.html';
+            foreach ($locations as $location) {
+                $tplpath = './Customizing/global/skin/' . $location . '/Services/Mail/tpl.html_mail_template.html';
+
+                if (is_file($tplpath)) {
+                    $bracket_path = $tplpath;
+                    break;
+                }
             }
         }
 
@@ -292,9 +300,17 @@ class ilMimeMail
         $this->gatherImagesFromDirectory('./Services/Mail/templates/default/img');
 
         if ($skin !== 'default') {
-            $skinDirectory = './Customizing/global/skin/' . $skin . '/' . $style . '/Services/Mail/img';
-            if (is_dir($skinDirectory) && is_readable($skinDirectory)) {
-                $this->gatherImagesFromDirectory($skinDirectory, true);
+            $locations = [
+                $skin,
+                $skin . '/' . $style
+            ];
+
+            foreach ($locations as $location) {
+                $skin_directory = './Customizing/global/skin/' . $location . '/Services/Mail/img';
+                if (is_dir($skin_directory) && is_readable($skin_directory)) {
+                    $this->gatherImagesFromDirectory($skin_directory, true);
+                    break;
+                }
             }
         }
     }

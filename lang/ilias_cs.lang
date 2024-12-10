@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Editace dodatečného obsahu s E
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Výchozí editační mód pro dodatečný obsah otázky
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###07 02 2020 new variable
 assessment#:#tst_all_test_competences#:#Způsobilost ve všech testech
 assessment#:#tst_all_user_data_deleted#:#Všechna uživatelská data tohoto testu byly smazány!
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Zobrazit odpovědi
 assessment#:#tst_show_cancel#:#Zobrazit volbu přerušení testu
 assessment#:#tst_show_cancel_description#:#Je-li vybráno, pak tlačítko k přerušení testu bude zobrazeno v průběhu vykonávání testu
 assessment#:#tst_show_comp_results#:#Zobrazit výsledky způsobilosti
-assessment#:#tst_show_pass_details#:#Zobrazit výsledky v průběhu testu
-assessment#:#tst_show_pass_details_desc#:#Je-li vybráno, jsou k dispozici nadpisy otázek a dosažené body pro každou otázku v průchodu testem, pokud není test dokončen.
 assessment#:#tst_show_results#:#Zobrazit výsledky testu
 assessment#:#tst_show_side_list#:#Zobrazit boční seznam otázek
 assessment#:#tst_show_solution_answers_only#:#Přehled výsledků (jen odpovědi)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatické aktualizace
 auth#:#auth_oidc_update_role_info#:#Použít jen při prvním přihlášení (automatická synchronizace)
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login Page###30 04 2021 new variable
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Přidat nového poskytovatele identity
 auth#:#auth_saml_add_idp_md_error#:#Uvedená hodnota nebyla platným dokumentem XML. Ujistěte se, že XML obsahuje platného poskytovatele identity.
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#Kopírovat vše
 common#:#copy_n_of_suffix#:#- Kopírovat (%1$s)
 common#:#copy_of#:#Kopie
 common#:#copy_of_suffix#:#
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Kopírovat
 common#:#count#:#Spočítat
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Zahrnout zprávy odobních položek
 common#:#pdf_export#:#Export do PDF
 common#:#perm_settings#:#Přístupová práva
 common#:#perma_link#:#Pernamentní odkaz
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Oprávnění
 common#:#permission_denied#:#Přístup odepřen
 common#:#permission_settings#:#Nastavení oprávnění objektu
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###30 04 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###30 04 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#V tomto kontextu nejsou otázky podporovány.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Skutečně chcete smazat tuto tabulku, její ob
 dcl#:#dcl_confirm_storing_records#:#Ověřte a potvrďte svůj vstup.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nemáte oprávnění změnit potom záznam.
 dcl#:#dcl_copy#:#Kopírovat soubor údajů
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum vytvoření
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Vytvořit pole
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Vymazat zobrazení
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Úspěšně smazáno %s záznamů
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Sestupné pořadí (DESC)
 dcl#:#dcl_description#:#Popis pole
 dcl#:#dcl_detailed_view#:#Podrobné zobrazení
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Celé číslo
 dcl#:#dcl_number_desc#:#Pole pro celočíselné hodnoty (max. 9 číslic). Žádná desetinná místa nebo zlomky.
 dcl#:#dcl_online_info#:#Pouze v případě, že je sběr dat online, mohou uživatelé používat sběr dat.
 dcl#:#dcl_order#:#Třídění
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Pouze vlastní vstupy
 dcl#:#dcl_owner#:#Vlastník
 dcl#:#dcl_owner_description#:#Vlastník záznamu.
@@ -9091,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protokol
 ecs#:#ecs_publish_as#:#Publikováno jako:
 ecs#:#ecs_publish_for#:#Uvolněno pro:
 ecs#:#ecs_published_for#:#Publikováno pro:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Nový dálkový kurz byl vytvořen:
 ecs#:#ecs_read_remote_links#:#Aktualizace dálkových kurzů
 ecs#:#ecs_refresh_participants#:#Obnovit účastníky ECS
@@ -12860,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Aktivuje řízení a přiřazování způso
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#Na záložce „Obsah“ se zobrazí „tag cloud“.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomie
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Zprávy
 obj#:#obj_tool_setting_use_news_info#:#Aktivujte zobrazení bloku zpráv anebo časové osy.
 obj#:#obj_tool_setting_use_news_open_settings#:#Otevřete Nastavení
@@ -13202,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%###07 02 2020 new variable
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions###30 04 2021 new variable
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.###30 04 2021 new variable
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Potvrďte dokončené kurzy
 prg#:#prg_add#:#Přidejte studijní programy
 prg#:#prg_added_course_ref_successful#:#Úspěšně byl přidán nový odkaz na kurz
@@ -16822,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#Přidává sekci "Všichni uživatelé
 tagging#:#tagging_enable_tagging#:#Zapnout značkování
 tagging#:#tagging_forbidden_tags#:#Zakázané značky
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Ostatní uživatelé
 tagging#:#tagging_resources_for_tag#:#Zdroje označeny s %s
 tagging#:#tagging_search_users#:#Hledat uživatele

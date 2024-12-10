@@ -158,10 +158,10 @@ class ilPCQuestionGUI extends ilPageContentGUI
             $ri = new ilRadioGroupInputGUI($this->lng->txt("tst_add_quest_cont_edit_mode"), "add_quest_cont_edit_mode");
 
             $option_rte = new ilRadioOption(
-                $this->lng->txt('tst_add_quest_cont_edit_mode_RTE'),
+                $this->lng->txt('tst_add_quest_cont_edit_mode_plain'),
                 assQuestion::ADDITIONAL_CONTENT_EDITING_MODE_RTE
             );
-            $option_rte->setInfo($this->lng->txt('tst_add_quest_cont_edit_mode_RTE_info'));
+            $option_rte->setInfo($this->lng->txt('tst_add_quest_cont_edit_mode_plain_info'));
             $ri->addOption($option_rte);
 
             $option_ipe = new ilRadioOption(

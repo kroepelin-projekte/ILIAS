@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Additional Content Editing with 
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Default Editing Mode for Additional Question Content###24 10 2013 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###07 02 2020 new variable
 assessment#:#tst_all_test_competences#:#All Test Competence###26 09 2014 new variable
 assessment#:#tst_all_user_data_deleted#:#All user data of this test has been deleted!
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Show Answers
 assessment#:#tst_show_cancel#:#Show Suspend Test Option
 assessment#:#tst_show_cancel_description#:#If checked, a button to suspend the test is shown during test execution.
 assessment#:#tst_show_comp_results#:#Show Competence Results###26 09 2014 new variable
-assessment#:#tst_show_pass_details#:#Show Pass Details for running tests
-assessment#:#tst_show_pass_details_desc#:#If selected, the question titles and the reached points for every question in the test pass are available if the test is not finished.###07 11 2014 new variable
 assessment#:#tst_show_results#:#Show Test Results
 assessment#:#tst_show_side_list#:#Show question list aside
 assessment#:#tst_show_solution_answers_only#:#Results print view (answers only)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatisch aktualisieren###10 11 2018 new 
 auth#:#auth_oidc_update_role_info#:#Nur bei Erstanmeldung (automatische Synchronisierung) anwenden###10 11 2018 new variable
 auth#:#auth_oidconnect#:#OpenID Connect###10 11 2018 new variable
 auth#:#auth_page_type_auth#:#Login Page###30 04 2021 new variable
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML###31 08 2017 new variable
 auth#:#auth_saml_add_idp_btn#:#Add new Identity Provider###31 08 2017 new variable
 auth#:#auth_saml_add_idp_md_error#:#The given value was not a valid XML document. Ensure the XML contains a valid Identity Provider.###31 08 2017 new variable
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#نسخ الجميع
 common#:#copy_n_of_suffix#:#- Copy (%1$s)
 common#:#copy_of#:#نسخ ل
 common#:#copy_of_suffix#:#- نسخ
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#نسخ
 common#:#count#:#Count
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Include News of Personal Items
 common#:#pdf_export#:#PDF تصدير
 common#:#perm_settings#:#صلاحيات
 common#:#perma_link#:#وصلة دائمة
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#صلاحية
 common#:#permission_denied#:#تم رفض الصلاحية
 common#:#permission_settings#:#اعدادات صلاحية العنصر
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###30 04 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###30 04 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Questions are not supported in this context.###07 02 2017 new variable
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Do you really want to delete this table with it
 dcl#:#dcl_confirm_storing_records#:#Please validate and confirm your input.###25 10 2016 new variable
 dcl#:#dcl_confirm_storing_records_no_permission#:#You have no permission to change the record afterwards.###25 10 2016 new variable
 dcl#:#dcl_copy#:#Copy Data Collection
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Creation Date###25 10 2016 new variable
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Create Field
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Delete Views###25 10 2016 new variable
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Successfully deleted %s records###26 09 2014 new variable
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Descending Order (DESC)###26 09 2014 new variable
 dcl#:#dcl_description#:#Field Description
 dcl#:#dcl_detailed_view#:#Detailed View###25 10 2016 new variable
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Integer###25 10 2016 new variable
 dcl#:#dcl_number_desc#:#Field for integer values (max. 9 digits). No decimals or fractions.###25 10 2016 new variable
 dcl#:#dcl_online_info#:#Only if the Data Collection is online, users are able to use the Data Collection.###06 02 2015 new variable
 dcl#:#dcl_order#:#Order
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Only own entries###30 08 2015 new variable
 dcl#:#dcl_owner#:#Owner###20 07 2014 new variable
 dcl#:#dcl_owner_description#:#The owner of the entry.###20 07 2014 new variable
@@ -9091,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as:
 ecs#:#ecs_publish_for#:#Release for:
 ecs#:#ecs_published_for#:#Published for:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#A new Remote Course has been created:
 ecs#:#ecs_read_remote_links#:#Update Remote-Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants###27 01 2015 new variable
@@ -12860,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Activates competence management and compete
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud###26 09 2014 new variable
 obj#:#obj_tool_setting_tag_cloud_info#:#The "tag cloud" block will be displayed inside the "Content" tab.###26 09 2014 new variable
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies###26 09 2014 new variable
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#News###25 10 2016 new variable
 obj#:#obj_tool_setting_use_news_info#:#Activate the news block and/or timeline view.###25 10 2016 new variable
 obj#:#obj_tool_setting_use_news_open_settings#:#Open Settings###25 10 2016 new variable
@@ -13202,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%###07 02 2020 new variable
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions###30 04 2021 new variable
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.###30 04 2021 new variable
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Acknowledge Completed Courses###25 10 2015 new variable
 prg#:#prg_add#:#Add Study Programme###30 08 2015 new variable
 prg#:#prg_added_course_ref_successful#:#New course-reference was added successfully###30 08 2015 new variable
@@ -16822,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section "All Users" to the info
 tagging#:#tagging_enable_tagging#:#تفعيل العلامات
 tagging#:#tagging_forbidden_tags#:#Forbidden Tags
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Other Users###26 09 2014 new variable
 tagging#:#tagging_resources_for_tag#:#Resources tagged with %s
 tagging#:#tagging_search_users#:#Search Users

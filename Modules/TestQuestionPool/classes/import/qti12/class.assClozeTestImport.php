@@ -16,29 +16,29 @@
  *********************************************************************/
 
 /**
-* Class for cloze question imports
-*
-* assClozeTestImport is a class for cloze question imports
-*
-* @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
-* @version	$Id$
-* @ingroup ModulesTestQuestionPool
-*/
+ * Class for cloze question imports
+ *
+ * assClozeTestImport is a class for cloze question imports
+ *
+ * @author        Helmut Schottmüller <helmut.schottmueller@mac.com>
+ * @version    $Id$
+ * @ingroup ModulesTestQuestionPool
+ */
 class assClozeTestImport extends assQuestionImport
 {
     /**
-    * Creates a question from a QTI file
-    *
-    * Receives parameters from a QTI parser and creates a valid ILIAS question object
-    *
-    * @param ilQTIItem $item The QTI item object
-    * @param integer $questionpool_id The id of the parent questionpool
-    * @param integer $tst_id The id of the parent test if the question is part of a test
-    * @param object $tst_object A reference to the parent test object
-    * @param integer $question_counter A reference to a question counter to count the questions of an imported question pool
-    * @param array $import_mapping An array containing references to included ILIAS objects
-    * @access public
-    */
+     * Creates a question from a QTI file
+     *
+     * Receives parameters from a QTI parser and creates a valid ILIAS question object
+     *
+     * @param ilQTIItem $item The QTI item object
+     * @param integer $questionpool_id The id of the parent questionpool
+     * @param integer $tst_id The id of the parent test if the question is part of a test
+     * @param object $tst_object A reference to the parent test object
+     * @param integer $question_counter A reference to a question counter to count the questions of an imported question pool
+     * @param array $import_mapping An array containing references to included ILIAS objects
+     * @access public
+     */
     public function fromXML(&$item, $questionpool_id, &$tst_id, &$tst_object, &$question_counter, $import_mapping): array
     {
         global $DIC;
@@ -64,7 +64,12 @@ class assClozeTestImport extends assQuestionImport
                         $presentation->material[$entry["index"]]
                     );
 
-                    array_push($clozetext_array, $material_string);
+                    if ($questiontext === '&nbsp;') {
+                        //needs to be checked here to suport imports from >= 5.4 < 9.0
+                        $questiontext = $material_string;
+                    } else {
+                        array_push($clozetext_array, $material_string);
+                    }
 
                     break;
                 case "response":
@@ -94,9 +99,9 @@ class assClozeTestImport extends assQuestionImport
                                     array_push(
                                         $gaps,
                                         ["ident" => $response->getIdent(),
-                                              "type" => CLOZE_TEXT,
-                                              "answers" => [],
-                                              'gap_size' => $response->getRenderType()->getMaxchars()
+                                            "type" => CLOZE_TEXT,
+                                            "answers" => [],
+                                            'gap_size' => $response->getRenderType()->getMaxchars()
                                         ]
                                     );
                                     break;
@@ -246,7 +251,7 @@ class assClozeTestImport extends assQuestionImport
         $this->object->setIdenticalScoring($item->getMetadataEntry("identicalScoring"));
         $this->object->setFeedbackMode(
             strlen($item->getMetadataEntry("feedback_mode")) ?
-            $item->getMetadataEntry("feedback_mode") : ilAssClozeTestFeedback::FB_MODE_GAP_QUESTION
+                $item->getMetadataEntry("feedback_mode") : ilAssClozeTestFeedback::FB_MODE_GAP_QUESTION
         );
         $combinations = json_decode(base64_decode($item->getMetadataEntry("combinations")));
         if (strlen($textgap_rating) == 0) {
@@ -316,7 +321,8 @@ class assClozeTestImport extends assQuestionImport
                 } else {
                     $importfile = $this->getQplImportArchivDirectory() . '/' . $mob["uri"];
                 }
-                global $DIC; /* @var ILIAS\DI\Container $DIC */
+                global $DIC;
+                /* @var ILIAS\DI\Container $DIC */
                 $DIC['ilLog']->write(__METHOD__ . ': import mob from dir: ' . $importfile);
 
                 $media_object = ilObjMediaObject::_saveTempFileAsMediaObject(basename($importfile), $importfile, false);
@@ -349,16 +355,7 @@ class assClozeTestImport extends assQuestionImport
             );
         }
         $this->object->saveToDb();
-
-        if (count($item->suggested_solutions)) {
-            foreach ($item->suggested_solutions as $suggested_solution) {
-                $this->importSuggestedSolution(
-                    $this->object->getId(),
-                    $suggested_solution["solution"]->getContent(),
-                    $suggested_solution["gap_index"]
-                );
-            }
-        }
+        $this->importSuggestedSolutions($this->object->getId(), $item->suggested_solutions);
         if (isset($tst_id) && $tst_id !== $questionpool_id) {
             $qpl_qid = $this->object->getId();
             $tst_qid = $this->object->duplicate(true, "", "", -1, $tst_id);

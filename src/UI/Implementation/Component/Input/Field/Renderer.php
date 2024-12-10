@@ -990,7 +990,7 @@ class Renderer extends AbstractComponentRenderer
         string $template_html
     ): FI\HasDynamicInputs {
         $dynamic_inputs_template_html = $this->replaceTemplateIds($template_html);
-        $dynamic_input_count = count($input->getDynamicInputs());
+        $dynamic_input_count = $this->countInputsWithoutGroupsRecursively($input->getTemplateForDynamicInputs());
 
         // note that $dynamic_inputs_template_html is in tilted single quotes (`),
         // because otherwise the html syntax might collide with normal ones.
@@ -1008,6 +1008,23 @@ class Renderer extends AbstractComponentRenderer
                 });
             ";
         });
+    }
+
+    /**
+     * Counts all inputs and nested inputs of groups, without counting groups themselves.
+     */
+    protected function countInputsWithoutGroupsRecursively(FormInput|Input $input): int
+    {
+        if (!($input instanceof Component\Input\Group)) {
+            return 1;
+        }
+
+        $count = 0;
+        foreach ($input->getInputs() as $sub_input) {
+            $count += $this->countInputsWithoutGroupsRecursively($sub_input);
+        }
+
+        return $count;
     }
 
     protected function replaceTemplateIds(string $template_html): string

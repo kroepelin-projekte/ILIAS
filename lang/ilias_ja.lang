@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#問題、回答、フィード�
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#問題と回答に書式設定がありません。LaTexにもありません。ただし、ｄフィードバックとヒントはILIAS学習モジュールへ問題が埋め込まれ時に再利用できます。
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#問題、回答、フィードバック、ヒントにはRich-Text-Editor (TinyMCE)を使用します。
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#ヒント、フィードバック、回答、問題の書式設定を許可。ただし、フィードバックとヒントはILIAS学習モジュールへ問題が埋め込まれた時には再利用できません。
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#試験に合格です。試験は再開できません。
 assessment#:#tst_all_test_competences#:#全テスト能力
 assessment#:#tst_all_user_data_deleted#:#このテストの全ユーザデータは削除されました!
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#全解答を表示
 assessment#:#tst_show_cancel#:#テスト中断オプションを表示
 assessment#:#tst_show_cancel_description#:#チェックするとテスト中断ボタンがテスト実行中表示されます。
 assessment#:#tst_show_comp_results#:#能力結果を表示
-assessment#:#tst_show_pass_details#:#選択した時点の各テストの'テスト結果詳細'を表示する
-assessment#:#tst_show_pass_details_desc#:#結果サマリーは設定の上に表示された時点で追加されます:'詳細テスト結果表'は問題のタイトルと特定のテストに得点された点数を表示します。<br>その他の表は最後のテストになる可能性の後('全般'リンク設定、オプションの'最大受験回数')またはテストが正式に終了する後('全般'リンク設定、オプションの'終了時間')に表示されます。<br>'詳細テスト結果表'のコンテンツに関するその他の設定はこのフォームの'テスト結果に含まれるべきその他詳細'セクションへ作成できます。
 assessment#:#tst_show_results#:#テスト結果を表示
 assessment#:#tst_show_side_list#:#脇に問題一覧を表示
 assessment#:#tst_show_solution_answers_only#:#結果印刷表示(解答のみ)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#自動的に更新します。
 auth#:#auth_oidc_update_role_info#:#初回ログイン時にのみ使用します（自動同期）
 auth#:#auth_oidconnect#:#OpenIdコンテンツ
 auth#:#auth_page_type_auth#:#ログインページ
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#新しいIDプロバイダを追加
 auth#:#auth_saml_add_idp_md_error#:#入力の値は有効なXMLドキュメントではありません。XMLには有効なIDプロバイダが含まれている事を確認してください。
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#全てコピー
 common#:#copy_n_of_suffix#:#- コピー (%1$s)
 common#:#copy_of#:#コピー
 common#:#copy_of_suffix#:#- Copy
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#コピー
 common#:#count#:#カウント
 common#:#counter_novelty#:#News
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#パーソナルアイテムのニュースを含む
 common#:#pdf_export#:#PDFエクスポート
 common#:#perm_settings#:#アクセス権限
 common#:#perma_link#:#Permanent Link
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#許諾
 common#:#permission_denied#:#拒否されました
 common#:#permission_settings#:#オブジェクトアクセス権限設定
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#ページ要素が見つかりません。
 copg#:#copg_page_type_stys#:#ページをレイアウト
 copg#:#copg_par_format_selection#:#図書式選択
 copg#:#copg_pc_mob_does_not_exist#:#このメディア オブジェクトは存在しません。
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#問題はこのコンテキスト内でサポートされません。
 copg#:#copg_reload_page#:#ページの再読み込み
 copg#:#copg_remove_formats#:#書式を削除
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#内容や階層の含まれるこのテーブ�
 dcl#:#dcl_confirm_storing_records#:#有効にして入力を確認して下さい。
 dcl#:#dcl_confirm_storing_records_no_permission#:#以降は記録を変更する権利がありません。
 dcl#:#dcl_copy#:#データ収集を作成
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#作成日
 dcl#:#dcl_create_entry_rules#:#作成のエントリー
 dcl#:#dcl_create_field#:#フィールドを作成
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#削除するテーブルを一つは選�
 dcl#:#dcl_delete_views#:#ビューを削除
 dcl#:#dcl_delete_views_no_selection#:#削除するビューを一つは選択して下さい。
 dcl#:#dcl_deleted_records#:#%sレコードが正しく削除されました
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#降順 (DESC)
 dcl#:#dcl_description#:#フィールド説明
 dcl#:#dcl_detailed_view#:#詳細ビュー
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#整数
 dcl#:#dcl_number_desc#:#整数値(最大9桁)用のフィールドです。小数や分数ではありません。
 dcl#:#dcl_online_info#:#データ収集がオンラインの場合に限りユーザはデータ収集を使用できます。
 dcl#:#dcl_order#:#順
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#自己エントリーのみ
 dcl#:#dcl_owner#:#オーナ
 dcl#:#dcl_owner_description#:#エントリーのオーナ
@@ -9091,6 +9101,7 @@ ecs#:#ecs_protocol#:#プロトコル
 ecs#:#ecs_publish_as#:#発行者:
 ecs#:#ecs_publish_for#:#リリース:
 ecs#:#ecs_published_for#:#発行用途:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#新リモートコースが作成されました
 ecs#:#ecs_read_remote_links#:#リモートコースを更新
 ecs#:#ecs_refresh_participants#:#ECS-受験者をリフレッシュ
@@ -12860,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#能力管理とメンバーへの能力割�
 obj#:#obj_tool_setting_tag_cloud#:#クラウドをタグ
 obj#:#obj_tool_setting_tag_cloud_info#:# "クラウドをタグ" ブロックは"コンテンツ"タブの内側へ表示されます。
 obj#:#obj_tool_setting_taxonomies#:#分類
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#ニュース
 obj#:#obj_tool_setting_use_news_info#:#ニュースブロックそうでなければタイムライン表示を有効にする
 obj#:#obj_tool_setting_use_news_open_settings#:#設定を開く
@@ -13202,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#期間無期限有効
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Organisation Unit Positionのアクセスコントロール
 prg#:#prg_access_by_orgu_byline#:#有効にすると、追加アクセスコントロールルールがorganisational unitにより定義されます。
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#完了したコースの確認
 prg#:#prg_add#:#学習プログラムを追加
 prg#:#prg_added_course_ref_successful#:#新しいコースレファレンスが正しく削除されました。
@@ -16822,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#リソースへ添付される全ユ�
 tagging#:#tagging_enable_tagging#:#タグ化を有効
 tagging#:#tagging_forbidden_tags#:#隠しタグ
 tagging#:#tagging_no_obj_for_tag#:# %s にはリソースタグがありません。
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#その他ユーザのタグ
 tagging#:#tagging_resources_for_tag#:#%s でタグ化されたリソース
 tagging#:#tagging_search_users#:#ユーザを検索

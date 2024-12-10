@@ -288,4 +288,26 @@ class ilDataCollectionDBUpdateSteps9 implements ilDatabaseUpdateSteps
             [ilDclDatatype::INPUTFORMAT_PLUGIN]
         );
     }
+
+    public function step_17(): void
+    {
+        $id = false;
+        $stmt = $this->db->queryF('SELECT id FROM il_dcl_datatype WHERE id LIKE %s', [ilDBConstants::T_INTEGER], [17]);
+        if ($row = $this->db->fetchAssoc($stmt)) {
+            $id = true;
+        }
+
+        if (!$id) {
+            $this->db->insert(
+                'il_dcl_datatype',
+                [
+                    'id' => [ilDBConstants::T_INTEGER, 17],
+                    'title' => [ilDBConstants::T_TEXT, 'copy'],
+                    'ildb_type' => [ilDBConstants::T_TEXT, ilDBConstants::T_TEXT],
+                    'storage_location' => [ilDBConstants::T_INTEGER, 1],
+                    'sort' => [ilDBConstants::T_INTEGER, 85],
+                ]
+            );
+        }
+    }
 }

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -18,6 +16,8 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
+declare(strict_types=1);
+
 /** @noRector */
 chdir("../../");
 
@@ -26,11 +26,8 @@ require_once("Services/Init/classes/class.ilInitialisation.php");
 ilInitialisation::initILIAS();
 global $DIC;
 
-if (strtoupper($DIC->http()->request()->getMethod()) !== "GET") {
-    $DIC->http()->saveResponse(
-        $DIC->http()->response()
-            ->withStatus(400)
-    );
+if (!$DIC->user()->getId() || !ilLTIConsumerAccess::hasCustomProviderCreationAccess()) {
+    ilObjLTIConsumer::sendResponseError(401, "unauthorized");
 }
 
 $params = $DIC->http()->wrapper()->query();
@@ -40,6 +37,10 @@ $typeId = '';
 
 if ($params->has('url')) {
     $url = $params->retrieve('url', $DIC->refinery()->kindlyTo()->string());
+
+    if (empty($_POST["url"]) || $_POST["url"] != $url) {
+        ilObjLTIConsumer::sendResponseError(400, "url parameter in request does not match url parameter in post");
+    }
 } else {
     ilObjLTIConsumer::sendResponseError(400, "missing required url parameter in request");
 }

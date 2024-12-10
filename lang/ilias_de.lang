@@ -49,7 +49,7 @@ acc#:#acc_form_document#:#Dokument
 acc#:#acc_form_document_content_changed#:#Der Inhalt der hochgeladenen Datei wurde durch ILIAS bereinigt. Bitte prüfen Sie das Ergebnis und laden im Zweifel eine neue Datei hoch.
 acc#:#acc_form_document_info#:#Bitte wählen Sie eine entsprechende Datei von Ihrem lokalen Dateisystem. Sie können eine einfache Text-Datei oder eine HTML-Datei hochladen. Es wird nur ein Teil des HTML-Sprachumfangs unterstützt. Bitte beachten Sie, dass HTML-Dateien beim Hochladen bereinigt werden, und nur der Inhalt des body-Elements übernommen wird.
 acc#:#acc_form_document_new#:#Inhalt ändern
-acc#:#acc_form_document_new_info#:#Hier können Sie eine neue Datei von Ihrem lokalen Dateisystem wählen um das Dokument zu ändern. Sie können eine einfache Text-Datei oder eine HTML-Datei hochladen. Es wird nicht der komplette HTML-Sprachumfang unterstützt. Bitte beachten Sie, dass HTML-Dateien beim Hochladen bereinigt werden, und nur der Inhalt des body-Elements übernommen wird. Der bestehende Inhalt des Dokuments wird ausgetauscht.
+acc#:#acc_form_document_new_info#:#Hier können Sie eine neue Datei von Ihrem lokalen Dateisystem wählen, um das Dokument zu ändern. Sie können eine einfache Text-Datei oder eine HTML-Datei hochladen. Es wird nicht der komplette HTML-Sprachumfang unterstützt. Bitte beachten Sie, dass HTML-Dateien beim Hochladen bereinigt werden, und nur der Inhalt des body-Elements übernommen wird. Der bestehende Inhalt des Dokuments wird ausgetauscht.
 acc#:#acc_form_document_title#:#Titel
 acc#:#acc_form_document_title_info#:#Geben Sie hier einen Titel für das Dokument ein.
 acc#:#acc_form_edit_criterion_head#:#Vorlagekriterium bearbeiten
@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Unformatierter Text für Fragen 
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#Bietet keine Formatierung von Text in Fragen und Antworten, erlaubt aber Gestaltung der Rückmeldungen und Lösungshinweise mit ILIAS-Seiteneditor und Wiederverwendung bei Fragen in ILIAS-Lernmodulen.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Rich-Text-Editor (TinyMCE) für das Editieren der Fragen, Antworten, Rückmeldungen und Lösungshinweisen
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Erlaubt formatierten Text für Fragen, Antworten, Rückmeldungen und Lösungshinweise. Rückmeldungen und Lösungshinweise werden aber beim Einbinden von Fragen in ILIAS-Lernmodule nicht übernommen.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Unformatierter Text
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#Bietet keine Formatierung von Text in Fragen, Antworten, Rückmeldungen und Lösungshinweisen.
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#Sie haben den Test bestanden. Der Test kann nicht noch einmal gestartet werden.
 assessment#:#tst_all_test_competences#:#Alle Test-Kompetenzen
 assessment#:#tst_all_user_data_deleted#:#Die Daten aller Testteilnehmer wurden gelöscht!
@@ -1362,7 +1364,7 @@ assessment#:#tst_enable_questionlist#:#Fragenliste
 assessment#:#tst_enable_questionlist_description#:#Teilnehmer können sich links neben den Testfragen eine Fragenliste anzeigen lassen.
 assessment#:#tst_ending_time#:#Ende
 assessment#:#tst_ending_time_before_starting_time#:#Bitte geben Sie für das Ende des Tests ein Datum ein, das nach dem Startdatum liegt.
-assessment#:#tst_ending_time_desc#:#Zeitpunkt, ab dem Teilnehmer keine Antworten mehr abgeben können. <b>Wichtig</b>: Benutzen Sie diese Option <b>nicht</b> für E-Klausuren/Fernklausuren. Verwenden Sie stattdessen die Funktion „Bearbeitungsdauer begrenzen“, siehe unten. Nur dann wird der Test serverseitig beendet und die letzte Eingabe bei Freitext-Fragen jedes Teilnehmers automatisch als Auto-Save-Inhalt gespeichert.
+assessment#:#tst_ending_time_desc#:#Zeitpunkt, ab dem Teilnehmer keine Antworten mehr abgeben können. <strong>Wichtig</strong>: Benutzen Sie diese Option <strong>nicht</strong> für E-Klausuren/Fernklausuren. Verwenden Sie stattdessen die Funktion „Bearbeitungsdauer begrenzen“, siehe unten. Nur dann wird der Test serverseitig beendet und die letzte Eingabe bei Freitext-Fragen jedes Teilnehmers automatisch als Auto-Save-Inhalt gespeichert.
 assessment#:#tst_enter_questionpool#:#Bitte geben Sie den Namen eines Fragenpools an, in dem die neue Frage abgelegt werden soll
 assessment#:#tst_eval_question_points#:#Fragenergebnisse für Testdurchlauf %s
 assessment#:#tst_eval_results_by_pass#:#Liste der Antworten für Testdurchlauf %s
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Antwortenübersicht anzeigen
 assessment#:#tst_show_cancel#:#"Test unterbrechen" anzeigen
 assessment#:#tst_show_cancel_description#:#Zeigt während der Durchführung des Tests einen Button an, mit der der Test unterbrochen werden kann. Achtung: Das Unterbrechen des Tests hält nicht die unter 'Maximale Bearbeitungsdauer' festgelegte Bearbeitungszeit an.
 assessment#:#tst_show_comp_results#:#Kompetenz-Ergebnisse
-assessment#:#tst_show_pass_details#:#Show ‘Table of Detailed Test Results’ for each Test Attempt upon Selected Point in Time###12 12 2023 new variable
-assessment#:#tst_show_pass_details_desc#:#The summary of results will be appended at the point in time indicated in the setting above: A ‘Table of Detailed Test Results’ will show the title of the questions and the points scored in a particular test attempt. <br> Other than that the table will be displayed after the last test attempt possible (setting in link ‘General’, option ‘Limit Number of Test Attempts) or after the test is officially finished (setting in link ‘General’, option ‘Finishing Time’). <br> Further settings about the content of the ‘Table of Detailed Test Results’ can be made in the section ‘Further Details to be Included in Test Results’ of this form.###12 12 2023 new variable
 assessment#:#tst_show_results#:#Testergebnisse
 assessment#:#tst_show_side_list#:#Fragenliste an
 assessment#:#tst_show_solution_answers_only#:#Druckausgabe der Ergebnisse (nur Antworten)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatisch aktualisieren
 auth#:#auth_oidc_update_role_info#:#Nur bei Erstanmeldung (automatische Synchronisierung) anwenden
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login-Seite
+auth#:#auth_required_password#:#Bitte geben Sie ein Passwort ein.
+auth#:#auth_required_username#:#Bitte geben Sie einen Anmeldenamen ein.
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Identity - hinzufügen
 auth#:#auth_saml_add_idp_md_error#:#Der eingegeben Wert entsprach leider nicht einem wohlgeformten XML-Dokument. Bitte stellen Sie sicher, dass das XML einen gültigen Identity-Provider enthält.
@@ -2148,10 +2150,10 @@ background_tasks#:#proceed_job#:#Weiter
 background_tasks#:#remove#:#Entfernen
 background_tasks#:#scheduled#:#Geplant
 background_tasks#:#task_might_be_failed#:#Diese Aufgabe hat seit einiger Zeit nicht geantwortet, Sie können sie beenden, falls nötig.
-background_tasks#:#ui_msg_files_violate_maxsize#:#Die Gesamtdownloadgrösse überschreitet das globale Limit. Der Download wird abgebrochen.
+background_tasks#:#ui_msg_files_violate_maxsize#:#Die Gesamtdownloadgröße überschreitet das globale Limit. Der Download wird abgebrochen.
 background_tasks#:#ui_msg_no_files_found#:#Es wurden keine Dateien gefunden. Der Download wird abgebrochen.
 background_tasks#:#ui_msg_num_files#:#%s Datei(-en) wurden gefunden, möchten Sie fortfahren?
-background_tasks#:#ui_msg_sum_file_sizes#:#Die Gesamtdownloadgrösse vor Erstellung des Zip-Ordners beträgt %s. Möchten Sie fortfahren?
+background_tasks#:#ui_msg_sum_file_sizes#:#Die Gesamtdownloadgröße vor Erstellung des Zip-Ordners beträgt %s. Möchten Sie fortfahren?
 background_tasks#:#waiting#:#Warten
 badge#:#awarded_by#:#Vergeben durch
 badge#:#badge_activity_badges#:#Automatisch vergebenes Badge
@@ -2251,8 +2253,8 @@ bgtask#:#bgtask_setting_limit#:#Größenlimit Download-Paket
 bgtask#:#bgtask_setting_limit_info#:#Der Download eines Ordners oder mehrerer Objekte ist nur möglich, wenn die Dateigrößen in Summe den eingegebenen Wert nicht überschreiten.
 bgtask#:#bgtask_setting_threshold_count#:#Minimale Anzahl
 bgtask#:#bgtask_setting_threshold_count_info#:#Ab diesem Wert erfolgt der Download asynchron.
-bgtask#:#bgtask_setting_threshold_size#:#Minimale Grösse
-bgtask#:#bgtask_setting_threshold_size_info#:#Ab dieser Grösse erfolgt der Download asynchron.
+bgtask#:#bgtask_setting_threshold_size#:#Minimale Größe
+bgtask#:#bgtask_setting_threshold_size_info#:#Ab dieser Größe erfolgt der Download asynchron.
 bibl#:#Type#:#Typ
 bibl#:#add_filter#:#Felder hinzufügen
 bibl#:#bib_default_abstract#:#Abstract
@@ -2440,7 +2442,7 @@ blog#:#blog_number_users_notes_or_comments#:#Anzahl der Benutzer, die zu diesem 
 blog#:#blog_posting#:#Beitrag
 blog#:#blog_posting_deleted#:#Der Beitrag wurde gelöscht.
 blog#:#blog_posting_deletion_confirmation#:#Wollen Sie diesen Beitrag wirklich löschen?
-blog#:#blog_posting_edit_approval_info#:#Der Beitrag muss durch die Blog-Redaktion freigeschaltet werden, bevor er sichtbar wird. Die Freischaltung kann nur stattfinden, wenn der Beitrag schon veröffentlicht wurde. 
+blog#:#blog_posting_edit_approval_info#:#Der Beitrag muss durch die Blog-Redaktion freigeschaltet werden, bevor er sichtbar wird. Die Freischaltung kann nur stattfinden, wenn der Beitrag schon veröffentlicht wurde.
 blog#:#blog_posting_not_found#:#Der Beitrag ist nicht verfügbar.
 blog#:#blog_postings#:#Beiträge
 blog#:#blog_presentation_frame#:#Darstellung
@@ -2448,7 +2450,7 @@ blog#:#blog_presentation_overview#:#Präsentation der Beiträge
 blog#:#blog_preview#:#Vorschau
 blog#:#blog_preview_banner#:#Personalisiertes Banner
 blog#:#blog_preview_banner_height#:#Höhe des Banners
-blog#:#blog_preview_banner_info#:#Standardgrösse ist 1370x100 Pixel.
+blog#:#blog_preview_banner_info#:#Standardgröße ist 1370x100 Pixel.
 blog#:#blog_preview_banner_width#:#Breite des Banners
 blog#:#blog_profile_picture#:#Profil-Bild anzeigen
 blog#:#blog_profile_picture_repository_info#:#Profilbilder werden nur für einzelne Beiträge angezeigt, nicht auf Übersichtsseiten.###Modified as part of gender mainstreaming activities for ILIAS 8
@@ -2784,12 +2786,12 @@ certificate#:#certificate_text#:#Text des Zertifikats
 certificate#:#certificate_text_info#:#Bitte geben Sie hier den Text des Zertifikats ein. Falls der WYSIWYG-Edtior in der ILIAS-Administration deaktiviert wurde, können Sie hier dennoch gültiges XHTML zur Formatierung nutzen.<br><br>
 certificate#:#certificate_unit_description#:#Geben Sie Maße immer in der Form WERT[cm|mm|in|pt|pc|px|em] an, d.h. 10mm oder 3in
 certificate#:#certificate_usage#:#Bitte beachten Sie, dass die Verwendung und Erstellung von Zertifikaten nur möglich ist, wenn Sie den Java-Server von ILIAS verwenden. Der Java-Server wird in der Hauptseite der Administration in der Kategorie Web-Services konfiguriert und ist unter anderem für die Generierung von PDF-Dateien erforderlich.
-certificate#:#certificate_var_max_points#:#46
-certificate#:#certificate_var_result_mark_long#:#Gut
-certificate#:#certificate_var_result_mark_short#:#2
-certificate#:#certificate_var_result_passed#:#bestanden
-certificate#:#certificate_var_result_percent#:#83%
-certificate#:#certificate_var_result_points#:#38
+certificate#:#certificate_var_max_points#:#Maximale Punktzahl im verwendeten Test
+certificate#:#certificate_var_result_mark_long#:#Erreichte Note in der Form 'Offizielle Bezeichnung'
+certificate#:#certificate_var_result_mark_short#:#Erreichte Note in der Form 'Kurzbezeichnung'
+certificate#:#certificate_var_result_passed#:#Angabe, ob der Test bestanden wurde oder nicht
+certificate#:#certificate_var_result_percent#:#Anzahl der erreichten Prozente im Test
+certificate#:#certificate_var_result_points#:#Anzahl der erreichten Punkte im Test
 certificate#:#certificate_var_user_birthday#:#08.05.1977
 certificate#:#certificate_var_user_city#:#Köln
 certificate#:#certificate_var_user_country#:#Deutschland
@@ -3232,7 +3234,7 @@ cmix#:#info_availability#:#Hereby you can operate the availability of the LRS-ty
 cmix#:#info_description#:#Diese Beschreibung wird bei der Auswahl des LRS-Typs für neue Objekte angezeigt.
 cmix#:#info_external_lrs#:#Bei einem externen Learning Record Store (LRS) wird dem Anwender ein Hinweis angezeigt. Ein externer LRS ist gekennzeichnet durch einen unzureichenden Einfluss auf den LRS und durch den Betreiber von ILIAS. Dies ist der Fall, wenn es keine Rechte zum Löschen gibt.
 cmix#:#info_lrs_endpoint#:#URL des Endpoints ohne „/“ am Ende
-cmix#:#info_lrs_key#:#Key oder Login für den Zugriff von ILIAS auf den LRS
+cmix#:#info_lrs_key#:#Key oder Anmeldename für den Zugriff von ILIAS auf den LRS
 cmix#:#info_lrs_secret#:#Gemeinsames Secret / Passwort
 cmix#:#info_privacy_comment_default#:#Bitte geben Sie bei Verwendung dieses LRS bei Bedarf einen zusätzlichen Hinweis auf die Datensicherheit an.
 cmix#:#info_remarks#:#Hier können Sie Ihre Kommentare zu diesem LRS-Typ festhalten.
@@ -3528,7 +3530,7 @@ common#:#auth_allow_local#:#Erlaube lokale Authentifizierung
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Erlaubt Personen mit CAS-Konten, sich mit ihrem lokalen ILIAS-Anmeldenamen und -Passwort anzumelden.
 common#:#auth_cas_auth#:#Konfiguriere CAS-Authentifizierung
-common#:#auth_cas_auth_desc#:#CAS erfordert PHP 4.3.1 oder höher mit CURL-Unterstützung (7.5 oder höher)
+common#:#auth_cas_auth_desc#:#Damit die CAS-Authentifizierung funktioniert, muss die Servereinstellung prevent_super_global_replacement in der Datei client.ini.php gesetzt sein.
 common#:#auth_cas_port_desc#:#Zum Beispiel "443" bei einer CAS-Server-URI "https://auth.yourserver.com:443/cas/"
 common#:#auth_cas_server_desc#:#Zum Beispiel "auth.yourserver.com" bei einer CAS-Server-URI "https://auth.yourserver.com:443/cas/"
 common#:#auth_cas_uri_desc#:#Lokale URI, zum Beispiel "cas" bei einer CAS-Server-URI "https://auth.yourserver.com:443/cas/"
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#Alle kopieren
 common#:#copy_n_of_suffix#:#- Kopie (%1$s)
 common#:#copy_of#:#Kopie von
 common#:#copy_of_suffix#:#- Kopie
+common#:#copy_perma_link#:#Link in Zwischenablage kopieren
 common#:#copy_selected_items#:#Kopieren
 common#:#count#:#Anzahl
 common#:#counter_novelty#:#Neuigkeiten
@@ -4518,10 +4521,10 @@ common#:#logic_or#:#oder
 common#:#login#:#Anmeldename
 common#:#login_as#:#Angemeldet als
 common#:#login_data#:#Anmeldedaten
-common#:#login_exists#:#Dieser Anmeldename ist bereits vergeben. Bitte wählen Sie einen anderen Anmeldenamen.
-common#:#login_information#:#Login-Informationen
-common#:#login_information_desc#:#Geben Sie hier für die jeweilige Sprache eine Login-Information ein.
-common#:#login_information_settings_saved#:#Die Login-Informationen wurden erfolgreich gespeichert
+common#:#login_exists#:#Dieser Anmeldename ist bereits vergeben. Bitte wählen Sie einen anderen.
+common#:#login_information#:#Informationen zur Anmeldung
+common#:#login_information_desc#:#Geben Sie hier für die jeweilige Sprache einen entsprechenden Informationstext ein.
+common#:#login_information_settings_saved#:#Die Informationen wurden erfolgreich gespeichert.
 common#:#login_invalid#:#Ihr Anmeldename muss mindestens drei Zeichen lang sein und darf nur folgende Zeichen enthalten: A-Z a-z 0-9 _.-+*@!$%~
 common#:#login_to_ilias#:#Bei ILIAS anmelden
 common#:#login_to_ilias_via_cas#:#Bei ILIAS über zentrales Authentifizierungssystem anmelden
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Einschließlich Neuigkeiten der ausgewählten Objekte
 common#:#pdf_export#:#PDF-Export
 common#:#perm_settings#:#Rechte
 common#:#perma_link#:#Link zu dieser Seite
+common#:#perma_link_copied#:#Link zu dieser Seite wurde in die Zwischenablage kopiert.
 common#:#permission#:#Recht
 common#:#permission_denied#:#Kein Zugriffsrecht
 common#:#permission_settings#:#Rechteeinstellungen
@@ -6095,7 +6099,7 @@ cont#:#cont_tile_size_3#:#sehr groß (bis zu zwei Kacheln in einer Zeile)
 cont#:#cont_tile_size_4#:#volle Breite (eine Kachel in einer Zeile)
 cont#:#cont_tile_view#:#Kacheln
 cont#:#cont_tile_view_info#:#Untergeordnete Objekte als Kacheln anzeigen. Bilder für diese Kacheln können in den Einstellungen jedes einzelnen Objekts hochgeladen werden.
-cont#:#cont_trash_general_usage#:#Um größere Mengen alter, gelöschter Objekte aus dem System zu entfernen, ist es empfehlenswert zunächst die Nicht-Container (etwa Dateien, Glossare, Tests, ..) und so alle Objekte aus den Container-Objekten (Kategorien, Kurse, Gruppen, Lernsequenzen,..) zu entfernen. Die Filter "Typ" und "Gelöscht am" unterstützen den Vorgang. Abschließend löschen Sie dann die Container. 
+cont#:#cont_trash_general_usage#:#Um größere Mengen alter, gelöschter Objekte aus dem System zu entfernen, ist es empfehlenswert zunächst die Nicht-Container (etwa Dateien, Glossare, Tests, ..) und so alle Objekte aus den Container-Objekten (Kategorien, Kurse, Gruppen, Lernsequenzen,..) zu entfernen. Die Filter "Typ" und "Gelöscht am" unterstützen den Vorgang. Abschließend löschen Sie dann die Container.
 contact#:#contact_awrn_ap_contacts#:#Bestätigte Kontakte
 contact#:#contact_awrn_ap_contacts_info#:#Alle bestätigten Kontakte eines Benutzers werden aufgelistet.
 contact#:#contact_awrn_req_contacts#:#Kontaktanfragen
@@ -6954,7 +6958,7 @@ content#:#cont_restrict_forw_nav_info#:#Eine nachfolgende Seite kann erst dann a
 content#:#cont_revision#:#Änderung
 content#:#cont_right#:#Rechts
 content#:#cont_right_float#:#Rechts, Text umfließt
-content#:#cont_rollback#:#Rollback
+content#:#cont_rollback#:#Wiederherstellen
 content#:#cont_rollback_confirmation#:#Wollen Sie wirklich diese alte Version der Seite wiederherstellen?
 content#:#cont_roman#:#Römisch I, II, ...
 content#:#cont_roman_s#:#Römisch i, ii, ...
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Unbekanntes Seitenelement.
 copg#:#copg_page_type_stys#:#Seitenlayout
 copg#:#copg_par_format_selection#:#Absatzformatauswahl
 copg#:#copg_pc_mob_does_not_exist#:#Das Medienobjekt wurde nicht gefunden.
+copg#:#copg_plugin_not_avail#:#Plugin %s nicht verfügbar.
 copg#:#copg_questions_not_supported_here#:#In diesem Kontext werden keine Fragen unterstützt.
 copg#:#copg_reload_page#:#Seite neu laden
 copg#:#copg_remove_formats#:#Zeichenformate entfernen
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Wollen Sie diese Tabelle einschließlich Inhalt
 dcl#:#dcl_confirm_storing_records#:#Bitte überprüfen Sie die Angaben vor dem Speichern.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Sie haben keine Rechte, den Datensatz später nochmals zu bearbeiten.
 dcl#:#dcl_copy#:#Datensammlung kopieren
+dcl#:#dcl_copy_field#:#Kopie
+dcl#:#dcl_copy_field_desc#:#Kopieren von Auswahloptionen, die in einem anderen Feld einer Tabelle gepflegt werden
+dcl#:#dcl_copy_title#:#Kopie von Tabelle und Feld
 dcl#:#dcl_create_date#:#Erstellungsdatum
 dcl#:#dcl_create_entry_rules#:#Eintragserstellung
 dcl#:#dcl_create_field#:#Feld hinzufügen
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Zum Löschen muss mindestens eine Tabelle
 dcl#:#dcl_delete_views#:#Ansichten löschen
 dcl#:#dcl_delete_views_no_selection#:#Zum Löschen muss mindestens eine Ansicht ausgewählt werden.
 dcl#:#dcl_deleted_records#:#Es wurden %s Datensätze gelöscht.
+dcl#:#dcl_deprecated_copy#:#(Veraltet)
 dcl#:#dcl_desc#:#Absteigende Reihenfolge (DESC)
 dcl#:#dcl_description#:#Beschreibung
 dcl#:#dcl_detailed_view#:#Einzelansicht
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Ganze Zahlen
 dcl#:#dcl_number_desc#:#Eingabefeld für ganze Zahlen (maximal 9 Ziffern). Nicht erlaubt sind Brüche und Dezimalzahlen.
 dcl#:#dcl_online_info#:#Nur wenn die Datensammlung online geschaltet ist, können Benutzer die Datensammlung sehen und benutzen.
 dcl#:#dcl_order#:#Sortierung
+dcl#:#dcl_origin_not_found#:#Urprungsfeld konnte nicht gefunden werden!
 dcl#:#dcl_own_entries#:#Nur eigene Einträge
 dcl#:#dcl_owner#:#Eigener Eintrag von
 dcl#:#dcl_owner_description#:#Eigene Einträge bleiben stets sichtbar.
@@ -9711,7 +9721,7 @@ export#:#export_resource#:#Ressource
 export#:#export_save_selection#:#Export starten
 export#:#export_select_resources#:#Objekte auswählen
 export#:#no_file#:#Keine Datei
-file#:#action_download#:#Datei direkt herunterladen
+file#:#action_download#:#Datei herunterladen oder Inhalt anzeigen
 file#:#action_show#:#Zunächst Reiter „Info“ anzeigen
 file#:#add_icon#:#Icon hinzufügen
 file#:#amount_of_downloads#:#Downloads
@@ -9785,7 +9795,7 @@ file#:#storage_id#:#Storage ID
 file#:#suffix_specific_icons#:#Suffix-spezifische Icons
 file#:#suffixes#:#Suffixe
 file#:#upload_files#:#Dateien hochladen
-file#:#upload_files_limit#:#Die maximale Grösse einer Datei beträgt %s.
+file#:#upload_files_limit#:#Die maximale Größe einer Datei beträgt %s.
 file#:#upload_files_title#:#Dateien hochladen
 file#:#upload_info#:#Datei
 file#:#upload_info_desc#:#Sie können die Dateien und die Dateiversionen im Tab "Versionen" verwalten.
@@ -10480,14 +10490,14 @@ irss#:#action_remove_resource_msg#:#Möchten Sie die folgende(n) Ressource(n) l�
 irss#:#action_show_revisions#:#Revisionen anzeigen
 irss#:#by_creation_date_asc#:#Erstellungsdatum (aufsteigend)
 irss#:#by_creation_date_desc#:#Erstellungsdatum (absteigend)
-irss#:#by_size_asc#:#Dateigrösse (aufsteigend)
-irss#:#by_size_desc#:#Dateigrösse (absteigend)
+irss#:#by_size_asc#:#Dateigröße (aufsteigend)
+irss#:#by_size_desc#:#Dateigröße (absteigend)
 irss#:#by_title_asc#:#Titel (aufsteigend)
 irss#:#by_title_desc#:#Titel (absteigend)
 irss#:#creation_date#:#Erstellungsdatum (Diese Revision)
-irss#:#file_size#:#Dateigrösse (Diese Revision)
-irss#:#file_size_bigger_than#:#Dateigrösse > MB
-irss#:#full_size#:#Ressourcengrössse (Alle Revisionen)
+irss#:#file_size#:#Dateigröße (Diese Revision)
+irss#:#file_size_bigger_than#:#Dateigröße > MB
+irss#:#full_size#:#Ressourcengröße (Alle Revisionen)
 irss#:#max_revision#:#Max. Revision
 irss#:#msg_upload#:#Dateien zum Hinzufügen hier ablegen
 irss#:#resource_id#:#Resource ID
@@ -10505,8 +10515,8 @@ irss#:#rids_updated#:#Ressource(n) aktualisiert
 irss#:#sorting#:#Sortierung
 irss#:#sorting_1#:#Titel (aufsteigend)
 irss#:#sorting_2#:#Titel (absteigend)
-irss#:#sorting_3#:#Dateigrösse (aufsteigend)
-irss#:#sorting_4#:#Dateigrösse (absteigend)
+irss#:#sorting_3#:#Dateigröße (aufsteigend)
+irss#:#sorting_4#:#Dateigröße (absteigend)
 irss#:#sorting_5#:#Erstellungsdatum (aufsteigend)
 irss#:#sorting_6#:#Erstellungsdatum (absteigend)
 irss#:#stakeholders#:#Ursprung
@@ -11429,7 +11439,7 @@ mail#:#mail_orphaned_mails#:#Löschen alter oder verwaister Mails
 mail#:#mail_orphaned_mails_desc#:#Löscht verwaiste Mails und Mails die älter sind als der eingestellte Schwellenwert (einstellbar über den „Bearbeiten“-Link in der „Aktionen“-Spalte dieses Cron-Jobs).
 mail#:#mail_recipient_not_found#:#%1$s – Bitte korrigieren Sie die Angaben im „An”-Feld.###Modified as part of gender mainstreaming activities for ILIAS 8
 mail#:#mail_rename_folder#:#Ordner umbenennen
-mail#:#mail_roles#:#alle Personen mit folgenden lokalen Rollen
+mail#:#mail_roles#:#Alle Personen mit folgenden lokalen Rollen
 mail#:#mail_s#:#Mails
 mail#:#mail_salutation_anonymous#:#Hallo
 mail#:#mail_salutation_f#:#Sehr geehrte Frau
@@ -12861,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Die Funktion ermöglicht es Kompetenzen aus
 obj#:#obj_tool_setting_tag_cloud#:#Tag Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#Es wird eine Tag Cloud im Block „Auswahl nach Themen“ im Reiter „Inhalt“ angezeigt.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomien
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomien erlauben das Filtern von Objekten. Sie werden im Unterreiter „Taxonomie“ im Reiter "Einstellungen" angelegt.
 obj#:#obj_tool_setting_use_news#:#Neuigkeiten
 obj#:#obj_tool_setting_use_news_info#:#Nutzung des Blocks „Neuigkeiten“ oder der Timeline für Neuigkeiten. Benutzer können Benachrichtigungen für Neuigkeiten aktivieren, sobald der Block oder die Timeline aktiv sind.
 obj#:#obj_tool_setting_use_news_open_settings#:#Einstellungen für Block und Timeline öffnen
@@ -13203,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#unbegrenzt gültig
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Zugriffsregelungen nach Organisationseinheiten
 prg#:#prg_access_by_orgu_byline#:#Wenn aktiviert, können zusätzliche Zugriffsregelungen über Positionen in Organisationseinheiten vergeben werden.
+prg#:#prg_acknowledge_all_completed_courses#:#Alle bestandenen Kurse anerkennen
 prg#:#prg_acknowledge_completed_courses#:#Bestandene Kurse anerkennen
 prg#:#prg_add#:#Studienprogramm anlegen
 prg#:#prg_added_course_ref_successful#:#Neuer Kurslink erfolgreich hinzugefügt.
@@ -13520,7 +13532,7 @@ prtf#:#prtf_portfolio_page_deleted#:#Portfolio- bzw. Blog-Seite wurde gelöscht.
 prtf#:#prtf_portfolios#:#Portfolios
 prtf#:#prtf_preview_banner#:#Personalisiertes Banner
 prtf#:#prtf_preview_banner_height#:#Banner Höhe
-prtf#:#prtf_preview_banner_info#:#Standardgrösse ist 1370x100 Pixel.
+prtf#:#prtf_preview_banner_info#:#Standardgröße ist 1370x100 Pixel.
 prtf#:#prtf_preview_banner_width#:#Banner Breite
 prtf#:#prtf_print_options#:#Auswahl zum PDF
 prtf#:#prtf_print_selection#:#Auswahl
@@ -17157,7 +17169,7 @@ ui#:#datatable_multiaction_label#:#Sammelaktionen
 ui#:#datatable_multiactionmodal_actionlabel#:#Aktion für alle Einträge
 ui#:#datatable_multiactionmodal_apply#:#Ausführen
 ui#:#datatable_multiactionmodal_listentry#:#Aktionen für gesamte Tabelle
-ui#:#datatable_multiactionmodal_msg#:#Die ausgewählte Aktion wirkt sich auf alle Einträge in diser Tabelle aus.
+ui#:#datatable_multiactionmodal_msg#:#Die ausgewählte Aktion wirkt sich auf alle Einträge in dieser Tabelle aus.
 ui#:#datatable_multiactionmodal_title#:#Aktionen für gesamte Tabelle
 ui#:#duration_default_label_end#:#Ende
 ui#:#duration_default_label_start#:#Beginn
@@ -17186,7 +17198,7 @@ ui#:#ui_error_switchable_group_required#:#Bitte treffen Sie eine Auswahl.
 ui#:#ui_file_input_general_error#:#Es ist ein Fehler aufgetreten. Sie können in der JavaSkript-Konsole Ihres Browser nachschauen, ob es weitere Informationen zu diesem Fehler gibt, und/oder die Administration Ihrer ILIAS-Installation über den Vorfall informieren.
 ui#:#ui_file_input_invalid_amount#:#Sie dürfen nicht so viele Dateien auf einmal hochladen! Entfernen Sie einige Dateien, um fortzufahren.
 ui#:#ui_file_input_invalid_mime#:#Dateien vom Typ „%s“ sind nicht erlaubt.
-ui#:#ui_file_input_invalid_size#:#Datei überschreitet die maximale Dateigrösse von %s.
+ui#:#ui_file_input_invalid_size#:#Datei überschreitet die maximale Dateigröße von %s.
 ui#:#ui_invalid_url#:#Das Format der URL ist nicht korrekt.
 ui#:#ui_link_label#:#Label
 ui#:#ui_link_url#:#URL

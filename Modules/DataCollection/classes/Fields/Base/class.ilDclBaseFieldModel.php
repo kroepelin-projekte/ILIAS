@@ -26,7 +26,7 @@ class ilDclBaseFieldModel
     protected string $description = "";
     protected int $datatype_id = 0;
     protected ?int $order = null;
-    protected bool $unique;
+    protected bool $unique = false;
     /** @var ilDclFieldProperty[] */
     protected array $property = [];
     protected bool $exportable = false;
@@ -214,8 +214,17 @@ class ilDclBaseFieldModel
     public function getDatatypeTitle(): string
     {
         $this->loadDatatype();
-
         return $this->datatype->getTitle();
+    }
+
+    public function getPresentationTitle(): string
+    {
+        return $this->lng->txt('dcl_' . $this->getDatatypeTitle());
+    }
+
+    public function getPresentationDescription(): string
+    {
+        return $this->lng->txt('dcl_' . $this->getDatatypeTitle() . '_desc');
     }
 
     /**

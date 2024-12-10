@@ -245,7 +245,7 @@ class ilPageContentGUI
     public function displayValidationError(): void
     {
         if (is_array($this->updated)) {
-            $error_str = "<b>Error(s):</b><br>";
+            $error_str = "<strong>Error(s):</strong><br>";
             foreach ($this->updated as $error) {
                 $err_mess = implode(" - ", $error);
                 if (!is_int(strpos($err_mess, ":0:"))) {
@@ -254,7 +254,7 @@ class ilPageContentGUI
             }
             $this->tpl->setOnScreenMessage('failure', $error_str);
         } elseif ($this->updated != "" && $this->updated !== true) {
-            $this->tpl->setOnScreenMessage('failure', "<b>Error(s):</b><br />" .
+            $this->tpl->setOnScreenMessage('failure', "<strong>Error(s):</strong><br />" .
                 $this->updated);
         }
     }

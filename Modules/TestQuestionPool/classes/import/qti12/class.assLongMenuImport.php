@@ -199,7 +199,7 @@ class assLongMenuImport extends assQuestionImport
 
         $this->addGeneralMetadata($item);
         $this->object->setTitle($item->getTitle());
-        $this->object->setNrOfTries((int)$item->getMaxattempts());
+        $this->object->setNrOfTries((int) $item->getMaxattempts());
         $this->object->setComment($item->getComment());
         $this->object->setAuthor($item->getAuthor());
         $this->object->setOwner($ilUser->getId());
@@ -213,7 +213,7 @@ class assLongMenuImport extends assQuestionImport
             $this->fetchAdditionalContentEditingModeInformation($item)
         );
         $this->object->saveToDb();
-
+        $this->importSuggestedSolutions($this->object->getId(), $item->suggested_solutions);
         if (isset($feedbacks) && count($feedbacks) > 0) {
             foreach ($feedbacks as $ident => $material) {
                 $this->object->feedbackOBJ->importSpecificAnswerFeedback(

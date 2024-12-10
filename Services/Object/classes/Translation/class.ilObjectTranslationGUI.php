@@ -449,14 +449,14 @@ class ilObjectTranslationGUI
             ->withRequest($this->request)
             ->getData();
         $this->obj_trans->setMasterLanguage($data['lang']);
-        $this->obj_trans->addLanguage(
-            $data['lang'],
-            $this->obj->getTitle(),
-            $this->obj->getDescription(),
-            true
-        );
-        $this->obj_trans->setDefaultTitle($this->obj->getTitle());
-        $this->obj_trans->setDefaultDescription($this->obj->getDescription());
+        if (!in_array($data['lang'], $this->obj_trans->getLanguages())) {
+            $this->obj_trans->addLanguage(
+                $data['lang'],
+                $this->obj->getTitle(),
+                $this->obj->getDescription(),
+                true
+            );
+        }
         $this->obj_trans->save();
 
         $this->ctrl->redirect($this, self::CMD_LIST_TRANSLATIONS);

@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Za uređivanje povratnih informa
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###04 06 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Za uređivanje povratnih informacija i savjeta koristite urednika rich-text
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###04 06 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###04 06 2021 new variable
 assessment#:#tst_all_test_competences#:#Sva kompetencije testa
 assessment#:#tst_all_user_data_deleted#:#Svi korisnički podaci ovog testa su uklonjeni!
@@ -1843,8 +1845,6 @@ assessment#:#tst_show_answer_sheet#:#Prikaži odgovore
 assessment#:#tst_show_cancel#:#Prekini test
 assessment#:#tst_show_cancel_description#:#Tijekom testa sudionicima se prikazuje gumb kojim se test može prekinuti te kasnije nastaviti. Oprez: Prekidom test ne zaustavlja se odbrojavanje maksimalnog trajanja testa.
 assessment#:#tst_show_comp_results#:#Kompetencijski rezultati
-assessment#:#tst_show_pass_details#:#Prikaži ‘Tablicu detaljnih rezultata testa’ za svaki prolaz testa u odabranom trenutku.
-assessment#:#tst_show_pass_details_desc#:#Sažetk rezultata će u trenutku koji je naveden u gornjoj postavci biti dopunjen sa sljedećim: ‘Tablica detaljnih rezultata testa’ prikazat će za za svaki prolaz testa naslov pitanja i ostvareni broj bodova. <br> U protivnom se ta tablica prikazuje samo nakon posljednjeg dopuštenog prolaza testa (postavlja se u podkartici ‘Opće postavke’, opcija ‘Ograniči broj prolaza testa’) ili nakon službenog završetka testa (postavlja se u podkartici ‘Opće postavke’, opcija ‘Vrijeme završetka’). <br> Daljnje postavke vezano za sadržaj ‘Tablice detaljnih rezultata testa’ moguće su pod ‘Daljnji detalji koji trebaju biti uključeni u rezultate testa’.
 assessment#:#tst_show_results#:#Rezultati testa
 assessment#:#tst_show_side_list#:#Pokaži popis pitanja
 assessment#:#tst_show_solution_answers_only#:#Prikaz ispisa rezultata (samo odgovori)
@@ -2073,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatisch aktualisieren
 auth#:#auth_oidc_update_role_info#:#Nur bei Erstanmeldung (automatische Synchronisierung) anwenden
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login Page###04 06 2021 new variable
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Add new Identity Provider
 auth#:#auth_saml_add_idp_md_error#:#The given value was not a valid XML document. Ensure the XML contains a valid Identity Provider.
@@ -3768,6 +3770,7 @@ common#:#copy_all#:#Kopiraj sve
 common#:#copy_n_of_suffix#:#- Kopija (%1$s)
 common#:#copy_of#:#Kopija
 common#:#copy_of_suffix#:#=- kopija
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Kopiraj
 common#:#count#:#Količina
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5250,6 +5253,7 @@ common#:#pd_items_news#:#Uključujući vijesti o osobnim stvarima
 common#:#pdf_export#:#PDF izvoz
 common#:#perm_settings#:#Prava
 common#:#perma_link#:#Trajna poveznica
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Dozvola
 common#:#permission_denied#:#Dozvola odbijena
 common#:#permission_settings#:#Postavke dozvole za objekt
@@ -7368,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###04 06 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###04 06 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Pitanja nisu podržana u ovom kontekstu.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8555,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Želite li zaista izbrisati ovu tablicu sa sadr
 dcl#:#dcl_confirm_storing_records#:#Molimo provjerite i potvrdite svoj unos.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nakon toga nećete imati dopuštenje za promjenu zapisa.
 dcl#:#dcl_copy#:#Kopiraj zbirku podataka
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum stvaranja
 dcl#:#dcl_create_entry_rules#:#Entry Creation###04 06 2021 new variable
 dcl#:#dcl_create_field#:#Stvori polje
@@ -8579,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Izbriši prikaze
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Uspješno izbrisani %s unosi
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Silazni poredak (DESC)
 dcl#:#dcl_description#:#Opis polja
 dcl#:#dcl_detailed_view#:#Detaljan prikaz
@@ -8697,6 +8706,7 @@ dcl#:#dcl_number#:#Cijeli broj
 dcl#:#dcl_number_desc#:#Polje za cijele brojeve (najviše 9 znamenki). Bez decimala ili razlomaka.
 dcl#:#dcl_online_info#:#Korisnici mogu koristiti zbirku podataka samo ako je zbirka podataka online.
 dcl#:#dcl_order#:#Redoslijed
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Samo vlastiti unosi
 dcl#:#dcl_owner#:#Vlasnik
 dcl#:#dcl_owner_description#:#Vlasnik unosa.
@@ -9091,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protocol
 ecs#:#ecs_publish_as#:#Publish as:
 ecs#:#ecs_publish_for#:#Release for:
 ecs#:#ecs_published_for#:#Published for:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#A new ECS Course has been created:
 ecs#:#ecs_read_remote_links#:#Update ECS Courses
 ecs#:#ecs_refresh_participants#:#Refresh ECS-Participants
@@ -12860,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Aktivira upravljanje kompetencijama i dodje
 obj#:#obj_tool_setting_tag_cloud#:#Oznaka oblaka
 obj#:#obj_tool_setting_tag_cloud_info#:#Blok ‘Oznaka oblaka’ prikazat će se unutar kartice ‘Sadržaj’.
 obj#:#obj_tool_setting_taxonomies#:#Taksonomije
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Vijesti
 obj#:#obj_tool_setting_use_news_info#:#Aktiviraj blok vijesti i/ili prikaz vremenske trake.
 obj#:#obj_tool_setting_use_news_open_settings#:#Otvori postavke
@@ -13202,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%###04 06 2021 new variable
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions###04 06 2021 new variable
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.###04 06 2021 new variable
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Priznaj završene tečajeve
 prg#:#prg_add#:#Dodaj studijski program
 prg#:#prg_added_course_ref_successful#:#Uspješno je dodana nova poveznica na tečaj
@@ -16822,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section ‘All Users’ to the 
 tagging#:#tagging_enable_tagging#:#Enable Tagging
 tagging#:#tagging_forbidden_tags#:#Forbidden Tags
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Tags of Other Users
 tagging#:#tagging_resources_for_tag#:#Resources tagged with %s
 tagging#:#tagging_search_users#:#Search Users

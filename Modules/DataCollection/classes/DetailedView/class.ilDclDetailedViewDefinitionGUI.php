@@ -165,17 +165,6 @@ class ilDclDetailedViewDefinitionGUI extends ilPageObjectGUI
     }
 
     /**
-     * Release page lock
-     * overwrite to redirect properly
-     */
-    public function releasePageLock(): void
-    {
-        $this->getPageObject()->releasePageLock();
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("cont_page_lock_released"), true);
-        $this->ctrl->redirectByClass('ilDclTableViewGUI', "show");
-    }
-
-    /**
      * Finalizing output processing
      */
     public function postOutputProcessing(string $a_output): string

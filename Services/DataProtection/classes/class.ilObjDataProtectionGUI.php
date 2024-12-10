@@ -181,7 +181,11 @@ final class ilObjDataProtectionGUI extends ilObject2GUI
                 'once' => 'once',
                 'eval_on_login' => 'reevaluate_on_login',
                 'no_acceptance' => 'no_acceptance',
-            ])->withValue('once')->withRequired(true),
+            ])->withValue(
+                $this->data_protection_settings->validateOnLogin()->value() ?
+                    'eval_on_login' :
+                    ($this->data_protection_settings->noAcceptance()->value() ? 'no_acceptance' : 'once')
+            )->withRequired(true),
         ]);
 
         $enabled = $enabled->withValue($this->data_protection_settings->enabled()->value() ? [
@@ -205,8 +209,10 @@ final class ilObjDataProtectionGUI extends ilObject2GUI
             }
             $type = $data['enabled']['type'] ?? false;
             $this->data_protection_settings->enabled()->update(isset($data['enabled']));
-            $this->data_protection_settings->validateOnLogin()->update($type === 'eval_on_login');
-            $this->data_protection_settings->noAcceptance()->update($type === 'no_acceptance');
+            if (isset($data['enabled'])) {
+                $this->data_protection_settings->validateOnLogin()->update($type === 'eval_on_login');
+                $this->data_protection_settings->noAcceptance()->update($type === 'no_acceptance');
+            }
 
             $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
             $this->ctrl->redirect($this, 'settings');

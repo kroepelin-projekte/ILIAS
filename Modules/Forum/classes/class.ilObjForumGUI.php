@@ -2479,14 +2479,12 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
         $this->replyEditForm->addItem($oPostGUI);
 
         $umail = new ilMail($this->user->getId());
-        if (
+        if (!$this->user->isAnonymous() &&
             !$this->objProperties->isAnonymized() &&
             $this->rbac->system()->checkAccess('internal_mail', $umail->getMailObjectReferenceId()) &&
-            !$frm->isThreadNotificationEnabled($this->user->getId(), $this->objCurrentPost->getThreadId())
-        ) {
+            !$frm->isThreadNotificationEnabled($this->user->getId(), $this->objCurrentPost->getThreadId())) {
             $oNotificationGUI = new ilCheckboxInputGUI($this->lng->txt('forum_direct_notification'), 'notify');
             $oNotificationGUI->setInfo($this->lng->txt('forum_notify_me'));
-
             $this->replyEditForm->addItem($oNotificationGUI);
         }
 
@@ -2885,7 +2883,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                     $display_user_id,
                     ilRTE::_replaceMediaObjectImageSrc($oReplyEditForm->getInput('message')),
                     $this->objCurrentPost->getId(),
-                    (bool) $oReplyEditForm->getInput('notify'),
+                    $oReplyEditForm->getInput('notify') && !$this->user->isAnonymous(),
                     $this->handleFormInput($oReplyEditForm->getInput('subject'), false),
                     $user_alias,
                     '',
@@ -2996,7 +2994,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 $this->objCurrentPost->setMessage(ilRTE::_replaceMediaObjectImageSrc(
                     $oReplyEditForm->getInput('message')
                 ));
-                $this->objCurrentPost->setNotification((bool) $oReplyEditForm->getInput('notify'));
+                $this->objCurrentPost->setNotification($oReplyEditForm->getInput('notify') && !$this->user->isAnonymous());
                 $this->objCurrentPost->setChangeDate(date('Y-m-d H:i:s'));
                 $this->objCurrentPost->setUpdateUserId($this->user->getId());
 
@@ -3680,53 +3678,12 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
         $this->toolbar->addComponent($sortingDirectionViewControl);
     }
 
-    private function getModifiedReOnSubject(bool $on_reply = false): string
+    private function getModifiedReOnSubject(): string
     {
-        $modified_subject = '';
-        $subject = $this->objCurrentPost->getSubject();
-        $re_txt = $this->lng->txt('post_reply');
-
-        $re_txt_with_num = str_replace(':', '(', $re_txt);
-        $search_length = strlen($re_txt_with_num);
-        $comp = substr_compare($re_txt_with_num, substr($subject, 0, $search_length), 0, $search_length);
-
-        if ($comp === 0) {
-            $modified_subject = $subject;
-            if ($on_reply) {
-                // i.e. $subject = "Re(12):"
-                $str_pos_start = strpos($subject, '(');
-                $str_pos_end = strpos($subject, ')');
-
-                $length = ((int) $str_pos_end - (int) $str_pos_start);
-                $str_pos_start++;
-                $txt_number = substr($subject, $str_pos_start, $length - 1);
-
-                if (is_numeric($txt_number)) {
-                    $re_count = (int) $txt_number + 1;
-                    $modified_subject = substr($subject, 0, $str_pos_start) . $re_count . substr(
-                        $subject,
-                        $str_pos_end
-                    );
-                }
-            }
-        } else {
-            $re_count = substr_count($subject, $re_txt);
-            if ($re_count >= 1 && $on_reply) {
-                $subject = str_replace($re_txt, '', $subject);
-
-                // i.e. $subject = "Re: Re: Re: ... " -> "Re(4):"
-                $re_count++;
-                $modified_subject = sprintf($this->lng->txt('post_reply_count'), $re_count) . ' ' . trim($subject);
-            } elseif ($re_count >= 1 && !$on_reply) {
-                // possibility to modify the subject only for output
-                // i.e. $subject = "Re: Re: Re: ... " -> "Re(3):"
-                $modified_subject = sprintf($this->lng->txt('post_reply_count'), $re_count) . ' ' . trim($subject);
-            } elseif ($re_count === 0) {
-                // the first reply to a thread
-                $modified_subject = $this->lng->txt('post_reply') . ' ' . $this->objCurrentPost->getSubject();
-            }
-        }
-        return $modified_subject;
+        return (new PostingReplySubjectBuilder(
+            $this->lng->txt('post_reply'),
+            $this->lng->txt('post_reply_count')
+        ))->build($this->objCurrentPost->getSubject());
     }
 
     public function showUserObject(): void
@@ -4098,7 +4055,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
     private function buildThreadForm(bool $isDraft = false): ilForumThreadFormGUI
     {
         $draftId = (int) ($this->httpRequest->getQueryParams()['draft_id'] ?? 0);
-        $allowNotification = !$this->objProperties->isAnonymized();
+        $allowNotification = !$this->objProperties->isAnonymized() && !$this->user->isAnonymous();
 
         $mail = new ilMail($this->user->getId());
         if (!$this->rbac->system()->checkAccess('internal_mail', $mail->getMailObjectReferenceId())) {
@@ -4131,7 +4088,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
     private function buildMinimalThreadForm(bool $isDraft = false): ilForumThreadFormGUI
     {
         $draftId = (int) ($this->httpRequest->getQueryParams()['draft_id'] ?? 0);
-        $allowNotification = !$this->objProperties->isAnonymized();
+        $allowNotification = !$this->objProperties->isAnonymized() && !$this->user->isAnonymous();
 
         $mail = new ilMail($this->user->getId());
         if (!$this->rbac->system()->checkAccess('internal_mail', $mail->getMailObjectReferenceId())) {
@@ -4226,8 +4183,8 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 $newPost = $frm->generateThread(
                     $newThread,
                     ilRTE::_replaceMediaObjectImageSrc($form->getInput('message')),
-                    $draft->isNotificationEnabled(),
-                    $draft->isPostNotificationEnabled(),
+                    $draft->isNotificationEnabled() && !$this->user->isAnonymous(),
+                    $draft->isPostNotificationEnabled() && !$this->user->isAnonymous(),
                     $status
                 );
             } else {
@@ -4245,7 +4202,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 $newPost = $frm->generateThread(
                     $newThread,
                     ilRTE::_replaceMediaObjectImageSrc($form->getInput('message')),
-                    $form->getItemByPostVar('notify') && $form->getInput('notify'),
+                    $form->getItemByPostVar('notify') && $form->getInput('notify') && !$this->user->isAnonymous(),
                     false, // #19980
                     $status
                 );
@@ -4438,7 +4395,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
 
     protected function enableForumNotificationObject(): void
     {
-        if (!$this->access->checkAccess('read', '', $this->object->getRefId())) {
+        if (!$this->access->checkAccess('read', '', $this->object->getRefId()) || $this->user->isAnonymous()) {
             $this->error->raiseError($this->lng->txt('permission_denied'), $this->error->MESSAGE);
         }
 
@@ -4458,7 +4415,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
 
     protected function disableForumNotificationObject(): void
     {
-        if (!$this->access->checkAccess('read', '', $this->object->getRefId())) {
+        if (!$this->access->checkAccess('read', '', $this->object->getRefId()) || $this->user->isAnonymous()) {
             $this->error->raiseError($this->lng->txt('permission_denied'), $this->error->MESSAGE);
         }
 
@@ -4593,33 +4550,35 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
             $this->ctrl->setParameter($this, 'thr_pk', $this->objCurrentTopic->getId());
         }
 
-        if ($this->isParentObjectCrsOrGrp()) {
-            // special behaviour for CRS/GRP-Forum notification!!
-            if ($isForumNotificationEnabled && $userMayDisableNotifications) {
+        if (!$this->user->isAnonymous()) {
+            if ($this->isParentObjectCrsOrGrp()) {
+                // special behaviour for CRS/GRP-Forum notification!!
+                if ($isForumNotificationEnabled && $userMayDisableNotifications) {
+                    $lg->addCustomCommand(
+                        $this->ctrl->getLinkTarget($this, 'disableForumNotification'),
+                        'forums_disable_forum_notification'
+                    );
+                } elseif (!$isForumNotificationEnabled) {
+                    $lg->addCustomCommand(
+                        $this->ctrl->getLinkTarget($this, 'enableForumNotification'),
+                        'forums_enable_forum_notification'
+                    );
+                }
+            } elseif ($isForumNotificationEnabled) {
                 $lg->addCustomCommand(
                     $this->ctrl->getLinkTarget($this, 'disableForumNotification'),
                     'forums_disable_forum_notification'
                 );
-            } elseif (!$isForumNotificationEnabled) {
+            } else {
                 $lg->addCustomCommand(
                     $this->ctrl->getLinkTarget($this, 'enableForumNotification'),
                     'forums_enable_forum_notification'
                 );
             }
-        } elseif ($isForumNotificationEnabled) {
-            $lg->addCustomCommand(
-                $this->ctrl->getLinkTarget($this, 'disableForumNotification'),
-                'forums_disable_forum_notification'
-            );
-        } else {
-            $lg->addCustomCommand(
-                $this->ctrl->getLinkTarget($this, 'enableForumNotification'),
-                'forums_enable_forum_notification'
-            );
         }
 
         $ref_id = $this->retrieveRefId();
-        if ($isForumNotificationEnabled && $userMayDisableNotifications) {
+        if (!$this->user->isAnonymous() && $isForumNotificationEnabled && $userMayDisableNotifications) {
             $frm_noti = new ilForumNotification($ref_id);
             $frm_noti->setUserId($this->user->getId());
             $interested_events = $frm_noti->readInterestedEvents();
@@ -4659,7 +4618,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
         }
 
         $isThreadNotificationEnabled = false;
-        if ($this->objCurrentTopic->getId() > 0) {
+        if (!$this->user->isAnonymous() && $this->objCurrentTopic->getId() > 0) {
             $isThreadNotificationEnabled = $this->objCurrentTopic->isNotificationEnabled($this->user->getId());
             if ($isThreadNotificationEnabled) {
                 $lg->addCustomCommand(
@@ -4675,18 +4634,20 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
         }
         $this->ctrl->setParameter($this, 'thr_pk', '');
 
-        if ($isForumNotificationEnabled || $isThreadNotificationEnabled) {
-            $lg->addHeaderIcon(
-                'not_icon',
-                ilUtil::getImagePath('object/notification_on.svg'),
-                $this->lng->txt('frm_notification_activated')
-            );
-        } else {
-            $lg->addHeaderIcon(
-                'not_icon',
-                ilUtil::getImagePath('object/notification_off.svg'),
-                $this->lng->txt('frm_notification_deactivated')
-            );
+        if (!$this->user->isAnonymous()) {
+            if ($isForumNotificationEnabled || $isThreadNotificationEnabled) {
+                $lg->addHeaderIcon(
+                    'not_icon',
+                    ilUtil::getImagePath('object/notification_on.svg'),
+                    $this->lng->txt('frm_notification_activated')
+                );
+            } else {
+                $lg->addHeaderIcon(
+                    'not_icon',
+                    ilUtil::getImagePath('object/notification_off.svg'),
+                    $this->lng->txt('frm_notification_deactivated')
+                );
+            }
         }
 
         return $lg;
@@ -5023,7 +4984,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 'alias' => $draft->getPostUserAlias(),
                 'subject' => $draft->getPostSubject(),
                 'message' => ilRTE::_replaceMediaObjectImageSrc($frm->prepareText($draft->getPostMessage(), 2), 1),
-                'notify' => $draft->isNotificationEnabled(),
+                'notify' => $draft->isNotificationEnabled() && !$this->user->isAnonymous(),
                 'userfile' => '',
                 'del_file' => [],
                 'draft_id' => $draftId
@@ -5096,7 +5057,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 $this->objProperties->isAnonymized()
             );
             $draft->setPostUserAlias($userAlias);
-            $draft->setNotificationStatus((bool) $form->getInput('notify'));
+            $draft->setNotificationStatus($form->getInput('notify') && !$this->user->isAnonymous());
             $draft->setPostAuthorId($this->user->getId());
             $draft->setPostDisplayUserId($this->isWritingWithPseudonymAllowed() ? 0 : $this->user->getId());
 
@@ -5170,7 +5131,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
             $draft->setPostSubject($this->handleFormInput($form->getInput('subject'), false));
             $draft->setPostMessage(ilRTE::_replaceMediaObjectImageSrc($form->getInput('message')));
             $draft->setPostUserAlias($userAlias);
-            $draft->setNotificationStatus((bool) $form->getInput('notify'));
+            $draft->setNotificationStatus($form->getInput('notify') && !$this->user->isAnonymous());
             $draft->setPostAuthorId($this->user->getId());
             $draft->setPostDisplayUserId($this->isWritingWithPseudonymAllowed() ? 0 : $this->user->getId());
             $draft->updateDraft();
@@ -5288,8 +5249,8 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                 $draftObj->setPostSubject($this->handleFormInput($oReplyEditForm->getInput('subject'), false));
                 $draftObj->setPostMessage(ilRTE::_replaceMediaObjectImageSrc($oReplyEditForm->getInput('message')));
                 $draftObj->setPostUserAlias($user_alias);
-                $draftObj->setNotificationStatus((bool) $oReplyEditForm->getInput('notify'));
-                $draftObj->setPostNotificationStatus((bool) $oReplyEditForm->getInput('notify_post'));
+                $draftObj->setNotificationStatus($oReplyEditForm->getInput('notify') && !$this->user->isAnonymous());
+                $draftObj->setPostNotificationStatus($oReplyEditForm->getInput('notify_post') && !$this->user->isAnonymous());
 
                 $draftObj->setPostAuthorId($this->user->getId());
                 $draftObj->setPostDisplayUserId(($this->isWritingWithPseudonymAllowed() ? 0 : $this->user->getId()));
@@ -5413,7 +5374,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                     $oReplyEditForm->getInput('message')
                 ));
                 $update_draft->setPostUserAlias($user_alias);
-                $update_draft->setNotificationStatus((bool) $oReplyEditForm->getInput('notify'));
+                $update_draft->setNotificationStatus($oReplyEditForm->getInput('notify') && !$this->user->isAnonymous());
                 $update_draft->setUpdateUserId($this->user->getId());
                 $update_draft->setPostAuthorId($this->user->getId());
                 $update_draft->setPostDisplayUserId($this->isWritingWithPseudonymAllowed() ? 0 : $this->user->getId());
@@ -5991,7 +5952,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
         if ($action !== 'editdraft') {
             switch ($this->objProperties->getSubjectSetting()) {
                 case 'add_re_to_subject':
-                    $subject = $this->getModifiedReOnSubject(true);
+                    $subject = $this->getModifiedReOnSubject();
                     break;
 
                 case 'preset_subject':
@@ -6062,7 +6023,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                             $this->objCurrentPost->getMessage(),
                             2
                         ), 1),
-                        'notify' => $this->objCurrentPost->isNotificationEnabled(),
+                        'notify' => $this->objCurrentPost->isNotificationEnabled() && !$this->user->isAnonymous(),
                         'userfile' => '',
                         'del_file' => [],
                         'draft_id' => $draft_id
@@ -6097,7 +6058,7 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
                             $draftObject->getPostMessage(),
                             2
                         ), 1),
-                        'notify' => $draftObject->isNotificationEnabled(),
+                        'notify' => $draftObject->isNotificationEnabled() && !$this->user->isAnonymous(),
                         'userfile' => '',
                         'del_file' => [],
                         'draft_id' => $draft_id

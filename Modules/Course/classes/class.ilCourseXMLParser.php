@@ -520,6 +520,14 @@ class ilCourseXMLParser extends ilMDSaxParser implements ilSaxSubsetParser
                     $this->course_obj->MDUpdateListener('General');
                     $this->adv_md_handler->save();
                 }
+                // see #26169
+                $transl = ilObjectTranslation::getInstance($this->course_obj->getId());
+                if ($transl->getDefaultTitle() !== "") {
+                    $this->course_obj->setTitle($transl->getDefaultTitle());
+                }
+                if ($transl->getDefaultDescription() !== "") {
+                    $this->course_obj->setDescription($transl->getDefaultDescription());
+                }
                 $this->course_obj->update();
                 break;
 

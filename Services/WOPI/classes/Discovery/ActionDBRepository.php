@@ -36,33 +36,58 @@ class ActionDBRepository implements ActionRepository
     ) {
     }
 
+    private function implodeTargets(ActionTarget ...$targets): string
+    {
+        return implode(
+            ', ',
+            array_map(
+                fn(ActionTarget $target): string => $this->db->quote($target->value, 'text'),
+                $targets
+            )
+        );
+    }
+
+    /**
+     * @description this is only for cases where you need an action (for compatibility), this action cannot be used
+     * for any WOPI capability
+     */
+    public function null(): NullAction
+    {
+        return new NullAction();
+    }
+
     public function hasActionForSuffix(
         string $suffix,
-        ActionTarget $action_target
+        ActionTarget ...$action_target
     ): bool {
-        $query = 'SELECT * FROM ' . self::TABLE_NAME . ' WHERE ext = %s AND name = %s';
-        $result = $this->db->queryF($query, ['text', 'text'], [strtolower($suffix), $action_target->value]);
-        return $result->numRows() > 0;
+        static $cache = [];
+
+        $implode_targets = $this->implodeTargets(...$action_target);
+
+        if (isset($cache[$suffix][$implode_targets])) {
+            return $cache[$suffix][$implode_targets];
+        }
+
+        $query = 'SELECT * FROM '
+            . self::TABLE_NAME
+            . ' WHERE ext = %s AND name IN(' . $implode_targets . ')';
+
+        $result = $this->db->queryF(
+            $query,
+            ['text'],
+            [strtolower($suffix)]
+        );
+        return $cache[$suffix][$implode_targets] = $result->numRows() > 0;
     }
 
     public function hasEditActionForSuffix(string $suffix): bool
     {
-        foreach ($this->edit_actions as $action_target) {
-            if ($this->hasActionForSuffix($suffix, $action_target)) {
-                return true;
-            }
-        }
-        return false;
+        return $this->hasActionForSuffix($suffix, ...$this->edit_actions);
     }
 
     public function hasViewActionForSuffix(string $suffix): bool
     {
-        foreach ($this->view_actions as $action_target) {
-            if ($this->hasActionForSuffix($suffix, $action_target)) {
-                return true;
-            }
-        }
-        return false;
+        return $this->hasActionForSuffix($suffix, ...$this->view_actions);
     }
 
     public function getActionForSuffix(
@@ -73,7 +98,10 @@ class ActionDBRepository implements ActionRepository
             return null;
         }
 
-        $query = 'SELECT * FROM ' . self::TABLE_NAME . ' WHERE ext = %s AND name = %s';
+        $query = 'SELECT * FROM '
+            . self::TABLE_NAME
+            . ' WHERE ext = %s AND name = %s';
+
         $result = $this->db->queryF($query, ['text', 'text'], [strtolower($suffix), $action_target->value]);
         $row = $this->db->fetchAssoc($result);
         return $this->fromDBRow($row);
@@ -132,10 +160,12 @@ class ActionDBRepository implements ActionRepository
         return $actions;
     }
 
-    public function getSupportedSuffixes(ActionTarget $action_target): array
+    public function getSupportedSuffixes(ActionTarget ...$action_target): array
     {
-        $query = 'SELECT ext FROM ' . self::TABLE_NAME . ' WHERE name = %s';
-        $result = $this->db->queryF($query, ['text'], [$action_target->value]);
+        $query = 'SELECT ext FROM '
+            . self::TABLE_NAME
+            . ' WHERE name IN (' . $this->implodeTargets(...$action_target) . ')';
+        $result = $this->db->query($query);
         $suffixes = [];
         while ($row = $this->db->fetchAssoc($result)) {
             $suffixes[] = $row['ext'];
@@ -175,9 +205,7 @@ class ActionDBRepository implements ActionRepository
     public function clearSuperfluous(Action ...$actions): void
     {
         $collected_ids = array_map(
-            static function (Action $act) {
-                return $act->getId();
-            },
+            static fn(Action $act): int => $act->getId(),
             $actions
         );
         $query = 'DELETE FROM ' . self::TABLE_NAME . ' WHERE ' . $this->db->in('id', $collected_ids, true, 'integer');

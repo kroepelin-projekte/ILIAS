@@ -417,6 +417,8 @@ class ilSearchGUI extends ilSearchBaseGUI
             $this->search_cache->deleteCachedEntries();
         }
 
+        $this->search_cache->setResultPageNumber($page_number);
+
         if ($this->getType() == ilSearchBaseGUI::SEARCH_DETAILS and !$this->getDetails()) {
             $this->tpl->setOnScreenMessage('info', $this->lng->txt('search_choose_object_type'));
             $this->showSearch();

@@ -141,9 +141,8 @@ class assClozeTestExport extends assQuestionExport
                             "rcardinality" => "Single"
                         ];
                         $a_xml_writer->xmlStartTag("response_str", $attrs);
-                        $solution = $this->object->getSuggestedSolution($i);
-                        if ($solution !== null) {
-                            $a_xml_writer = $this->addSuggestedSolutionLink($a_xml_writer, $solution);
+                        if ($i === 0) {
+                            $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
                         }
 
                         $attrs = ["shuffle" => ($gap->getShuffle() ? "Yes" : "No")];
@@ -170,21 +169,8 @@ class assClozeTestExport extends assQuestionExport
                             "rcardinality" => "Single"
                         ];
                         $a_xml_writer->xmlStartTag("response_str", $attrs);
-                        $solution = $this->object->getSuggestedSolution($i);
-                        if ($solution instanceof assSuggestedSolutionLink) {
-                            $internalLink = $solution->getInternalLink();
-                            if (preg_match("/il_(\d*?)_(\w+)_(\d+)/", $internalLink, $matches)) {
-                                $attrs = [
-                                    "label" => "suggested_solution"
-                                ];
-                                $a_xml_writer->xmlStartTag("material", $attrs);
-                                $intlink = "il_" . IL_INST_ID . "_" . $matches[2] . "_" . $matches[3];
-                                if (strcmp($matches[1], "") !== 0) {
-                                    $intlink = $internalLink;
-                                }
-                                $a_xml_writer->xmlElement("mattext", null, $intlink);
-                                $a_xml_writer->xmlEndTag("material");
-                            }
+                        if ($i === 0) {
+                            $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
                         }
                         $attrs = [
                             "fibtype" => "String",
@@ -204,21 +190,8 @@ class assClozeTestExport extends assQuestionExport
                             "rcardinality" => "Single"
                         ];
                         $a_xml_writer->xmlStartTag("response_num", $attrs);
-                        $solution = $this->object->getSuggestedSolution($i);
-                        if ($solution instanceof assSuggestedSolutionLink) {
-                            $internalLink = $solution->getInternalLink();
-                            if (preg_match("/il_(\d*?)_(\w+)_(\d+)/", $internalLink, $matches)) {
-                                $attrs = [
-                                    "label" => "suggested_solution"
-                                ];
-                                $a_xml_writer->xmlStartTag("material", $attrs);
-                                $intlink = "il_" . IL_INST_ID . "_" . $matches[2] . "_" . $matches[3];
-                                if (strcmp($matches[1], "") !== 0) {
-                                    $intlink = $internalLink;
-                                }
-                                $a_xml_writer->xmlElement("mattext", null, $intlink);
-                                $a_xml_writer->xmlEndTag("material");
-                            }
+                        if ($i === 0) {
+                            $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
                         }
                         $answeritem = $gap->getItem(0);
                         $attrs = [

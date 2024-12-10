@@ -68,6 +68,11 @@ class ilEssayKeywordWizardInputGUI extends ilSingleChoiceWizardInputGUI
                         $this->setAlert($lng->txt("msg_input_is_required"));
                         return false;
                     }
+
+                    if (mb_strlen($answervalue) > $this->getMaxLength()) {
+                        $this->setAlert($lng->txt("msg_input_char_limit_max"));
+                        return false;
+                    }
                 }
             }
             // check points

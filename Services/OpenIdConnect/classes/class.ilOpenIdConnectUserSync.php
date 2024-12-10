@@ -192,12 +192,9 @@ class ilOpenIdConnectUserSync
                 continue;
             }
 
-            [$role_attribute, $role_value] = explode('::', $role_info['value']);
+            [$role_attribute, $role_value] = array_map(trim(...), explode('::', $role_info['value']));
 
-            if (
-                !$role_attribute ||
-                !$role_value
-            ) {
+            if (!$role_attribute || !$role_value) {
                 $this->logger->debug('No valid role mapping configuration for: ' . $role_id);
                 continue;
             }
@@ -213,14 +210,16 @@ class ilOpenIdConnectUserSync
             }
 
             if (is_array($this->user_info->{$role_attribute})) {
-                if (!in_array($role_value, $this->user_info->{$role_attribute}, true)) {
+                $roles_claim = array_map(trim(...), $this->user_info->{$role_attribute});
+                if (!in_array($role_value, $roles_claim, true)) {
                     $this->logger->debug('User account has no ' . $role_value);
                     continue;
                 }
-            } elseif (strcmp($this->user_info->{$role_attribute}, $role_value) !== 0) {
+            } elseif (strcmp(trim($this->user_info->{$role_attribute}), $role_value) !== 0) {
                 $this->logger->debug('User account has no ' . $role_value);
                 continue;
             }
+
             $this->logger->debug('Matching role mapping for role_id: ' . $role_id);
 
             $found_role = true;

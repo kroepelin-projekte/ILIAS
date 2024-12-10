@@ -464,9 +464,9 @@ class ilLMPageObjectGUI extends ilLMObjectGUI
         if (is_file($im = ilUtil::getImagePath("layout_" . $this->content_object->getLayout() . ".png"))) {
             $im_tag = ilUtil::img($im, $this->content_object->getLayout());
         }
-        $layout->addOption(new ilRadioOption("<table><tr><td>" . $im_tag . "</td><td><b>" .
+        $layout->addOption(new ilRadioOption("<table><tr><td>" . $im_tag . "</td><td><strong>" .
             $lng->txt("cont_lm_default_layout") .
-            "</b>: " . $lng->txt("cont_layout_" . $this->content_object->getLayout()) .
+            "</strong>: " . $lng->txt("cont_layout_" . $this->content_object->getLayout()) .
             "</td></tr></table>", ""));
 
         foreach (ilObjContentObject::getAvailableLayouts() as $l) {
@@ -474,8 +474,8 @@ class ilLMPageObjectGUI extends ilLMObjectGUI
             if (is_file($im = ilUtil::getImagePath("layout_" . $l . ".png"))) {
                 $im_tag = ilUtil::img($im, $l);
             }
-            $layout->addOption(new ilRadioOption("<table><tr><td>" . $im_tag . "</td><td><b>" .
-                $lng->txt("cont_layout_" . $l) . "</b>: " . $lng->txt("cont_layout_" . $l . "_desc") .
+            $layout->addOption(new ilRadioOption("<table><tr><td>" . $im_tag . "</td><td><strong>" .
+                $lng->txt("cont_layout_" . $l) . "</strong>: " . $lng->txt("cont_layout_" . $l . "_desc") .
                 "</td></tr></table>", $l));
         }
 

@@ -155,4 +155,18 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
             return (string) $value;
         }
     }
+
+    public function deserializeData($value)
+    {
+        $value = (string) $value;
+        if ($this->getField()->getProperty(ilDclBaseFieldModel::PROP_URL)) {
+            $deserialize = json_decode($value, true);
+            return [
+                'title' => $deserialize['title'] ?? '',
+                'link' => $deserialize['link'] ?? '',
+            ];
+        }
+
+        return $value;
+    }
 }

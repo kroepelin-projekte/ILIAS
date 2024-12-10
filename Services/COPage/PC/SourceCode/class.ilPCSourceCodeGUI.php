@@ -265,7 +265,7 @@ class ilPCSourceCodeGUI extends ilPageContentGUI
             $userfile = $_FILES['userfile']['tmp_name'];
 
             if ($userfile == "" || !is_uploaded_file($userfile)) {
-                $error_str = "<b>Error(s):</b><br>Upload error: file name must not be empty!";
+                $error_str = "<strong>Error(s):</strong><br>Upload error: file name must not be empty!";
                 $this->tpl->setVariable("MESSAGE", $error_str);
                 $this->content_obj->setText(
                     $this->content_obj->input2xml(

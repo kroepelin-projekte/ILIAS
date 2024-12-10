@@ -322,6 +322,12 @@ class ilPCPlugged extends ilPageContent
                 $plugin_obj->setPageObj($this->getPage());
                 $gui_obj = $plugin_obj->getUIClassInstance();
                 $plugin_html = $gui_obj->getElementHTML($a_mode, $properties, $plugin_version);
+            } else {
+                if ($a_mode === "edit") {
+                    $plugin_html = sprintf($this->lng->txt("copg_plugin_not_avail"), $plugin_name);
+                } else {
+                    $plugin_html = " ";
+                }
             }
 
             $a_output = substr($a_output, 0, $start) .
