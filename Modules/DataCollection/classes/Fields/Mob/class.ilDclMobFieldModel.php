@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclBooleanFieldModel
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @version 1.0.0
- */
 class ilDclMobFieldModel extends ilDclFileuploadFieldModel
 {
     public static array $mob_suffixes = array('jpg', 'jpeg', 'gif', 'png', 'mp3', 'flx', 'mp4', 'm4v', 'mov', 'wmv');

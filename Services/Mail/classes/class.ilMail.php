@@ -610,7 +610,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $toUsrIds,
                 $subject,
                 $message,
@@ -628,7 +628,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $otherUsrIds,
                 $subject,
                 $this->replacePlaceholders($message, 0, false),
@@ -645,7 +645,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $usrIds,
                 $subject,
                 $message,

@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Classic table for rep object lists, including checkbox
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilDashObjectsTableGUI extends ilTable2GUI
 {
     public function __construct(

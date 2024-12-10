@@ -1864,8 +1864,6 @@ assessment#:#tst_show_answer_sheet#:#Mostra le risposte
 assessment#:#tst_show_cancel#:#Mostra le opzioni di sospensione del test
 assessment#:#tst_show_cancel_description#:#Se selezionato, un pulsante per sospendere il test è mostrato durante l'esecuzione.
 assessment#:#tst_show_comp_results#:#Mostra risultati di competenze
-assessment#:#tst_show_pass_details#:#Mostra i dettagli del test in corso
-assessment#:#tst_show_pass_details_desc#:#Se selezionato, i titoli delle domande e i punti raggiunti per ogni domanda nel test pass sono disponibili se il test non è terminato.
 assessment#:#tst_show_results#:#Mostra i risultati del test
 assessment#:#tst_show_side_list#:#Mostra la lista delle domande a lato
 assessment#:#tst_show_solution_answers_only#:#Stampa dei risultati (solo le risposte)
@@ -3537,7 +3535,7 @@ common#:#auth_allow_local#:#Consenti Autenticazione Locale
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Ciò consente agli utenti CAS di autenticarsi con il nome utente ILIAS e password locali.
 common#:#auth_cas_auth#:#Configura CAS Authentication
-common#:#auth_cas_auth_desc#:#CAS richiede PHP 4.3.1 o superiore con supporto CURL  (7.5 o superiore)
+common#:#auth_cas_auth_desc#:#Affinché l'autenticazione CAS funzioni, è necessario impostare l'impostazione del server prevent_super_global_replacement in client.ini.php.
 common#:#auth_cas_port_desc#:#Ad esempio 443 se l’URI del server CAS completo è https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#Ad esempio auth.yourserver.com se l’URI del server CAS completo è https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#URI locale, ad esempio cas se l’URI del server CAS completo è https://auth.yourserver.com:443/cas/
@@ -8468,6 +8466,9 @@ dcl#:#dcl_confirm_delete_table#:#Vuoi davvero eliminare questa tabella con il su
 dcl#:#dcl_confirm_storing_records#:#Si prega di convalidare e confermare il proprio input.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Non è possibile cambiare successivamente la registrazione.
 dcl#:#dcl_copy#:#Copia raccolta dati
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Data di creazione
 dcl#:#dcl_create_entry_rules#:#Creazione della voce
 dcl#:#dcl_create_field#:#Crea campo
@@ -8492,6 +8493,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Elimina visualizzazioni
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#%S registrazioni eliminate correttamente
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Ordine discendente (DESC)
 dcl#:#dcl_description#:#Descrizione campo
 dcl#:#dcl_detailed_view#:#Visualizzazione dettagliata
@@ -8610,6 +8612,7 @@ dcl#:#dcl_number#:#Numero intero
 dcl#:#dcl_number_desc#:#Campo per valori interni (massimo 9 cifre). Nessun decimale o frazioni.
 dcl#:#dcl_online_info#:#Solo se la raccolta dati è online, allora gli utenti possono utilizzarla.
 dcl#:#dcl_order#:#Ordine
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Solo le voci proprie
 dcl#:#dcl_owner#:#Proprietario
 dcl#:#dcl_owner_description#:#Il proprietario dell’inserimento.

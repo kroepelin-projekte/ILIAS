@@ -1852,8 +1852,6 @@ assessment#:#tst_show_answer_sheet#:#mostrar respuestas
 assessment#:#tst_show_cancel#:#Mostrar la opción de suspender el test
 assessment#:#tst_show_cancel_description#:#Si se activa, se mostrará un botón para suspender el test durante la ejecución del mismo
 assessment#:#tst_show_comp_results#:#Mostrar resultados de competencias
-assessment#:#tst_show_pass_details#:#Mostrar detalles para los tests en ejecución
-assessment#:#tst_show_pass_details_desc#:#Si se selecciona esta opción los títulos de las preguntas y los resultados alcanzados en cada pregunta en la ejecución del test estarán disponibles aunque el test no haya finalizado
 assessment#:#tst_show_results#:#Mostrar resultados del test
 assessment#:#tst_show_side_list#:#Mostrar lista de preguntas en el lateral
 assessment#:#tst_show_solution_answers_only#:#Vista de impresión de resultados (respuestas sólo)
@@ -3525,7 +3523,7 @@ common#:#auth_allow_local#:#Permitir Autenticación Local
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Esto le permite a los usuarios CAS autenticarse con su usuario local ILIAS y una contraseña local
 common#:#auth_cas_auth#:#Configurar autenticación CAS
-common#:#auth_cas_auth_desc#:#CAS requiere PHP 4.3.1 o superior con soporte CURL (7.5 o superior)
+common#:#auth_cas_auth_desc#:#Para que la autenticación CAS funcione, debe establecerse la configuración del servidor prevent_super_global_replacement en client.ini.php.
 common#:#auth_cas_port_desc#:#Ej. 443 si la URI del servidor CAS es https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#Ej. auth.yourserver.com si la URI del servidor CAS es https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#Local URI, e.g. cas si la URI del servidor CAS https://auth.yourserver.com:443/cas/
@@ -8456,6 +8454,9 @@ dcl#:#dcl_confirm_delete_table#:#¿Está seguro de que quiere eliminar esta tabl
 dcl#:#dcl_confirm_storing_records#:#Valide y confirme su entrada.
 dcl#:#dcl_confirm_storing_records_no_permission#:#No tiene permiso para cambiar el registro después.
 dcl#:#dcl_copy#:#Copiar colección de datos
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Fecha de creación
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Crear campo
@@ -8480,6 +8481,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Eliminar vistas
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Borrados correctamente %s registros.
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Orden descendente (DESC)
 dcl#:#dcl_description#:#Descripción del campo
 dcl#:#dcl_detailed_view#:#Vista detallada
@@ -8598,6 +8600,7 @@ dcl#:#dcl_number#:#Entero
 dcl#:#dcl_number_desc#:#Campo para valores enteros (máximo de 9 dígitos) Sin decimales ni fracciones.
 dcl#:#dcl_online_info#:#Los usuarios pueden usar la colección de datos sólo si está activa.
 dcl#:#dcl_order#:#Orden
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Solo entradas propias
 dcl#:#dcl_owner#:#Propietario
 dcl#:#dcl_owner_description#:#Propietario de la entrada

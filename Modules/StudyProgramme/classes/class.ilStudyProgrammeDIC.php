@@ -43,7 +43,7 @@ class ilStudyProgrammeDIC
                 ilOrgUnitGlobalSettings::getInstance(),
                 $DIC['ilObjDataCache'],
                 new ilOrgUnitPositionAccess($DIC['ilAccess']),
-                (int)$prg->getRefid()
+                (int) $prg->getRefid()
             );
         };
 
@@ -103,14 +103,14 @@ class ilStudyProgrammeDIC
 
         $dic['ilStudyProgrammeMailMemberSearchGUI'] = static fn ($dic) =>
              new ilStudyProgrammeMailMemberSearchGUI(
-                $DIC['ilCtrl'],
-                $DIC['tpl'],
-                $DIC['lng'],
-                $DIC['ilAccess'],
-                $DIC->http()->wrapper(),
-                $DIC->refinery(),
-                $dic['permissionhelper']
-            );
+                 $DIC['ilCtrl'],
+                 $DIC['tpl'],
+                 $DIC['lng'],
+                 $DIC['ilAccess'],
+                 $DIC->http()->wrapper(),
+                 $DIC->refinery(),
+                 $dic['permissionhelper']
+             );
 
         return $dic;
     }
@@ -211,7 +211,10 @@ class ilStudyProgrammeDIC
                 $dic['DataFactory'],
                 new ilConfirmationGUI(),
                 $DIC->http()->wrapper(),
-                $DIC->refinery()
+                $DIC->refinery(),
+                $DIC['ui.factory'],
+                $DIC['ui.renderer'],
+                $DIC->http()->request()
             );
         $dic['ilObjStudyProgrammeAutoMembershipsGUI'] = static fn ($dic) =>
             new ilObjStudyProgrammeAutoMembershipsGUI(

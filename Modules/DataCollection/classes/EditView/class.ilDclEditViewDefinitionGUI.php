@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,12 +14,9 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
 /**
- * Class ilDclEditViewDefinitionGUI
- * @author       studer + raimann ag - Team Custom 1 <support-custom1@studer-raimann.ch>
  * @ilCtrl_Calls ilDclEditViewDefinitionGUI: ilPageEditorGUI, ilEditClipboardGUI, ilMediaPoolTargetSelector
  * @ilCtrl_Calls ilDclEditViewDefinitionGUI: ilPublicUserProfileGUI, ilPageObjectGUI
  */
@@ -141,21 +139,6 @@ class ilDclEditViewDefinitionGUI extends ilPageObjectGUI
 
         // Bug fix for mantis 22537: Redirect to settings-tab instead of fields-tab. This solves the problem and is more intuitive.
         $ilCtrl->redirectByClass("ilDclTableViewEditGUI", "editGeneralSettings");
-    }
-
-    /**
-     * Release page lock
-     * overwrite to redirect properly
-     */
-    public function releasePageLock(): void
-    {
-        global $DIC;
-        $ilCtrl = $DIC['ilCtrl'];
-        $lng = $DIC['lng'];
-
-        $this->getPageObject()->releasePageLock();
-        $this->tpl->setOnScreenMessage('success', $lng->txt("cont_page_lock_released"), true);
-        $ilCtrl->redirectByClass('ilDclTableViewGUI', "show");
     }
 
     /**

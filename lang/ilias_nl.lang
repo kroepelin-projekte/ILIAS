@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Toon antwoorden
 assessment#:#tst_show_cancel#:#Toon toetsopties
 assessment#:#tst_show_cancel_description#:#Indien aangevinkt, wordt een knop om de toets op te schorten getoond tijdens de maken van de toets
 assessment#:#tst_show_comp_results#:#Tonen competentieresultaten
-assessment#:#tst_show_pass_details#:#Toon aflopen toetsdetails
-assessment#:#tst_show_pass_details_desc#:#Als geselecteerd zijn de toetstitels en het aantal behaalde punten per vraag beschikbaar, als de toets nog niet is voltooid.
 assessment#:#tst_show_results#:#Laat toetsresultaten zien
 assessment#:#tst_show_side_list#:#Tonen vragenlijst aan zijkant
 assessment#:#tst_show_solution_answers_only#:#Resultaten overzicht (alleen de antwoorden)
@@ -3523,7 +3521,7 @@ common#:#auth_allow_local#:#Sta lokale authenticatie toe
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#This allows CAS users to authenticate with their local ILIAS username and a local password.
 common#:#auth_cas_auth#:#Configure CAS Authentication
-common#:#auth_cas_auth_desc#:#CAS requires PHP 4.3.1 or higher with CURL support (7.5 or higher)
+common#:#auth_cas_auth_desc#:#Om CAS-authenticatie te laten werken, moet de serverinstelling prevent_super_global_replacement in client.ini.php ingesteld zijn.
 common#:#auth_cas_port_desc#:#E.g. 443 if the full CAS server URI is https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#E.g. auth.yourserver.com if the full CAS server URI is https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#Local URI, e.g. cas if the full CAS server URI is https://auth.yourserver.com:443/cas/
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Wil je echt deze tabel met alle inhoud en struc
 dcl#:#dcl_confirm_storing_records#:#Please validate and confirm your input.###25 10 2016 new variable
 dcl#:#dcl_confirm_storing_records_no_permission#:#You have no permission to change the record afterwards.###25 10 2016 new variable
 dcl#:#dcl_copy#:#Kopieer gegevensverzameling
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Creation Date###25 10 2016 new variable
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Aanmaken veld
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Delete Views###25 10 2016 new variable
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#%s records zijn verwijderd
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Aflopende volgorde (DESC)
 dcl#:#dcl_description#:#Veld omschrijving
 dcl#:#dcl_detailed_view#:#Detailed View###25 10 2016 new variable
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#Integer###25 10 2016 new variable
 dcl#:#dcl_number_desc#:#Field for integer values (max. 9 digits). No decimals or fractions.###25 10 2016 new variable
 dcl#:#dcl_online_info#:#Only if the Data Collection is online, users are able to use the Data Collection.###06 02 2015 new variable
 dcl#:#dcl_order#:#Volgorde
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Only own entries###30 08 2015 new variable
 dcl#:#dcl_owner#:#Eigenaar
 dcl#:#dcl_owner_description#:#De eigenaar van de post

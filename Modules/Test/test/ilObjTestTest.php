@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 /**
  * Class ilObjTestTest
@@ -165,15 +165,6 @@ class ilObjTestTest extends ilTestBaseTestCase
         $this->assertTrue($this->testObj->isPostponingEnabled());
     }
 
-    public function testScoreReporting(): void
-    {
-        $this->testObj->setScoreReporting(0);
-        $this->assertEquals(0, $this->testObj->getScoreReporting());
-
-        $this->testObj->setScoreReporting(1);
-        $this->assertEquals(1, $this->testObj->getScoreReporting());
-    }
-
     public function testInstantFeedbackSolution(): void
     {
         $this->testObj->setInstantFeedbackSolution(0);
@@ -208,27 +199,6 @@ class ilObjTestTest extends ilTestBaseTestCase
 
         $this->testObj->setAnswerFeedbackPoints(1);
         $this->assertEquals(1, $this->testObj->getAnswerFeedbackPoints());
-    }
-
-    public function testIsScoreReportingEnabled(): void
-    {
-        $this->testObj->setScoreReporting(ilObjTest::SCORE_REPORTING_FINISHED);
-        $this->assertTrue($this->testObj->isScoreReportingEnabled());
-
-        $this->testObj->setScoreReporting(ilObjTest::SCORE_REPORTING_IMMIDIATLY);
-        $this->assertTrue($this->testObj->isScoreReportingEnabled());
-
-        $this->testObj->setScoreReporting(ilObjTest::SCORE_REPORTING_DATE);
-        $this->assertTrue($this->testObj->isScoreReportingEnabled());
-
-        $this->testObj->setScoreReporting(ilObjTest::SCORE_REPORTING_AFTER_PASSED);
-        $this->assertTrue($this->testObj->isScoreReportingEnabled());
-
-        $this->testObj->setScoreReporting(ilObjTest::SCORE_REPORTING_DISABLED);
-        $this->assertFalse($this->testObj->isScoreReportingEnabled());
-
-        $this->testObj->setScoreReporting(999);
-        $this->assertFalse($this->testObj->isScoreReportingEnabled());
     }
 
     public function testBlockPassesAfterPassedEnabled(): void
@@ -424,17 +394,5 @@ class ilObjTestTest extends ilTestBaseTestCase
 
         $this->testObj->setListOfQuestions(1);
         $this->assertTrue($this->testObj->getListOfQuestions());
-    }
-
-    public function testResultsPresentation(): void
-    {
-        $this->testObj->setResultsPresentation(0);
-        $this->assertEquals(0, $this->testObj->getResultsPresentation());
-
-        $this->testObj->setResultsPresentation(1);
-        $this->assertEquals(1, $this->testObj->getResultsPresentation());
-
-        $this->testObj->setResultsPresentation(22);
-        $this->assertEquals(22, $this->testObj->getResultsPresentation());
     }
 }

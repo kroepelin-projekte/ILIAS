@@ -18,11 +18,6 @@
 
 namespace ILIAS\Dashboard\Access;
 
-/**
- * Dashboard permission wrapper
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class DashboardAccess
 {
     protected \ilRbacSystem $rbac_system;

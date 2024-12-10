@@ -18,10 +18,6 @@
 
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
-/**
- * Class ilDclTextRecordFieldModel
- * @author  Theodor Truffer <tt@studer-raimann.ch>
- */
 class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
 {
     public function setValueFromForm(ilPropertyFormGUI $form): void

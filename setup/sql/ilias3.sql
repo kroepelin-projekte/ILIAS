@@ -7090,6 +7090,7 @@ INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',9,'2024-08-13 
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',10,'2024-10-01 13:17:03.393288','2024-10-01 13:17:03.393692');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',11,'2024-11-19 15:14:55.058607','2024-11-19 15:14:55.066263');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',12,'2024-11-19 15:14:55.066603','2024-11-19 15:14:55.066994');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps',13,'2024-12-10 15:28:52.968443','2024-12-10 15:28:52.968902');
 INSERT INTO `il_db_steps` VALUES ('ilECSDBUpdateSteps',1,'2023-03-31 13:10:08.531142','2023-03-31 13:10:08.536140');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',1,'2023-03-31 13:10:08.954044','2023-03-31 13:10:08.962950');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',2,'2023-03-31 13:10:08.963397','2023-03-31 13:10:08.967878');
@@ -7345,6 +7346,7 @@ INSERT INTO `il_dcl_datatype` VALUES (9,'mob','integer',2,60);
 INSERT INTO `il_dcl_datatype` VALUES (11,'formula','text',0,110);
 INSERT INTO `il_dcl_datatype` VALUES (14,'text_selection','text',1,10);
 INSERT INTO `il_dcl_datatype` VALUES (15,'date_selection','text',1,50);
+INSERT INTO `il_dcl_datatype` VALUES (17,'copy','text',1,85);
 
 --
 -- Table structure for table `il_dcl_datatype_prop`
@@ -13113,7 +13115,7 @@ INSERT INTO `object_data` VALUES (34,'typ','lm','Learning module Object',-1,'200
 INSERT INTO `object_data` VALUES (35,'typ','notf','Note Folder Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL);
 INSERT INTO `object_data` VALUES (36,'typ','note','Note Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL);
 INSERT INTO `object_data` VALUES (37,'typ','frm','Forum object',-1,'2002-07-15 15:54:22','2003-08-15 12:36:40','',NULL);
-INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2024-11-19 15:18:20','',NULL);
+INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2024-12-10 15:28:52','',NULL);
 INSERT INTO `object_data` VALUES (71,'lng','de','not_installed',6,'2003-08-15 10:25:19','2015-12-22 16:29:24','',NULL);
 INSERT INTO `object_data` VALUES (72,'lng','es','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL);
 INSERT INTO `object_data` VALUES (73,'lng','it','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL);
@@ -20106,7 +20108,7 @@ INSERT INTO `settings` VALUES ('common','ilfrmnoti1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmreadidx1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmthri2','1');
 INSERT INTO `settings` VALUES ('common','ilGlobalTstPoolUsageSettingInitilisation','1');
-INSERT INTO `settings` VALUES ('common','ilias_version','8.16.0');
+INSERT INTO `settings` VALUES ('common','ilias_version','8.17.0');
 INSERT INTO `settings` VALUES ('common','ilinc_akclassvalues_required','1');
 INSERT INTO `settings` VALUES ('common','ilmpathix','1');
 INSERT INTO `settings` VALUES ('common','iloscmsgidx1','1');
@@ -25091,4 +25093,4 @@ CREATE TABLE `xmlvalue_seq` (
 
 
 
--- Dump completed on 2024-11-19 15:18:21
+-- Dump completed on 2024-12-10 15:28:53

@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#全解答を表示
 assessment#:#tst_show_cancel#:#テスト中断オプションを表示
 assessment#:#tst_show_cancel_description#:#チェックするとテスト中断ボタンがテスト実行中表示されます。
 assessment#:#tst_show_comp_results#:#能力結果を表示
-assessment#:#tst_show_pass_details#:#選択した時点の各テストの'テスト結果詳細'を表示する
-assessment#:#tst_show_pass_details_desc#:#結果サマリーは設定の上に表示された時点で追加されます:'詳細テスト結果表'は問題のタイトルと特定のテストに得点された点数を表示します。<br>その他の表は最後のテストになる可能性の後('全般'リンク設定、オプションの'最大受験回数')またはテストが正式に終了する後('全般'リンク設定、オプションの'終了時間')に表示されます。<br>'詳細テスト結果表'のコンテンツに関するその他の設定はこのフォームの'テスト結果に含まれるべきその他詳細'セクションへ作成できます。
 assessment#:#tst_show_results#:#テスト結果を表示
 assessment#:#tst_show_side_list#:#脇に問題一覧を表示
 assessment#:#tst_show_solution_answers_only#:#結果印刷表示(解答のみ)
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#内容や階層の含まれるこのテーブ�
 dcl#:#dcl_confirm_storing_records#:#有効にして入力を確認して下さい。
 dcl#:#dcl_confirm_storing_records_no_permission#:#以降は記録を変更する権利がありません。
 dcl#:#dcl_copy#:#データ収集を作成
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#作成日
 dcl#:#dcl_create_entry_rules#:#作成のエントリー
 dcl#:#dcl_create_field#:#フィールドを作成
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#削除するテーブルを一つは選�
 dcl#:#dcl_delete_views#:#ビューを削除
 dcl#:#dcl_delete_views_no_selection#:#削除するビューを一つは選択して下さい。
 dcl#:#dcl_deleted_records#:#%sレコードが正しく削除されました
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#降順 (DESC)
 dcl#:#dcl_description#:#フィールド説明
 dcl#:#dcl_detailed_view#:#詳細ビュー
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#整数
 dcl#:#dcl_number_desc#:#整数値(最大9桁)用のフィールドです。小数や分数ではありません。
 dcl#:#dcl_online_info#:#データ収集がオンラインの場合に限りユーザはデータ収集を使用できます。
 dcl#:#dcl_order#:#順
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#自己エントリーのみ
 dcl#:#dcl_owner#:#オーナ
 dcl#:#dcl_owner_description#:#エントリーのオーナ

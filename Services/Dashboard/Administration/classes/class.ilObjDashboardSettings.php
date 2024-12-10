@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Dashboard settings
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilObjDashboardSettings extends ilObject
 {
     public function __construct(

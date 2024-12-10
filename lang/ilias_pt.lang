@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Mostrar respostas
 assessment#:#tst_show_cancel#:#Regras para seleção aleatória de perguntas
 assessment#:#tst_show_cancel_description#:#Hora para começar
 assessment#:#tst_show_comp_results#:#Mostrar resultados de competência
-assessment#:#tst_show_pass_details#:#Iniciar nova tentativa de teste
-assessment#:#tst_show_pass_details_desc#:#Começar o teste
 assessment#:#tst_show_results#:#Tempo médio para analisar
 assessment#:#tst_show_side_list#:#Primeira visita
 assessment#:#tst_show_solution_answers_only#:#Última visita
@@ -3523,7 +3521,7 @@ common#:#auth_allow_local#:#Autorizar autenticação local
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Isto permite aos utilizadores CAS autenticarem-se com o seu nome de utilizador ILIAS local e uma palavra-passe local.
 common#:#auth_cas_auth#:#Configurar autenticação CAS
-common#:#auth_cas_auth_desc#:#CAS requer PHP 4.3.1 ou superior com suporte CURL (7.5 ou superior)
+common#:#auth_cas_auth_desc#:#Para que a autenticação CAS funcione, a configuração do servidor prevent_super_global_replacement em client.ini.php deve ser definida.
 common#:#auth_cas_port_desc#:#P. ex. 443 se o URI de servidor CAS inteiro URI for https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#P. ex. auth.yourserver.com se o URI de servidor CAS inteiro for https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#Local URI, p. ex. cas se o URI de servidor CAS inteiro for https://auth.yourserver.com:443/cas/
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Tem a certeza que quer apagar esta tabela com o
 dcl#:#dcl_confirm_storing_records#:#Valide e confirme a sua entrada.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Não tem permissão para mudar o registo mais tarde.
 dcl#:#dcl_copy#:#Copiar coleção de dados
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Data de criação
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Criar campo
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Apagar vistas
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Guardar registo corrigido
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Ordem descendente (DESC)
 dcl#:#dcl_description#:#Descrição do campo
 dcl#:#dcl_detailed_view#:#Vista detalhada
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#Inteiro
 dcl#:#dcl_number_desc#:#Campo para valores inteiros (máx. 9 dígitos). Nada de decimais ou frações.
 dcl#:#dcl_online_info#:#Apenas se a coleção de dados estiver online é que os utilizadores podem usá-la.
 dcl#:#dcl_order#:#Ordem
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Apenas entradas próprias
 dcl#:#dcl_owner#:#Proprietário
 dcl#:#dcl_owner_description#:#O proprietário da entrada.

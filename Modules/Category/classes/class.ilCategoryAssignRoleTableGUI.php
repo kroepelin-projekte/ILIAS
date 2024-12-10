@@ -39,7 +39,7 @@ class ilCategoryAssignRoleTableGUI extends ilTable2GUI
 
         parent::__construct($a_parent_obj, $a_parent_cmd);
 
-        $this->addColumn("", "", "", true, "4%");
+        $this->addColumn("", "", "4%", true);
         $this->addColumn($lng->txt("title"), "title", "35%");
         $this->addColumn($lng->txt("description"), "desc", "45%");
         $this->addColumn($lng->txt("type"), "type", "16%");

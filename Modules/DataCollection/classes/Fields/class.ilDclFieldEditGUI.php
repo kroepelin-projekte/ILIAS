@@ -251,6 +251,7 @@ class ilDclFieldEditGUI
         foreach (ilDclDatatype::getAllDatatype() as $datatype) {
             $model = new ilDclBaseFieldModel();
             $model->setDatatypeId($datatype->getId());
+            $model = ilDclFieldFactory::getFieldModelInstanceByClass($model);
 
             if ($a_mode == 'edit' && $datatype->getId() === $this->field_obj->getDatatypeId()) {
                 $model = $this->field_obj;

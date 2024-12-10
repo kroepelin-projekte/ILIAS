@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclPluginFieldRepresentation
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @version 1.0.0
- */
 class ilDclPluginFieldRepresentation extends ilDclBaseFieldRepresentation
 {
     protected function buildFieldCreationInput(ilObjDataCollection $dcl, string $mode = 'create'): ?ilRadioOption

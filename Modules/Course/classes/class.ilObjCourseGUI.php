@@ -289,10 +289,20 @@ class ilObjCourseGUI extends ilContainerGUI
             );
         }
         if ($this->object->getContactEmail()) {
+            /* needs to be rbacsystem, does not work with ilAccess */
+            $has_mail_access = $this->rbacsystem->checkAccessOfUser(
+                $this->user->getId(),
+                'internal_mail',
+                ilMailGlobalServices::getMailObjectRefId()
+            );
             $emails = explode(",", $this->object->getContactEmail());
             $mailString = '';
             foreach ($emails as $email) {
                 $email = trim($email);
+                if (!$has_mail_access) {
+                    $mailString .= $email . "<br />";
+                    continue;
+                }
                 $etpl = new ilTemplate("tpl.crs_contact_email.html", true, true, 'Modules/Course');
                 $etpl->setVariable(
                     "EMAIL_LINK",

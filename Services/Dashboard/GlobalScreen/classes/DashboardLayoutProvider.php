@@ -24,11 +24,6 @@ use ILIAS\GlobalScreen\Scope\Layout\Factory\MainBarModification;
 use ILIAS\UI\Component\MainControls\MainBar;
 use ILIAS\GlobalScreen\ScreenContext\AdditionalData\Collection;
 
-/**
- * Class DashboardLayoutProvider
- *
- * @author Nils Haagen <nils.haagen@concepts-and-training.de>
- */
 class DashboardLayoutProvider extends AbstractModificationProvider implements ModificationProvider
 {
     protected ?Collection $data_collection;

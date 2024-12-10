@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,14 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilDclCache
- * @author Oskar Truffer <ot@studer-raimann.ch>
- * @author Fabian Schmid <fs@studer-raimann.ch>
- */
 class ilDclCache
 {
     public const TYPE_DATACOLLECTION = 'dcl';
@@ -97,6 +92,8 @@ class ilDclCache
     public static function getCloneOf(int $id, string $type): ?object
     {
         $type_cache = self::$clone_mapping[$type];
+        $clone_id = null;
+
         if (!is_array($type_cache)) {
             return null;
         }

@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Interface for gui classes (e.g ilLuceneSearchGUI) that offer add/remove to/from desktop
- *
- * @author Stefan Meyer <meyer@leifos.com>
- */
 interface ilDesktopItemHandling
 {
     /**

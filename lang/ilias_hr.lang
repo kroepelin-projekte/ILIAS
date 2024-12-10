@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Prikaži odgovore
 assessment#:#tst_show_cancel#:#Prekini test
 assessment#:#tst_show_cancel_description#:#Tijekom testa sudionicima se prikazuje gumb kojim se test može prekinuti te kasnije nastaviti. Oprez: Prekidom test ne zaustavlja se odbrojavanje maksimalnog trajanja testa.
 assessment#:#tst_show_comp_results#:#Kompetencijski rezultati
-assessment#:#tst_show_pass_details#:#Prikaži ‘Tablicu detaljnih rezultata testa’ za svaki prolaz testa u odabranom trenutku.
-assessment#:#tst_show_pass_details_desc#:#Sažetk rezultata će u trenutku koji je naveden u gornjoj postavci biti dopunjen sa sljedećim: ‘Tablica detaljnih rezultata testa’ prikazat će za za svaki prolaz testa naslov pitanja i ostvareni broj bodova. <br> U protivnom se ta tablica prikazuje samo nakon posljednjeg dopuštenog prolaza testa (postavlja se u podkartici ‘Opće postavke’, opcija ‘Ograniči broj prolaza testa’) ili nakon službenog završetka testa (postavlja se u podkartici ‘Opće postavke’, opcija ‘Vrijeme završetka’). <br> Daljnje postavke vezano za sadržaj ‘Tablice detaljnih rezultata testa’ moguće su pod ‘Daljnji detalji koji trebaju biti uključeni u rezultate testa’.
 assessment#:#tst_show_results#:#Rezultati testa
 assessment#:#tst_show_side_list#:#Pokaži popis pitanja
 assessment#:#tst_show_solution_answers_only#:#Prikaz ispisa rezultata (samo odgovori)
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Želite li zaista izbrisati ovu tablicu sa sadr
 dcl#:#dcl_confirm_storing_records#:#Molimo provjerite i potvrdite svoj unos.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nakon toga nećete imati dopuštenje za promjenu zapisa.
 dcl#:#dcl_copy#:#Kopiraj zbirku podataka
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum stvaranja
 dcl#:#dcl_create_entry_rules#:#Entry Creation###04 06 2021 new variable
 dcl#:#dcl_create_field#:#Stvori polje
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Izbriši prikaze
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Uspješno izbrisani %s unosi
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Silazni poredak (DESC)
 dcl#:#dcl_description#:#Opis polja
 dcl#:#dcl_detailed_view#:#Detaljan prikaz
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#Cijeli broj
 dcl#:#dcl_number_desc#:#Polje za cijele brojeve (najviše 9 znamenki). Bez decimala ili razlomaka.
 dcl#:#dcl_online_info#:#Korisnici mogu koristiti zbirku podataka samo ako je zbirka podataka online.
 dcl#:#dcl_order#:#Redoslijed
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Samo vlastiti unosi
 dcl#:#dcl_owner#:#Vlasnik
 dcl#:#dcl_owner_description#:#Vlasnik unosa.

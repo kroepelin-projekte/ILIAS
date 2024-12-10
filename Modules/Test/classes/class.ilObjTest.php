@@ -69,7 +69,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
      */
     public $mark_schema;
     public int $sequence_settings;
-    public int $score_reporting;
     public int $instant_verification;
     public int $answer_feedback_points;
     public $reporting_date;
@@ -303,7 +302,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
         $this->introduction = "";
         $this->questions = array();
         $this->sequence_settings = TEST_FIXED_SEQUENCE;
-        $this->score_reporting = self::SCORE_REPORTING_FINISHED;
         $this->instant_verification = 0;
         $this->answer_feedback_points = 0;
         $this->reporting_date = "";
@@ -1351,7 +1349,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
             $this->setCustomStyle($data->customstyle);
             $this->setShowFinalStatement($data->showfinalstatement);
             $this->setSequenceSettings($data->sequence_settings);
-            $this->setScoreReporting($data->score_reporting);
             $this->setInstantFeedbackSolution($data->instant_verification);
             $this->setAnswerFeedbackPoints($data->answer_feedback_points);
             $this->setAnswerFeedback($data->answer_feedback);
@@ -1371,7 +1368,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
             $this->setResetProcessingTime($data->reset_processing_time);
             $this->setReportingDate($data->reporting_date);
             $this->setShuffleQuestions($data->shuffle_questions);
-            $this->setResultsPresentation($data->results_presentation);
             $this->setStartingTimeEnabled($data->starting_time_enabled);
             $this->setStartingTime($data->starting_time);
             $this->setEndingTimeEnabled($data->ending_time_enabled);
@@ -1696,18 +1692,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
     }
 
     /**
-     * Sets the score reporting of the ilObjTest object
-     *
-     * @param int|string $score_reporting The score reporting
-     * @see $score_reporting
-     * @deprecated
-     */
-    public function setScoreReporting($score_reporting = 0): void
-    {
-        $this->score_reporting = (int) $score_reporting;
-    }
-
-    /**
     * Sets the instant feedback for the solution
     *
     * @param int|string $instant_feedback If 1, the solution will be shown after answering a question
@@ -1793,16 +1777,12 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
     public const SCORE_REPORTING_DATE = 3;
     public const SCORE_REPORTING_AFTER_PASSED = 4;
 
-    /**
-    * Gets the score reporting of the ilObjTest object
-    *
-    * @return integer The score reporting of the test
-    * @access public
-    * @see $score_reporting
-    */
     public function getScoreReporting(): int
     {
-        return ($this->score_reporting) ? $this->score_reporting : 0;
+        if ($this->getTestId() !== -1) {
+            return $this->getScoreSettings()->getResultSummarySettings()->getScoreReporting();
+        }
+        return 0;
     }
 
     public function isScoreReportingEnabled(): bool
@@ -4950,7 +4930,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
                             // online exam
                             $this->setFixedParticipants(1);
                             $this->setListOfQuestionsSettings(7);
-                            $this->setShowSolutionPrintview(1);
                             break;
                         case 5:
                             // varying random test
@@ -5095,7 +5074,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
                     $this->setFixedParticipants($metadata["entry"]);
                     break;
                 case "score_reporting":
-                    $this->setScoreReporting((int) $metadata["entry"]);
+                    $result_summary_settings = $result_summary_settings->withScoreReporting((int) $metadata["entry"]);
                     break;
                 case "shuffle_questions":
                     $this->setShuffleQuestions($metadata["entry"]);
@@ -5254,6 +5233,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
         }
 
         $this->saveToDb();
+        $result_summary_settings = $result_summary_settings->withShowPassDetails($result_details_settings->getShowPassDetails());
         $score_settings = $score_settings
                 ->withGamificationSettings($gamification_settings)
                 ->withScoringSettings($scoring_settings)
@@ -7946,7 +7926,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
     */
     public function getResultsPresentation(): int
     {
-        return ($this->results_presentation) ? $this->results_presentation : 0;
+        return $this->getScoreSettings()->getResultDetailsSettings()->getResultsPresentation();
     }
 
     /**
@@ -8021,49 +8001,9 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
         return $this->getScoreSettings()->getResultDetailsSettings()->getShowSolutionListComparison();
     }
 
-    /**
-    * Sets the combined results presentation value
-    *
-    * @param integer $a_results_presentation The combined results presentation value
-    * @access public
-    * @deprecated
-    */
-    public function setResultsPresentation($a_results_presentation = 3)
-    {
-        $this->results_presentation = $a_results_presentation;
-    }
-
     public function getShowSolutionListOwnAnswers($user_id = null): bool
     {
         return $this->getScoreSettings()->getResultDetailsSettings()->getShowSolutionListOwnAnswers();
-    }
-
-    /**
-     * -------------------------------------------------------------------------
-     * Those setters are @deprecated!
-     * They modify $results_presentation based on some parameter and fall back to
-     * repo-settings when called without.
-     * Calls are a.o. in class.ilObjTestGUI.php and here during import;
-     * I left it in place to not to break too many things now, but they should go.
-     * Soon.
-     **/
-
-    /**
-    * Sets if the the solution details should be presented to the user or not
-    *
-    * @param integer $a_details 1 if the solution details should be presented, 0 otherwise
-    * @access public
-    * @deprecated
-    */
-    public function setShowSolutionDetails($a_details = 1)
-    {
-        if ($a_details) {
-            $this->results_presentation = $this->results_presentation | 2;
-        } else {
-            if ($this->getShowSolutionDetails()) {
-                $this->results_presentation = $this->results_presentation ^ 2;
-            }
-        }
     }
 
     /**
@@ -8073,15 +8013,9 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
     * @access public
     * @deprecated
     */
-    public function setShowSolutionPrintview($a_printview = 1)
+    public function setShowSolutionPrintview(int $a_printview = 1): void
     {
-        if ($a_printview) {
-            $this->results_presentation = $this->results_presentation | 4;
-        } else {
-            if ($this->getShowSolutionPrintview()) {
-                $this->results_presentation = $this->results_presentation ^ 4;
-            }
-        }
+        $this->getScoreSettings()->getResultDetailsSettings()->withShowSolutionPrintview($a_printview === 1);
     }
 
     /**
@@ -8803,10 +8737,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
             $this->setSequenceSettings($testsettings['SequenceSettings']);
         }
 
-        if (array_key_exists('ScoreReporting', $testsettings)) {
-            $this->setScoreReporting($testsettings['ScoreReporting']);
-        }
-
         if (array_key_exists('SpecificAnswerFeedback', $testsettings)) {
             $this->setSpecificAnswerFeedback($testsettings['SpecificAnswerFeedback']);
         }
@@ -8821,10 +8751,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware, ilEctsGradesEnabl
 
         if (array_key_exists('AnswerFeedbackPoints', $testsettings)) {
             $this->setAnswerFeedbackPoints($testsettings['AnswerFeedbackPoints']);
-        }
-
-        if (array_key_exists('ResultsPresentation', $testsettings)) {
-            $this->setResultsPresentation($testsettings['ResultsPresentation']);
         }
 
         if (array_key_exists('Anonymity', $testsettings)) {

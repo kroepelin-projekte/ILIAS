@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,12 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
-/**
- * Class ilDclPluginFieldModel
- * @author  Michael Herren <mh@studer-raimann.ch>
- */
+ *********************************************************************/
+
 class ilDclPluginFieldModel extends ilDclBaseFieldModel
 {
     public function getValidFieldProperties(): array
@@ -40,5 +37,25 @@ class ilDclPluginFieldModel extends ilDclBaseFieldModel
     public function allowFilterInListView(): bool
     {
         return false;
+    }
+
+    public function getPresentationTitle(): string
+    {
+        global $DIC;
+        $plugin = $DIC["component.factory"]->getPlugin(ilDclFieldTypePlugin::getPluginId($this->getDatatype()->getTitle()));
+        if (str_ends_with($plugin->txt('field_type_name'), 'field_type_name-')) {
+            return $plugin->getPluginName();
+        }
+        return $plugin->txt('field_type_name');
+    }
+
+    public function getPresentationDescription(): string
+    {
+        global $DIC;
+        $plugin = $DIC["component.factory"]->getPlugin(ilDclFieldTypePlugin::getPluginId($this->getDatatype()->getTitle()));
+        if (str_ends_with($plugin->txt('field_type_info'), 'field_type_info-')) {
+            return '';
+        }
+        return $plugin->txt('field_type_info');
     }
 }

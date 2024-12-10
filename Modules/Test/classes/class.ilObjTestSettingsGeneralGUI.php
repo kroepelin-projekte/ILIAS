@@ -1266,8 +1266,8 @@ class ilObjTestSettingsGeneralGUI extends ilTestSettingsGUI
         if ($this->isCharSelectorPropertyRequired()) {
             require_once 'Services/UIComponent/CharSelector/classes/class.ilCharSelectorGUI.php';
             $char_selector = new ilCharSelectorGUI(ilCharSelectorConfig::CONTEXT_TEST);
-            $char_selector->getConfig()->setAvailability($this->testOBJ->getCharSelectorAvailability());
-            $char_selector->getConfig()->setDefinition($this->testOBJ->getCharSelectorDefinition());
+            $char_selector->getConfig()->setAvailability((int) $this->testOBJ->getCharSelectorAvailability());
+            $char_selector->getConfig()->setDefinition((string) $this->testOBJ->getCharSelectorDefinition());
             $char_selector->addFormProperties($form);
             $char_selector->setFormValues($form);
         }

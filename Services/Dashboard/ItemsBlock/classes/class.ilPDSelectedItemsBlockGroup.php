@@ -16,9 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilPDSelectedItemsBlockGroup
- */
 class ilPDSelectedItemsBlockGroup
 {
     protected bool $has_icon = false;

@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Показване на отговорит�
 assessment#:#tst_show_cancel#:#Показване на опцията за временно спиране на теста
 assessment#:#tst_show_cancel_description#:#Ако е маркирано, по време на изпълнението на теста се показва бутон за спиране на теста
 assessment#:#tst_show_comp_results#:#Показване на резултатите от компетенциите
-assessment#:#tst_show_pass_details#:#Показване на подробностите за преминаването на текущите тестове
-assessment#:#tst_show_pass_details_desc#:#Ако е избрано, заглавията на въпросите и достигнатите точки за всеки въпрос в теста са достъпни, ако тестът не е завършен.
 assessment#:#tst_show_results#:#Показване на резултатите от теста
 assessment#:#tst_show_side_list#:#Показване на списъка с въпроси отстрани
 assessment#:#tst_show_solution_answers_only#:#Поглед за печат на резултатите (само отговори)
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:# Наистина ли искате да изт
 dcl#:#dcl_confirm_storing_records#:#Моля, валидирайте и потвърдете въведените данни.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Нямате разрешение да променяте записа след това.
 dcl#:#dcl_copy#:#Събиране на данни с копие
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Дата на създаване
 dcl#:#dcl_create_entry_rules#:#Създаване на записи###22 06 2022 new variable
 dcl#:#dcl_create_field#:#Създаване на поле
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Изтриване на изгледи
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Успешно изтрити %s записи
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Намаляващ ред (DESC)
 dcl#:#dcl_description#:#Описание на полето
 dcl#:#dcl_detailed_view#:#Подробен изглед
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#Integer
 dcl#:#dcl_number_desc#:#Поле за целочислени стойности (максимум 9 цифри). Не се използват десетични дроби и дробни числа.
 dcl#:#dcl_online_info#:# Само ако събирането на данни е онлайн, потребителите могат да използват събирането на данни.
 dcl#:#dcl_order#:#Order
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Само собствени записи
 dcl#:#dcl_owner#:#Собственик
 dcl#:#dcl_owner_description#:#Собственикът на записа.

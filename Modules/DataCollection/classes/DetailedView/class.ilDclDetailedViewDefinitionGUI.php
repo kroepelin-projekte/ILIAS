@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,15 +14,9 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
 /**
- * Class ilDclDetailedViewDefinitionGUI
- * @author       Martin Studer <ms@studer-raimann.ch>
- * @author       Marcel Raimann <mr@studer-raimann.ch>
- * @author       Fabian Schmid <fs@studer-raimann.ch>
- * @author       Jörg Lützenkirchen <luetzenkirchen@leifos.com>
  * @ilCtrl_Calls ilDclDetailedViewDefinitionGUI: ilPageEditorGUI, ilEditClipboardGUI, ilMediaPoolTargetSelector
  * @ilCtrl_Calls ilDclDetailedViewDefinitionGUI: ilPublicUserProfileGUI, ilPageObjectGUI
  */
@@ -166,17 +161,6 @@ class ilDclDetailedViewDefinitionGUI extends ilPageObjectGUI
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt("dcl_empty_detailed_view_success"), true);
         $this->ctrl->redirectByClass(self::class, "edit");
-    }
-
-    /**
-     * Release page lock
-     * overwrite to redirect properly
-     */
-    public function releasePageLock(): void
-    {
-        $this->getPageObject()->releasePageLock();
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("cont_page_lock_released"), true);
-        $this->ctrl->redirectByClass('ilDclTableViewGUI', "show");
     }
 
     /**

@@ -16,9 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Interface ilPDSelectedItemsBlockProvider
- */
 interface ilPDSelectedItemsBlockProvider
 {
     /**

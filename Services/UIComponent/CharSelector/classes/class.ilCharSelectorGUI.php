@@ -194,9 +194,9 @@ class ilCharSelectorGUI implements ilCtrlBaseClassInterface
      */
     public function getFormValues(ilPropertyFormGUI $a_form): void
     {
-        $this->config->setAvailability($a_form->getInput('char_selector_availability'));
-        $this->config->setAddedBlocks($a_form->getInput('char_selector_blocks'));
-        $this->config->setCustomItems($a_form->getInput('char_selector_custom_items'));
+        $this->config->setAvailability((int) $a_form->getInput('char_selector_availability'));
+        $this->config->setAddedBlocks((array) $a_form->getInput('char_selector_blocks'));
+        $this->config->setCustomItems((string) $a_form->getInput('char_selector_custom_items'));
     }
 
     /**

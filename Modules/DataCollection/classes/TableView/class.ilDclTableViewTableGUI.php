@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,14 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilDclTableViewTableGUI
- * @author  Theodor Truffer <tt@studer-raimann.ch>
- * @ingroup ModulesDataCollection
- */
 class ilDclTableViewTableGUI extends ilTable2GUI
 {
     protected ilDclTable $table;
@@ -229,7 +224,9 @@ class ilDclTableViewTableGUI extends ilTable2GUI
         }
         $this->tpl->setVariable("TITLE", $a_set->getTitle());
         $this->ctrl->setParameterByClass('ildcltablevieweditgui', 'tableview_id', $a_set->getId());
-        $this->tpl->setVariable("TITLE_LINK", $this->ctrl->getLinkTargetByClass('ildcltablevieweditgui'));
+        $this->tpl->setVariable("TITLE_LINK", $this->ctrl->getLinkTargetByClass(
+            [ilDclTableListGUI::class, ilDclTableViewGUI::class, ilDclTableViewEditGUI::class]
+        ));
         $this->tpl->setVariable("DESCRIPTION", $a_set->getDescription());
 
         $icon = $this->factory->symbol()->icon()->custom(ilUtil::getImagePath('icon_not_ok_monochrome.svg'), $this->lng->txt("yes"));

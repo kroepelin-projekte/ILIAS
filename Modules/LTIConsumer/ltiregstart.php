@@ -26,11 +26,8 @@ require_once("Services/Init/classes/class.ilInitialisation.php");
 ilInitialisation::initILIAS();
 global $DIC;
 
-if (strtoupper($DIC->http()->request()->getMethod()) !== "GET") {
-    $DIC->http()->saveResponse(
-        $DIC->http()->response()
-            ->withStatus(400)
-    );
+if (!$DIC->user()->getId() || !ilLTIConsumerAccess::hasCustomProviderCreationAccess()) {
+    ilObjLTIConsumer::sendResponseError(401, "unauthorized");
 }
 
 $params = $DIC->http()->wrapper()->query();

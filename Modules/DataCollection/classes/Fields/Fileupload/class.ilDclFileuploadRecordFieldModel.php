@@ -19,12 +19,6 @@
 use ILIAS\FileUpload\MimeType;
 use ILIAS\Filesystem\Stream\Streams;
 
-/**
- * Class ilDclBaseFieldModel
- * @author  Stefan Wanzenried <sw@studer-raimann.ch>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * @version $Id:
- */
 class ilDclFileuploadRecordFieldModel extends ilDclBaseRecordFieldModel
 {
     private \ILIAS\FileUpload\FileUpload $upload;

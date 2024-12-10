@@ -1850,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Pokaż odpowiedzi
 assessment#:#tst_show_cancel#:#Pokaż opcję zawieszenia testu
 assessment#:#tst_show_cancel_description#:#Jeśli wybrane, to jest widoczny przycisk zawieszenia testu podczas wykonywania testu.   Uwaga: przerwanie testu nie powoduje zatrzymanie czasu przetwarzania określonego w opcji 'Maksymalny czas przetwarzania'.
 assessment#:#tst_show_comp_results#:#Pokaż wyniki kompetencji
-assessment#:#tst_show_pass_details#:#Pokaż szczegóły wykonania uruchomionych testów
-assessment#:#tst_show_pass_details_desc#:#W wybranym wyżej terminie przedstawione wyniki zostaną uzupełnione o kolejną tabelę. <br>W tej tabeli wyświetlane są dla każdego przebiegu testu tytuły pytań oraz otrzymana liczba punktów. <br>W przeciwnym razie tabela wyświetli się tylko po ostatnim dozwolonym przebiegu testu (należy to ustawić w zakładce 'Właściwości ogólne', opcja 'Ogranicz liczbę przebiegów testu') lub po zakończeniu testu (należy to ustawić w zakładce 'Właściwości ogólne', punkt 'Czas ukończenia'). <br>Treść tabeli można uzupełnić w punkcie 'Dane szczegółowe dotyczące wyników testu'.
 assessment#:#tst_show_results#:#Pokaż wyniki testu
 assessment#:#tst_show_side_list#:#Lista pytań do
 assessment#:#tst_show_solution_answers_only#:#Wydruk wyników (tylko odpowiedzi)
@@ -8454,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Czy naprawdę chcesz usunąć tabelę, łączni
 dcl#:#dcl_confirm_storing_records#:#Sprawdź dane przed zapisem.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nie masz uprawnień, aby ponownie edytować rekord danych.
 dcl#:#dcl_copy#:#Kopiuj zbiór danych
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Data utworzenia
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Dodaj pole
@@ -8478,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Usuń widoki
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Usunięto %s rekordów danych
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Kolejność malejąca (DESC)
 dcl#:#dcl_description#:#Opis
 dcl#:#dcl_detailed_view#:#Widok pojedynczy
@@ -8596,6 +8598,7 @@ dcl#:#dcl_number#:#Liczby całkowite
 dcl#:#dcl_number_desc#:#Pole do wprowadzania liczb całkowitych (maks. 9 cyfr). Ułamki i liczby dziesiętne nie są dozwolone.
 dcl#:#dcl_online_info#:#Użytkownicy mogą obejrzeć zbiór danych i korzystać z niego tylko wtedy, gdy zbiór jest w trybie online.
 dcl#:#dcl_order#:#Sortowanie
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Tylko własne wpisy
 dcl#:#dcl_owner#:#Właściciel
 dcl#:#dcl_owner_description#:#Właściciel wpisu.

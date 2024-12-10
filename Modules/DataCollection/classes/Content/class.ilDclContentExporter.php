@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,15 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Hook-Class for exporting data-collections (used in SOAP-Class)
- * This Class avoids duplicated code by routing the request to the right place
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @ingroup ModulesDataCollection
- */
 class ilDclContentExporter
 {
     public const SOAP_FUNCTION_NAME = 'exportDataCollectionContent';

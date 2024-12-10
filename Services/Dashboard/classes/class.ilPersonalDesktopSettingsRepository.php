@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Personal desktop settings repo
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilPersonalDesktopSettingsRepository
 {
     protected \ILIAS\Administration\Setting $settings;

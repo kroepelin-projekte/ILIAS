@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDataCollectionExporter
- * @author Stefan Wanzenried <sw@studer-raimann.ch>
- * @author Fabian Schmid <fs@studer-raimann.ch>
- */
 class ilDataCollectionExporter extends ilXmlExporter
 {
     protected ilDataCollectionDataSet $ds;

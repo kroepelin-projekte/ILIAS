@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -15,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclTextFieldModel
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @version 1.0.0
- */
 class ilDclTextFieldModel extends ilDclBaseFieldModel
 {
     /**

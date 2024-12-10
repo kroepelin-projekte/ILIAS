@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * BlockGUI class for (centered) Content on Personal Desktop
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilDashboardContentBlockGUI extends ilBlockGUI
 {
     public static string $block_type = "dashcontent";

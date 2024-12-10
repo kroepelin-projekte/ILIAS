@@ -1864,8 +1864,6 @@ assessment#:#tst_show_answer_sheet#:#Prikaži pregled odgovorov
 assessment#:#tst_show_cancel#:#Prikaži "Prekini test"
 assessment#:#tst_show_cancel_description#:#Med izvedbo testa se udeležencem prikaže gumb za prekinitev testa. Pozor: Prekinitev testa ne ustavi odštevanja časa obdelave, ki je naveden kot 'Najdaljše trajanje obdelave‘.
 assessment#:#tst_show_comp_results#:#Rezultati kompetenc
-assessment#:#tst_show_pass_details#:#Prikaži 'Tabelo s podrobnimi rezultati testov' za vsako opravljanje testa ob izbranem času.
-assessment#:#tst_show_pass_details_desc#:#V zgoraj izbranem trenutku se objava rezultata dopolni z dodatno tabelo. <br>Ta tabela za vsako opravljanje testa prikaže naslov vprašanj in dosežene točke. <br> V nasprotnem primeru se ta tabela prikaže le po zadnjem dovoljenem opravljanju testa (nastaviti v podzavihku ‚Splošne nastavitve‘, možnost ‚Omejite število opravljanj testa') ali po zaključku testa (nastaviti v podzavihku ‚Splošne nastavitve', oddelek  ‚Zaključek'). <br>Vsebina tabele se v oddelku ‚Podrobnosti o rezultatih testa' lahko še naprej dopolnjuje.
 assessment#:#tst_show_results#:#Rezultati testa
 assessment#:#tst_show_side_list#:#Seznam vprašanj za
 assessment#:#tst_show_solution_answers_only#:#Tiskana različica rezultatov (samo odgovori)
@@ -8468,6 +8466,9 @@ dcl#:#dcl_confirm_delete_table#:#Ali res želite izbrisati to tabelo vključno z
 dcl#:#dcl_confirm_storing_records#:#Preverite podatke, preden jih shranite.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Za ponovno urejanje podatkovnega zapisa nimate pravic.
 dcl#:#dcl_copy#:#Kopiraj zbirko podatkov
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum nastanka
 dcl#:#dcl_create_entry_rules#:#Entry Creation###19 08 2022 new variable
 dcl#:#dcl_create_field#:#Dodaj polje
@@ -8492,6 +8493,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Izbriši poglede
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Izbrisanih je bilo %s podatkovnih zapisov
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Padajoči vrstni red (DESC)
 dcl#:#dcl_description#:#Opis
 dcl#:#dcl_detailed_view#:#Podroben pogled
@@ -8610,6 +8612,7 @@ dcl#:#dcl_number#:#Cela števila
 dcl#:#dcl_number_desc#:#Vnosno polje za cela števila (maksimalno 9 števk). Ulomki in decimalna števila niso dovoljeni.
 dcl#:#dcl_online_info#:#Samo če je zbirka podatkov na spletu, jo uporabniki lahko vidijo in uporabljajo.
 dcl#:#dcl_order#:#Razvrstitev
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Samo lastni vnosi
 dcl#:#dcl_owner#:#Imetnik
 dcl#:#dcl_owner_description#:#Imetnik tega vnosa.

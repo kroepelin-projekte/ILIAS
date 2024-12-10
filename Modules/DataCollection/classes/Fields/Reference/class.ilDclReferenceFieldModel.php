@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,14 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilDclReferenceFieldModel
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @version 1.0.0
- */
 class ilDclReferenceFieldModel extends ilDclBaseFieldModel
 {
     public const PROP_REFERENCE = 'table_id';
@@ -39,11 +34,15 @@ class ilDclReferenceFieldModel extends ilDclBaseFieldModel
         global $DIC;
         $ilDB = $DIC['ilDB'];
 
-        if ($this->hasProperty(self::PROP_N_REFERENCE)) {
+        if (
+            $this->hasProperty(self::PROP_N_REFERENCE) ||
+            $this->getProperty(self::PROP_REFERENCE) === null ||
+            ilDclCache::getFieldCache((int) $this->getProperty(self::PROP_REFERENCE))->getTableId() === 0
+        ) {
             return null;
         }
 
-        $ref_field = ilDclCache::getFieldCache($this->getProperty(self::PROP_REFERENCE));
+        $ref_field = ilDclCache::getFieldCache((int) $this->getProperty(self::PROP_REFERENCE));
 
         $select_str = "stloc_{$this->getId()}_joined.value AS field_{$this->getId()},";
         $join_str = "LEFT JOIN il_dcl_record_field AS record_field_{$this->getId()} ON (record_field_{$this->getId()}.record_id = record.id AND record_field_{$this->getId()}.field_id = "

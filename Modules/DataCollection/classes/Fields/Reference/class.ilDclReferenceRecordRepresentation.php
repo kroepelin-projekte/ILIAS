@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclReferenceRecordRepresentation
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @version 1.0.0
- */
 class ilDclReferenceRecordRepresentation extends ilDclBaseRecordRepresentation
 {
     public function getHTML(bool $link = true, array $options = []): string
