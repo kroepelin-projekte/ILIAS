@@ -40,7 +40,7 @@ class LegacyImageConversionTest extends TestCase
     }
 
 
-    public function someDefinitions(): array
+    public static function someDefinitions(): array
     {
         return [
             [100, 100, 'jpg', 'image/jpeg'],
@@ -87,7 +87,7 @@ class LegacyImageConversionTest extends TestCase
 
         $this->assertEquals($expected_quality, $test_image->getImageCompressionQuality());
         $this->assertEquals($expected_height, $test_image->getImageHeight());
-        $this->assertEquals((int)round($expected_height * 0.75), $test_image->getImageWidth());
+        $this->assertEquals((int) round($expected_height * 0.75), $test_image->getImageWidth());
         unlink($temp_file);
     }
 

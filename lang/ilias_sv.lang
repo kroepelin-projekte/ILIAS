@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Oformaterad text för frågor oc
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#Tillhandahåller inte formatering av text i frågor och svar, men tillåter utformning av feedback och lösningsanteckningar med ILIAS sidredigerare och återanvändning i frågor i ILIAS inlärningsmoduler.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Riktig textredigerare (TinyMCE) för redigering av frågor, svar, feedback och lösningsanteckningar.
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Tillåter formaterad text för frågor, svar, feedback och lösningsanteckningar. Feedback och lösningsanteckningar antas dock inte när frågor integreras i ILIAS inlärningsmoduler.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#Du har klarat testet. Testet kan inte påbörjas igen.
 assessment#:#tst_all_test_competences#:#Alla testfärdigheter
 assessment#:#tst_all_user_data_deleted#:#Uppgifterna för alla testdeltagare har raderats!
@@ -2071,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatisk uppdatering
 auth#:#auth_oidc_update_role_info#:#Gäller endast vid första inloggning (automatisk synkronisering)
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Inloggningssida
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Identitet - lägg till
 auth#:#auth_saml_add_idp_md_error#:#Det angivna värdet motsvarade tyvärr inte ett välformulerat XML-dokument. Se till att XML innehåller en giltig identitetsleverantör.
@@ -3766,6 +3770,7 @@ common#:#copy_all#:#Kopiera alla
 common#:#copy_n_of_suffix#:#- Kopie (%1$s)
 common#:#copy_of#:#Kopia från
 common#:#copy_of_suffix#:#- Kopia
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Kopia
 common#:#count#:#Nummer
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5248,6 +5253,7 @@ common#:#pd_items_news#:#Inkluderar nyheter om de utvalda objekten
 common#:#pdf_export#:#PDF-export
 common#:#perm_settings#:#Rättigheter
 common#:#perma_link#:#Länk till denna sida
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Lagstiftning
 common#:#permission_denied#:#Ingen åtkomsträtt
 common#:#permission_settings#:#Inställningar för rättigheter
@@ -7366,6 +7372,7 @@ copg#:#copg_page_element_not_found#:# Okänt sidelement.
 copg#:#copg_page_type_stys#:#Sidans layout
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Inga frågor stöds i detta sammanhang.
 copg#:#copg_reload_page#:#Reload sida
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8553,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Vill du verkligen radera denna tabell inklusive
 dcl#:#dcl_confirm_storing_records#:#Kontrollera detaljerna innan du sparar.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Du har ingen rätt att redigera inspelningen igen senare.
 dcl#:#dcl_copy#:#Kopiering av datainsamling
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Datum för skapande
 dcl#:#dcl_create_entry_rules#:#Skapande av ingång
 dcl#:#dcl_create_field#:#Lägg till fält
@@ -8577,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Minst en tabell måste väljas för rader
 dcl#:#dcl_delete_views#:# Radera vyer
 dcl#:#dcl_delete_views_no_selection#:#Minst en vy måste väljas för radering
 dcl#:#dcl_deleted_records#:#%s poster har raderats
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Descendent ordning (DESC)
 dcl#:#dcl_description#:#Beskrivning
 dcl#:#dcl_detailed_view#:#Singelutsikt
@@ -8695,6 +8706,7 @@ dcl#:#dcl_number#:#Integers
 dcl#:#dcl_number_desc#:#Inmatningsfält för hela tal (högst 9 siffror). Bråk och decimaltal är inte tillåtna.
 dcl#:#dcl_online_info#:#Endast när datainsamlingen är online kan användarna se och använda datainsamlingen.
 dcl#:#dcl_order#:#Sortering
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Endast egna poster
 dcl#:#dcl_owner#:#Own entry by ###Modifierad som en del av arbetet med att integrera ett jämställdhetsperspektiv i ILIAS 8
 dcl#:#dcl_owner_description#:#Own entries always remain visible.###Modifierad som en del av jämställdhetsintegreringsaktiviteter för ILIAS 8
@@ -9089,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protokoll
 ecs#:#ecs_publish_as#:#Publicera under
 ecs#:#ecs_publish_for#:#Släpp för
 ecs#:#ecs_published_for#:#Släppt för
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#En ny ECS-kurs skapades
 ecs#:#ecs_read_remote_links#:#Uppdatera kursinformation
 ecs#:#ecs_refresh_participants#:#Uppdatera ECS deltagare
@@ -12858,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Funktionen gör det möjligt att välja kom
 obj#:#obj_tool_setting_tag_cloud#:#Tag Moln
 obj#:#obj_tool_setting_tag_cloud_info#:#Ett taggmoln visas i blocket "Urval efter ämne" på fliken "Innehåll".
 obj#:#obj_tool_setting_taxonomies#:#Taxonomier
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Nyheter
 obj#:#obj_tool_setting_use_news_info#:#Användning av News-blocket eller Timeline för nyheter. Användare kan aktivera aviseringar för nyheter så snart blocket eller tidslinjen är aktiv.
 obj#:#obj_tool_setting_use_news_open_settings#:#Öppna inställningar för block och tidslinje
@@ -13200,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Tillgång till föreskrifter enligt organisatoriska enheter
 prg#:#prg_access_by_orgu_byline#:#Om aktiverat kan ytterligare tillträdesregler tilldelas via positioner i organisatoriska enheter.
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Erkänna godkända kurser
 prg#:#prg_add#:#Skapa studieprogram
 prg#:#prg_added_course_ref_successful#:#Ny kurslänk har lagts till framgångsrikt.
@@ -16820,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:# Lägger till ett "Alla användare"-om
 tagging#:#tagging_enable_tagging#:#Aktivera taggning
 tagging#:#tagging_forbidden_tags#:#Förbjudna taggar
 tagging#:#tagging_no_obj_for_tag#:#Det finns inget innehåll taggat med '%s'.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Tags från andra användare
 tagging#:#tagging_resources_for_tag#:#Innehåll taggat med %s
 tagging#:#tagging_search_users#:#Sök användare

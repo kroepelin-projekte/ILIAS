@@ -15,6 +15,8 @@
  *
  *********************************************************************/
 
+use ILIAS\Data\DataSize;
+use ILIAS\Filesystem\Filesystem;
 use ILIAS\TA\Questions\assQuestionSuggestedSolution;
 use ILIAS\TA\Questions\assQuestionSuggestedSolutionsDatabaseRepository;
 
@@ -34,6 +36,8 @@ class assQuestionImport
     */
     public $object;
 
+    private Filesystem $filesystem;
+
     /**
     * assQuestionImport constructor
     *
@@ -43,6 +47,10 @@ class assQuestionImport
     public function __construct($a_object)
     {
         $this->object = $a_object;
+
+        /** @var ILIAS\DI\Container $DIC */
+        global $DIC;
+        $this->filesystem = $DIC['filesystem']->web();
     }
 
     public function getQuestionId(): int
@@ -285,23 +293,54 @@ class assQuestionImport
         return $additionalContentEditingMode;
     }
 
-    public function importSuggestedSolution(
+    public function importSuggestedSolutions(
         int $question_id,
-        string $value = "",
-        int $subquestion_index = 0
+        array $solution_from_import
     ): void {
-        $type = $this->findSolutionTypeByValue($value);
-        if (!$type) {
+        if (!$solution_from_import === []
+            || !isset($solution_from_import[0]['solution'])) {
             return;
         }
 
-        $repo = $this->getSuggestedSolutionsRepo();
+        $solution_item = $solution_from_import[0]['solution'];
+        $content = $solution_item->getContent();
+        if ($solution_item->getTexttype() === 'application/json') {
+            $content = json_decode($content, true);
+            if (!isset($content['type']) || !isset($content['value'])) {
+                return;
+            }
+            $type = $content['type'];
+        } else {
+            $type = $this->findSolutionTypeByValue($solution_item->getContent());
+            if ($type === null) {
+                return;
+            }
+        }
 
-        $nu_value = $this->object->resolveInternalLink($value);
-        $solution = $repo->create($question_id, $type)
-            ->withInternalLink($nu_value)
-            ->withImportId($value);
-        $repo->update([$solution]);
+        $repo = $this->getSuggestedSolutionsRepo();
+        $solution_object = $repo->create($question_id, $type);
+
+        if ($type !== assQuestionSuggestedSolution::TYPE_FILE) {
+            $link = is_string($content) ? $content : $content['value'];
+            $adapted_link = $this->object->resolveInternalLink($link);
+            if ($adapted_link === '') {
+                return;
+            }
+            $solution_object = $solution_object
+                ->withInternalLink($adapted_link)
+                ->withImportId($link);
+        } else {
+            if (!isset($content['title']) || !isset($content['filename'])) {
+                return;
+            }
+            $path = str_replace(CLIENT_WEB_DIR . DIRECTORY_SEPARATOR, '', $this->object->getSuggestedSolutionPath() . $content['filename']);
+            $this->filesystem->put($path, base64_decode($content['value']));
+            $solution_object = $solution_object->withTitle($content['title'])
+                ->withFilename($content['filename'])
+                ->withSize((int) $this->filesystem->getSize($path, DataSize::Byte)->inBytes())
+                ->withMime($this->filesystem->getMimeType($path));
+        }
+        $repo->update([$solution_object]);
     }
 
     protected function findSolutionTypeByValue(string $value): ?string

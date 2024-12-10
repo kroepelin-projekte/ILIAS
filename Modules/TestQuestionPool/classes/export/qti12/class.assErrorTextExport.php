@@ -111,6 +111,7 @@ class assErrorTextExport extends assQuestionExport
         $this->addQTIMaterial($a_xml_writer, $this->object->getQuestion());
         // add answers to presentation
         $a_xml_writer->xmlEndTag("flow");
+        $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
         $a_xml_writer->xmlEndTag("presentation");
 
         $this->addGenericFeedback($a_xml_writer);

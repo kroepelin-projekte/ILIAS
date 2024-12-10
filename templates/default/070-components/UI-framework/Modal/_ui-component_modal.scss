@@ -91,8 +91,15 @@ $il-modal-dark-carousel-color: $il-main-bg !default;
 			.modal-header {
 				border-bottom-color: $il-modal-light-color;
 			}
+			.modal-title {
+				padding: 0px;
+			}
+			.carousel-inner {
+				padding: 0px;
+			}
 			.carousel-control {
 				color: $il-modal-dark-carousel-color;
+				width: 15%;
 			}
 		}
 		.close {
@@ -158,6 +165,7 @@ $il-modal-dark-carousel-color: $il-main-bg !default;
 	font-size: $il-font-size-large;
 	margin: 0;
 	line-height: $modal-title-line-height;
+	padding: 0px 39px;
   }
   
   // Modal body

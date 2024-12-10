@@ -1269,6 +1269,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Edition de Contenu Supplémentai
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Mode d'Edition par Défaut pour Contenu Additionnel
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###10 12 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###10 12 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.
 assessment#:#tst_all_test_competences#:#Tous les tests de compétence
 assessment#:#tst_all_user_data_deleted#:#Toutes les données utilisateur de ce test ont été détruites
@@ -2071,6 +2073,8 @@ auth#:#auth_oidc_update_field_info#:#Automatisch aktualisieren
 auth#:#auth_oidc_update_role_info#:#Nur bei Erstanmeldung (automatische Synchronisierung) anwenden
 auth#:#auth_oidconnect#:#OpenID Connect
 auth#:#auth_page_type_auth#:#Login Page
+auth#:#auth_required_password#:#Please enter a password.###10 12 2024 new variable
+auth#:#auth_required_username#:#Please enter a username.###10 12 2024 new variable
 auth#:#auth_saml#:#SAML
 auth#:#auth_saml_add_idp_btn#:#Ajouter un nouveau fournisseur d’identité
 auth#:#auth_saml_add_idp_md_error#:#La valeur donnée n’était pas un document XML valide. S’assurer que XML contient un fournisseur d’identité valide.
@@ -3766,6 +3770,7 @@ common#:#copy_all#:#Copier tout
 common#:#copy_n_of_suffix#:#- Copie (%1$s)
 common#:#copy_of#:#Copie de
 common#:#copy_of_suffix#:#- Copie
+common#:#copy_perma_link#:#Copy link to clipboard###10 12 2024 new variable
 common#:#copy_selected_items#:#Copier
 common#:#count#:#Nombre
 common#:#counter_novelty#:#News###30 04 2024 new variable
@@ -5248,6 +5253,7 @@ common#:#pd_items_news#:#Inclure les actualités des objets personnels
 common#:#pdf_export#:#Exportation PDF
 common#:#perm_settings#:#Permissions
 common#:#perma_link#:#Lien permanent
+common#:#perma_link_copied#:#Link to this page has been copied to the clipboard.###10 12 2024 new variable
 common#:#permission#:#Permission
 common#:#permission_denied#:#Permission refusée
 common#:#permission_settings#:#Réglage des Permissions
@@ -7366,6 +7372,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.
 copg#:#copg_page_type_stys#:#Layout Page
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###10 12 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Les questions ne sont pas supportées dans ce contexte.
 copg#:#copg_reload_page#:#Reload Page
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8553,6 +8560,9 @@ dcl#:#dcl_confirm_delete_table#:#Voulez-vous vraiment supprimer ce tableau avec 
 dcl#:#dcl_confirm_storing_records#:#Veuillez valider et confirmer votre entrée.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Vous avez la permission de modifier le dossier par la suite.
 dcl#:#dcl_copy#:#Copier Collection de Données
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Date de création
 dcl#:#dcl_create_entry_rules#:#Entry Creation
 dcl#:#dcl_create_field#:#Créer Champ
@@ -8577,6 +8587,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Supprimer les vues
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 10 2023 new variable
 dcl#:#dcl_deleted_records#:#Successfully deleted %s records
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Ordre décroissant (DECR)
 dcl#:#dcl_description#:#Description du Champ
 dcl#:#dcl_detailed_view#:#Vue détaillée
@@ -8695,6 +8706,7 @@ dcl#:#dcl_number#:#Nombre entier
 dcl#:#dcl_number_desc#:#Champ pour les valeurs de nombre entier (max. 9 chiffres). Pas de décimales ou de fractions.
 dcl#:#dcl_online_info#:#Les utilisateurs sont capables d’utiliser la collecte de données uniquement si celle-ci est en ligne.
 dcl#:#dcl_order#:#Ordre
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Uniquement les entrées propres
 dcl#:#dcl_owner#:#Propriétaire
 dcl#:#dcl_owner_description#:#Le propriétaire de l’entrée.
@@ -9089,6 +9101,7 @@ ecs#:#ecs_protocol#:#Protocole
 ecs#:#ecs_publish_as#:#Publié comme :
 ecs#:#ecs_publish_for#:#Mettre à  jour pour :
 ecs#:#ecs_published_for#:#Publié pour :
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###10 12 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Un nouveau cours à  distance a été créé :
 ecs#:#ecs_read_remote_links#:#Mettre à  jour cours à  distance
 ecs#:#ecs_refresh_participants#:#Rafraîchir les participants ECS
@@ -12858,6 +12871,7 @@ obj#:#obj_tool_setting_skills_info#:#Active une gestion des compétences et des 
 obj#:#obj_tool_setting_tag_cloud#:#Marquer Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#The "tag cloud" block will be displayed inside the "Content" tab.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Taxonomy" sub-tab in the "Settings" tab.###10 12 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Nouvelles
 obj#:#obj_tool_setting_use_news_info#:#Activer le bloc de nouvelles et/ou la vue chronologique.
 obj#:#obj_tool_setting_use_news_open_settings#:#Ouvrir les paramètres
@@ -13200,6 +13214,7 @@ prg#:#pc_prgstatus_unlimited_validation#:#Unlimited validity###30 04 2024 new va
 prg#:#percentage#:#%
 prg#:#prg_access_by_orgu#:#Access Control by Organisation Unit Positions
 prg#:#prg_access_by_orgu_byline#:#If enabled, additional access control rules can be defined by positions in organisational units.
+prg#:#prg_acknowledge_all_completed_courses#:#Acknowledge All Completed Courses###10 12 2024 new variable
 prg#:#prg_acknowledge_completed_courses#:#Reconnaître les cours complétés
 prg#:#prg_add#:#Ajouter un programme d’étude
 prg#:#prg_added_course_ref_successful#:#New course-reference was added successfully
@@ -16820,6 +16835,7 @@ tagging#:#tagging_enable_all_users_info#:#Ajouter une section "Tous utilisateurs
 tagging#:#tagging_enable_tagging#:#Activer Tagging
 tagging#:#tagging_forbidden_tags#:#Tags interdits
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###10 12 2024 new variable
 tagging#:#tagging_other_users#:#Other Users
 tagging#:#tagging_resources_for_tag#:#Ressources taggées avec %s
 tagging#:#tagging_search_users#:#Rechercher utilisateurs

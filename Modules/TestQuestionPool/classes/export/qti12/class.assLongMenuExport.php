@@ -114,6 +114,7 @@ class assLongMenuExport extends assQuestionExport
             $xml->xmlEndTag("response_str");
         }
         $xml->xmlEndTag("flow");
+        $xml = $this->addSuggestedSolution($xml);
         $xml->xmlEndTag("presentation");
 
         $xml->xmlStartTag("resprocessing");

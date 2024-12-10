@@ -15,7 +15,8 @@
  *
  *********************************************************************/
 
-use ILIAS\TA\Questions\assQuestionSuggestedSolution;
+use ILIAS\TA\Questions\assSuggestedSolutionFile;
+use ILIAS\TA\Questions\assSuggestedSolutionLink;
 
 /**
 * Class for question exports
@@ -243,32 +244,54 @@ class assQuestionExport
                 'index' => $hint->getIndex(),
                 'points' => $hint->getPoints()
             ];
-            $data = $hint->getText();
+            if ($this->object->isAdditionalContentEditingModePageObject()) {
+                try {
+                    $data = (new ilAssHintPage($hint->getId()))->getXMLContent();
+                } catch (Exception $e) {
+                    continue;
+                }
+            } else {
+                $data = $hint->getText();
+            }
+
             $writer->xmlElement(self::ITEM_SOLUTIONHINT, $attrs, $data);
         }
         return $writer;
     }
 
-    protected function addSuggestedSolutionLink(ilXmlWriter $writer, assQuestionSuggestedSolution $suggested_solution): ilXmlWriter
+    protected function addSuggestedSolution(ilXmlWriter $writer): ilXmlWriter
     {
-        if (!$suggested_solution->isOfTypeLink()) {
+        $solution = $this->object->getSuggestedSolution();
+        if ($solution === null) {
             return $writer;
         }
 
-        if (preg_match("/il_(\d*?)_(\w+)_(\d+)/", $suggested_solution->getInternalLink(), $matches) !== 1) {
-            return $writer;
+        $mattext = ['type' => $solution->getType()];
+        $attrs = [
+            'label' => 'suggested_solution',
+            'texttype' => 'application/json'
+        ];
+
+        if ($solution instanceof assSuggestedSolutionFile) {
+            $mattext['title'] = $solution->getTitle();
+            $mattext['filename'] = $solution->getFilename();
+            $mattext['value'] = base64_encode(file_get_contents(
+                $this->object->getSuggestedSolutionPath() . $solution->getFilename()
+            ));
+        } else {
+            if (!preg_match('/il_(\d*?)_(\w+)_(\d+)/', $solution->getInternalLink(), $matches)) {
+                return $writer;
+            }
+            $mattext['value'] = 'il_' . IL_INST_ID . '_' . $matches[2] . '_' . $matches[3];
+            if ($matches[1] !== '') {
+                $mattext['value'] = $solution['internal_link'];
+            }
+
         }
 
-        $writer->xmlStartTag("material");
-        $intlink = "il_" . IL_INST_ID . "_" . $matches[2] . "_" . $matches[3];
-        if (strcmp($matches[1], "") != 0) {
-            $intlink = $suggested_solution->getInternalLink();
-        }
-        $attrs = array(
-            "label" => "suggested_solution"
-        );
-        $writer->xmlElement("mattext", $attrs, $intlink);
-        $writer->xmlEndTag("material");
+        $writer->xmlStartTag('material');
+        $writer->xmlElement('mattext', $attrs, json_encode($mattext));
+        $writer->xmlEndTag('material');
 
         return $writer;
     }

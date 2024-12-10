@@ -248,15 +248,7 @@ class assMatchingQuestionImport extends assQuestionImport
             $this->fetchAdditionalContentEditingModeInformation($item)
         );
         $this->object->saveToDb();
-        if (count($item->suggested_solutions)) {
-            foreach ($item->suggested_solutions as $suggested_solution) {
-                $this->importSuggestedSolution(
-                    $this->object->getId(),
-                    $suggested_solution["solution"]->getContent(),
-                    $suggested_solution["gap_index"]
-                );
-            }
-        }
+        $this->importSuggestedSolutions($this->object->getId(), $item->suggested_solutions);
         foreach ($responses as $response) {
             $subset = $response["subset"];
             foreach ($subset as $ident) {

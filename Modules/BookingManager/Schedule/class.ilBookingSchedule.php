@@ -311,6 +311,21 @@ class ilBookingSchedule
         return true;
     }
 
+    public static function lookupPoolId(int $schedule_id): int
+    {
+        global $DIC;
+
+        $ilDB = $DIC->database();
+
+        $set = $ilDB->query("SELECT pool_id " .
+            " FROM booking_schedule" .
+            " WHERE booking_schedule_id = " . $ilDB->quote($schedule_id, 'integer'));
+        if ($rec = $ilDB->fetchAssoc($set)) {
+            return (int) $rec['pool_id'];
+        }
+        return 0;
+    }
+
     /**
      * Check if given pool has any defined schedules
      */

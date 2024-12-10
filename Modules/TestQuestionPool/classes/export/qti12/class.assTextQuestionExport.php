@@ -139,11 +139,7 @@ class assTextQuestionExport extends assQuestionExport
         $a_xml_writer->xmlStartTag("response_label", $attrs);
         $a_xml_writer->xmlEndTag("response_label");
         $a_xml_writer->xmlEndTag("render_fib");
-
-        $solution = $this->object->getSuggestedSolution(0);
-        if ($solution !== null) {
-            $a_xml_writer = $this->addSuggestedSolutionLink($a_xml_writer, $solution);
-        }
+        $a_xml_writer = $this->addSuggestedSolution($a_xml_writer);
         $a_xml_writer->xmlEndTag("response_str");
         $a_xml_writer->xmlEndTag("flow");
         $a_xml_writer->xmlEndTag("presentation");

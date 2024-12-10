@@ -1165,7 +1165,7 @@ abstract class assQuestionGUI
 
         $output = "";
 
-        $solution = $this->object->getSuggestedSolution(0);
+        $solution = $this->object->getSuggestedSolution();
         $options = $this->getTypeOptions();
 
         $solution_type = $this->ctrl->getCmd() === 'cancelSuggestedSolution'

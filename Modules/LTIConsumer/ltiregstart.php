@@ -26,7 +26,7 @@ require_once("Services/Init/classes/class.ilInitialisation.php");
 ilInitialisation::initILIAS();
 global $DIC;
 
-if (!$DIC->user()->getId() || $DIC->user()->getId() === ANONYMOUS_USER_ID) {
+if (!$DIC->user()->getId() || !ilLTIConsumerAccess::hasCustomProviderCreationAccess()) {
     ilObjLTIConsumer::sendResponseError(401, "unauthorized");
 }
 

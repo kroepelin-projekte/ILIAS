@@ -6650,8 +6650,15 @@ div.alert ul > li:before {
 .modal.il-modal-lightbox-dark .modal-content .modal-header {
   border-bottom-color: white;
 }
+.modal.il-modal-lightbox-dark .modal-content .modal-title {
+  padding: 0px;
+}
+.modal.il-modal-lightbox-dark .modal-content .carousel-inner {
+  padding: 0px;
+}
 .modal.il-modal-lightbox-dark .modal-content .carousel-control {
   color: white;
+  width: 15%;
 }
 .modal.il-modal-lightbox-dark .close {
   color: white;
@@ -6716,6 +6723,7 @@ div.alert ul > li:before {
   font-size: 1rem;
   margin: 0;
   line-height: 1.428571429;
+  padding: 0px 39px;
 }
 
 .modal-body {
@@ -10326,6 +10334,7 @@ tbody.collapse.in {
   overflow: hidden;
   width: 100%;
   min-height: 400px;
+  padding: 0px 24px;
 }
 .carousel-inner .item:not(.text-only) .item-content {
   display: flex;
@@ -10378,6 +10387,9 @@ tbody.collapse.in {
     transform: translate3d(0, 0, 0);
     left: 0;
   }
+  .carousel-inner > .item.next.left.text-only, .carousel-inner > .item.prev.right.text-only, .carousel-inner > .item.active.text-only {
+    padding: 0 15px;
+  }
 }
 .carousel-inner > .active,
 .carousel-inner > .next,
@@ -10415,7 +10427,7 @@ tbody.collapse.in {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 15%;
+  width: 20px;
   filter: alpha(opacity=50);
   opacity: 0.5;
   font-size: 20px;
