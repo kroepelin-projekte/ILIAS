@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Data\Factory;
+use ILIAS\UI\Component\Input\Container\Form\Standard as Form;
 
 /**
  * @ilCtrl_Calls ilObjStudyProgrammeMembersGUI: ilStudyProgrammeRepositorySearchGUI
@@ -44,6 +45,7 @@ class ilObjStudyProgrammeMembersGUI
     public const ACTION_UNMARK_RELEVANT = "unmark_relevant";
     public const ACTION_UPDATE_FROM_CURRENT_PLAN = "update_from_current_plan";
     public const ACTION_CHANGE_EXPIRE_DATE = "change_expire_date";
+    public const ACTION_ACKNOWLEDGE_COURSES = "acknowledge_completed_courses";
 
     public const F_COMMAND_OPTION_ALL = 'select_cmd_all';
     public const F_ALL_PROGRESS_IDS = 'all_progress_ids';
@@ -65,6 +67,9 @@ class ilObjStudyProgrammeMembersGUI
     protected ilConfirmationGUI $confirmation_gui;
     protected ILIAS\HTTP\Wrapper\WrapperFactory $http_wrapper;
     protected ILIAS\Refinery\Factory $refinery;
+    protected ILIAS\UI\Factory $ui_factory;
+    protected ILIAS\UI\Renderer $ui_renderer;
+    protected GuzzleHttp\Psr7\ServerRequest $request;
     protected ?ilObjStudyProgramme $object;
     protected ?ilPRGPermissionsHelper $permissions;
     protected ilObjectGUI $parent_gui;
@@ -84,7 +89,10 @@ class ilObjStudyProgrammeMembersGUI
         Factory $data_factory,
         ilConfirmationGUI $confirmation_gui,
         ILIAS\HTTP\Wrapper\WrapperFactory $http_wrapper,
-        ILIAS\Refinery\Factory $refinery
+        ILIAS\Refinery\Factory $refinery,
+        ILIAS\UI\Factory $ui_factory,
+        ILIAS\UI\Renderer $ui_renderer,
+        GuzzleHttp\Psr7\ServerRequest $request
     ) {
         $this->tpl = $tpl;
         $this->ctrl = $ilCtrl;
@@ -100,6 +108,9 @@ class ilObjStudyProgrammeMembersGUI
         $this->confirmation_gui = $confirmation_gui;
         $this->http_wrapper = $http_wrapper;
         $this->refinery = $refinery;
+        $this->ui_factory = $ui_factory;
+        $this->ui_renderer = $ui_renderer;
+        $this->request = $request;
         $this->object = null;
         $this->permissions = null;
 
@@ -186,12 +197,13 @@ class ilObjStudyProgrammeMembersGUI
                     case "unmarkAccreditedMulti":
                     case "removeUser":
                     case "removeUserMulti":
-                    case "addUsersWithAcknowledgedCourses":
                     case "markNotRelevantMulti":
                     case "markRelevant":
                     case "markRelevantMulti":
                     case "updateFromCurrentPlan":
                     case "updateFromCurrentPlanMulti":
+                    case "acknowledgeCourses":
+                    case "acknowledgeCoursesMulti":
                     case "applyFilter":
                     case "resetFilter":
                     case "changeDeadline":
@@ -207,6 +219,13 @@ class ilObjStudyProgrammeMembersGUI
                     case "confirmedUpdateFromCurrentPlan":
                         $this->confirmedUpdateFromCurrentPlan();
                         break;
+                    case "confirmedAcknowledgeCourses":
+                        $this->confirmedAcknowledgeCourses();
+                        break;
+                    case "confirmedAcknowledgeAllCourses":
+                        $this->confirmedAcknowledgeAllCourses();
+                        break;
+
                     case "mailUserMulti":
                         $this->mailToSelectedUsers();
                         break;
@@ -257,7 +276,7 @@ class ilObjStudyProgrammeMembersGUI
     }
 
     /**
-     * @return int[]
+     * @return PRGProgressId[]
      */
     protected function getPostPrgsIds(): array
     {
@@ -277,6 +296,9 @@ class ilObjStudyProgrammeMembersGUI
         if ($pgs_ids === null) {
             $this->showInfoMessage("no_user_selected");
             $this->ctrl->redirect($this, "view");
+        }
+        if (is_string($pgs_ids)) {
+            $pgs_ids = [$pgs_ids];
         }
 
         $r = [];
@@ -346,106 +368,102 @@ class ilObjStudyProgrammeMembersGUI
      */
     public function addUsers(array $user_ids)
     {
-        $prg = $this->getStudyProgramme();
         $user_ids = $this->getAddableUsers($user_ids);
+        $prg = $this->getStudyProgramme();
+        $assignments = [];
+        $with_courses = [];
 
-        $completed_courses = array();
         foreach ($user_ids as $user_id) {
-            $completed_crss = $prg->getCompletedCourses((int) $user_id);
-            if ($completed_crss) {
-                $completed_courses[$user_id] = $completed_crss;
+            $ass = $prg->assignUser((int) $user_id);
+            $assignments[] = $ass;
+            if($prg->getCompletedCourses((int) $user_id)) {
+                $with_courses[] = $ass;
             }
         }
 
-        if (count($completed_courses) > 0) {
-            $this->viewCompletedCourses($completed_courses, $user_ids);
-            return true;
+        if (count($assignments) === 1) {
+            $this->tpl->setOnScreenMessage("success", $this->lng->txt("prg_added_member"), true);
+        }
+        if (count($assignments) > 1) {
+            $this->tpl->setOnScreenMessage("success", $this->lng->txt("prg_added_members"), true);
         }
 
-        $this->_addUsers($user_ids);
-
-        $this->ctrl->redirect($this, "view");
-    }
-
-    /**
-     * Shows list of completed courses for each user if he should be assigned
-     * @param int[] $completed_courses
-     * @param int[] $users
-     */
-    public function viewCompletedCourses(array $completed_courses, array $users): void
-    {
-        $tpl = new ilTemplate(
-            "tpl.acknowledge_completed_courses.html",
-            true,
-            true,
-            "Modules/StudyProgramme"
-        );
-        $tpl->setVariable("TITLE", $this->lng->txt("prg_acknowledge_completed_courses"));
-        $tpl->setVariable("CAPTION_ADD", $this->lng->txt("btn_next"));
-        $tpl->setVariable("CAPTION_CANCEL", $this->lng->txt("prg_cancel_acknowledge_completed_courses"));
-        $tpl->setVariable("FORM_ACTION", $this->ctrl->getFormAction($this));
-        $tpl->setVariable("ADD_CMD", "addUsersWithAcknowledgedCourses");
-        $tpl->setVariable("CANCEL_CMD", "view");
-
-        foreach ($completed_courses as $user_id => $completed) {
-            $names = ilObjUser::_lookupName($user_id);
-            $tpl->setCurrentBlock("usr_section");
-            $tpl->setVariable("FIRSTNAME", $names["firstname"]);
-            $tpl->setVariable("LASTNAME", $names["lastname"]);
-            $table = new ilStudyProgrammeAcknowledgeCompletedCoursesTableGUI(
-                $this,
-                $user_id,
-                $completed
-            );
-            $tpl->setVariable("TABLE", $table->getHTML());
-            $tpl->parseCurrentBlock();
-        }
-
-        foreach ($users as $usr_id) {
-            $tpl->setCurrentBlock("usr_ids_section");
-            $tpl->setVariable("USR_ID", $usr_id);
-            $tpl->parseCurrentBlock();
-        }
-
-        $this->tpl->setContent($tpl->get());
-    }
-
-    /**
-     * Assign users if they have any completed course
-     */
-    public function addUsersWithAcknowledgedCourses(): void
-    {
-        $users = $this->http_wrapper->post()->retrieve(
-            "users",
-            $this->refinery->kindlyTo()->listOf($this->refinery->kindlyTo()->int())
-        );
-        $users = $this->getAddableUsers($users);
-        $assignments = $this->_addUsers($users);
-
-        $completed_programmes = null;
-        if ($this->http_wrapper->post()->has('courses')) {
-            $completed_programmes = $this->http_wrapper->post()->retrieve(
-                "courses",
-                $this->refinery->kindlyTo()->dictOf(
-                    $this->refinery->kindlyTo()->listOf($this->refinery->kindlyTo()->string())
+        if($with_courses) {
+            $this->tpl->setContent(
+                $this->ui_renderer->render(
+                    $this->viewCompletedCourses($assignments)
                 )
             );
-        }
+            return true;
 
-        if (is_array($completed_programmes)) {
-            foreach ($completed_programmes as $user_id => $prg_ref_ids) {
-                $ass = $assignments[$user_id];
-                foreach ($prg_ref_ids as $ids) {
-                    [$prg_ref_id, $crs_id, $crsr_id] = explode(";", $ids);
-                    $prg = $this->getStudyProgramme((int) $prg_ref_id);
-                    if ($prg->isActive()) {
-                        $prg->succeed($user_id, (int)$crsr_id, $ass);
-                    }
-                }
+        } else {
+            $this->ctrl->redirect($this, "view");
+        }
+    }
+
+    /**
+     * Shows list of completed courses for each assignment
+     */
+    public function viewCompletedCourses(array $assignments): Form
+    {
+        $prg = $this->getStudyProgramme();
+        $completed_courses = [];
+        $ass_ids = [];
+        foreach ($assignments as $ass) {
+            $ass_ids[] = $ass->getId();
+            $completed_crss = $prg->getCompletedCourses($ass->getUserId());
+
+            $label = sprintf(
+                "%s (%s)",
+                $ass->getUserInformation()->getFullname(),
+                $ass->getId()
+            );
+            $options = [];
+            foreach($completed_crss as $opt) {
+                $options[implode(';', [$ass->getId(), $opt['prg_obj_id'],$opt['crs_id']])] = $opt['title'];
             }
+
+            $completed_courses[] = $this->ui_factory->input()->field()->multiselect($label, $options);
         }
 
-        $this->ctrl->redirect($this, "view");
+        $form_action = $this->ctrl->getFormAction($this, 'confirmedAcknowledgeCourses')
+            . '&ass_ids=' . implode(',', $ass_ids);
+
+        $form = $this->ui_factory->input()->container()->form()->standard(
+            $form_action,
+            [
+                $this->ui_factory->input()->field()->section(
+                    $completed_courses,
+                    $this->lng->txt("prg_acknowledge_completed_courses")
+                )
+            ]
+        )->withAdditionalTransformation(
+            $this->refinery->custom()->transformation(
+                function ($values) {
+                    $values = array_merge(...array_filter(array_shift($values)));
+                    return array_map(
+                        fn ($entry) => explode(';', $entry),
+                        $values
+                    );
+                }
+            )
+        );
+
+        $this->toolbar->addComponent(
+            $this->ui_factory->link()->standard(
+                $this->lng->txt('prg_cancel_acknowledge_completed_courses'),
+                $this->ctrl->getLinkTarget($this, self::DEFAULT_CMD)
+            )
+        );
+        $this->toolbar->addComponent(
+            $this->ui_factory->link()->standard(
+                $this->lng->txt('prg_acknowledge_all_completed_courses'),
+                $this->ctrl->getLinkTarget($this, 'confirmedAcknowledgeAllCourses')
+                . '&ass_ids=' . implode(',', $ass_ids)
+            )
+        );
+
+        return $form;
     }
 
     /**
@@ -470,30 +488,6 @@ class ilObjStudyProgrammeMembersGUI
             );
         }
         return $to_add;
-    }
-
-    /**
-     * Add users to SP
-     * @param string[] $user_ids
-     * @return array <string, ilStudyProgrammeAssignment>
-     */
-    protected function _addUsers(array $user_ids): array
-    {
-        $prg = $this->getStudyProgramme();
-        $assignments = array();
-
-        foreach ($user_ids as $user_id) {
-            $assignments[$user_id] = $prg->assignUser((int) $user_id);
-        }
-
-        if (count($assignments) === 1) {
-            $this->tpl->setOnScreenMessage("success", $this->lng->txt("prg_added_member"), true);
-        }
-        if (count($assignments) > 1) {
-            $this->tpl->setOnScreenMessage("success", $this->lng->txt("prg_added_members"), true);
-        }
-
-        return $assignments;
     }
 
     protected function markAccredited(): void
@@ -625,11 +619,11 @@ class ilObjStudyProgrammeMembersGUI
         $this->confirmation_gui->setConfirm($this->lng->txt('confirm'), 'confirmedUpdateFromCurrentPlan');
         $this->confirmation_gui->setCancel($this->lng->txt('cancel'), 'view');
 
-        $prgs_id = $this->getPostPrgsId();
+        $prgs_id = $this->getPrgrsId();
         $user_name = ilObjUser::_lookupFullname($prgs_id->getUsrId());
         $this->confirmation_gui->addItem(
             self::F_SELECTED_PROGRESS_ID,
-            (string)$prgs_id,
+            (string) $prgs_id,
             $user_name
         );
         return $this->confirmation_gui->getHTML();
@@ -646,7 +640,7 @@ class ilObjStudyProgrammeMembersGUI
             $user_name = ilObjUser::_lookupFullname($progress_id->getUsrId());
             $this->confirmation_gui->addItem(
                 self::F_SELECTED_PROGRESS_IDS . '[]',
-                (string)$progress_id,
+                (string) $progress_id,
                 $user_name
             );
         }
@@ -672,6 +666,103 @@ class ilObjStudyProgrammeMembersGUI
             );
         }
         $this->showMessages($msgs);
+        $this->ctrl->redirect($this, "view");
+    }
+
+    public function acknowledgeCourses(): string
+    {
+        $progress_id = $this->getPrgrsId();
+        $assignments = [
+            $this->assignment_db->get($progress_id->getAssignmentId())
+        ];
+        return $this->ui_renderer->render(
+            $this->viewCompletedCourses($assignments)
+        );
+    }
+
+    public function acknowledgeCoursesMulti(): string
+    {
+        $assignments = [];
+        foreach ($this->getPostPrgsIds() as $progress_id) {
+            $assignments[] = $this->assignment_db->get($progress_id->getAssignmentId());
+        }
+        return $this->ui_renderer->render(
+            $this->viewCompletedCourses($assignments)
+        );
+    }
+
+    /**
+     * @return ilPRGAssignment[]
+     */
+    protected function getAssignmentsFromQuery(): array
+    {
+        $ass_ids = $this->http_wrapper->query()->retrieve(
+            'ass_ids',
+            $this->refinery->custom()->transformation(fn ($ids) => explode(',', $ids))
+        );
+        $prg = $this->getStudyProgramme();
+        $assignments = array_map(
+            fn ($ass_id) => $this->assignment_db->get((int) $ass_id),
+            $ass_ids
+        );
+
+        $assignments = array_filter(
+            $assignments,
+            fn ($ass) => $ass->getRootId() === $prg->getId()
+        );
+        return $assignments;
+    }
+
+    public function confirmedAcknowledgeAllCourses()
+    {
+        $prg = $this->getStudyProgramme();
+        $assignments = $this->getAssignmentsFromQuery();
+        $msgs = $this->getMessageCollection('msg_acknowledge_courses');
+
+        foreach ($assignments as $ass) {
+            $ass_ids[] = $ass->getId();
+            $completed_crss = $prg->getCompletedCourses($ass->getUserId());
+            $nodes = [];
+            foreach($completed_crss as $opt) {
+                $nodes[] = [$opt['prg_obj_id'], $opt['crsr_id']];
+            }
+            $prg->acknowledgeCourses(
+                $ass->getId(),
+                $nodes,
+                $msgs
+            );
+        }
+        $this->showMessages($msgs);
+        $this->ctrl->redirect($this, "view");
+    }
+
+    public function confirmedAcknowledgeCourses()
+    {
+        $assignments = $this->getAssignmentsFromQuery();
+
+        $form = $this->viewCompletedCourses($assignments)->withRequest($this->request);
+        $data = $form->getData();
+
+        $msgs = $this->getMessageCollection('msg_acknowledge_courses');
+
+        if($data) {
+            $acknowledge = [];
+            foreach ($data as $ack) {
+                [$assignment_id, $node_obj_id, $course_obj_id] = $ack;
+                if(! array_key_exists($assignment_id, $acknowledge)) {
+                    $acknowledge[$assignment_id] = [];
+                }
+                $acknowledge[$assignment_id][] = [(int) $node_obj_id, (int) $course_obj_id];
+            }
+            foreach ($acknowledge as $ass_id => $nodes) {
+                $this->object->acknowledgeCourses(
+                    (int) $ass_id,
+                    $nodes,
+                    $msgs
+                );
+            }
+            $this->showMessages($msgs);
+        }
         $this->ctrl->redirect($this, "view");
     }
 
@@ -766,7 +857,7 @@ class ilObjStudyProgrammeMembersGUI
             $user_name = ilObjUser::_lookupFullname($progress_id->getUsrId());
             $this->confirmation_gui->addItem(
                 self::F_SELECTED_PROGRESS_IDS . '[]',
-                (string)$progress_id,
+                (string) $progress_id,
                 $user_name
             );
         }
@@ -898,6 +989,9 @@ class ilObjStudyProgrammeMembersGUI
                 break;
             case self::ACTION_UPDATE_FROM_CURRENT_PLAN:
                 $target_name = "updateFromCurrentPlan";
+                break;
+            case self::ACTION_ACKNOWLEDGE_COURSES:
+                $target_name = "acknowledgeCourses";
                 break;
             case self::ACTION_CHANGE_DEADLINE:
                 $target_name = "changeDeadline";

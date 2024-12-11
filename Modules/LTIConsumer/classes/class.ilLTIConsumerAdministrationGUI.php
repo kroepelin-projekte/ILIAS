@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Uri;
@@ -123,7 +123,7 @@ class ilLTIConsumerAdministrationGUI
         }
     }
 
-//    todo?
+    //    todo?
     protected function applyGlobalProviderFilterCmd(): void
     {
         $table = $this->buildProviderTable($this, self::CMD_SHOW_GLOBAL_PROVIDER);
@@ -440,7 +440,7 @@ class ilLTIConsumerAdministrationGUI
 
     private function checkIconFileExtension(string $ext): bool
     {
-//        todo - check?
+        //        todo - check?
         return false !== ($check = array_search($ext, self::ALLOWED_FILE_EXT)) ? true : false;
     }
 
@@ -785,7 +785,7 @@ class ilLTIConsumerAdministrationGUI
             $confirmationGUI->addItem(
                 'provider_ids[]',
                 (string) $provider->getId(),
-                $provider->getTitle(),
+                htmlspecialchars($provider->getTitle()),
                 $providerIcon
             );
         }
@@ -906,7 +906,7 @@ class ilLTIConsumerAdministrationGUI
 
     protected function showSettingsCmd(?ilPropertyFormGUI $form = null): void
     {
-//        todo - check
+        //        todo - check
         global $DIC; /* @var \ILIAS\DI\Container $DIC */
 
         return; // no settings at all currently
@@ -922,7 +922,7 @@ class ilLTIConsumerAdministrationGUI
 
     protected function saveSettingsCmd(): void
     {
-//        todo - check
+        //        todo - check
         global $DIC; /* @var \ILIAS\DI\Container $DIC */
 
         return; // no settings at all currently

@@ -492,7 +492,7 @@ class ilObjStudyProgramme extends ilContainer
                 array_unique(
                     array_map(
                         static function ($data) {
-                            return (int)$data['child'];
+                            return (int) $data['child'];
                         },
                         array_filter($ref_child_ref_ids, static function ($data) {
                             return $data["deleted"] === null;
@@ -752,8 +752,12 @@ class ilObjStudyProgramme extends ilContainer
                     $completed_crss[] = [
                         "crs_id" => $crs_id
                         , "prg_ref_id" => (int) $ref["parent"]
+                        , "prg_obj_id" => $containing_prg->getId()
                         , "crsr_ref_id" => (int) $ref["child"]
                         , "crsr_id" => (int) $ref["obj_id"]
+                        , "crs_ref_id" => (int) $crs_ref_id
+                        , "crs_id" => (int) $crs_id
+
                         , "title" => ilContainerReference::_lookupTitle((int) $ref["obj_id"])
                     ];
                 }
@@ -1155,7 +1159,7 @@ class ilObjStudyProgramme extends ilContainer
     {
         $filter = new ilPRGAssignmentFilter($this->lng);
         $filter = $filter->withValues([
-            'prg_status_hide_irrelevant'=> true
+            'prg_status_hide_irrelevant' => true
         ]);
         $count = $this->assignment_repository->countAllForNodeIsContained(
             $this->getId(),
@@ -1813,6 +1817,34 @@ class ilObjStudyProgramme extends ilContainer
                 $err_collection
             );
 
+        $this->assignment_repository->store($assignment);
+        $this->refreshLPStatus($assignment->getUserId());
+    }
+
+    public function acknowledgeCourses(
+        int $assignment_id,
+        array $nodes,
+        ilPRGMessageCollection $err_collection = null
+    ): void {
+        $acting_usr_id = $this->getLoggedInUserId();
+        $assignment = $this->assignment_repository->get($assignment_id);
+        foreach($nodes as $nodeinfo) {
+            [$node_obj_id, $course_obj_id] = $nodeinfo;
+
+            $assignment = $assignment->succeed(
+                $this->settings_repository,
+                $node_obj_id,
+                $course_obj_id
+            );
+
+            $msg = sprintf(
+                '%s, progress-id (%s/%s)',
+                $assignment->getUserInformation()->getFullname(),
+                $assignment->getId(),
+                (string) $node_obj_id
+            );
+            $err_collection->add(true, 'acknowledged_course', $msg);
+        }
         $this->assignment_repository->store($assignment);
         $this->refreshLPStatus($assignment->getUserId());
     }

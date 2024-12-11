@@ -18,9 +18,6 @@
 
 declare(strict_types=1);
 
-/**
- * Dashboard objects table renderer
- */
 class ilDashObjectsTableRenderer
 {
     protected object $parent_gui;

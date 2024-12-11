@@ -16,12 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Hook-Class for exporting data-collections (used in SOAP-Class)
- * This Class avoids duplicated code by routing the request to the right place
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @ingroup ModulesDataCollection
- */
 class ilDclContentImporter
 {
     //const SOAP_FUNCTION_NAME = 'exportDataCollectionContent';

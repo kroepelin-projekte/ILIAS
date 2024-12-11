@@ -219,15 +219,15 @@ class assKprimChoice extends assQuestion implements ilObjQuestionScoringAdjustab
 
             $this->setObjId($data['obj_fi']);
 
-            $this->setTitle((string) $data['title']);
+            $this->setTitle($data['title'] ?? '');
             $this->setNrOfTries($data['nr_of_tries']);
-            $this->setComment((string) $data['description']);
+            $this->setComment($data['description'] ?? '');
             $this->setAuthor($data['author']);
             $this->setPoints($data['points']);
             $this->setOwner($data['owner']);
             $this->setLastChange($data['tstamp']);
             require_once 'Services/RTE/classes/class.ilRTE.php';
-            $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc((string) $data['question_text'], 1));
+            $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc($data['question_text'] ?? '', 1));
 
             $this->setShuffleAnswersEnabled((bool) $data['shuffle_answers']);
 
@@ -243,8 +243,13 @@ class assKprimChoice extends assQuestion implements ilObjQuestionScoringAdjustab
                 $this->setOptionLabel($data['opt_label']);
             }
 
-            $this->setCustomTrueOptionLabel($data['custom_true']);
-            $this->setCustomFalseOptionLabel($data['custom_false']);
+            if ($data['custom_true'] !== null) {
+                $this->setCustomTrueOptionLabel($data['custom_true']);
+            }
+
+            if ($data['custom_false'] !== null) {
+                $this->setCustomFalseOptionLabel($data['custom_false']);
+            }
 
             if ($data['score_partsol'] !== null) {
                 $this->setScorePartialSolutionEnabled((bool) $data['score_partsol']);
@@ -290,7 +295,7 @@ class assKprimChoice extends assQuestion implements ilObjQuestionScoringAdjustab
 
             $answer->setPosition($data['position']);
 
-            $answer->setAnswertext(ilRTE::_replaceMediaObjectImageSrc($data['answertext'], 1));
+            $answer->setAnswertext(ilRTE::_replaceMediaObjectImageSrc($data['answertext'] ?? '', 1));
 
             $answer->setImageFile($data['imagefile']);
             $answer->setThumbPrefix($this->getThumbPrefix());
@@ -630,7 +635,7 @@ class assKprimChoice extends assQuestion implements ilObjQuestionScoringAdjustab
                     $ext = 'JPEG';
                     break;
             }
-            ilShellUtil::convertImage($filename, $thumbpath, $ext, (string)$this->getThumbSize());
+            ilShellUtil::convertImage($filename, $thumbpath, $ext, (string) $this->getThumbSize());
         }
     }
 

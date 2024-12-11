@@ -29,7 +29,13 @@ class Agent extends Setup\Agent\NullAgent
 {
     public function getUpdateObjective(Setup\Config $config = null): Setup\Objective
     {
-        return new \ilDatabaseUpdateStepsExecutedObjective(new ilWikiDBUpdateSteps());
+        return new Setup\ObjectiveCollection(
+            'Wiki Update',
+            true,
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilWikiDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilWiki8HotfixDBUpdateSteps())
+        );
+
     }
 
     public function getStatusObjective(Metrics\Storage $storage): Objective

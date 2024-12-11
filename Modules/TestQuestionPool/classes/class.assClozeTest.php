@@ -1837,7 +1837,11 @@ class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable
                                     break;
                                 case CLOZE_SELECT:
                                     $answer = $this->gaps[$gap_key]->getItem($gap_answers[$gap_key]);
-                                    $answertext = $answer->getAnswertext();
+                                    $answertext = '';
+                                    if ($answer !== null) {
+                                        $answertext = $answer->getAnswertext();
+                                    }
+
                                     if ($answertext != $combination_gap_answer['answer']) {
                                         $combination_fulfilled = false;
                                     }

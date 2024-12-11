@@ -13,6 +13,7 @@ tinymce.init({
     plugins: "save",
     fix_list_elements: true,
     block_formats: "{BLOCKFORMATS}",
+    toolbar_persist: true,
     toolbar_location: "top",
     toolbar_align: "left",
     path_location: "bottom",

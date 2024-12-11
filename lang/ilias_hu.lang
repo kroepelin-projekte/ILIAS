@@ -1262,6 +1262,7 @@ assessment#:#test_question_set_type_random_info#:#Minden tesztkitöltő egyéni 
 assessment#:#test_results#:#Teszteredmények összefoglalója
 assessment#:#test_scoring#:#Pontozási beállítások
 assessment#:#test_template_reset#:#A sablont sikeresen eltávolította.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#A teszt ezt a sablont használja: %s. Ha nem szeretne sablont használni a teszthez, és már vannak beállításai, kattintson ide: %s.
 assessment#:#test_using_template_link#:#Ne használjon a továbbiakban sablont
 assessment#:#text_correct#:#Helyes szöveg
@@ -1300,6 +1301,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Egyszerű szöveg használata k�
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#A kérdések és a válaszok nem formázható szövegek. LaTex sem használható. Viszont a visszajelzések és a tippek újra felhasználhatóak, ha kérdés beágyazott az ILIAS-tananyagban.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Use Rich-Text-Editor (TinyMCE) for editing questions and answers, feedbacks and hints###26 04 2023 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#A kérdések, a válaszok, a visszajelzések és a tippek formázható szövegek. Viszont a visszajelzések és a tippek nem használhatóak fel újra, ha kérdés beágyazott az ILIAS-tananyagban.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#A tesztet sikeresen kitöltötte, több kitöltést nem indíthat el.
 assessment#:#tst_all_test_competences#:#Összes tesztkompetencia
 assessment#:#tst_all_user_data_deleted#:#Ennek a tesztnek minden felhasználói adatát sikeresen eltávolította.
@@ -1405,7 +1408,7 @@ assessment#:#tst_edit_competence_assign#:#Összerendelési tulajdonságok módos
 assessment#:#tst_edit_scoring#:#Pontozás módosítása
 assessment#:#tst_ending_time#:#Záró időpont
 assessment#:#tst_ending_time_before_starting_time#:#A tesztet lezáró, a kezdődátumnál későbbi dátum.
-assessment#:#tst_ending_time_desc#:#Az az időpont, ami utána résztvevők már nem tudnak választ adni. <b>Fontos</b>: <b>Ne</b> használja ezt a lehetőséget vizsgánál, helyett inkább korlátozza a kitöltési időt. Csak ez utóbbi esetben fejeződik be a teszt a szerveroldalon, illetve ekkor mentjük automatikusan az utolsó beírt választ.
+assessment#:#tst_ending_time_desc#:#Az az időpont, ami utána résztvevők már nem tudnak választ adni. <strong>Fontos</strong>: <strong>Ne</strong> használja ezt a lehetőséget vizsgánál, helyett inkább korlátozza a kitöltési időt. Csak ez utóbbi esetben fejeződik be a teszt a szerveroldalon, illetve ekkor mentjük automatikusan az utolsó beírt választ.
 assessment#:#tst_enter_questionpool#:#Adja meg annak a kérdéssornak a nevét, amelybe menteni szeretné az új kérdést.
 assessment#:#tst_eval_question_points#:#Eredményes teljesítéshez kérdéseredmények %s
 assessment#:#tst_eval_results_by_pass#:#%s. tesztkitöltés kérdésre adott válaszai
@@ -1862,8 +1865,6 @@ assessment#:#tst_show_answer_sheet#:#Válaszok megjelenítése
 assessment#:#tst_show_cancel#:#Teszt felfüggesztése
 assessment#:#tst_show_cancel_description#:#A résztvevő egy gomb megnyomásával felfüggeszthetik a teszt töltését, hogy később folytathassák azt. FIGYELEM: A teszt felfüggesztése nem állítja le az órát akkor sem, ha maximálisan elhasználható idő be lett állítva.
 assessment#:#tst_show_comp_results#:#Kompetenciaeredmények
-assessment#:#tst_show_pass_details#:#Adott időpontban a 'Részletes teszteredmények táblázata' jelenjen meg az összes tesztkitöltéshez
-assessment#:#tst_show_pass_details_desc#:#A fent beállított időponttól az eredmények összesítését hozzáfűzzük: A 'Részletes teszteredmények táblázata' a kérdés címét és a résztvevő adott kitöltésben elért pontszámát mutatja.<br>A legutolsó lehetséges kitöltés ('Általános' menü 'Tesztkitöltések számának korlátja' beállítás) vagy a teszt zárása ('Általános' menü 'Záró időpont' beállítás) után másik táblázat jelenik meg.<br>'Részletes teszteredmények táblázata' tartalmával kapcsolatos további beállítások a 'Teszteredmények további tartamai' részben adható meg.
 assessment#:#tst_show_results#:#Teszteredmények
 assessment#:#tst_show_side_list#:#Kérdéslista megjelenítése
 assessment#:#tst_show_solution_answers_only#:#Eredmények nyomtatási előnézete (csak a válaszoké)
@@ -6021,6 +6022,7 @@ cont#:#cont_news_timeline_info#:#Hírek idővonal fülének bekapcsolása
 cont#:#cont_news_timeline_landing_page#:#Kezdőoldal
 cont#:#cont_news_timeline_landing_page_info#:#Az Idővonal fül lesz a kezdőoldal.
 cont#:#cont_news_timeline_tab#:#Idővonal
+cont#:#cont_no_title#:#Empty Title###13 08 2024 new variable
 cont#:#cont_page_type_cont#:#Tartalomtár oldal (kurzusok, csoportok, ...)
 cont#:#cont_page_type_cstr#:#Kurzus kezdő oldala (tanulási cél nézet)
 cont#:#cont_path#:#Útvonal
@@ -7279,6 +7281,7 @@ copg#:#copg_page_element_not_found#:#Az oldalelem nem található.
 copg#:#copg_page_type_stys#:#Lapelrendezés
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Ebben a kontextusban a kérdéseket nem támogatjuk.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8464,6 +8467,9 @@ dcl#:#dcl_confirm_delete_table#:#Biztos, hogy törli a táblát annak tartalmáv
 dcl#:#dcl_confirm_storing_records#:#Kérem, ellenőrizze és hagyja jóvá beírt adatát.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nincs jogosultsága a bejegyzést utólag módosítani.
 dcl#:#dcl_copy#:#Adatgyűjtés másolása
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Létrehozás dátuma
 dcl#:#dcl_create_entry_rules#:#Bejegyzés létrehozása
 dcl#:#dcl_create_field#:#Mező létrehozása
@@ -8488,6 +8494,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Legalább egy törlendő táblát válass
 dcl#:#dcl_delete_views#:#Nézetek törlése
 dcl#:#dcl_delete_views_no_selection#:#Legalább egy törlendő nézetet válasszon ki
 dcl#:#dcl_deleted_records#:#Sikeresen törölt %s bejegyzéseket
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Csökkenő sorrend (CSÖKK)
 dcl#:#dcl_description#:#Mező leírása
 dcl#:#dcl_detailed_view#:#Egyszerű
@@ -8606,6 +8613,7 @@ dcl#:#dcl_number#:#Egész szám
 dcl#:#dcl_number_desc#:#Egész szám típusú beviteli mező (max. 9 számjegy). Közönséges és tizedes törtek nem engedélyezettek.
 dcl#:#dcl_online_info#:#Az adatgyűjtést csak online állapotában használhatják a felhasználók.
 dcl#:#dcl_order#:#Sorrend
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Csak a saját bejegyzéseim
 dcl#:#dcl_owner#:#Tulajdonos
 dcl#:#dcl_owner_description#:#Az a felhasználó, aki a bejegyzés tulajdonosa.
@@ -8980,6 +8988,7 @@ ecs#:#ecs_protocol#:#Protokoll
 ecs#:#ecs_publish_as#:#Közzététel mint:
 ecs#:#ecs_publish_for#:#Kibocsátás ennek:
 ecs#:#ecs_published_for#:#Publikálva neki:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Új ECS-kurzus jött létre:
 ecs#:#ecs_read_remote_links#:#ECS-kurzusok frissítése
 ecs#:#ecs_refresh_participants#:#ECS-résztvevők frissítése
@@ -9320,6 +9329,7 @@ exc#:#exc_rel_last_submission#:#Utolsó lehetséges beadás
 exc#:#exc_rel_last_submission_info#:#Ha ez az opcionális dátum be van állítva, eddig a határidőig az összes felhasználónak be kell adnia a megoldását.
 exc#:#exc_relative_date#:#Relatív Dátum
 exc#:#exc_relative_date_info#:#Az összes felhasználónál a feladat megkezdésétől számítjuk a határidőt.
+exc#:#exc_relative_date_period#:#Working Time###13 08 2024 new variable
 exc#:#exc_rem_time_after_start#:#Hátralévő idő
 exc#:#exc_reminder_cron_ok#:#Emlékeztető kiküldve:
 exc#:#exc_reminder_end#:#Emlékeztetők vége
@@ -12358,6 +12368,7 @@ obj#:#obj_tool_setting_skills_info#:#Aktiválja a kompetenciamenedzsmentet és a
 obj#:#obj_tool_setting_tag_cloud#:#Címkefelhő
 obj#:#obj_tool_setting_tag_cloud_info#:#'Címkefelhő' blokk megjelenik a 'Tartalom' fül alatt.
 obj#:#obj_tool_setting_taxonomies#:#Taxonómiák
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Hírek
 obj#:#obj_tool_setting_use_news_info#:#Hírblokk, illetve idővonal nézet bekapcsolása. Amennyiben aktív, a felhasználók értesítést kérhetnek a módosulásról.
 obj#:#obj_tool_setting_use_news_open_settings#:#Beállítások megnyitása
@@ -14169,6 +14180,8 @@ registration#:#reg_direct#:#Közvetlen regisztráció
 registration#:#reg_direct_info#:#Új felhasználó regisztrációkérése automatikusan jóváhagyásra kerül.
 registration#:#reg_disabled#:#Regisztráció nem lehetséges
 registration#:#reg_domain#:#Tartomány
+registration#:#reg_domain_already_assigned_p#:#The domains '%s' were already entered for another role.###13 08 2024 new variable
+registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role. ###13 08 2024 new variable
 registration#:#reg_email#:#Automatikus szerep-összerendelés
 registration#:#reg_email_domains#:#Az alábbi e-mail cím domain-ek érvényesek: %s
 registration#:#reg_email_domains_code#:#Regisztrációs kóddal bármely e-mail cím érvényes.
@@ -16304,6 +16317,7 @@ tagging#:#tagging_enable_all_users_info#:#A Tartalomtár objektumainak 'Informá
 tagging#:#tagging_enable_tagging#:#Címkézés engedélyezése
 tagging#:#tagging_forbidden_tags#:#Tiltott címkék
 tagging#:#tagging_no_obj_for_tag#:#Egy erőforrásnak sincs címkéjé: %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Más felhasználók címkéi
 tagging#:#tagging_resources_for_tag#:#Források ezzel a címkével: %s
 tagging#:#tagging_search_users#:#Felhasználók keresése
@@ -16750,6 +16764,7 @@ user#:#enable_local_user_administration#:#Helyi ILIAS-fiókok kezelésének enge
 user#:#enable_local_user_administration_info#:#A 'Helyi ILIAS-fiókok kezelése' fül megjelenik a kategóriáknál és a szervezeti egységeknél.
 user#:#feedhash#:#Hírcsatorna-hash
 user#:#has_role#:#Szabály
+user#:#info_accessFree_sure#:#Are you sure you want to remove the valid until date from the following accounts?###13 08 2024 new variable
 user#:#inform_user_mail_info#:#Email-t küldünk a felhasználónak. Az e-mail tartalma megadható itt: Rendszerbeállítások » ILIAS-fiókok » Beállítások » Új felhasználónak levél.
 user#:#interests#:#Érdeklődési körök
 user#:#interests_general#:#Általános érdeklődési kör

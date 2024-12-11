@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Resumo dos resultados do teste
 assessment#:#test_scoring#:#Opções de pontuação
 assessment#:#test_template_reset#:#O modelo foi removido.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Este teste usa o modelo %s. Se não puder usar um modelo e ter acesso a todas as definições, clique aqui: %s.
 assessment#:#test_using_template_link#:#Não use mais o modelo
 assessment#:#text_correct#:#Corrigir texto
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Usar editor de páginas ILIAS pa
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Usar editor de Rich-Text para editar feedback e sugestões
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###07 02 2020 new variable
 assessment#:#tst_all_test_competences#:#Todas as competências do teste
 assessment#:#tst_all_user_data_deleted#:#Todos os dados de utilizador deste teste foram removidos!
@@ -1847,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Mostrar respostas
 assessment#:#tst_show_cancel#:#Regras para seleção aleatória de perguntas
 assessment#:#tst_show_cancel_description#:#Hora para começar
 assessment#:#tst_show_comp_results#:#Mostrar resultados de competência
-assessment#:#tst_show_pass_details#:#Iniciar nova tentativa de teste
-assessment#:#tst_show_pass_details_desc#:#Começar o teste
 assessment#:#tst_show_results#:#Tempo médio para analisar
 assessment#:#tst_show_side_list#:#Primeira visita
 assessment#:#tst_show_solution_answers_only#:#Última visita
@@ -3520,7 +3521,7 @@ common#:#auth_allow_local#:#Autorizar autenticação local
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Isto permite aos utilizadores CAS autenticarem-se com o seu nome de utilizador ILIAS local e uma palavra-passe local.
 common#:#auth_cas_auth#:#Configurar autenticação CAS
-common#:#auth_cas_auth_desc#:#CAS requer PHP 4.3.1 ou superior com suporte CURL (7.5 ou superior)
+common#:#auth_cas_auth_desc#:#Para que a autenticação CAS funcione, a configuração do servidor prevent_super_global_replacement em client.ini.php deve ser definida.
 common#:#auth_cas_port_desc#:#P. ex. 443 se o URI de servidor CAS inteiro URI for https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#P. ex. auth.yourserver.com se o URI de servidor CAS inteiro for https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#Local URI, p. ex. cas se o URI de servidor CAS inteiro for https://auth.yourserver.com:443/cas/
@@ -6006,6 +6007,7 @@ cont#:#cont_news_timeline_info#:#Ativa separador da linha cronológica das notí
 cont#:#cont_news_timeline_landing_page#:#Página de desembarque
 cont#:#cont_news_timeline_landing_page_info#:#A página da linha cronológica será a página de desembarque.
 cont#:#cont_news_timeline_tab#:#Linha cronológica
+cont#:#cont_no_title#:#Empty Title###13 08 2024 new variable
 cont#:#cont_page_type_cont#:#Repository Page (Cours, Group, ...)###30 04 2021 new variable
 cont#:#cont_page_type_cstr#:#Course Start Page (Learning Objectives View)###30 04 2021 new variable
 cont#:#cont_path#:#Caminho
@@ -7264,6 +7266,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###30 04 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###30 04 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#As perguntas não são suportadas neste contexto.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8449,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Tem a certeza que quer apagar esta tabela com o
 dcl#:#dcl_confirm_storing_records#:#Valide e confirme a sua entrada.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Não tem permissão para mudar o registo mais tarde.
 dcl#:#dcl_copy#:#Copiar coleção de dados
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Data de criação
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Criar campo
@@ -8473,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Apagar vistas
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Guardar registo corrigido
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Ordem descendente (DESC)
 dcl#:#dcl_description#:#Descrição do campo
 dcl#:#dcl_detailed_view#:#Vista detalhada
@@ -8591,6 +8598,7 @@ dcl#:#dcl_number#:#Inteiro
 dcl#:#dcl_number_desc#:#Campo para valores inteiros (máx. 9 dígitos). Nada de decimais ou frações.
 dcl#:#dcl_online_info#:#Apenas se a coleção de dados estiver online é que os utilizadores podem usá-la.
 dcl#:#dcl_order#:#Ordem
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Apenas entradas próprias
 dcl#:#dcl_owner#:#Proprietário
 dcl#:#dcl_owner_description#:#O proprietário da entrada.
@@ -8965,6 +8973,7 @@ ecs#:#ecs_protocol#:#Protocolo
 ecs#:#ecs_publish_as#:#Publicado como:
 ecs#:#ecs_publish_for#:#Lançamento para:
 ecs#:#ecs_published_for#:#Publicado para:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Partilhas LIT
 ecs#:#ecs_read_remote_links#:#Objetos partilhados
 ecs#:#ecs_refresh_participants#:#Atualizar participantes ECS
@@ -9305,6 +9314,7 @@ exc#:#exc_rel_last_submission#:#Last Possible Submission###07 02 2020 new variab
 exc#:#exc_rel_last_submission_info#:#If this optional date is set, all user have to submit until this deadline is reached.###07 02 2020 new variable
 exc#:#exc_relative_date#:#Mensagem enviada
 exc#:#exc_relative_date_info#:#O mail foi movido
+exc#:#exc_relative_date_period#:#Working Time###13 08 2024 new variable
 exc#:#exc_rem_time_after_start#:#Saída para variável [MAIL_SALUTATION], se a forma de tratamento for 'Sra.'
 exc#:#exc_reminder_cron_ok#:#Mover para:
 exc#:#exc_reminder_end#:#Os meus cursos
@@ -12343,6 +12353,7 @@ obj#:#obj_tool_setting_skills_info#:#Ativa a gestão e atribuição de competên
 obj#:#obj_tool_setting_tag_cloud#:#Tag cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#Adicionar competência
 obj#:#obj_tool_setting_taxonomies#:#Taxonomias
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Notícias
 obj#:#obj_tool_setting_use_news_info#:#Ativa o bloco de notícias e/ou a vista da linha cronológica.
 obj#:#obj_tool_setting_use_news_open_settings#:#Abrir definições
@@ -14154,6 +14165,8 @@ registration#:#reg_direct#:#Registro direto
 registration#:#reg_direct_info#:#Se isto é ativado, qualquer nova solicitação de cadastro de usuário será automaticamente aprovada
 registration#:#reg_disabled#:#Nenhum registro possível
 registration#:#reg_domain#:#Domínio
+registration#:#reg_domain_already_assigned_p#:#The domains '%s' were already entered for another role.###13 08 2024 new variable
+registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role. ###13 08 2024 new variable
 registration#:#reg_email#:#Atribuição automática de papel
 registration#:#reg_email_domains#:#The following email address domains are valid: %s
 registration#:#reg_email_domains_code#:#Com um código de registo, qualquer endereço de e-mail é válido.
@@ -16289,6 +16302,7 @@ tagging#:#tagging_enable_all_users_info#:#Adds a section "All Users" to the info
 tagging#:#tagging_enable_tagging#:#Habilitar Etiquetas
 tagging#:#tagging_forbidden_tags#:#Etiquetas proibidas
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Other Users
 tagging#:#tagging_resources_for_tag#:#Recursos marcados com %s
 tagging#:#tagging_search_users#:#Pesquisar utilizadores
@@ -16735,6 +16749,7 @@ user#:#enable_local_user_administration#:#Habilitar administração local de usu
 user#:#enable_local_user_administration_info#:#Se habiliatdo, contas locais de usuário podem ser administradas nas categorias.
 user#:#feedhash#:#Newsfeedhash
 user#:#has_role#:#Função
+user#:#info_accessFree_sure#:#Are you sure you want to remove the valid until date from the following accounts?###13 08 2024 new variable
 user#:#inform_user_mail_info#:#If activated, an email will be sent to the user. Its content can be defined in Administration > User Management > Settings > New Account Mail.
 user#:#interests#:#Interesses
 user#:#interests_general#:#Interesses gerais

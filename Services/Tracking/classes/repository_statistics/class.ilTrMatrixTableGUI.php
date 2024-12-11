@@ -481,6 +481,21 @@ class ilTrMatrixTableGUI extends ilLPTableBaseGUI
                 }
             }
 
+            /*
+             * ilTrQuery does not read out any information about org units
+             * (nor should it), so it needs to be added here.
+             */
+            if (in_array('org_units', $a_user_fields)) {
+                foreach (($data['set'] ?? []) as $key => $usr_data) {
+                    if (!isset($usr_data['usr_id'])) {
+                        continue;
+                    }
+                    $usr_id = (int) $usr_data['usr_id'];
+                    $org_units = ilOrgUnitPathStorage::getTextRepresentationOfUsersOrgUnits($usr_id);
+                    $data["set"][$key]['org_units'] = $org_units;
+                }
+            }
+
             $this->setMaxCount($data["cnt"] ?? 0);
             $this->setData($data["set"] ?? []);
             return $collection["object_ids"] ?? [];

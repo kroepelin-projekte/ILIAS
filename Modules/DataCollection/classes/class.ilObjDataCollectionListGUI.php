@@ -14,16 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilObjDataCollectionListGUI
- * @author  Jörg Lützenkirchen <luetzenkirchen@leifos.com>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * $Id: class.ilObjRootFolderListGUI.php 23764 2010-05-06 15:11:30Z smeyer $
- * @extends ilObjectListGUI
- */
 class ilObjDataCollectionListGUI extends ilObjectListGUI
 {
     /**

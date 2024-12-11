@@ -1,4 +1,19 @@
 /**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ * *******************************************************************
+ *
  * this script is responsible for clientside rendering of Inputs
  * ILIAS\UI\Component\Input\Field\DynamicInputsAware.
  *
@@ -82,13 +97,9 @@ il.UI.Input = il.UI.Input || {};
      * @param {int} sub_input_count
      */
     let addInputTemplateIds = function (template_html, sub_input_count) {
-      if (1 >= sub_input_count) {
-        return replaceAll(template_html, INPUT_ID_PLACEHOLDER, generateId());
-      }
-
       // Ids must not be all the same, therefore we need to generate
       // one for each sub-input contained in the template.
-      for (let i = 0; i < sub_input_count; i++) {
+      for (let i = 0; i <= sub_input_count; i++) {
         template_html = replaceAll(
           template_html,
           `${INPUT_ID_PLACEHOLDER}_${i}`,

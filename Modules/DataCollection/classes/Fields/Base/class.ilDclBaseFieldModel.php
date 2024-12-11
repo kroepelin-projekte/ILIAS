@@ -16,15 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclBaseFieldModel
- * @author  Michael Herren <mh@studer-raimann.ch>
- * @author  Martin Studer <ms@studer-raimann.ch>
- * @author  Marcel Raimann <mr@studer-raimann.ch>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * @author  Oskar Truffer <ot@studer-raimann.ch>
- * @ingroup ModulesDataCollection
- */
 class ilDclBaseFieldModel
 {
     protected string $id = "";
@@ -33,7 +24,7 @@ class ilDclBaseFieldModel
     protected string $description = "";
     protected int $datatypeId = 0;
     protected ?int $order = null;
-    protected bool $unique;
+    protected bool $unique = false;
     /** @var ilDclFieldProperty[] */
     protected array $property = [];
     protected bool $exportable = false;
@@ -220,8 +211,17 @@ class ilDclBaseFieldModel
     public function getDatatypeTitle(): string
     {
         $this->loadDatatype();
-
         return $this->datatype->getTitle();
+    }
+
+    public function getPresentationTitle(): string
+    {
+        return $this->lng->txt('dcl_' . $this->getDatatypeTitle());
+    }
+
+    public function getPresentationDescription(): string
+    {
+        return $this->lng->txt('dcl_' . $this->getDatatypeTitle() . '_desc');
     }
 
     /**
@@ -716,11 +716,17 @@ class ilDclBaseFieldModel
         return true;
     }
 
+    /**
+     * @deprecated
+     */
     public function getStorageLocationOverride(): ?int
     {
         return $this->storage_location_override;
     }
 
+    /**
+     * @deprecated override ilDclFieldTypePlugin::getStorageLocation() instead
+     */
     public function setStorageLocationOverride(?int $storage_location_override): void
     {
         $this->storage_location_override = $storage_location_override;

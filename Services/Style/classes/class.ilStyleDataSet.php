@@ -26,6 +26,7 @@ use ILIAS\Style\Content;
  * - sty: table object_data
  * - sty_setting: table style_setting
  * - sty_char: table style classes
+ * - sty_char_title: table style class titles
  * - sty_parameter: table style_parameter
  * - sty_color: table style colors
  * - sty_template: table style_template
@@ -40,6 +41,7 @@ use ILIAS\Style\Content;
  */
 class ilStyleDataSet extends ilDataSet
 {
+    protected Content\InternalRepoService $repo;
     /**
      * @var ilLogger
      */
@@ -71,6 +73,7 @@ class ilStyleDataSet extends ilDataSet
         $this->log->debug("constructed");
         $this->rbacsystem = $DIC->rbac()->system();
         $this->user = $DIC->user();
+        $this->repo = $DIC->contentStyle()->internal()->repo();
     }
 
 
@@ -80,7 +83,7 @@ class ilStyleDataSet extends ilDataSet
      */
     public function getSupportedVersions(): array
     {
-        return array("5.1.0");
+        return array("5.1.0", "8.0");
     }
 
     /**
@@ -104,6 +107,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "Id" => "integer",
                         "Title" => "text",
@@ -116,6 +120,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "object_style") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "ObjectId" => "integer"
                     );
@@ -125,6 +130,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_setting") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "StyleId" => "integer",
                         "Name" => "test",
@@ -142,12 +148,35 @@ class ilStyleDataSet extends ilDataSet
                         "Characteristic" => "text",
                         "Hide" => "integer"
                     );
+                case "8.0":
+                    return array(
+                        "StyleId" => "integer",
+                        "Type" => "text",
+                        "Characteristic" => "text",
+                        "Hide" => "integer",
+                        "OrderNr" => "integer",
+                        "Outdate" => "integer"
+                    );
+            }
+        }
+
+        if ($a_entity == "sty_char_title") {
+            switch ($a_version) {
+                case "8.0":
+                    return array(
+                        "StyleId" => "integer",
+                        "Type" => "text",
+                        "Characteristic" => "text",
+                        "Lang" => "text",
+                        "Title" => "text"
+                    );
             }
         }
 
         if ($a_entity == "sty_parameter") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "StyleId" => "integer",
                         "Tag" => "text",
@@ -164,6 +193,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_color") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "StyleId" => "integer",
                         "ColorName" => "text",
@@ -175,6 +205,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_media_query") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "Id" => "integer",
                         "StyleId" => "integer",
@@ -187,6 +218,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_template") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "Id" => "integer",
                         "StyleId" => "integer",
@@ -200,6 +232,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_template_class") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "TemplateId" => "integer",
                         "ClassType" => "text",
@@ -211,6 +244,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_usage") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     return array(
                         "ObjId" => "integer",
                         "StyleId" => "integer"
@@ -250,6 +284,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "object_style") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     foreach ($a_ids as $id) {
                         $this->data[] = array("ObjectId" => $id);
                     }
@@ -260,6 +295,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT o.title, o.description, o.obj_id id" .
                         " FROM object_data o " .
                         " WHERE " . $ilDB->in("o.obj_id", $a_ids, false, "integer"));
@@ -270,6 +306,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_setting") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT style_id, name, value" .
                         " FROM style_setting " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -280,8 +317,19 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_char") {
             switch ($a_version) {
                 case "5.1.0":
-                    $this->getDirectDataFromQuery("SELECT style_id, type, characteristic, hide" .
+                case "8.0":
+                    $this->getDirectDataFromQuery("SELECT style_id, type, characteristic, hide, order_nr, outdated" .
                         " FROM style_char " .
+                        " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
+                    break;
+            }
+        }
+
+        if ($a_entity == "sty_char_title") {
+            switch ($a_version) {
+                case "8.0":
+                    $this->getDirectDataFromQuery("SELECT style_id, type, characteristic, lang, title" .
+                        " FROM style_char_title " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
                     break;
             }
@@ -290,6 +338,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_parameter") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT style_id, tag, class, parameter, value, type, mq_id, custom" .
                         " FROM style_parameter " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -300,6 +349,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_color") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT style_id, color_name, color_code" .
                         " FROM style_color " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -310,6 +360,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_media_query") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT id, style_id, order_nr, mquery m_query" .
                         " FROM sty_media_query " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -320,6 +371,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_template") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT id, style_id, name, preview, temp_type" .
                         " FROM style_template " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -330,6 +382,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_template_class") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT template_id, class_type, class" .
                         " FROM style_template_class " .
                         " WHERE " . $ilDB->in("template_id", $a_ids, false, "integer"));
@@ -340,6 +393,7 @@ class ilStyleDataSet extends ilDataSet
         if ($a_entity == "sty_usage") {
             switch ($a_version) {
                 case "5.1.0":
+                case "8.0":
                     $this->getDirectDataFromQuery("SELECT obj_id, style_id" .
                         " FROM style_usage " .
                         " WHERE " . $ilDB->in("style_id", $a_ids, false, "integer"));
@@ -376,6 +430,7 @@ class ilStyleDataSet extends ilDataSet
                     "sty_setting" => array("ids" => $a_rec["Id"] ?? null),
                     "sty_media_query" => array("ids" => $a_rec["Id"] ?? null),
                     "sty_char" => array("ids" => $a_rec["Id"] ?? null),
+                    "sty_char_title" => array("ids" => $a_rec["Id"] ?? null),
                     "sty_color" => array("ids" => $a_rec["Id"] ?? null),
                     "sty_parameter" => array("ids" => $a_rec["Id"] ?? null),
                     "sty_template" => array("ids" => $a_rec["Id"] ?? null),
@@ -400,7 +455,6 @@ class ilStyleDataSet extends ilDataSet
     public function importRecord(string $a_entity, array $a_types, array $a_rec, ilImportMapping $a_mapping, string $a_schema_version): void
     {
         global $DIC;
-
         $service = $DIC->contentStyle()->internal();
         $access_manager = $service->domain()->access(
             0,
@@ -454,7 +508,18 @@ class ilStyleDataSet extends ilDataSet
                 break;
 
             case "sty_char":
-                $this->current_obj->addCharacteristic($a_rec["Type"], $a_rec["Characteristic"], $a_rec["Hide"]);
+                $this->current_obj->addCharacteristic($a_rec["Type"], $a_rec["Characteristic"], $a_rec["Hide"], (int) ($a_rec["OrderNr"] ?? 0), (bool) ($a_rec["Outdated"] ?? false));
+                break;
+
+            case "sty_char_title":
+                $char_repo = $this->repo->characteristic();
+                $char_repo->addTitle(
+                    $this->current_obj->getId(),
+                    $a_rec["Type"],
+                    $a_rec["Characteristic"],
+                    $a_rec["Lang"],
+                    $a_rec["Title"],
+                );
                 break;
 
             case "sty_parameter":

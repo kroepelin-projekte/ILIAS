@@ -16,13 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Maybe a separate service in the future. Needs a generic approach.
- *
- * Currently only the main menu (and personal desktop) should use this.
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilAchievements
 {
     private ilCertificateActiveValidator $validator;

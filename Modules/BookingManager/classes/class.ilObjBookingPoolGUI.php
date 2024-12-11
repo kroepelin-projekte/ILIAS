@@ -26,6 +26,7 @@
  */
 class ilObjBookingPoolGUI extends ilObjectGUI
 {
+    protected \ILIAS\BookingManager\InternalDomainService $domain;
     protected ilCronManager $cron_manager;
     protected \ILIAS\BookingManager\StandardGUIRequest $book_request;
     protected \ILIAS\BookingManager\InternalService $service;
@@ -91,6 +92,7 @@ class ilObjBookingPoolGUI extends ilObjectGUI
             throw new ilException("Booking Object ID does not match Booking Pool.");
         }
         $this->cron_manager = $DIC->cron()->manager();
+        $this->domain = $DIC->bookingManager()->internal()->domain();
     }
 
     /**
@@ -372,6 +374,12 @@ class ilObjBookingPoolGUI extends ilObjectGUI
         $pref->setInfo($this->lng->txt("book_schedule_type_none_preference_info"));
         $type->addOption($pref);
 
+        $pref_options_disabled = false;
+        if ($this->object->getScheduleType() === ilObjBookingPool::TYPE_NO_SCHEDULE_PREFERENCES) {
+            $pref_manager = $this->domain->preferences($this->object);
+            $pref_options_disabled = $pref_manager->hasRun();
+        }
+
         // number of preferences
         $pref_nr = new ilNumberInputGUI($this->lng->txt("book_nr_of_preferences"), "preference_nr");
         $pref_nr->setSize(4);
@@ -379,6 +387,7 @@ class ilObjBookingPoolGUI extends ilObjectGUI
         $pref_nr->setInfo($this->lng->txt("book_nr_of_preferences_info"));
         $pref_nr->setSuffix($this->lng->txt("book_nr_preferences"));
         $pref_nr->setRequired(true);
+        $pref_nr->setDisabled($pref_options_disabled);
         $pref->addSubItem($pref_nr);
 
         // preference deadline
@@ -386,6 +395,7 @@ class ilObjBookingPoolGUI extends ilObjectGUI
         $pref_deadline->setInfo($this->lng->txt("book_pref_deadline_info"));
         $pref_deadline->setShowTime(true);
         $pref_deadline->setRequired(true);
+        $pref_deadline->setDisabled($pref_options_disabled);
         $pref->addSubItem($pref_deadline);
 
         $public = new ilCheckboxInputGUI($this->lng->txt("book_public_log"), "public");

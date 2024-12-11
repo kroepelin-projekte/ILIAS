@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -18,6 +16,8 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
+declare(strict_types=1);
+
 /**
  * Settings template application class
  *
@@ -28,14 +28,15 @@ class ilSettingsTemplate
 {
     protected ilDBInterface $db;
     private int $id;
-    private string $type;
-    private string $title;
-    private string $description;
+    private string $type = '';
+    private string $title = '';
+    private string $description = '';
     private array $setting = [];
     /** @var array<string, string> */
     private array $hidden_tab = [];
     private bool $auto_generated = false;
     private ?ilSettingsTemplateConfig $config = null;
+    private bool $available = true;
 
     public function __construct(
         int $a_id = 0,
@@ -101,6 +102,11 @@ class ilSettingsTemplate
     public function getDescription(): string
     {
         return $this->description;
+    }
+
+    public function isAvailable(): bool
+    {
+        return $this->available;
     }
 
     /**
@@ -188,6 +194,7 @@ class ilSettingsTemplate
             " id = " . $ilDB->quote($this->getId(), "integer")
         );
         if ($ilDB->numRows($set) === 0) {
+            $this->available = false;
             return;
         }
 
@@ -220,6 +227,7 @@ class ilSettingsTemplate
         while ($rec = $ilDB->fetchAssoc($set)) {
             $this->addHiddenTab($rec["tab_id"]);
         }
+        $this->available = true;
     }
 
     public function create(): void

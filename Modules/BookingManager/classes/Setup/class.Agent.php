@@ -29,6 +29,11 @@ class Agent extends Setup\Agent\NullAgent
 {
     public function getUpdateObjective(Setup\Config $config = null): Setup\Objective
     {
-        return new \ilDatabaseUpdateStepsExecutedObjective(new ilBookingManagerDBUpdateSteps());
+        return new Setup\ObjectiveCollection(
+            'Booking Manager Update',
+            true,
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilBookingManagerDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilBookingManager8HotfixDBUpdateSteps())
+        );
     }
 }

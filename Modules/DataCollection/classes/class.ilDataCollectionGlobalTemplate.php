@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,18 +14,11 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
 include_once("./Services/UICore/lib/html-it/IT.php");
 include_once("./Services/UICore/lib/html-it/ITX.php");
 
-/**
- * special template class to simplify handling of ITX/PEAR
- * @author     Stefan Kesseler <skesseler@databay.de>
- * @author     Sascha Hofmann <shofmann@databay.de>
- * @version    $Id$
- */
 class ilDataCollectionGlobalTemplate implements ilGlobalTemplateInterface
 {
     protected $tree_flat_link = "";

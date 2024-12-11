@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Options de Résultats
 assessment#:#test_scoring#:#Options de Notation
 assessment#:#test_template_reset#:#Le modèle de paramétrage a été retiré.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Ce test utilise le modèle de paramétrage : %s.<br />Si vous ne souhaitez plus utiliser de modèle de paramétrage et avoir accès à la totalité des réglages, cliquez sur le lien : %s.
 assessment#:#test_using_template_link#:#Ne plus utiliser de modèle de paramétrage
 assessment#:#text_correct#:#Texte correct
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Edition de Contenu Supplémentai
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Mode d'Edition par Défaut pour Contenu Additionnel
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.
 assessment#:#tst_all_test_competences#:#Tous les tests de compétence
 assessment#:#tst_all_user_data_deleted#:#Toutes les données utilisateur de ce test ont été détruites
@@ -1847,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Afficher les Réponses
 assessment#:#tst_show_cancel#:#Afficher l'Option de Suspension de Test
 assessment#:#tst_show_cancel_description#:#Si cochée, un bouton permettant de suspendre le test est affiché pendant le test.
 assessment#:#tst_show_comp_results#:#Montrer les résultats de compétence
-assessment#:#tst_show_pass_details#:#Afficher les Critères de Réussite du Test
-assessment#:#tst_show_pass_details_desc#:#Si cochée, les titres des questions et les points atteints pour chaque question du test sont affichés même si le test n'est pas terminé.
 assessment#:#tst_show_results#:#Afficher les Résultats du Test
 assessment#:#tst_show_side_list#:#Afficher la liste de question sur le côté
 assessment#:#tst_show_solution_answers_only#:#Impression des Résultats (Réponses Seulement)
@@ -3520,7 +3521,7 @@ common#:#auth_allow_local#:#Autoriser l'Authentification Locale
 common#:#auth_cas#:#CAS
 common#:#auth_cas_allow_local_desc#:#Permet aux utilisateurs authentifiés par CAS de se connecter avec leur identifiant et leur mot de passe local.
 common#:#auth_cas_auth#:#Configurer l'Authentification CAS
-common#:#auth_cas_auth_desc#:#CAS requiert PHP 4.3.1 ou supérieur avec support de CURL (7.5 ou supérieur)
+common#:#auth_cas_auth_desc#:#Pour que l'authentification CAS fonctionne, le paramètre serveur prevent_super_global_replacement dans client.ini.php doit être défini.
 common#:#auth_cas_port_desc#:#Par ex. 443 si l'URI du serveur CAS est https://auth.yourserver.com:443/cas/
 common#:#auth_cas_server_desc#:#Par ex. auth.yourserver.com si l'URI du serveur CAS est https://auth.yourserver.com:443/cas/
 common#:#auth_cas_uri_desc#:#URI local, par ex. cas si l'URI du serveur CAS est https://auth.yourserver.com:443/cas/
@@ -6006,6 +6007,7 @@ cont#:#cont_news_timeline_info#:#Active l’onglet de chronologie des nouvelles
 cont#:#cont_news_timeline_landing_page#:#Page d’accueil
 cont#:#cont_news_timeline_landing_page_info#:#La page de chronologie sera la page d’accueil.
 cont#:#cont_news_timeline_tab#:#Chronologie
+cont#:#cont_no_title#:#Empty Title###13 08 2024 new variable
 cont#:#cont_page_type_cont#:#Page de catalogue (cours, group, ...)
 cont#:#cont_page_type_cstr#:#Course Start Page (Learning Objectives View)
 cont#:#cont_path#:#Chemin
@@ -7264,6 +7266,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.
 copg#:#copg_page_type_stys#:#Layout Page
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#Les questions ne sont pas supportées dans ce contexte.
 copg#:#copg_reload_page#:#Reload Page
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8449,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Voulez-vous vraiment supprimer ce tableau avec 
 dcl#:#dcl_confirm_storing_records#:#Veuillez valider et confirmer votre entrée.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Vous avez la permission de modifier le dossier par la suite.
 dcl#:#dcl_copy#:#Copier Collection de Données
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Date de création
 dcl#:#dcl_create_entry_rules#:#Entry Creation
 dcl#:#dcl_create_field#:#Créer Champ
@@ -8473,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Supprimer les vues
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 10 2023 new variable
 dcl#:#dcl_deleted_records#:#Successfully deleted %s records
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Ordre décroissant (DECR)
 dcl#:#dcl_description#:#Description du Champ
 dcl#:#dcl_detailed_view#:#Vue détaillée
@@ -8591,6 +8598,7 @@ dcl#:#dcl_number#:#Nombre entier
 dcl#:#dcl_number_desc#:#Champ pour les valeurs de nombre entier (max. 9 chiffres). Pas de décimales ou de fractions.
 dcl#:#dcl_online_info#:#Les utilisateurs sont capables d’utiliser la collecte de données uniquement si celle-ci est en ligne.
 dcl#:#dcl_order#:#Ordre
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Uniquement les entrées propres
 dcl#:#dcl_owner#:#Propriétaire
 dcl#:#dcl_owner_description#:#Le propriétaire de l’entrée.
@@ -8965,6 +8973,7 @@ ecs#:#ecs_protocol#:#Protocole
 ecs#:#ecs_publish_as#:#Publié comme :
 ecs#:#ecs_publish_for#:#Mettre à  jour pour :
 ecs#:#ecs_published_for#:#Publié pour :
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Un nouveau cours à  distance a été créé :
 ecs#:#ecs_read_remote_links#:#Mettre à  jour cours à  distance
 ecs#:#ecs_refresh_participants#:#Rafraîchir les participants ECS
@@ -9305,6 +9314,7 @@ exc#:#exc_rel_last_submission#:#Last Possible Submission
 exc#:#exc_rel_last_submission_info#:#If this optional date is set, all user have to submit until this deadline is reached.
 exc#:#exc_relative_date#:#Relative Date
 exc#:#exc_relative_date_info#:#The deadline is set individually relative to the time when a user started the assignment.
+exc#:#exc_relative_date_period#:#Working Time###13 08 2024 new variable
 exc#:#exc_rem_time_after_start#:#Remaining Time after Start
 exc#:#exc_reminder_cron_ok#:#Reminders sent:
 exc#:#exc_reminder_end#:#Reminder ends
@@ -12343,6 +12353,7 @@ obj#:#obj_tool_setting_skills_info#:#Active une gestion des compétences et des 
 obj#:#obj_tool_setting_tag_cloud#:#Marquer Cloud
 obj#:#obj_tool_setting_tag_cloud_info#:#The "tag cloud" block will be displayed inside the "Content" tab.
 obj#:#obj_tool_setting_taxonomies#:#Taxonomies
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Nouvelles
 obj#:#obj_tool_setting_use_news_info#:#Activer le bloc de nouvelles et/ou la vue chronologique.
 obj#:#obj_tool_setting_use_news_open_settings#:#Ouvrir les paramètres
@@ -14154,6 +14165,8 @@ registration#:#reg_direct#:#Enregistrement Direct
 registration#:#reg_direct_info#:#Si cochée, toute nouvelle inscription d'utilisateur est automatiquement approuvée.
 registration#:#reg_disabled#:#Pas d'Enregistrement
 registration#:#reg_domain#:#Domaine
+registration#:#reg_domain_already_assigned_p#:#The domains '%s' were already entered for another role.###13 08 2024 new variable
+registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role. ###13 08 2024 new variable
 registration#:#reg_email#:#Attribution Automatique de Rôle
 registration#:#reg_email_domains#:#Les domaines d'adresse email suivants sont valides : %s
 registration#:#reg_email_domains_code#:#Avec un code d'enregistrement, toutes les adresses email sont valides.
@@ -16289,6 +16302,7 @@ tagging#:#tagging_enable_all_users_info#:#Ajouter une section "Tous utilisateurs
 tagging#:#tagging_enable_tagging#:#Activer Tagging
 tagging#:#tagging_forbidden_tags#:#Tags interdits
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Other Users
 tagging#:#tagging_resources_for_tag#:#Ressources taggées avec %s
 tagging#:#tagging_search_users#:#Rechercher utilisateurs
@@ -16735,6 +16749,7 @@ user#:#enable_local_user_administration#:#Activer l'administration des utilisate
 user#:#enable_local_user_administration_info#:#Si actif, les comptes utilisateur locaux peuvent être administrés en catégories.
 user#:#feedhash#:#Identifiant unique du flux de nouvelles
 user#:#has_role#:#Rôle
+user#:#info_accessFree_sure#:#Are you sure you want to remove the valid until date from the following accounts?###13 08 2024 new variable
 user#:#inform_user_mail_info#:#Lorsque activé, un email est envoyé à l'utilisateur. Son contenu peut être défini dans Administration > Gestion des Utilisateurs > Paramétrages > Mail de Nouveau Compte.
 user#:#interests#:#Intérêts
 user#:#interests_general#:#Intérêts généraux

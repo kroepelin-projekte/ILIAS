@@ -18,7 +18,6 @@
 
 /**
  * @ilCtrl_Calls ilAchievementsGUI: ilLearningProgressGUI, ilPersonalSkillsGUI, ilBadgeProfileGUI, ilLearningHistoryGUI
- * @author Alexander Killing <killing@leifos.de>
  */
 class ilAchievementsGUI
 {

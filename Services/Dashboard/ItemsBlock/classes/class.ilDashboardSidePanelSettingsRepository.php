@@ -16,11 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Dashboard side panel settings Repo
- *
- * @author Alexander Killing <killing@leifos.de>
- */
 class ilDashboardSidePanelSettingsRepository
 {
     public const CALENDAR = "cal";

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 use ILIAS\Filesystem\Stream\Streams;
 use Firebase\JWT\JWK;
@@ -125,7 +125,7 @@ class ilObjLTIConsumer extends ilObject2
         return $this->activationStartingTime;
     }
 
-    public function setActivationStartingTime(int $activationStartingTime): void
+    public function setActivationStartingTime(?int $activationStartingTime = null): void
     {
         $this->activationStartingTime = $activationStartingTime;
     }
@@ -135,7 +135,7 @@ class ilObjLTIConsumer extends ilObject2
         return $this->activationEndingTime;
     }
 
-    public function setActivationEndingTime(int $activationEndingTime): void
+    public function setActivationEndingTime(?int $activationEndingTime = null): void
     {
         $this->activationEndingTime = $activationEndingTime;
     }
@@ -429,11 +429,15 @@ class ilObjLTIConsumer extends ilObject2
             switch ($activation["timing_type"]) {
                 case ilObjectActivation::TIMINGS_ACTIVATION:
                     $this->setActivationLimited(true);
-
+                    if (!is_null($activation["timing_start"])) {
+                        $activation["timing_start"] = (int) $activation["timing_start"];
+                    }
                     $this->setActivationStartingTime($activation["timing_start"]);
-
+                    if (!is_null($activation["timing_end"])) {
+                        $activation["timing_end"] = (int) $activation["timing_end"];
+                    }
                     $this->setActivationEndingTime($activation["timing_end"]);
-                    $this->setActivationVisibility($activation["visible"]);
+                    $this->setActivationVisibility((bool) $activation["visible"]);
                     break;
 
                 default:
@@ -1268,7 +1272,7 @@ class ilObjLTIConsumer extends ilObject2
         $reponseData = $data;
         $provider = new ilLTIConsumeProvider();
         $toolConfig = $data['https://purl.imsglobal.org/spec/lti-tool-configuration'];
-        $provider->setTitle($data['client_name']);
+        $provider->setTitle(strip_tags($data['client_name'], ilObjectGUI::ALLOWED_TAGS_IN_TITLE_AND_DESCRIPTION));
         $provider->setProviderUrl($toolConfig['target_link_uri']);
         $provider->setInitiateLogin($data['initiate_login_uri']);
         $provider->setRedirectionUris(implode(",", $data['redirect_uris']));
@@ -1287,8 +1291,8 @@ class ilObjLTIConsumer extends ilObject2
         */
         $provider->setKeyType('JWK_KEYSET');
         $provider->setLtiVersion('1.3.0');
-        $provider->setClientId((string)$tokenObj->aud); //client_id
-        $provider->setCreator((int)$tokenObj->sub); // user_id
+        $provider->setClientId((string) $tokenObj->aud); //client_id
+        $provider->setCreator((int) $tokenObj->sub); // user_id
         $provider->setAvailability(ilLTIConsumeProvider::AVAILABILITY_CREATE);
         $provider->setIsGlobal(false);
         $provider->insert();

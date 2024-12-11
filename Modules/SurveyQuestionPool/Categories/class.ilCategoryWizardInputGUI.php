@@ -205,7 +205,7 @@ class ilCategoryWizardInputGUI extends ilTextInputGUI
 
         if (count($foundvalues) > 0) {
             // check answers
-            if (is_array($foundvalues['answer'])) {
+            if (is_array($foundvalues['answer'] ?? false)) {
                 foreach ($foundvalues['answer'] as $idx => $answervalue) {
                     if (((strlen($answervalue)) == 0) && ($this->getRequired() && (!isset($foundvalues['other'][$idx])))) {
                         $this->setAlert($lng->txt("msg_input_is_required"));
@@ -244,7 +244,7 @@ class ilCategoryWizardInputGUI extends ilTextInputGUI
 
             // check neutral column scale
             if ($neutral_scale != "") {
-                if (is_array($foundvalues['scale'])) {
+                if (isset($foundvalues['scale'])) {
                     if (in_array($neutral_scale, $foundvalues['scale'])) {
                         $this->setAlert($lng->txt("msg_duplicate_scale"));
                         return false;

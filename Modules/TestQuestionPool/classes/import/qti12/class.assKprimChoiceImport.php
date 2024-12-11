@@ -199,11 +199,13 @@ class assKprimChoiceImport extends assQuestionImport
         $this->object->setQuestion($this->object->QTIMaterialToString($item->getQuestiontext()));
         $this->object->setObjId($questionpool_id);
         $this->object->setShuffleAnswersEnabled($shuffle);
-        $this->object->setAnswerType($item->getMetadataEntry("answer_type"));
-        $this->object->setOptionLabel($item->getMetadataEntry("option_label_setting"));
-        $this->object->setCustomTrueOptionLabel($item->getMetadataEntry("custom_true_option_label"));
-        $this->object->setCustomFalseOptionLabel($item->getMetadataEntry("custom_false_option_label"));
-        $this->object->setThumbSize((int) $item->getMetadataEntry("thumb_size"));
+        $this->object->setAnswerType($item->getMetadataEntry('answer_type'));
+        $this->object->setOptionLabel($item->getMetadataEntry('option_label_setting'));
+        $this->object->setCustomTrueOptionLabel($item->getMetadataEntry('custom_true_option_label'));
+        $this->object->setCustomFalseOptionLabel($item->getMetadataEntry('custom_false_option_label'));
+        $this->object->setThumbSize(
+            $this->deduceThumbSizeFromImportValue((int) $item->getMetadataEntry('thumb_size'))
+        );
 
         $this->object->saveToDb();
 

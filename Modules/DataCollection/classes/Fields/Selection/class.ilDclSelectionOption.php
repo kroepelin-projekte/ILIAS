@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -13,13 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilDclSelectionOption
- * @author  Theodor Truffer <tt@studer-raimann.ch>
- */
 class ilDclSelectionOption extends ActiveRecord
 {
     public const DB_TABLE_NAME = "il_dcl_sel_opts";

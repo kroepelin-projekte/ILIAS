@@ -25,6 +25,7 @@ declare(strict_types=1);
  */
 class ilObjStyleSheet extends ilObject
 {
+    protected \ILIAS\Style\Content\InternalRepoService $repo;
     protected bool $is_3_10_skin = false;
     protected string $export_sub_dir = "";
     protected array $chars_by_type = [];
@@ -517,6 +518,7 @@ class ilObjStyleSheet extends ilObject
             $this->ilias->raiseError("Can't instantiate style object via reference id.", $this->ilias->error_obj->FATAL);
         }
         parent::__construct($a_id, false);
+        $this->repo = $DIC->contentStyle()->internal()->repo();
     }
 
     public static function getBasicZipPath(): string
@@ -825,14 +827,8 @@ class ilObjStyleSheet extends ilObject
                     "type" => $par_rec["type"], "mq_id" => $par_rec["mq_id"], "custom" => $par_rec["custom"]);
             }
 
-            // get style characteristics records
-            $chars = array();
-            $q = "SELECT * FROM style_char WHERE style_id = " .
-                $ilDB->quote($a_from_style, "integer");
-            $par_set = $ilDB->query($q);
-            while ($par_rec = $ilDB->fetchAssoc($par_set)) {
-                $chars[] = array("type" => $par_rec["type"], "characteristic" => $par_rec["characteristic"]);
-            }
+            $char_repo = $this->repo->characteristic();
+            $char_repo->cloneAllFromStyle($a_from_style, $this->getId());
 
 
             // copy media queries
@@ -859,15 +855,6 @@ class ilObjStyleSheet extends ilObject
                     $ilDB->quote((int) ($mq_mapping[$sty["mq_id"]] ?? 0), "integer") . "," .
                     $ilDB->quote($sty["custom"], "integer") .
                     ")";
-                $ilDB->manipulate($q);
-            }
-
-            // insert style characteristics
-            foreach ($chars as $char) {
-                $q = "INSERT INTO style_char (style_id, type, characteristic) VALUES " .
-                    "(" . $ilDB->quote($this->getId(), "integer") . "," .
-                    $ilDB->quote($char["type"], "text") . "," .
-                    $ilDB->quote($char["characteristic"], "text") . ")";
                 $ilDB->manipulate($q);
             }
 
@@ -931,17 +918,21 @@ class ilObjStyleSheet extends ilObject
     public function addCharacteristic(
         string $a_type,
         string $a_char,
-        bool $a_hidden = false
+        bool $a_hidden = false,
+        int $order_nr = 0,
+        bool $outdated = false
     ): void {
         $ilDB = $this->db;
 
         // delete characteristic record
-        $ilDB->manipulateF(
-            "INSERT INTO style_char (style_id, type, characteristic, hide)" .
-            " VALUES (%s,%s,%s,%s) ",
-            array("integer", "text", "text", "integer"),
-            array($this->getId(), $a_type, $a_char, $a_hidden)
-        );
+        $ilDB->insert("style_char", [
+            "style_id" => ["integer", $this->getId()],
+            "type" => ["text", $a_type],
+            "characteristic" => ["text", $a_char],
+            "hide" => ["integer", (int) $a_hidden],
+            "outdated" => ["integer", (int) $outdated],
+            "order_nr" => ["integer", $order_nr]
+        ]);
 
         $this->setUpToDate(false);
         $this->_writeUpToDate($this->getId(), false);
@@ -1396,7 +1387,7 @@ class ilObjStyleSheet extends ilObject
                     fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . "\n");
                 }
                 if ($tag[0]["type"] == "section") {	// sections can use a tags, if links are used
-                    fwrite($css_file, ",a.ilc_" . $tag[0]["type"] . "_" . $tag[0]["class"] . "\n");
+                    fwrite($css_file, ",div a.ilc_" . $tag[0]["type"] . "_" . $tag[0]["class"] . "\n");
                 }
                 if ($tag[0]["type"] == "text_block") {
                     fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . "\n");
@@ -1421,12 +1412,12 @@ class ilObjStyleSheet extends ilObject
 
                     if (in_array($cur_par, array("background-image", "list-style-image"))) {
                         if (is_int(strpos($cur_val, "/"))) {	// external
-                            $cur_val = "url(" . $cur_val . ")";
+                            $cur_val = "url('" . $cur_val . "')";
                         } else {		// internal
                             if ($a_image_dir == "") {
-                                $cur_val = "url(../sty/sty_" . $this->getId() . "/images/" . $cur_val . ")";
+                                $cur_val = "url('../sty/sty_" . $this->getId() . "/images/" . $cur_val . "')";
                             } else {
-                                $cur_val = "url(" . $a_image_dir . "/" . $cur_val . ")";
+                                $cur_val = "url('" . $a_image_dir . "/" . $cur_val . "')";
                             }
                         }
                     }

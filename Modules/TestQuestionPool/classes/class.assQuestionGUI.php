@@ -1016,6 +1016,7 @@ abstract class assQuestionGUI
             // author
             $author = new ilTextInputGUI($this->lng->txt("author"), "author");
             $author->setValue($this->object->getAuthor());
+            $author->setMaxLength(512);
             $author->setRequired(true);
             $form->addItem($author);
 
@@ -1234,7 +1235,9 @@ abstract class assQuestionGUI
             $solution_array['type'] = '';
         }
 
-        $solution_type = $this->request->raw('solutiontype');
+        $solution_type = $this->ctrl->getCmd() === 'cancelSuggestedSolution'
+            ? $solution_array["type"]
+            : $this->request->raw('solutiontype');
         if (is_string($solution_type) &&
             strcmp($solution_type, "file") == 0 &&
             strcmp($solution_array["type"], "file") != 0) {
@@ -1311,7 +1314,7 @@ abstract class assQuestionGUI
                 $file->setRequired(true);
                 $file->enableFileNameSelection("filename");
 
-                if (array_key_exists("file", $_FILES) &&
+                if ($save && array_key_exists("file", $_FILES) &&
                     array_key_exists("tmp_name", $_FILES["file"]) &&
                     $_FILES["file"]["tmp_name"] && $file->checkInput()) {
                     if (!file_exists($this->object->getSuggestedSolutionPath())) {

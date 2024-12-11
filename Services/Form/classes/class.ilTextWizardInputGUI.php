@@ -84,6 +84,9 @@ class ilTextWizardInputGUI extends ilTextInputGUI
                         $this->setAlert($lng->txt("msg_wrong_format"));
                         return false;
                     }
+                } elseif ($this->getMaxLength() && mb_strlen($value) > $this->getMaxLength()) {
+                    $this->setAlert($lng->txt("msg_input_char_limit_max"));
+                    return false;
                 }
             }
         } elseif ($this->getRequired()) {

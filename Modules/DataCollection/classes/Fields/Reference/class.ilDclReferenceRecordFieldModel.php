@@ -14,18 +14,8 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- ********************************************************************
- */
+ *********************************************************************/
 
-/**
- * Class ilDclBaseFieldModel
- * @author  Martin Studer <ms@studer-raimann.ch>
- * @author  Marcel Raimann <mr@studer-raimann.ch>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * @author  Oskar Truffer <ot@studer-raimann.ch>
- * @version $Id:
- * @ingroup ModulesDataCollection
- */
 class ilDclReferenceRecordFieldModel extends ilDclBaseRecordFieldModel
 {
     protected ?int $dcl_obj_id;
@@ -158,8 +148,8 @@ class ilDclReferenceRecordFieldModel extends ilDclBaseRecordFieldModel
             $record_field_clone = ilDclCache::getRecordFieldCache($record_clone, $field_clone);
             $clone_references = $record_field_clone->getValue();
 
+            $value = [];
             if (is_array($clone_references)) {
-                $value = [];
                 foreach ($clone_references as $clone_reference) {
                     if (!is_null($temp_value = $this->getCloneRecordId($clone_reference))) {
                         $value[] = $temp_value;

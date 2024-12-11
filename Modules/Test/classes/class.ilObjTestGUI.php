@@ -91,6 +91,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     protected array $ui;
 
+    protected const INSERT_MODE_BEFORE = 0;
+    protected const INSERT_MODE_AFTER = 1;
+
     /**
      * Constructor
      * @access public
@@ -1336,37 +1339,33 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
             $questionParentObjId = $_POST["qpl"];
         }
 
+        $imp = new ilImport($this->testrequest->getRefId());
+        $map = $imp->getMapping();
+        $map->addMapping('Modules/Test', 'tst', 'new_id', $newObj->getId());
+
+        $fileName = ilSession::get('tst_import_subdir') . '.zip';
+        $fullPath = ilSession::get('tst_import_dir') . '/' . $fileName;
+
         if (is_file(ilSession::get("tst_import_dir") . '/' . ilSession::get("tst_import_subdir") . "/manifest.xml")) {
             $newObj->saveToDb();
 
             ilSession::set('tst_import_idents', $_POST['ident'] ?? '');
             ilSession::set('tst_import_qst_parent', $questionParentObjId);
 
-            $fileName = ilSession::get('tst_import_subdir') . '.zip';
-            $fullPath = ilSession::get('tst_import_dir') . '/' . $fileName;
-            $imp = new ilImport($this->testrequest->getRefId());
-            $map = $imp->getMapping();
-            $map->addMapping('Modules/Test', 'tst', 'new_id', $newObj->getId());
             $imp->importObject($newObj, $fullPath, $fileName, 'tst', 'Modules/Test', true);
         } else {
-            $qtiParser = new ilQTIParser(ilSession::get("tst_import_qti_file"), ilQTIParser::IL_MO_PARSE_QTI, $questionParentObjId, $_POST["ident"] ?? '');
-            if (!file_exists(ilSession::get("tst_import_results_file"))
-                && (!isset($_POST["ident"]) || !is_array($_POST["ident"]) || !count($_POST["ident"]))) {
-                $qtiParser->setIgnoreItemsEnabled(true);
-            }
-            $qtiParser->setTestObject($newObj);
-            $qtiParser->startParsing();
-            $newObj->saveToDb();
-            $questionPageParser = new ilQuestionPageParser($newObj, ilSession::get("tst_import_xml_file"), ilSession::get("tst_import_subdir"));
-            $questionPageParser->setQuestionMapping($qtiParser->getImportMapping());
-            $questionPageParser->startParsing();
+            $test_importer = new ilTestImporter();
+            $test_importer->setImport($imp);
+            $test_importer->setInstallId(IL_INST_ID);
+            $test_importer->setImportDirectory(ilSession::get("tst_import_dir") . '/' . ilSession::get("tst_import_subdir"));
+            $test_importer->init();
 
-            if (file_exists(ilSession::get("tst_import_results_file"))) {
-                $results = new ilTestResultsImportParser(ilSession::get("tst_import_results_file"), $newObj);
-                $results->setQuestionIdMapping($qtiParser->getQuestionIdMapping());
-                $results->startParsing();
-            }
-            $newObj->update();
+            $test_importer->importXmlRepresentation(
+                '',
+                0,
+                '',
+                $map,
+            );
         }
 
 
@@ -1885,14 +1884,12 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function moveQuestionsObject()
     {
-        $selected_questions = null;
-        $selected_questions = $_POST['q_id'];
-        if ($selected_questions === null && is_numeric($_GET['q_id'])) {
-            $selected_questions = [$_GET['q_id']];
-        }
-        if (is_array($selected_questions)) {
+        $selected_questions = $this->testrequest->getQuestionIds()
+            ? $this->testrequest->getQuestionIds()
+            : [$this->testrequest->getQuestionId()];
+        if (count($selected_questions) > 0) {
             ilSession::set('tst_qst_move_' . $this->object->getTestId(), $selected_questions);
-            $this->tpl->setOnScreenMessage('success', $this->lng->txt("msg_selected_for_move"), true);
+            $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_selected_for_move'), true);
         } else {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_selection_for_move'), true);
         }
@@ -1904,22 +1901,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsBeforeObject()
     {
-        // get all questions to move
-        $move_questions = ilSession::get('tst_qst_move_' . $this->object->getTestId());
-
-        if (!is_array($_POST['q_id']) || 0 === count($_POST['q_id'])) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("no_target_selected_for_move"), true);
-            $this->ctrl->redirect($this, 'questions');
-        }
-        if (count($_POST['q_id']) > 1) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("too_many_targets_selected_for_move"), true);
-            $this->ctrl->redirect($this, 'questions');
-        }
-        $insert_mode = 0;
-        $this->object->moveQuestions(ilSession::get('tst_qst_move_' . $this->object->getTestId()), $_POST['q_id'][0], $insert_mode);
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("msg_questions_moved"), true);
-        ilSession::clear('tst_qst_move_' . $this->object->getTestId());
-        $this->ctrl->redirect($this, "questions");
+        $this->insertQuestionsBeforeOrAfter(self::INSERT_MODE_BEFORE);
     }
 
     /**
@@ -1927,21 +1909,30 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsAfterObject()
     {
-        // get all questions to move
-        $move_questions = ilSession::get('tst_qst_move_' . $this->object->getTestId());
-        if (!is_array($_POST['q_id']) || 0 === count($_POST['q_id'])) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("no_target_selected_for_move"), true);
+        $this->insertQuestionsBeforeOrAfter(self::INSERT_MODE_AFTER);
+    }
+
+    /**
+     * @param integer $insert_mode 0, if insert before the target position, 1 if insert after the target position
+     */
+    protected function insertQuestionsBeforeOrAfter(int $insert_mode)
+    {
+        $target_questions = $this->testrequest->getQuestionIds()
+            ? $this->testrequest->getQuestionIds()
+            : [$this->testrequest->getQuestionId()];
+
+        if (count($target_questions) === 0) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_target_selected_for_move'), true);
+            $this->ctrl->redirect($this, 'questions');
+        } elseif (count($target_questions) > 1) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('too_many_targets_selected_for_move'), true);
             $this->ctrl->redirect($this, 'questions');
         }
-        if (count($_POST['q_id']) > 1) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("too_many_targets_selected_for_move"), true);
-            $this->ctrl->redirect($this, 'questions');
-        }
-        $insert_mode = 1;
-        $this->object->moveQuestions(ilSession::get('tst_qst_move_' . $this->object->getTestId()), $_POST['q_id'][0], $insert_mode);
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("msg_questions_moved"), true);
+
+        $this->object->moveQuestions(ilSession::get('tst_qst_move_' . $this->object->getTestId()), $target_questions[0], $insert_mode);
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_questions_moved'), true);
         ilSession::clear('tst_qst_move_' . $this->object->getTestId());
-        $this->ctrl->redirect($this, "questions");
+        $this->ctrl->redirect($this, 'questions');
     }
 
     /**
@@ -1951,27 +1942,28 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsObject()
     {
-        $selected_array = (is_array($_POST['q_id'])) ? $_POST['q_id'] : array();
-        if (!count($selected_array)) {
-            $this->tpl->setOnScreenMessage('info', $this->lng->txt("tst_insert_missing_question"), true);
-            $this->ctrl->redirect($this, "browseForQuestions");
-        } else {
-            $manscoring = false;
-            foreach ($selected_array as $key => $value) {
-                $this->object->insertQuestion($this->testQuestionSetConfigFactory->getQuestionSetConfig(), $value);
-                if (!$manscoring) {
-                    $manscoring = $manscoring | assQuestion::_needsManualScoring($value);
-                }
-            }
-            $this->object->saveCompleteStatus($this->testQuestionSetConfigFactory->getQuestionSetConfig());
-            if ($manscoring) {
-                $this->tpl->setOnScreenMessage('info', $this->lng->txt("manscoring_hint"), true);
-            } else {
-                $this->tpl->setOnScreenMessage('success', $this->lng->txt("tst_questions_inserted"), true);
-            }
-            $this->ctrl->redirect($this, "questions");
-            return;
+        $selected_questions = $this->testrequest->getQuestionIds()
+            ? $this->testrequest->getQuestionIds()
+            : [$this->testrequest->getQuestionId()];
+
+        if (count($selected_questions) === 0) {
+            $this->tpl->setOnScreenMessage('info', $this->lng->txt('tst_insert_missing_question'), true);
+            $this->ctrl->redirect($this, 'browseForQuestions');
         }
+
+        $man_scoring = false;
+        foreach ($selected_questions as $key => $value) {
+            $this->object->insertQuestion($this->testQuestionSetConfigFactory->getQuestionSetConfig(), $value);
+            $man_scoring = $man_scoring || assQuestion::_needsManualScoring($value);
+        }
+
+        $this->object->saveCompleteStatus($this->testQuestionSetConfigFactory->getQuestionSetConfig());
+        if ($man_scoring) {
+            $this->tpl->setOnScreenMessage('info', $this->lng->txt('manscoring_hint'), true);
+        } else {
+            $this->tpl->setOnScreenMessage('success', $this->lng->txt('tst_questions_inserted'), true);
+        }
+        $this->ctrl->redirect($this, 'questions');
     }
 
     public function addQuestionObject()
@@ -2806,14 +2798,18 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
                     break;
             }
             $info->addProperty($this->lng->txt("tst_score_reporting"), $score_reporting_text);
-            $reporting_date = $this->object->getReportingDate();
-            if ($reporting_date) {
-                #preg_match("/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/", $reporting_date, $matches);
-                #$txt_reporting_date = date($this->lng->text["lang_dateformat"] . " " . $this->lng->text["lang_timeformat"], mktime($matches[4], $matches[5], $matches[6], $matches[2], $matches[3], $matches[1]));
-                #$info->addProperty($this->lng->txt("tst_score_reporting_date"), $txt_reporting_date);
+            $reporting_date = $this->getTestObject()
+                ->getScoreSettings()
+                ->getResultSummarySettings()
+                ->getReportingDate();
+            if ($reporting_date !== null) {
                 $info->addProperty(
                     $this->lng->txt('tst_score_reporting_date'),
-                    ilDatePresentation::formatDate(new ilDateTime($reporting_date, IL_CAL_TIMESTAMP))
+                    ilDatePresentation::formatDate(new ilDateTime(
+                        $reporting_date->format('YmdHis'),
+                        IL_CAL_TIMESTAMP,
+                        $reporting_date->getTimezone()->getName()
+                    ))
                 );
             }
 

@@ -768,7 +768,7 @@ class assErrorText extends assQuestion implements ilObjQuestionScoringAdjustable
 
             $selections[] = $position;
             if ($position_data['length'] > 1) {
-                for ($i=1;$i<$position_data['length'];$i++) {
+                for ($i = 1;$i < $position_data['length'];$i++) {
                     $selections[] = $position + $i;
                 }
             }
@@ -799,7 +799,7 @@ class assErrorText extends assQuestion implements ilObjQuestionScoringAdjustable
             }
 
             $passage_complete = true;
-            for ($i=1;$i<$correct_position_data['length'];$i++) {
+            for ($i = 1;$i < $correct_position_data['length'];$i++) {
                 $selected_passage_element_key = array_search($correct_position + $i, $selected_word_positions);
                 if ($selected_passage_element_key === false) {
                     $passage_complete = false;
@@ -864,7 +864,7 @@ class assErrorText extends assQuestion implements ilObjQuestionScoringAdjustable
 
     public function setErrorText(?string $text): void
     {
-        $this->errortext = $this->getHtmlQuestionContentPurifier()->purify($text ?? '');
+        $this->errortext = $text ?? '';
     }
 
     public function getParsedErrorText(): array

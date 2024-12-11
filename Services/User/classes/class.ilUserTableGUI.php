@@ -522,8 +522,7 @@ class ilUserTableGUI extends ilTable2GUI
         $options = array(
             "" => $lng->txt("user_any"),
             );
-        $roles = $rbacreview->getRolesByFilter(2, $ilUser->getId());
-        foreach ($roles as $role) {
+        foreach ($rbacreview->getRolesByFilter(2, $ilUser->getId()) as $role) {
             $options[$role["rol_id"]] = $role["title"];
         }
         $si = new ilSelectInputGUI($this->lng->txt("user_global_role"), "global_role");

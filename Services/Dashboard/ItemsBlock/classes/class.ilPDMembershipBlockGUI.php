@@ -17,8 +17,6 @@
  *********************************************************************/
 
 /**
- * Memberships block
- * @author Alexander Killing <killing@leifos.de>
  * @ilCtrl_Calls ilPDMembershipBlockGUI: ilCommonActionDispatcherGUI
  */
 class ilPDMembershipBlockGUI extends ilPDSelectedItemsBlockGUI

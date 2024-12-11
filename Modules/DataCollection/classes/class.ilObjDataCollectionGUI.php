@@ -17,13 +17,6 @@
  *********************************************************************/
 
 /**
- * Class ilObjDataCollectionGUI
- * @author       Jörg Lützenkirchen <luetzenkirchen@leifos.com>
- * @author       Martin Studer <martin@fluxlabs.ch>
- * @author       Marcel Raimann <mr@studer-raimann.ch>
- * @author       Fabian Schmid <fs@studer-raimann.ch>
- * @author       Oskar Truffer <ot@studer-raimann.ch>
- * @author       Stefan Wanzenried <sw@studer-raimann.ch>
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilInfoScreenGUI, ilNoteGUI, ilCommonActionDispatcherGUI
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilPermissionGUI, ilObjectCopyGUI, ilDclExportGUI
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilDclRecordListGUI, ilDclRecordEditGUI
@@ -33,7 +26,6 @@
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilRatingGUI
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilPropertyFormGUI
  * @ilCtrl_Calls ilObjDataCollectionGUI: ilDclPropertyFormGUI
- * @extends      ilObject2GUI
  */
 class ilObjDataCollectionGUI extends ilObject2GUI
 {
@@ -106,12 +98,6 @@ class ilObjDataCollectionGUI extends ilObject2GUI
 
     private function addJavaScript(): void
     {
-        global $DIC;
-        $DIC->notes()->gui()->initJavascript();
-        ilYuiUtil::initConnection();
-        ilOverlayGUI::initJavascript();
-        // # see  https://mantis.ilias.de/view.php?id=26463
-        $this->dclUi->addJavaScriptFile("./Services/UIComponent/Modal/js/Modal.js");
         $this->dclUi->addJavaScriptFile("Modules/DataCollection/js/datacollection.js");
     }
 

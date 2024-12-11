@@ -44,6 +44,8 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
 
     protected $allowedextensions;
 
+    private ?string $current_cmd;
+
     /** @var boolean Indicates whether completion by submission is enabled or not */
     protected $completion_by_submission = false;
 
@@ -70,8 +72,10 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
         $question = ""
     ) {
         parent::__construct($title, $comment, $author, $owner, $question);
+        /** @var ILIAS\DI\Container $DIC */
         global $DIC;
-        $this->file_upload = $DIC->upload();
+        $this->file_upload = $DIC['upload'];
+        $this->current_cmd = $DIC['ilCtrl']->getCmd();
     }
 
     /**
@@ -352,7 +356,7 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
 
         $filename = $_FILES["upload"]["name"];
         $filename_arr = pathinfo($_FILES["upload"]["name"]);
-        $suffix = $filename_arr["extension"];
+        $suffix = $filename_arr["extension"] ?? '';
         $mimetype = $_FILES["upload"]["type"];
         $size_bytes = $_FILES["upload"]["size"];
         $temp_name = $_FILES["upload"]["tmp_name"];
@@ -687,7 +691,10 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
         $test_id = $this->lookupTestId($active_id);
 
         try {
-            $upload_handling_required = $this->isFileUploadAvailable() && $this->checkUpload();
+            $upload_handling_required = $this->current_cmd !== 'submitSolution'
+                && !$this->isFileDeletionAction()
+                && $this->isFileUploadAvailable()
+                && $this->checkUpload();
         } catch (IllegalStateException $e) {
             $this->tpl->setOnScreenMessage('failure', $e->getMessage(), true);
             return false;
@@ -1177,11 +1184,7 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
      */
     protected function isFileUploadAvailable(): bool
     {
-        if (!isset($_FILES['upload'])) {
-            return false;
-        }
-
-        if (!isset($_FILES['upload']['tmp_name'])) {
+        if (!$this->file_upload->hasUploads()) {
             return false;
         }
 
@@ -1189,6 +1192,6 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
             $this->file_upload->process();
         }
 
-        return strlen($_FILES['upload']['tmp_name']) > 0;
+        return true;
     }
 }

@@ -57,4 +57,28 @@ class ilQTIParserTest extends TestCase
     {
         unset($GLOBALS['DIC']);
     }
+
+    public function testSetGetIliasSourceVersionWithoutPatch(): void
+    {
+        $this->assertEquals('7.13', $this->fetchNumericVersionFromVersionDateString('7.13 2022-08-31'));
+    }
+
+    public function testSetGetIliasSourceVersionWithPatch(): void
+    {
+        $this->assertEquals('5.4.22', $this->fetchNumericVersionFromVersionDateString('5.4.22 2021-05-14'));
+    }
+
+    public function testSetGetIliasSourceVersionWithoutDate(): void
+    {
+        $this->assertEquals('8.14', $this->fetchNumericVersionFromVersionDateString('8.14'));
+    }
+
+    protected function fetchNumericVersionFromVersionDateString(string $version): string
+    {
+        $instance = new ilQTIParser('dummy xml file');
+        $reflection = new ReflectionClass($instance);
+        $method = $reflection->getMethod('fetchNumericVersionFromVersionDateString');
+        $method->setAccessible(true);
+        return $method->invoke($instance, $version);
+    }
 }

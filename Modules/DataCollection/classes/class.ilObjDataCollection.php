@@ -16,13 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilObjDataCollection
- * @author  Jörg Lützenkirchen <luetzenkirchen@leifos.com>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * @version $Id: class.ilObjFolder.php 25528 2010-09-03 10:37:11Z smeyer $
- * @extends ilObject2
- */
 class ilObjDataCollection extends ilObject2
 {
     private bool $is_online = false;

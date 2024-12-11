@@ -16,12 +16,6 @@
  *
  *********************************************************************/
 
-/**
- * Class ilDclMobRecordFieldModel
- * @author  Stefan Wanzenried <sw@studer-raimann.ch>
- * @author  Fabian Schmid <fs@studer-raimann.ch>
- * @author  Michael Herren <mh@studer-raimann.ch>
- */
 class ilDclMobRecordFieldModel extends ilDclBaseRecordFieldModel
 {
     private \ilGlobalTemplateInterface $main_tpl;

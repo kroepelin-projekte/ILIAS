@@ -99,7 +99,7 @@ class ilAuthProviderOpenIdConnect extends ilAuthProvider
             // user is authenticated, otherwise redirected to authorization endpoint or exception
             $this->logger->dump($this->body, ilLogLevel::DEBUG);
 
-            $claims = $oidc->requestUserInfo();
+            $claims = $oidc->getVerifiedClaims();
             $this->logger->dump($claims, ilLogLevel::DEBUG);
             $status = $this->handleUpdate($status, $claims);
 

@@ -17,8 +17,6 @@
  *********************************************************************/
 
 /**
- * Dashboard UI
- * @author Alexander Killing <killing@leifos.de>
  * @ilCtrl_Calls ilDashboardGUI: ilPersonalProfileGUI
  * @ilCtrl_Calls ilDashboardGUI: ilObjUserGUI, ilPDNotesGUI
  * @ilCtrl_Calls ilDashboardGUI: ilColumnGUI, ilPDNewsGUI, ilCalendarPresentationGUI

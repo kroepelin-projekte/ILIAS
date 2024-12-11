@@ -202,12 +202,12 @@ class ilBookingSchedule
         }
     }
 
-    public function save(): bool
+    public function save(): ?int
     {
         $ilDB = $this->db;
 
         if ($this->id) {
-            return false;
+            return null;
         }
 
         $this->id = $ilDB->nextId('booking_schedule');
@@ -264,7 +264,7 @@ class ilBookingSchedule
         return true;
     }
 
-    public function doClone(int $a_pool_id): bool
+    public function doClone(int $a_pool_id): int
     {
         $new_obj = new self();
         $new_obj->setPoolId($a_pool_id);
@@ -309,6 +309,21 @@ class ilBookingSchedule
             }
         }
         return true;
+    }
+
+    public static function lookupPoolId(int $schedule_id): int
+    {
+        global $DIC;
+
+        $ilDB = $DIC->database();
+
+        $set = $ilDB->query("SELECT pool_id " .
+            " FROM booking_schedule" .
+            " WHERE booking_schedule_id = " . $ilDB->quote($schedule_id, 'integer'));
+        if ($rec = $ilDB->fetchAssoc($set)) {
+            return (int) $rec['pool_id'];
+        }
+        return 0;
     }
 
     /**

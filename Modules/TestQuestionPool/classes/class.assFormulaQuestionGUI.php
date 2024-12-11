@@ -162,7 +162,7 @@ class assFormulaQuestionGUI extends assQuestionGUI
                         $result,
                         $_POST["range_min_$result"],
                         $_POST["range_max_$result"],
-                        $_POST["tolerance_$result"],
+                        str_replace(',', '.', $_POST["tolerance_$result"]),
                         $tmp_result_unit,
                         $_POST["formula_$result"],
                         $_POST["points_$result"],

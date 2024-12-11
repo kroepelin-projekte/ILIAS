@@ -18,10 +18,6 @@
 
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
-/**
- * Class ilDclTextRecordFieldModel
- * @author  Theodor Truffer <tt@studer-raimann.ch>
- */
 class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
 {
     public function setValueFromForm(ilPropertyFormGUI $form): void
@@ -156,5 +152,19 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
         } else {
             return $value;
         }
+    }
+
+    public function deserializeData($value)
+    {
+        $value = (string) $value;
+        if ($this->getField()->getProperty(ilDclBaseFieldModel::PROP_URL)) {
+            $deserialize = json_decode($value, true);
+            return [
+                'title' => $deserialize['title'] ?? '',
+                'link' => $deserialize['link'] ?? '',
+            ];
+        }
+
+        return $value;
     }
 }

@@ -227,21 +227,21 @@ class assMultipleChoice extends assQuestion implements ilObjQuestionScoringAdjus
             $data = $ilDB->fetchAssoc($result);
             $this->setId($question_id);
             $this->setObjId($data["obj_fi"]);
-            $this->setTitle((string) $data["title"]);
+            $this->setTitle($data["title"] ?? '');
             $this->setNrOfTries($data['nr_of_tries']);
-            $this->setComment((string) $data["description"]);
+            $this->setComment($data["description"] ?? '');
             $this->setOriginalId($data["original_id"]);
             $this->setAuthor($data["author"]);
             $this->setPoints($data["points"]);
             $this->setOwner($data["owner"]);
             include_once("./Services/RTE/classes/class.ilRTE.php");
-            $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc((string) $data["question_text"], 1));
+            $this->setQuestion(ilRTE::_replaceMediaObjectImageSrc($data["question_text"] ?? '', 1));
             $shuffle = (is_null($data['shuffle'])) ? true : $data['shuffle'];
             $this->setShuffle((bool) $shuffle);
-            if ($data['thumb_size'] !== null && $data['thumb_size'] >= self::MINIMUM_THUMB_SIZE) {
+            if ($data['thumb_size'] !== null && $data['thumb_size'] >= $this->getMinimumThumbSize()) {
                 $this->setThumbSize($data['thumb_size']);
             }
-            $this->isSingleline = ($data['allow_images']) ? false : true;
+            $this->isSingleline = $data['allow_images'] === null || $data['allow_images'] === '0';
             $this->lastChange = $data['tstamp'];
             $this->setSelectionLimit((int) $data['selection_limit'] > 0 ? (int) $data['selection_limit'] : null);
             $this->feedback_setting = $data['feedback_setting'];
@@ -271,7 +271,7 @@ class assMultipleChoice extends assQuestion implements ilObjQuestionScoringAdjus
                     $data["imagefile"] = "";
                 }
                 include_once("./Services/RTE/classes/class.ilRTE.php");
-                $data["answertext"] = ilRTE::_replaceMediaObjectImageSrc($data["answertext"], 1);
+                $data["answertext"] = ilRTE::_replaceMediaObjectImageSrc($data["answertext"] ?? '', 1);
 
                 $answer = new ASS_AnswerMultipleResponseImage(
                     $data["answertext"],
@@ -1482,7 +1482,7 @@ class assMultipleChoice extends assQuestion implements ilObjQuestionScoringAdjus
         return $config;
     }
 
-    public function isSingleline()
+    public function isSingleline(): bool
     {
         return (bool) $this->isSingleline;
     }

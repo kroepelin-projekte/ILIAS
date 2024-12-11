@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -149,15 +150,12 @@ class ilRoleAssignmentTableGUI extends ilTable2GUI
         $ilUser = $DIC->user();
         $assignable = false;        // @todo: check this
 
-
-        // now get roles depending on filter settings
-        $role_list = $rbacreview->getRolesByFilter((int) $this->filter["role_filter"], $usr_id);
         $assigned_roles = $rbacreview->assignedRoles($usr_id);
 
         $counter = 0;
 
         $records = [];
-        foreach ($role_list as $role) {
+        foreach ($rbacreview->getRolesByFilter((int) $this->filter['role_filter'], $usr_id) as $role) {
             // fetch context path of role
             $rolf = $rbacreview->getFoldersAssignedToRole($role["obj_id"], true);
             $ref_id = $rbacreview->getObjectReferenceOfRole($role['rol_id']);

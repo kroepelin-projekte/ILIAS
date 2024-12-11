@@ -1247,6 +1247,7 @@ assessment#:#test_question_set_type_random_info#:#Each test participant will see
 assessment#:#test_results#:#Ogłoszenie wyniku testu
 assessment#:#test_scoring#:#Ocena testu
 assessment#:#test_template_reset#:#Usunięto szablon.
+assessment#:#test_using_removed_template#:#This test uses a deleted template. Please remove the connection here: %s.###19 11 2024 new variable
 assessment#:#test_using_template#:#Ten test używa szablonu %s. Jeśli nie chcesz używać szablonu, a chcesz korzystać ze wszystkich ustawień, kliknij tutaj: %s.
 assessment#:#test_using_template_link#:#Nie używaj więcej szablonu
 assessment#:#text_correct#:#Prawidłowy tekst
@@ -1285,6 +1286,8 @@ assessment#:#tst_add_quest_cont_edit_mode_IPE#:#Użyj edytora stron ILIAS do edy
 assessment#:#tst_add_quest_cont_edit_mode_IPE_info#:#No formatting of text in question and answers. No use of LaTex either. But feedback and hints can be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
 assessment#:#tst_add_quest_cont_edit_mode_RTE#:#Użyj edytora sformatowanego tekstu do edytowania komunikatów zwrotnych oraz podpowiedzi.
 assessment#:#tst_add_quest_cont_edit_mode_RTE_info#:#Allows text formatting of questions, answers, feedbacks and hints. But feedback and hints cannot be reused when question is embedded in ILIAS learning module.###30 04 2021 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain#:#Use plain text###19 11 2024 new variable
+assessment#:#tst_add_quest_cont_edit_mode_plain_info#:#No formatting of text in question, answers, feedback, and hints.###19 11 2024 new variable
 assessment#:#tst_addit_passes_blocked_after_passed_msg#:#You have passed the test. The test cannot be started again.###07 02 2020 new variable
 assessment#:#tst_all_test_competences#:#Wszystkie kompetencje testu
 assessment#:#tst_all_user_data_deleted#:#Wszystkie dane uczestnika testu zostały skasowane!
@@ -1847,8 +1850,6 @@ assessment#:#tst_show_answer_sheet#:#Pokaż odpowiedzi
 assessment#:#tst_show_cancel#:#Pokaż opcję zawieszenia testu
 assessment#:#tst_show_cancel_description#:#Jeśli wybrane, to jest widoczny przycisk zawieszenia testu podczas wykonywania testu.   Uwaga: przerwanie testu nie powoduje zatrzymanie czasu przetwarzania określonego w opcji 'Maksymalny czas przetwarzania'.
 assessment#:#tst_show_comp_results#:#Pokaż wyniki kompetencji
-assessment#:#tst_show_pass_details#:#Pokaż szczegóły wykonania uruchomionych testów
-assessment#:#tst_show_pass_details_desc#:#W wybranym wyżej terminie przedstawione wyniki zostaną uzupełnione o kolejną tabelę. <br>W tej tabeli wyświetlane są dla każdego przebiegu testu tytuły pytań oraz otrzymana liczba punktów. <br>W przeciwnym razie tabela wyświetli się tylko po ostatnim dozwolonym przebiegu testu (należy to ustawić w zakładce 'Właściwości ogólne', opcja 'Ogranicz liczbę przebiegów testu') lub po zakończeniu testu (należy to ustawić w zakładce 'Właściwości ogólne', punkt 'Czas ukończenia'). <br>Treść tabeli można uzupełnić w punkcie 'Dane szczegółowe dotyczące wyników testu'.
 assessment#:#tst_show_results#:#Pokaż wyniki testu
 assessment#:#tst_show_side_list#:#Lista pytań do
 assessment#:#tst_show_solution_answers_only#:#Wydruk wyników (tylko odpowiedzi)
@@ -6006,6 +6007,7 @@ cont#:#cont_news_timeline_info#:#Aktywuje zakładkę "Linia czasu" dla nowości.
 cont#:#cont_news_timeline_landing_page#:#Strona startowa
 cont#:#cont_news_timeline_landing_page_info#:#Linia czasu jako strona startowa
 cont#:#cont_news_timeline_tab#:#Linia czasu
+cont#:#cont_no_title#:#Empty Title###13 08 2024 new variable
 cont#:#cont_page_type_cont#:#Repository Page (Cours, Group, ...)###30 04 2021 new variable
 cont#:#cont_page_type_cstr#:#Course Start Page (Learning Objectives View)###30 04 2021 new variable
 cont#:#cont_path#:#Ścieżka
@@ -7264,6 +7266,7 @@ copg#:#copg_page_element_not_found#:#Page element not found.###30 04 2021 new va
 copg#:#copg_page_type_stys#:#Layout Page###30 04 2021 new variable
 copg#:#copg_par_format_selection#:#Paragraph Format Selection###17 01 2024 new variable
 copg#:#copg_pc_mob_does_not_exist#:#This media object does not exist.###28 11 2023 new variable
+copg#:#copg_plugin_not_avail#:#Plugin %s not available.###19 11 2024 new variable
 copg#:#copg_questions_not_supported_here#:#W tym kontekście nie obsługiwane są żadne pytania.
 copg#:#copg_reload_page#:#Reload Page###29 06 2022 new variable
 copg#:#copg_remove_formats#:#Remove Formatting###17 01 2024 new variable
@@ -8449,6 +8452,9 @@ dcl#:#dcl_confirm_delete_table#:#Czy naprawdę chcesz usunąć tabelę, łączni
 dcl#:#dcl_confirm_storing_records#:#Sprawdź dane przed zapisem.
 dcl#:#dcl_confirm_storing_records_no_permission#:#Nie masz uprawnień, aby ponownie edytować rekord danych.
 dcl#:#dcl_copy#:#Kopiuj zbiór danych
+dcl#:#dcl_copy_field#:#Copy###10 12 2024 new variable
+dcl#:#dcl_copy_field_desc#:#Field to copy options stored in a different field of a table.###10 12 2024 new variable
+dcl#:#dcl_copy_title#:#Copy of table and field###10 12 2024 new variable
 dcl#:#dcl_create_date#:#Data utworzenia
 dcl#:#dcl_create_entry_rules#:#Entry Creation###30 04 2021 new variable
 dcl#:#dcl_create_field#:#Dodaj pole
@@ -8473,6 +8479,7 @@ dcl#:#dcl_delete_tables_no_selection#:#Please select at least one table to delet
 dcl#:#dcl_delete_views#:#Usuń widoki
 dcl#:#dcl_delete_views_no_selection#:#Please select at least one view to delete###31 03 2023 new variable
 dcl#:#dcl_deleted_records#:#Usunięto %s rekordów danych
+dcl#:#dcl_deprecated_copy#:#(Deprecated)###10 12 2024 new variable
 dcl#:#dcl_desc#:#Kolejność malejąca (DESC)
 dcl#:#dcl_description#:#Opis
 dcl#:#dcl_detailed_view#:#Widok pojedynczy
@@ -8591,6 +8598,7 @@ dcl#:#dcl_number#:#Liczby całkowite
 dcl#:#dcl_number_desc#:#Pole do wprowadzania liczb całkowitych (maks. 9 cyfr). Ułamki i liczby dziesiętne nie są dozwolone.
 dcl#:#dcl_online_info#:#Użytkownicy mogą obejrzeć zbiór danych i korzystać z niego tylko wtedy, gdy zbiór jest w trybie online.
 dcl#:#dcl_order#:#Sortowanie
+dcl#:#dcl_origin_not_found#:#Origin field was not found!###10 12 2024 new variable
 dcl#:#dcl_own_entries#:#Tylko własne wpisy
 dcl#:#dcl_owner#:#Właściciel
 dcl#:#dcl_owner_description#:#Właściciel wpisu.
@@ -8965,6 +8973,7 @@ ecs#:#ecs_protocol#:#Protokół
 ecs#:#ecs_publish_as#:#Opublikuj na:
 ecs#:#ecs_publish_for#:#Udostępnij dla:
 ecs#:#ecs_published_for#:#Podziel się z:
+ecs#:#ecs_rcat_created_body_a#:#A new ECS Category has been created:###19 11 2024 new variable
 ecs#:#ecs_rcrs_created_body_a#:#Utworzono nowy kurs ECS:
 ecs#:#ecs_read_remote_links#:#Aktualizuj informacje dotyczące kursu
 ecs#:#ecs_refresh_participants#:#Zaktualizuj uczestników ECS
@@ -9305,6 +9314,7 @@ exc#:#exc_rel_last_submission#:#Last Possible Submission###07 02 2020 new variab
 exc#:#exc_rel_last_submission_info#:#If this optional date is set, all user have to submit until this deadline is reached.###07 02 2020 new variable
 exc#:#exc_relative_date#:#Relative Date
 exc#:#exc_relative_date_info#:#The deadline is set individually relative to the time when a user started the assignment.
+exc#:#exc_relative_date_period#:#Working Time###13 08 2024 new variable
 exc#:#exc_rem_time_after_start#:#Remaining Time after Start
 exc#:#exc_reminder_cron_ok#:#Reminders sent:
 exc#:#exc_reminder_end#:#Reminder ends
@@ -12343,6 +12353,7 @@ obj#:#obj_tool_setting_skills_info#:#Dzięki tej funkcji można wybrać kompeten
 obj#:#obj_tool_setting_tag_cloud#:#Chmura znaczników
 obj#:#obj_tool_setting_tag_cloud_info#:#W sekcji "Wybór wg wątków" w zakładce "Treść" wyświetlana jest chmura znaczników.
 obj#:#obj_tool_setting_taxonomies#:#Klasyfikacje
+obj#:#obj_tool_setting_taxonomies_info#:#Taxonomies allow the filtering of objects. They are created in the "Metadata" tab.###19 11 2024 new variable
 obj#:#obj_tool_setting_use_news#:#Wewnętrzne wiadomości
 obj#:#obj_tool_setting_use_news_info#:#Użycie sekcji "Nowości" lub linii czasu dla nowości.
 obj#:#obj_tool_setting_use_news_open_settings#:#Otwórz ustawienia
@@ -14154,6 +14165,8 @@ registration#:#reg_direct#:#Rejestracja bezpośrednia
 registration#:#reg_direct_info#:#Jeśli aktywne, to każde nowe żądanie rejestracji jest automatycznie zatwierdzone.
 registration#:#reg_disabled#:#Rejestracja nie jest możliwa
 registration#:#reg_domain#:#Domena
+registration#:#reg_domain_already_assigned_p#:#The domains '%s' were already entered for another role.###13 08 2024 new variable
+registration#:#reg_domain_already_assigned_s#:#The domain '%s' was already entered for another role. ###13 08 2024 new variable
 registration#:#reg_email#:#Automatyczny przydział ról
 registration#:#reg_email_domains#:#Ważne są następujące domeny adresów mailowych: %s
 registration#:#reg_email_domains_code#:#Przy użyciu kodów możliwe są dowolne adresy mailowe.
@@ -16289,6 +16302,7 @@ tagging#:#tagging_enable_all_users_info#:#Wstawia na stronie z informacjami obsz
 tagging#:#tagging_enable_tagging#:#Włącz tagowanie
 tagging#:#tagging_forbidden_tags#:#Zakazane tagi
 tagging#:#tagging_no_obj_for_tag#:#No Resources tagged with %s.###09 03 2022 new variable
+tagging#:#tagging_no_perm_write#:#You have no permission to change this data.###19 11 2024 new variable
 tagging#:#tagging_other_users#:#Znaczniki innych użytkowników
 tagging#:#tagging_resources_for_tag#:#Treści wg haseł kluczowych %s
 tagging#:#tagging_search_users#:#Wyszukaj użytkowników
@@ -16735,6 +16749,7 @@ user#:#enable_local_user_administration#:#Aktywuj zarządzanie lokalnymi użytko
 user#:#enable_local_user_administration_info#:#Jeśli ta opcja jest aktywna, wejścia użytkowników można przydzielać do kategorii i jednostek organizacyjnych i nimi zarządzać.
 user#:#feedhash#:#Feed-hash
 user#:#has_role#:#Rola
+user#:#info_accessFree_sure#:#Are you sure you want to remove the valid until date from the following accounts?###13 08 2024 new variable
 user#:#inform_user_mail_info#:#Jeśli ta opcja jest aktywna, do użytkownika zostanie wysłana wiadomość mailowa. Jej treść można definiować w menu 'Ustawienia systemowe » Zarządzanie użytkownikami » Ustawienia » Wiadomość dotycząca nowego konta'.
 user#:#interests#:#Zainteresowania
 user#:#interests_general#:#Ogólne zainteresowania

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 class ilLearningSequenceImporter extends ilXmlImporter
 {
@@ -84,10 +84,15 @@ class ilLearningSequenceImporter extends ilXmlImporter
             $old_ref_id = $data["id"];
             $new_ref_id = $mapping->getMapping("Services/Container", "refs", $old_ref_id);
 
+            $ls_item_pc_value = null;
+            if (key_exists("ls_item_pc_value", $data)) {
+                $ls_item_pc_value = $data["ls_item_pc_value"];
+            }
+
             $post_condition = new ilLSPostCondition(
                 (int) $new_ref_id,
                 $data["ls_item_pc_condition_type"],
-                $data["ls_item_pc_value"]
+                $ls_item_pc_value
             );
 
             $ls_items[] = new LSItem(

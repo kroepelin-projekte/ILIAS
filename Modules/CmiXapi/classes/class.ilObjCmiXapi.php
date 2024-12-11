@@ -822,9 +822,15 @@ class ilObjCmiXapi extends ilObject2
             switch ($activation["timing_type"]) {
                 case ilObjectActivation::TIMINGS_ACTIVATION:
                     $this->setActivationLimited(true);
+                    if (!is_null($activation["timing_start"])) {
+                        $activation["timing_start"] = (int) $activation["timing_start"];
+                    }
                     $this->setActivationStartingTime($activation["timing_start"]);
+                    if (!is_null($activation["timing_end"])) {
+                        $activation["timing_end"] = (int) $activation["timing_end"];
+                    }
                     $this->setActivationEndingTime($activation["timing_end"]);
-                    $this->setActivationVisibility($activation["visible"]);
+                    $this->setActivationVisibility((bool) $activation["visible"]);
                     break;
 
                 default:
@@ -1366,8 +1372,9 @@ class ilObjCmiXapi extends ilObject2
      * LMS.LaunchData
      * @return array<string, mixed>
      */
-    public function getLaunchData(?ilCmiXapiUser $cmixUser = null, string $lang = 'en'): array
+    public function getLaunchData(?ilCmiXapiUser $cmixUser = null, string $lang = 'en', ?int $launchedByRefId = null): array
     {
+        global $DIC;
         if (null === $cmixUser) {
             $cmixUser = $this->getCurrentCmixUser();
         }
@@ -1391,10 +1398,17 @@ class ilObjCmiXapi extends ilObject2
         ];
         $lmsLaunchMethod = $this->getLaunchMethod();
         if ($lmsLaunchMethod === "ownWin") {
-            $href = ilLink::_getStaticLink(
-                $this->getRefId(),
-                $this->getType()
-            );
+            if (is_int($launchedByRefId)) {
+                $href = ilLink::_getStaticLink(
+                    $launchedByRefId,
+                    ilObject::_lookupType(ilObject::_lookupObjId($launchedByRefId))
+                );
+            } else {
+                $href = ilLink::_getStaticLink(
+                    $this->getRefId(),
+                    $this->getType()
+                );
+            }
             $ctxTemplate['returnURL'] = $href;
         } else {
             $ctxTemplate['returnURL'] = ILIAS_HTTP_PATH . "/Modules/CmiXapi/xapiexit.php?lang={$lang}";
@@ -1792,7 +1806,7 @@ class ilObjCmiXapi extends ilObject2
         return $this->activationStartingTime;
     }
 
-    public function setActivationStartingTime(int $activationStartingTime): void
+    public function setActivationStartingTime(?int $activationStartingTime = null): void
     {
         $this->activationStartingTime = $activationStartingTime;
     }
@@ -1802,7 +1816,7 @@ class ilObjCmiXapi extends ilObject2
         return $this->activationEndingTime;
     }
 
-    public function setActivationEndingTime(int $activationEndingTime): void
+    public function setActivationEndingTime(?int $activationEndingTime = null): void
     {
         $this->activationEndingTime = $activationEndingTime;
     }

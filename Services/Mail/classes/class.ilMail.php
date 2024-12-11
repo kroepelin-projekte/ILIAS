@@ -610,7 +610,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $toUsrIds,
                 $subject,
                 $message,
@@ -628,7 +628,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $otherUsrIds,
                 $subject,
                 $this->replacePlaceholders($message, 0, false),
@@ -645,7 +645,7 @@ class ilMail
             $this->sendChanneledMails(
                 $to,
                 $cc,
-                $bcc,
+                '',
                 $usrIds,
                 $subject,
                 $message,
@@ -1213,6 +1213,16 @@ class ilMail
 
         if (!$this->getSaveInSentbox()) {
             $this->deleteMails([$internalMessageId]);
+        }
+
+        if ($this->isSystemMail()) {
+            $random = new ilRandom();
+            if ($random->int(0, 50) === 2) {
+                (new ilMailAttachmentStageCleanup(
+                    $this->logger,
+                    $this->mfile
+                ))->run();
+            }
         }
 
         return array_values($errors);

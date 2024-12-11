@@ -147,7 +147,7 @@ class ilStudyProgrammeUserTable
             $valid_user_ids,
             $custom_filters
         );
-        $rows = array_map(fn($ass) => $this->toRow($ass, $prg_id), $data);
+        $rows = array_map(fn ($ass) => $this->toRow($ass, $prg_id), $data);
         $rows = $this->postOrder($rows, $order);
         if ($limit) {
             $offset = $offset ?? 0;
@@ -159,7 +159,7 @@ class ilStudyProgrammeUserTable
     public function fetchSingleUserRootAssignments(int $usr_id): array
     {
         $data = $this->assignment_repo->getForUser($usr_id);
-        $row = array_map(fn($ass) => $this->toRow($ass, $ass->getRootId()), $data);
+        $row = array_map(fn ($ass) => $this->toRow($ass, $ass->getRootId()), $data);
         return $row;
     }
 
@@ -210,10 +210,10 @@ class ilStudyProgrammeUserTable
                 $show_lp && $pgs->getCompletionDate() ? $pgs->getCompletionDate()->format($this->getUserDateFormat()) : ''
             )
             ->withCompletionBy(
-                $show_lp && $pgs->getCompletionBy() ? $this->completionByToRepresent($pgs->getCompletionBy()) : ''
+                $show_lp && $pgs->getCompletionBy() ? $this->completionByToRepresent($pgs) : ''
             )
-            ->withCompletionByObjId(
-                $show_lp && $pgs->getCompletionBy() ? $pgs->getCompletionBy() : null
+            ->withCompletionByObjIds(
+                $show_lp && $pgs->getCompletionBy() ? $this->completionByToCollection($pgs) : null
             )
             ->withPointsReachable($points_reachable)
             ->withPointsRequired((string) $pgs->getAmountOfPoints())
@@ -297,12 +297,35 @@ class ilStudyProgrammeUserTable
         ]);
     }
 
-    public function completionByToRepresent(int $completion_by): string
+    public function completionByToRepresent(ilPRGProgress $progress): string
     {
-        if ($completion_by === ilPRGProgress::COMPLETED_BY_SUBNODES) {
-            return $this->lng->txt("prg_completed_by_subnodes");
+        $completion_by = $progress->getCompletionBy();
+        if ($completion_by !== ilPRGProgress::COMPLETED_BY_SUBNODES) {
+            return $this::lookupTitle($completion_by);
         }
-        return $this::lookupTitle($completion_by);
+
+        $out = array_map(
+            fn (int $node_obj_id): string => self::lookupTitle($node_obj_id),
+            $this->completionByToCollection($progress)
+        );
+
+        return implode(', ', $out);
+    }
+
+    protected function completionByToCollection(ilPRGProgress $progress): array
+    {
+        $completion_by = $progress->getCompletionBy();
+        if ($completion_by !== ilPRGProgress::COMPLETED_BY_SUBNODES) {
+            return [$completion_by];
+        }
+        $successful_subnodes = array_filter(
+            $progress->getSubnodes(),
+            static fn (ilPRGProgress $pgs): bool => $pgs->isSuccessful()
+        );
+        return  array_map(
+            static fn (ilPRGProgress $pgs): int => $pgs->getNodeId(),
+            $successful_subnodes
+        );
     }
 
     public static function lookupTitle(int $obj_id): string
@@ -312,8 +335,20 @@ class ilStudyProgrammeUserTable
             case 'usr':
             case 'prg':
                 return ilObject::_lookupTitle($obj_id);
-            case 'crsr':
-                return ilContainerReference::_lookupTitle($obj_id);
+            case 'prg':
+                $title = ilObject::_lookupTitle($obj_id);
+                if(ilObject::_isInTrash(ilObjStudyProgramme::getRefIdFor($obj_id))) {
+                    return sprintf('(%s)', $title);
+                }
+                return $title;
+            case 'crs':
+                $title = ilObject::_lookupTitle($obj_id);
+                $refs = ilObject::_getAllReferences($obj_id);
+                $target_ref_id = array_shift($refs) ?? null;
+                if($target_ref_id === null || ilObject::_isInTrash($target_ref_id)) {
+                    return sprintf('(%s)', $title);
+                }
+                return $title;
         }
 
         if ($del = ilObjectDataDeletionLog::get($obj_id)) {
