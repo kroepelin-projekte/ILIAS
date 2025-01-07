@@ -1029,7 +1029,7 @@ class ilObjStudyProgrammeMembersGUI
 
     protected function mailToSelectedUsers(): void
     {
-        $dic = ilStudyProgrammeDIC::dic();
+        $dic = ilStudyProgrammeDIC::specificDicFor($this->object);
         $gui = $dic['ilStudyProgrammeMailMemberSearchGUI'];
 
         $selected = $this->getPostPrgsIds();

@@ -128,4 +128,15 @@ class ilUser8DBUpdateSteps implements ilDatabaseUpdateSteps
             $this->db->addPrimaryKey('usr_change_email_token', ['token']);
         }
     }
+
+    public function step_6(): void
+    {
+        if ($this->db->tableColumnExists('personal_clipboard', 'title')) {
+            $this->db->modifyTableColumn('personal_clipboard', 'title', [
+                'type' => \ilDBConstants::T_TEXT,
+                'length' => 255,
+                'notnull' => false
+            ]);
+        }
+    }
 }

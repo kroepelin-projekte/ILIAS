@@ -188,8 +188,8 @@ final class ilEmployeeTalkTableGUI extends ilTable2GUI
                 continue;
             }
 
-            if ($filter['etal_employee'] !== "") {
-                $filterUser = ilObjUser::getUserIdByLogin($filter['etal_employee']);
+            if (trim($filter['etal_employee']) !== "") {
+                $filterUser = ilObjUser::getUserIdByLogin(trim($filter['etal_employee']));
                 if ($val->getEmployee() !== $filterUser) {
                     continue;
                 }
@@ -208,15 +208,15 @@ final class ilEmployeeTalkTableGUI extends ilTable2GUI
                 $employeeName = ilObjUser::_lookupLogin($talkData->getEmployee());
             }
 
-            if ($filter['etal_superior'] !== "") {
-                $filterUser = ilObjUser::getUserIdByLogin($filter['etal_superior']);
+            if (trim($filter['etal_superior']) !== "") {
+                $filterUser = ilObjUser::getUserIdByLogin(trim($filter['etal_superior']));
                 if (intval($talk->getOwner()) !== $filterUser) {
                     continue;
                 }
             }
 
-            if ($filter['etal_title'] !== "") {
-                if (strpos($talk->getTitle(), $filter['etal_title']) === false) {
+            if (trim($filter['etal_title']) !== "") {
+                if (strpos(strtolower($talk->getTitle()), strtolower(trim($filter['etal_title']))) === false) {
                     continue;
                 }
             }
@@ -245,8 +245,8 @@ final class ilEmployeeTalkTableGUI extends ilTable2GUI
                 $template = ilObjectFactory::getInstanceByObjId($talkData->getTemplateId());
                 $template_title = $template->getTitle();
             }
-            if ($filter['etal_template'] !== "") {
-                if (strpos($template_title, $filter['etal_template']) === false) {
+            if (trim($filter['etal_template']) !== "") {
+                if (strpos(strtolower($template_title), strtolower(trim($filter['etal_template']))) === false) {
                     continue;
                 }
             }
@@ -265,7 +265,7 @@ final class ilEmployeeTalkTableGUI extends ilTable2GUI
         }
 
         $offset = intval($this->getOffset());
-        $limit = intval($this->getLimit()) + 1;
+        $limit = intval($this->getLimit());
 
         $this->setMaxCount(count($data));
 

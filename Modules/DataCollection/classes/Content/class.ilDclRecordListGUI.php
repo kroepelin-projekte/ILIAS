@@ -48,6 +48,7 @@ class ilDclRecordListGUI
     protected ilTabsGUI $tabs;
     protected ILIAS\HTTP\Services $http;
     protected ILIAS\Refinery\Factory $refinery;
+    protected bool $filter_changed = false;
 
     private function init(
         ilDataCollectionOutboundsAdapter $adapter
@@ -324,7 +325,8 @@ class ilDclRecordListGUI
         $table->initFilter();
         $table->resetOffset();
         $table->writeFilterToSession();
-        $this->ctrl->redirect($this, self::CMD_LIST_RECORDS);
+        $this->filter_changed = true;
+        $this->listRecords();
     }
 
     /**
@@ -336,7 +338,8 @@ class ilDclRecordListGUI
         $table->initFilter();
         $table->resetOffset();
         $table->resetFilter();
-        $this->ctrl->redirect($this, self::CMD_LIST_RECORDS);
+        $this->filter_changed = true;
+        $this->listRecords();
     }
 
     /**
@@ -528,23 +531,12 @@ class ilDclRecordListGUI
         $list->setExternalSorting(true);
         $list->determineOffsetAndOrder();
 
+        if ($this->filter_changed) {
+            $list->resetOffset();
+        }
+
         $limit = $list->getLimit();
         $offset = $list->getOffset();
-
-        $num_records = count($table_obj->getPartialRecords(
-            (string) $this->getRefId(),
-            $list->getOrderField(),
-            $list->getOrderDirection(),
-            $limit,
-            $offset,
-            $list->getFilter()
-        ));
-
-        // Fix no data found on new filter application when on a site other than the first
-        if ($num_records === 0) {
-            $list->resetOffset();
-            $offset = 0;
-        }
 
         $data = $table_obj->getPartialRecords(
             (string) $this->getRefId(),

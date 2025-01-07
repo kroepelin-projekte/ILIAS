@@ -202,7 +202,7 @@ class ilObjDataCollection extends ilObject2
                     $message .= $this->prepareMessageText($t);
                 }
                 $message .= "------------------------------------\n";
-                $message .= $ulng->txt('dcl_changed_by') . ": " . $ilUser->getFullname() . " " . ilUserUtil::getNamePresentation($ilUser->getId())
+                $message .= $ulng->txt('dcl_changed_by') . ": " . ilUserUtil::getNamePresentation($ilUser->getId())
                     . "\n\n";
                 $message .= $ulng->txt('dcl_change_notification_link') . ": " . $link . "\n\n";
 

@@ -118,6 +118,7 @@ class ilDclBaseRecordModel
         }
 
         $this->setTableId((int) $rec["table_id"]);
+        $this->loadTable();
         if (null !== $rec["create_date"]) {
             $this->setCreateDate(new ilDateTime($rec["create_date"], IL_CAL_DATETIME));
         }
