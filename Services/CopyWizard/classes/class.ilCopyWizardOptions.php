@@ -242,6 +242,7 @@ class ilCopyWizardOptions
      */
     public function storeTree(int $a_source_id): void
     {
+        $this->tmp_tree = [];
         $this->readTree($a_source_id);
         $a_tree_structure = $this->tmp_tree;
 

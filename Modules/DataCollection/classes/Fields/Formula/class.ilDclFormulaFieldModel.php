@@ -18,6 +18,13 @@
 
 class ilDclFormulaFieldModel extends ilDclBaseFieldModel
 {
+    public const SUPPORTED_FIELDS = [
+        ilDclDatatype::INPUTFORMAT_NUMBER,
+        ilDclDatatype::INPUTFORMAT_TEXT,
+        ilDclDatatype::INPUTFORMAT_BOOLEAN,
+        ilDclDatatype::INPUTFORMAT_DATETIME,
+    ];
+
     /**
      * Returns a query-object for building the record-loader-sql-query
      */

@@ -16,6 +16,8 @@
  *
  *********************************************************************/
 
+use ILIAS\Style\Content\Service as ContentStyle;
+
 /**
  * GUI class for feedback editing of assessment questions
  *
@@ -101,6 +103,8 @@ class ilAssQuestionFeedbackEditingGUI
      */
     protected $lng = null;
 
+    protected ContentStyle $content_style;
+
     /**
      * Constructor
      *
@@ -117,6 +121,7 @@ class ilAssQuestionFeedbackEditingGUI
         $this->questionGUI = $questionGUI;
         $this->questionOBJ = $questionGUI->object;
         $this->feedbackOBJ = $questionGUI->object->feedbackOBJ;
+        /** @var ILIAS\DI\Container $DIC */
         global $DIC;
         $this->request = $DIC->testQuestionPool()->internal()->request();
         $this->ctrl = $ctrl;
@@ -124,6 +129,7 @@ class ilAssQuestionFeedbackEditingGUI
         $this->tpl = $tpl;
         $this->tabs = $tabs;
         $this->lng = $lng;
+        $this->content_style = $DIC->contentStyle();
     }
 
     /**
@@ -152,7 +158,11 @@ class ilAssQuestionFeedbackEditingGUI
                 break;
 
             default:
-                $this->tabs->setTabActive('tst_feedback');
+                if ($this->questionOBJ->selfassessmenteditingmode) {
+                    $this->tabs->setTabActive('feedback');
+                } else {
+                    $this->tabs->setTabActive('tst_feedback');
+                }
                 $cmd .= 'Cmd';
                 $this->$cmd();
                 break;
@@ -164,7 +174,7 @@ class ilAssQuestionFeedbackEditingGUI
      */
     protected function setContentStyle(): void
     {
-        $this->tpl->addCss(ilObjStyleSheet::getContentStylePath(0));
+        $this->content_style->gui()->addCss($this->tpl, $this->request->getRefId());
     }
 
     /**
@@ -174,10 +184,6 @@ class ilAssQuestionFeedbackEditingGUI
      */
     private function showFeedbackFormCmd(): void
     {
-        $this->tpl->setCurrentBlock("ContentStyle");
-        $this->tpl->setVariable("LOCATION_CONTENT_STYLESHEET", ilObjStyleSheet::getContentStylePath(0));
-        $this->tpl->parseCurrentBlock();
-
         $form = $this->buildForm();
 
         $this->feedbackOBJ->initGenericFormProperties($form);
@@ -205,7 +211,7 @@ class ilAssQuestionFeedbackEditingGUI
 
         if ($form->checkInput()) {
             $this->feedbackOBJ->saveGenericFormProperties($form);
-            if ($this->questionOBJ->hasSpecificFeedback()){
+            if ($this->questionOBJ->hasSpecificFeedback()) {
                 $this->feedbackOBJ->saveSpecificFormProperties($form);
             }
             $this->questionOBJ->cleanupMediaObjectUsage();

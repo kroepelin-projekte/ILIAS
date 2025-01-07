@@ -2199,7 +2199,7 @@ s     */
      * @todo: generalize, internal links usage info
      */
     public static function _handleImportRepositoryLinks(
-        int $a_rep_import_id,
+        string $a_rep_import_id,
         string $a_rep_type,
         int $a_rep_ref_id
     ): void {
@@ -2207,7 +2207,7 @@ s     */
         $sources = ilInternalLink::_getSourcesOfTarget(
             "obj",
             ilInternalLink::_extractObjIdOfTarget($a_rep_import_id),
-            ilInternalLink::_extractInstOfTarget($a_rep_import_id)
+            (int) ilInternalLink::_extractInstOfTarget($a_rep_import_id)
         );
         //var_dump($sources);
         foreach ($sources as $source) {

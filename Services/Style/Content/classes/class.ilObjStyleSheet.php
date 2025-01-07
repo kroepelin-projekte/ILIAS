@@ -1975,7 +1975,7 @@ class ilObjStyleSheet extends ilObject
                         array(
                             "style_id" => array("integer", $this->getId()),
                             "type" => array("text", $char["type"]),
-                            "characteristic" => array("text", $char["class"])),
+                            "characteristic" => array("text", ilStr::subStr($char["class"], 0, 30))),
                         array("hide" => array("integer", 0))
                     );
                     $this->is_3_10_skin = false;
