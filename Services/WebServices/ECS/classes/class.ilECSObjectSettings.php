@@ -48,7 +48,9 @@ abstract class ilECSObjectSettings
     public function __construct(ilObject $a_content_object)
     {
         global $DIC;
-        $this->main_tpl = $DIC->ui()->mainTemplate();
+        if ($DIC->offsetExists('tpl')) {
+            $this->main_tpl = $DIC->ui()->mainTemplate();
+        }
 
         $this->lng = $DIC->language();
         $this->logger = $DIC->logger()->obj();
@@ -353,7 +355,7 @@ abstract class ilECSObjectSettings
         $mids = array();
         foreach ((array) $selected_receivers as $sid_mid) {
             $tmp = explode('_', $sid_mid);
-            if(1 === count($tmp)) {
+            if (1 === count($tmp)) {
                 $mids[$tmp[0]][] = $tmp[0];
             } else {
                 $mids[$tmp[0]][] = $tmp[1];
