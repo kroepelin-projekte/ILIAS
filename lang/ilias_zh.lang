@@ -10769,6 +10769,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#Edit Document###30 04 2024 new variable
 ldoc#:#ldoc_form_new_doc_head#:#Create Document###30 04 2024 new variable
 ldoc#:#ldoc_last_modified#:#Last Change###30 04 2024 new variable
 ldoc#:#ldoc_ldoc_settings#:#Settings###30 04 2024 new variable
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#Period###30 04 2024 new variable
 ldoc#:#ldoc_period_from#:#From###30 04 2024 new variable
 ldoc#:#ldoc_period_until#:#Until###30 04 2024 new variable
@@ -14000,9 +14001,11 @@ rbac#:#frm_add_reply#:#用户可以回复一个帖子
 rbac#:#frm_add_thread#:#添加新主题
 rbac#:#frm_copy#:#复制论坛
 rbac#:#frm_delete#:#删除论坛
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#更改许可设置
 rbac#:#frm_moderate_frm#:#删除帖子,审查
 rbac#:#frm_read#:#论坛设为读访问
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#论坛可见
 rbac#:#frm_write#:#编辑论坛
 rbac#:#frma_edit_permission#:#更改权限设置

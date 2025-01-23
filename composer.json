@@ -68,7 +68,7 @@
 		"ramsey/uuid": "4.4.0",
 		"enshrined/svg-sanitize": "^0.16.0",
 		"guzzlehttp/guzzle": "^7.0",
-		"simplesamlphp/simplesamlphp": "^2.0",
+		"simplesamlphp/simplesamlphp": "^2.0.15",
 		"seld/jsonlint": "^1.8",
 		"jasig/phpcas": "^1.4",
 		"league/commonmark": "^2.3",

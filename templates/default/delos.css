@@ -6966,7 +6966,7 @@ div.alert ul > li:before {
   vertical-align: middle;
 }
 .panel-secondary .il-panel-listing-std-container > h2, .panel-secondary .panel-body h4 {
-  display: block;
+  display: inline-block;
   padding: 3px 0;
   font-size: 0.875rem;
   color: #161616;
@@ -10322,6 +10322,7 @@ tbody.collapse.in {
 .img-responsive {
   display: block;
   max-width: 100%;
+  max-height: 100%;
   height: auto;
 }
 

@@ -2492,9 +2492,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
         }
 
         if (!$confirmed) {
-            $defaults = $this->object->getTestDefaults($_POST["chb_defaults"][0]);
+            $defaults = $this->object->getTestDefaults((int) $_POST["chb_defaults"][0]);
         } else {
-            $defaults = $this->object->getTestDefaults($_POST["confirmed_defaults_id"][0]);
+            $defaults = $this->object->getTestDefaults((int) $_POST["confirmed_defaults_id"]);
         }
 
         $defaultSettings = unserialize($defaults["defaults"]);
@@ -2623,7 +2623,6 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
             $this->trackTestObjectReadEvent();
         }
         $info = new ilInfoScreenGUI($this);
-        $info->setOpenFormTag(false);
 
         if ($this->isCommandClassAnyInfoScreenChild()) {
             return $this->ctrl->forwardCommand($info);

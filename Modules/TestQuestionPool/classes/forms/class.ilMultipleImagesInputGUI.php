@@ -18,6 +18,7 @@
 
 use ILIAS\UI\Renderer;
 use ILIAS\UI\Component\Symbol\Glyph\Factory as GlyphFactory;
+use ILIAS\UI\Implementation\Component\Input\UploadLimitResolver;
 
 /**
  * @author        Björn Heyser <bheyser@databay.de>
@@ -57,6 +58,7 @@ abstract class ilMultipleImagesInputGUI extends ilIdentifiedMultiValuesInputGUI
     protected ilGlobalTemplateInterface $tpl;
     protected GlyphFactory $glyph_factory;
     protected Renderer $renderer;
+    protected UploadLimitResolver $upload_limit;
 
     /**
      * Constructor
@@ -73,6 +75,7 @@ abstract class ilMultipleImagesInputGUI extends ilIdentifiedMultiValuesInputGUI
         $this->tpl = $DIC->ui()->mainTemplate();
         $this->glyph_factory = $DIC->ui()->factory()->symbol()->glyph();
         $this->renderer = $DIC->ui()->renderer();
+        $this->upload_limit = $DIC['ui.upload_limit_resolver'];
 
         $this->setSuffixes(["jpg", "jpeg", "png", "gif"]);
         $this->setSize(25);
@@ -327,6 +330,8 @@ abstract class ilMultipleImagesInputGUI extends ilIdentifiedMultiValuesInputGUI
 
             $tpl->setVariable("IMAGE_BROWSE", $lng->txt('select_file'));
             $tpl->setVariable("IMAGE_ID", $this->getMultiValuePosIndexedSubFieldId($identifier, self::IMAGE_UPLOAD_SUBFIELD_NAME, $i));
+            $tpl->setVariable('MAX_SIZE_WARNING', $this->lng->txt('form_msg_file_size_exceeds'));
+            $tpl->setVariable('MAX_SIZE', $this->upload_limit->getPhpUploadLimitInBytes());
             $tpl->setVariable("TXT_IMAGE_SUBMIT", $lng->txt("upload"));
             $tpl->setVariable("IMAGE_CMD_UPLOAD", $this->buildMultiValueSubmitVar($identifier, $i, $this->getImageUploadCommand()));
             $tpl->setVariable("UPLOAD_IMAGE_POST_VAR", $this->getMultiValuePostVarSubFieldPosIndexed($identifier, self::IMAGE_UPLOAD_SUBFIELD_NAME, $i));

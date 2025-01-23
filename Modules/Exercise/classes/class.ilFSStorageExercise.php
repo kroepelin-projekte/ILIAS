@@ -208,11 +208,7 @@ class ilFSStorageExercise extends ilFileSystemAbstractionStorage
         if (isset($a_http_post_file) && $a_http_post_file['size']) {
             $filename = $a_http_post_file['name'];
 
-            $filename = ilFileUtils::getValidFilename($filename);
-            // replace whitespaces with underscores
-            $filename = preg_replace("/\s/", "_", $filename);
-            // remove all special characters
-            $filename = preg_replace("/[^_a-zA-Z0-9\.]/", "", $filename);
+            $filename = $this->getStorageFilename($filename);
 
             if (!is_dir($savepath = $this->getAbsoluteSubmissionPath())) {
                 ilFileUtils::makeDir($savepath);
@@ -261,6 +257,19 @@ class ilFSStorageExercise extends ilFileSystemAbstractionStorage
         return $result;
     }
 
+    protected function getStorageFilename(string $filename): string
+    {
+        global $DIC;
+
+        $filename = ilFileUtils::getValidFilename($filename);
+        // replace whitespaces with underscores
+        $filename = preg_replace("/\s/", "_", $filename);
+        $filename = (new \ilFileServicesPolicy($DIC->fileServiceSettings()))->ascii($filename);
+        // remove all special characters
+        $filename = preg_replace("/[^_a-zA-Z0-9\.]/", "", $filename);
+        return $filename;
+    }
+
     /**
      * store delivered file in filesystem
      * @param array $a_http_post_file
@@ -277,11 +286,7 @@ class ilFSStorageExercise extends ilFileSystemAbstractionStorage
         $this->create();
 
         $filename = $result->getName();
-        $filename = ilFileUtils::getValidFilename($filename);
-        // replace whitespaces with underscores
-        $filename = preg_replace("/\s/", "_", $filename);
-        // remove all special characters
-        $filename = preg_replace("/[^_a-zA-Z0-9\.]/", "", $filename);
+        $filename = $this->getStorageFilename($filename);
 
         $savepath = $this->getRelativeSubmissionPath();
         $savepath .= '/' . $user_id;

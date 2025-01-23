@@ -84,7 +84,7 @@ class ilTestPassResultsTable
         string $sortation,
         array $question_results
     ) {
-        switch($mode) {
+        switch ($mode) {
             case self::MODE_OPT_CORRECT:
                 $filter = static fn($qr) => $qr->getCorrect() === ilQuestionResult::CORRECT_FULL;
                 break;
@@ -110,8 +110,8 @@ class ilTestPassResultsTable
     protected function getViewControlNamespace(): array
     {
         $namespace = self::URL_NAMESPACE;
-        $namespace[] = (string)$this->test_results->getActiveId();
-        $namespace[] = (string)$this->test_results->getPass();
+        $namespace[] = (string) $this->test_results->getActiveId();
+        $namespace[] = (string) $this->test_results->getPass();
         return $namespace;
     }
 
@@ -180,22 +180,22 @@ class ilTestPassResultsTable
             $title = sprintf(
                 '%s [ID: %s]',
                 $question->getTitle(),
-                (string)$question->getId()
+                (string) $question->getId()
             );
 
             $important_fields = [
-                $lng->txt('question_id') => (string)$question->getId(),
+                $lng->txt('question_id') => (string) $question->getId(),
                 $lng->txt('question_type') => $lng->txt($question->getType()),
                 $lng->txt('points') => sprintf(
                     '%s/%s (%s%%)',
-                    (string)$question->getUserScore(),
-                    (string)$question->getQuestionScore(),
-                    (string)$question->getUserScorePercent()
+                    (string) $question->getUserScore(),
+                    (string) $question->getQuestionScore(),
+                    (string) $question->getUserScorePercent()
                 )
             ];
 
             $stats_fields = $important_fields;
-            $stats_fields[$lng->txt('tst_question_hints_requested_hint_count_header')] = (string)$question->getNumberOfRequestedHints();
+            $stats_fields[$lng->txt('tst_question_hints_requested_hint_count_header')] = (string) $question->getNumberOfRequestedHints();
             $stats = $ui_factory->listing()->characteristicValue()->text($stats_fields);
 
 
@@ -216,9 +216,15 @@ class ilTestPassResultsTable
                 ]);
             }
 
-            $user_answer = $question->getUserAnswer();
+            $listing = [
+                $lng->txt('tst_header_participant') => $question->getUserAnswer()
+            ];
+            if ($autosave_content = $question->getAutosavedAnswer()) {
+                $listing[$lng->txt('autosavecontent')] = $autosave_content;
+            }
+
             $answer_contents = [
-                $ui_factory->listing()->descriptive([$lng->txt('tst_header_participant') => $user_answer])
+                $ui_factory->listing()->descriptive($listing)
             ];
             if ($env->getShowBestSolution()) {
                 $answer_contents[] = $ui_factory->listing()->descriptive([
@@ -231,7 +237,7 @@ class ilTestPassResultsTable
 
             $content = $ui_factory->layout()->alignment()->vertical(...$contents);
 
-            switch($question->getCorrect()) {
+            switch ($question->getCorrect()) {
                 case ilQuestionResult::CORRECT_FULL:
                     $icon_name = 'icon_ok.svg';
                     $label = $lng->txt("answer_is_right");

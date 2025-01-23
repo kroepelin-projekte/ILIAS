@@ -153,10 +153,6 @@ class ilTestSkillEvaluation
                 continue;
             }
 
-            if (!$result['workedthrough']) {
-                continue;
-            }
-
             $this->reachedPointsByQuestion[ $result['qid'] ] = $result['reached'];
         }
     }
@@ -254,8 +250,6 @@ class ilTestSkillEvaluation
     private function evaluateSkillPointAccounts()
     {
         foreach ($this->skillPointAccounts as $skillKey => $skillPointAccount) {
-            /* @var ilTestSkillPointAccount $skillPointAccount */
-
             if (!$this->doesNumBookingsExceedRequiredBookingsBarrier($skillPointAccount)) {
                 continue;
             }
@@ -274,11 +268,11 @@ class ilTestSkillEvaluation
                     continue;
                 }
 
-                $reachedLevelId = $level['id'];
-
                 if ($skillPointAccount->getTotalReachedSkillPercent() <= $threshold->getThreshold()) {
                     break;
                 }
+
+                $reachedLevelId = $level['id'];
             }
 
             if ($reachedLevelId) {

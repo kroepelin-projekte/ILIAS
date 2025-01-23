@@ -385,9 +385,9 @@ class ilObjectPermissionStatusGUI
             // Check ownership
             if ($this->user->getId() == $ilObjDataCache->lookupOwner($this->object->getId())) {
                 if (
-                    (substr($ops['operation'], 0, 7) != 'create_') and
-                    ($ops['operation'] != 'edit_permission') and
-                    ($ops['operation'] != 'edit_leanring_progress')
+                    (substr($ops['operation'], 0, 7) !== 'create_') and
+                    ($ops['operation'] !== 'edit_permission') and
+                    ($ops['operation'] !== 'edit_learning_progress')
                 ) {
                     $list_role[] = $this->lng->txt('info_owner_of_object');
                 }

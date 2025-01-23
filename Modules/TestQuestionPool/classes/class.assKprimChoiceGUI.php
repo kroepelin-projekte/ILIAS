@@ -545,7 +545,7 @@ class assKprimChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringAd
     /**
      * @param $active_id
      * @param null $pass
-     * @param bool $graphicalOutput
+     * @param bool $graphical_output
      * @param bool $result_output
      * @param bool $show_question_only
      * @param bool $show_feedback
@@ -564,32 +564,70 @@ class assKprimChoiceGUI extends assQuestionGUI implements ilGuiQuestionScoringAd
         $show_manual_scoring = false,
         $show_question_text = true
     ): string {
-        // shuffle output
-        $keys = $this->getParticipantsAnswerKeySequence();
-
-        // get the solution of the user for the active pass or from the last pass if allowed
         $user_solution = [];
+
         if (($active_id > 0) && (!$show_correct_solution)) {
             $solutions = $this->object->getSolutionValues($active_id, $pass);
             foreach ($solutions as $idx => $solution_value) {
-                $user_solution[$solution_value['value1']] = $solution_value['value2'];
+                $user_solution[] = [
+                    'value1' => $solution_value['value1'],
+                    'value2' => $solution_value['value2']
+                ];
             }
         } else {
             // take the correct solution instead of the user solution
             foreach ($this->object->getAnswers() as $answer) {
-                $user_solution[$answer->getPosition()] = $answer->getCorrectness();
+                $user_solution[] = [
+                    'value1' => $answer->getPosition(),
+                    'value2' => $answer->getCorrectness()
+                ];
             }
         }
 
-        // generate the question output
-        $template = new ilTemplate("tpl.il_as_qpl_mc_kprim_output_solution.html", true, true, "Modules/TestQuestionPool");
+        return $this->renderSolutionOutput(
+            $user_solution,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            false
+        );
+    }
 
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+
+        $user_solution = [];
+        foreach ($user_solutions as $idx => $solution_value) {
+            $user_solution[$solution_value['value1']] = $solution_value['value2'];
+        }
+
+        $template = new ilTemplate("tpl.il_as_qpl_mc_kprim_output_solution.html", true, true, "Modules/TestQuestionPool");
+        $keys = $this->getParticipantsAnswerKeySequence();
         foreach ($keys as $answer_id) {
             $answer = $this->object->getAnswer($answer_id);
 
             if (($active_id > 0) &&
                 !$show_correct_solution &&
-                $graphicalOutput) {
+                $graphical_output) {
                 $correctness_icon = $this->generateCorrectnessIconsForCorrectness(self::CORRECTNESS_NOT_OK);
                 if (isset($user_solution[$answer->getPosition()]) && $user_solution[$answer->getPosition()] == $answer->getCorrectness()) {
                     $correctness_icon = $this->generateCorrectnessIconsForCorrectness(self::CORRECTNESS_OK);

@@ -97,7 +97,6 @@ class ilTestSkillEvaluationGUI
     public function executeCommand()
     {
         $cmd = $this->ctrl->getCmd(self::CMD_SHOW) . 'Cmd';
-
         $this->$cmd();
     }
 

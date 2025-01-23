@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -29,6 +30,8 @@ use ILIAS\BackgroundTasks\Value;
  */
 class ilCollectFilesJob extends AbstractJob
 {
+    use ilObjFileSecureString;
+
     private ?ilLogger $logger;
     /**
      * Holds the target mapped to the number of duplicates.
@@ -99,9 +102,9 @@ class ilCollectFilesJob extends AbstractJob
 
             if ($object_type === "fold" || $object_type === "crs") {
                 $num_recursions = 0;
-                $files_from_folder = self::recurseFolder($object_ref_id, $object_name, $object_temp_dir, $num_recursions, $initiated_by_folder_action);
+                $files_from_folder = $this->recurseFolder($object_ref_id, $object_name, $object_temp_dir, $num_recursions, $initiated_by_folder_action);
                 $files = array_merge($files, $files_from_folder);
-            } elseif (($object_type === "file") && (($file_dirs = self::getFileDirs(
+            } elseif (($object_type === "file") && (($file_dirs = $this->getFileDirs(
                 $object_ref_id,
                 $object_name,
                 $object_temp_dir
@@ -136,7 +139,7 @@ class ilCollectFilesJob extends AbstractJob
      * duplicate entries. DO NOT call this method e.g. in an if condition and
      * then again in its body.
      */
-    private static function getFileDirs($a_ref_id, $a_file_name, $a_temp_dir)
+    private function getFileDirs($a_ref_id, $a_file_name, $a_temp_dir)
     {
         global $DIC;
 
@@ -149,9 +152,8 @@ class ilCollectFilesJob extends AbstractJob
             if (@!is_file($source_dir)) {
                 return false;
             }
-            $filname_with_suffix = ilFileUtils::getASCIIFilename(
-                rtrim($a_file_name, '.') . '.' . $file->getFileExtension()
-            );
+
+            $filname_with_suffix = $this->ensureSuffix($a_file_name, $file->getFileExtension());
 
             $target_dir = $a_temp_dir . '/' . $filname_with_suffix;
 
@@ -184,7 +186,7 @@ class ilCollectFilesJob extends AbstractJob
      *
      * @return mixed[]
      */
-    private static function recurseFolder($a_ref_id, $a_folder_name, $a_temp_dir, $a_num_recursions, $a_initiated_by_folder_action): array
+    private function recurseFolder($a_ref_id, $a_folder_name, $a_temp_dir, $a_num_recursions, $a_initiated_by_folder_action): array
     {
         global $DIC;
 
@@ -211,10 +213,10 @@ class ilCollectFilesJob extends AbstractJob
                 continue;
             }
             if ($child["type"] == "fold") {
-                $files_from_folder = self::recurseFolder($child["ref_id"], $child['title'], $temp_dir, $num_recursions, $a_initiated_by_folder_action);
+                $files_from_folder = $this->recurseFolder($child["ref_id"], $child['title'], $temp_dir, $num_recursions, $a_initiated_by_folder_action);
                 $files = array_merge($files, $files_from_folder);
             } else {
-                if (($child["type"] === "file") && (($dirs = self::getFileDirs($child["ref_id"], $child['title'], $temp_dir)) !== false)) {
+                if (($child["type"] === "file") && (($dirs = $this->getFileDirs($child["ref_id"], $child['title'], $temp_dir)) !== false)) {
                     $files[] = $dirs;
                 }
             }

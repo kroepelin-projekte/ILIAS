@@ -103,12 +103,26 @@ class Form
                 })
             );
 
+        $tile_previews = $this->field_factory
+            ->checkbox(
+                $this->language->txt('previews_for_tiles'),
+                $this->language->txt('previews_for_tiles_info')
+            )
+            ->withDisabled(!$possible)
+            ->withValue($this->settings->hasTilePreviews())
+            ->withAdditionalTransformation(
+                $this->refinery->custom()->transformation(function ($v): void {
+                    $this->settings->setTilePreviews($v);
+                })
+            );
+
         return $this->field_factory->group(
             [
                 $activated,
                 $image_size,
                 $max_previews,
-                $persisting
+                $persisting,
+                $tile_previews
             ]
         );
     }

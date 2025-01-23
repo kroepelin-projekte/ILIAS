@@ -24,6 +24,11 @@ class ContentStyleAgent extends Setup\Agent\NullAgent
 {
     public function getUpdateObjective(Setup\Config $config = null): Setup\Objective
     {
-        return new \ilDatabaseUpdateStepsExecutedObjective(new ilStyleDBUpdateSteps());
+        return new Setup\ObjectiveCollection(
+            'Content Style Update',
+            true,
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilStyleDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsExecutedObjective(new ilStyle9HotfixDBUpdateSteps())
+        );
     }
 }

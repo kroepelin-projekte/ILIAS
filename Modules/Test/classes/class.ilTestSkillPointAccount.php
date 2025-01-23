@@ -65,8 +65,6 @@ class ilTestSkillPointAccount
 
     public function getTotalReachedSkillPercent()
     {
-        return (
-            ($this->getTotalReachedSkillPoints() * 100) / $this->getTotalMaxSkillPoints()
-        );
+        return $this->getTotalReachedSkillPoints() * 100 / $this->getTotalMaxSkillPoints();
     }
 }

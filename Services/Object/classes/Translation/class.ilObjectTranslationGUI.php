@@ -243,7 +243,7 @@ class ilObjectTranslationGUI
     {
         return $this->ui_factory->modal()->roundtrip(
             $this->lng->txt('confirm'),
-            $this->ui_factory->legacy($this->lng->txt('obj_select_master_lang')),
+            null,
             [
                 'langs' => $this->getMultiLangFormInput(true)
             ],

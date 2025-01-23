@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +16,8 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
+declare(strict_types=1);
+
 /**
  * @author  Stefan Meyer <meyer@leifos.com>
  * @version $Id$
@@ -30,7 +31,7 @@ class ilRoleSelectionTableGUI extends ilTable2GUI
     {
         global $DIC;
 
-        $this->review = $DIC->rbac()->review();
+        $this->review = $DIC['rbacreview'];
 
         parent::__construct($a_parent_obj, $a_parent_cmd);
         $this->addColumn('', 'f', (string) 1);
@@ -57,10 +58,17 @@ class ilRoleSelectionTableGUI extends ilTable2GUI
     {
         $records_arr = [];
         foreach ($entries as $entry) {
+            $role = new ilObjRole($entry['obj_id'], false);
             $tmp_arr['id'] = $entry['obj_id'];
-            $tmp_arr['title'] = ilObjRole::_getTranslation(ilObject::_lookupTitle($entry['obj_id']));
-            $tmp_arr['description'] = ilObject::_lookupDescription($entry['obj_id']);
-            $tmp_arr['context'] = ilObject::_lookupTitle($this->review->getObjectOfRole((int) $entry['obj_id']));
+            $tmp_arr['title'] = strip_tags(
+                $role->getPresentationTitle()
+            );
+            $tmp_arr['description'] = strip_tags(
+                $role->getDescription()
+            );
+            $tmp_arr['context'] = strip_tags(
+                ilObject::_lookupTitle($this->review->getObjectOfRole((int) $entry['obj_id']))
+            );
 
             $records_arr[] = $tmp_arr;
         }

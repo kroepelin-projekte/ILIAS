@@ -121,10 +121,6 @@ class ilEvaluationAllTableGUITest extends ilTestBaseTestCase
     public function testGetSelectableColumns()
     {
         $expected = [
-            "gender" => [
-                "txt" => "testTranslation",
-                "default" => false,
-            ],
             "email" => [
                 "txt" => "testTranslation",
                 "default" => false,

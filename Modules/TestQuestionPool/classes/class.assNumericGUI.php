@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -177,19 +178,54 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
         $show_question_text = true
     ): string {
         // get the solution of the user for the active pass or from the last pass if allowed
-        $solutions = array();
+        $solutions = [];
         if (($active_id > 0) && (!$show_correct_solution)) {
             $solutions = $this->object->getSolutionValues($active_id, $pass);
         } else {
-            array_push($solutions, array("value1" => sprintf($this->lng->txt("value_between_x_and_y"), $this->object->getLowerLimit(), $this->object->getUpperLimit())));
+            array_push($solutions, [
+                'value1' => sprintf(
+                    $this->lng->txt("value_between_x_and_y"),
+                    $this->object->getLowerLimit(),
+                    $this->object->getUpperLimit()
+                )
+            ]);
         }
 
-        // generate the question output
+        return $this->renderSolutionOutput(
+            $solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            false,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
         $template = new ilTemplate("tpl.il_as_qpl_numeric_output_solution.html", true, true, "Modules/TestQuestionPool");
         $solutiontemplate = new ilTemplate("tpl.il_as_tst_solution_output.html", true, true, "Modules/TestQuestionPool");
-        if (is_array($solutions)) {
+        if (is_array($user_solutions)) {
             if (($active_id > 0) && (!$show_correct_solution)) {
-                if ($graphicalOutput) {
+                if ($graphical_output) {
                     if ($this->object->getStep() === null) {
                         $reached_points = $this->object->getReachedPoints($active_id, $pass);
                     } else {
@@ -205,10 +241,10 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
                     $template->parseCurrentBlock();
                 }
             }
-            foreach ($solutions as $solution) {
-                $template->setVariable("NUMERIC_VALUE", $solution["value1"]);
+            foreach ($user_solutions as $solution) {
+                $template->setVariable("NUMERIC_VALUE", $solution['value1']);
             }
-            if (count($solutions) == 0) {
+            if (count($user_solutions) == 0) {
                 $template->setVariable("NUMERIC_VALUE", "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
             }
         }
@@ -288,7 +324,7 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
         $template = new ilTemplate("tpl.il_as_qpl_numeric_output.html", true, true, "Modules/TestQuestionPool");
         if (is_array($solutions)) {
             foreach ($solutions as $solution) {
-                $template->setVariable("NUMERIC_VALUE", " value=\"" . $solution["value1"] . "\"");
+                $template->setVariable("NUMERIC_VALUE", " value=\"" . $solution['value1'] . "\"");
             }
         }
         $template->setVariable("NUMERIC_SIZE", $this->object->getMaxChars());
@@ -390,7 +426,7 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
      */
     public function getAfterParticipationSuppressionAnswerPostVars(): array
     {
-        return array();
+        return [];
     }
 
     /**
@@ -404,7 +440,7 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
      */
     public function getAfterParticipationSuppressionQuestionPostVars(): array
     {
-        return array();
+        return [];
     }
 
     /**
@@ -422,7 +458,7 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
 
     public function aggregateAnswers($relevant_answers_chosen): array
     {
-        $aggregate = array();
+        $aggregate = [];
 
         foreach ($relevant_answers_chosen as $relevant_answer) {
             if (array_key_exists($relevant_answer['value1'], $aggregate)) {
@@ -462,7 +498,7 @@ class assNumericGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjust
 
     public function getAnswersFrequency($relevantAnswers, $questionIndex): array
     {
-        $answers = array();
+        $answers = [];
 
         foreach ($relevantAnswers as $ans) {
             if (!isset($answers[$ans['value1']])) {

@@ -459,6 +459,41 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             $pass
         );
 
+        $show_inline_feedback = false;
+        return $this->renderSolutionOutput(
+            $solutionOrderingList,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            $show_inline_feedback,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+        $solutionOrderingList = ($user_solutions instanceof ilAssOrderingElementList) ?
+            $user_solutions : $this->object->getSolutionOrderingElementList(
+                $this->object->fetchIndexedValuesFromValuePairs($user_solutions)
+            );
         $answers_gui = $this->object->buildNestedOrderingElementInputGui();
 
         if ($show_correct_solution) {
@@ -469,7 +504,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
         $answers_gui->setInteractionEnabled(false);
         $answers_gui->setElementList($solutionOrderingList);
-        if ($graphicalOutput) {
+        if ($graphical_output) {
             $answers_gui->setShowCorrectnessIconsEnabled(true);
         }
         $answers_gui->setCorrectnessTrueElementList(
@@ -565,7 +600,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
     // hey.
     {
         // hey: prevPassSolutions - fixed variable type, makes phpstorm stop crying
-        $userSolutionPost = is_array($userSolutionPost) ? $userSolutionPost : array();
+        $userSolutionPost = is_array($userSolutionPost) ? $userSolutionPost : [];
         // hey.
 
         $orderingGUI = $this->object->buildNestedOrderingElementInputGui();
@@ -629,7 +664,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
      */
     public function getAfterParticipationSuppressionAnswerPostVars(): array
     {
-        return array();
+        return [];
     }
 
     /**
@@ -643,7 +678,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
      */
     public function getAfterParticipationSuppressionQuestionPostVars(): array
     {
-        return array();
+        return [];
     }
 
     /**
@@ -664,12 +699,12 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
     public function aggregateAnswers($relevant_answers_chosen, $answers_defined_on_question): array
     {
-        $passdata = array(); // Regroup answers into units of passes.
+        $passdata = []; // Regroup answers into units of passes.
         foreach ($relevant_answers_chosen as $answer_chosen) {
             $passdata[$answer_chosen['active_fi'] . '-' . $answer_chosen['pass']][$answer_chosen['value2']] = $answer_chosen['value1'];
         }
 
-        $variants = array(); // Determine unique variants.
+        $variants = []; // Determine unique variants.
         foreach ($passdata as $key => $data) {
             $hash = md5(implode('-', $data));
             $value_set = false;
@@ -685,7 +720,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             }
         }
 
-        $aggregate = array(); // Render aggregate from variant.
+        $aggregate = []; // Render aggregate from variant.
         foreach ($variants as $key => $variant_entry) {
             $variant = $passdata[$key];
 
@@ -795,26 +830,26 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
     public function getAnswersFrequency($relevantAnswers, $questionIndex): array
     {
-        $answersByActiveAndPass = array();
+        $answersByActiveAndPass = [];
 
         foreach ($relevantAnswers as $row) {
             $key = $row['active_fi'] . ':' . $row['pass'];
 
             if (!isset($answersByActiveAndPass[$key])) {
-                $answersByActiveAndPass[$key] = array();
+                $answersByActiveAndPass[$key] = [];
             }
 
             $answersByActiveAndPass[$key][$row['value1']] = $row['value2'];
         }
 
-        $solutionLists = array();
+        $solutionLists = [];
 
         foreach ($answersByActiveAndPass as $indexedSolutions) {
             $solutionLists[] = $this->object->getSolutionOrderingElementList($indexedSolutions);
         }
 
         /* @var ilAssOrderingElementList[] $answers */
-        $answers = array();
+        $answers = [];
 
         foreach ($solutionLists as $orderingElementList) {
             $hash = $orderingElementList->getHash();

@@ -38,7 +38,8 @@ class TestResultsQuestionResultsTest extends TestCase
             $worked_through = true,
             $answered = true,
             $requested_hints = 2,
-            $recapitulation = 'some recap'
+            $recapitulation = 'some recap',
+            $autosave = 'some autosave content',
         );
 
         $this->assertEquals($id, $qr->getId());
@@ -53,5 +54,6 @@ class TestResultsQuestionResultsTest extends TestCase
         $this->assertTrue($qr->isAnswered());
         $this->assertEquals($recapitulation, $qr->getContentForRecapitulation());
         $this->assertEquals($requested_hints, $qr->getNumberOfRequestedHints());
+        $this->assertEquals('some autosave content', $qr->getAutosavedAnswer());
     }
 }

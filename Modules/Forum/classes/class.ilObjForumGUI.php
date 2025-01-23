@@ -974,8 +974,15 @@ class ilObjForumGUI extends ilObjectGUI implements ilDesktopItemHandling, ilForu
             $unread = ' (' . $unread_counter . ' ' . $this->lng->txt('unread') . ')';
         }
 
+        $authorinfo = new ilForumAuthorInformation(
+            $forum_topic->getThrAuthorId(),
+            $forum_topic->getDisplayUserId(),
+            (string) $forum_topic->getUserAlias(),
+            (string) $forum_topic->getImportName()
+        );
+
         $properties = [
-            $this->lng->txt('forums_created_by') => $forum_topic->getUserAlias(),
+            $this->lng->txt('forums_created_by') => $authorinfo->getAuthorName(),
             $this->lng->txt('forums_articles') => $forum_topic->getNumPosts() . $unread,
             $this->lng->txt('forums_last_post') => $this->object->Forum->convertDate($forum_topic->getLastPost()->getCreateDate()),
             $this->lng->txt('visits') => $forum_topic->getVisits(),

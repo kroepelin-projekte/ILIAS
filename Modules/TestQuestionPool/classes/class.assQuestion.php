@@ -1004,7 +1004,6 @@ abstract class assQuestion
             $this->feedbackOBJ->deleteSpecificAnswerFeedbacks($question_id, $this->isAdditionalContentEditingModePageObject());
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Could not delete additional table data of question $question_id: $e");
-            return;
         }
 
         try {
@@ -1016,14 +1015,12 @@ abstract class assQuestion
             );
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Could not delete delete question $question_id from a test: $e");
-            return;
         }
 
         try {
             $this->getSuggestedSolutionsRepo()->deleteForQuestion($question_id);
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Could not delete suggested solutions of question $question_id: $e");
-            return;
         }
 
         try {
@@ -1033,7 +1030,6 @@ abstract class assQuestion
             }
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Could not delete question file directory $directory of question $question_id: $e");
-            return;
         }
 
         try {
@@ -1051,7 +1047,6 @@ abstract class assQuestion
             }
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Error deleting the media objects of question $question_id: $e");
-            return;
         }
         ilAssQuestionHintTracking::deleteRequestsByQuestionIds(array($question_id));
         ilAssQuestionHintList::deleteHintsByQuestionIds(array($question_id));
@@ -1080,7 +1075,6 @@ abstract class assQuestion
             ilObjQuestionPool::_updateQuestionCount($this->getObjId());
         } catch (Exception $e) {
             $this->ilLog->root()->error("EXCEPTION: Error updating the question pool question count of question pool " . $this->getObjId() . " when deleting question $question_id: $e");
-            return;
         }
     }
 

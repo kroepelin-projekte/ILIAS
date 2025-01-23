@@ -161,7 +161,7 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
         $show_question_text = true
     ): string {
         // get the solution of the user for the active pass or from the last pass if allowed
-        $solutions = array();
+        $solutions = [];
         if (($active_id > 0) && (!$show_correct_solution)) {
             $solutions = $this->object->getSolutionValues($active_id, $pass);
         } else {
@@ -181,16 +181,48 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
             }
         }
 
+        $show_inline_feedback = false;
+        return $this->renderSolutionOutput(
+            $solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            $show_inline_feedback,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+
         $template = new ilTemplate("tpl.il_as_qpl_textsubset_output_solution.html", true, true, "Modules/TestQuestionPool");
         $solutiontemplate = new ilTemplate("tpl.il_as_tst_solution_output.html", true, true, "Modules/TestQuestionPool");
         $available_answers = &$this->object->getAvailableAnswers();
         for ($i = 0; $i < $this->object->getCorrectAnswers(); $i++) {
-            if (!array_key_exists($i, $solutions) || (strcmp($solutions[$i]["value1"], "") == 0)) {
+            if (!array_key_exists($i, $user_solutions) || (strcmp($user_solutions[$i]['value1'], "") == 0)) {
             } else {
                 if (($active_id > 0) && (!$show_correct_solution)) {
-                    if ($graphicalOutput) {
+                    if ($graphical_output) {
                         // output of ok/not ok icons for user entered solutions
-                        $index = $this->object->isAnswerCorrect($available_answers, $solutions[$i]["value1"]);
+                        $index = $this->object->isAnswerCorrect($available_answers, $user_solutions[$i]['value1']);
                         $correct = false;
                         if ($index !== false) {
                             unset($available_answers[$index]);
@@ -207,10 +239,10 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
                     }
                 }
                 $template->setCurrentBlock("textsubset_row");
-                $template->setVariable("SOLUTION", $this->escapeTemplatePlaceholders($solutions[$i]["value1"]));
+                $template->setVariable("SOLUTION", $this->escapeTemplatePlaceholders($user_solutions[$i]['value1']));
                 $template->setVariable("COUNTER", $i + 1);
                 if ($result_output) {
-                    $points = $solutions[$i]["points"];
+                    $points = $user_solutions[$i]["points"];
                     $resulttext = ($points == 1) ? "(%s " . $this->lng->txt("point") . ")" : "(%s " . $this->lng->txt("points") . ")";
                     $template->setVariable("RESULT_OUTPUT", sprintf($resulttext, $points));
                 }
@@ -284,7 +316,7 @@ class assTextSubsetGUI extends assQuestionGUI implements ilGuiQuestionScoringAdj
             foreach ($solutions as $idx => $solution_value) {
                 if ($idx == $i) {
                     $template->setVariable("TEXTFIELD_VALUE", " value=\""
-                        . $this->escapeTemplatePlaceholders($solution_value["value1"])
+                        . $this->escapeTemplatePlaceholders($solution_value['value1'])
                         . "\"");
                 }
             }

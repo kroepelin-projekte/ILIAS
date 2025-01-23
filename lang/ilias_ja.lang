@@ -10770,6 +10770,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#ドキュメントを編集
 ldoc#:#ldoc_form_new_doc_head#:#ドキュメントを作成
 ldoc#:#ldoc_last_modified#:#最終変更
 ldoc#:#ldoc_ldoc_settings#:#設定
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#期間
 ldoc#:#ldoc_period_from#:#From
 ldoc#:#ldoc_period_until#:#いつまで
@@ -14001,9 +14002,11 @@ rbac#:#frm_add_reply#:#ユーザは投稿へ返信する事ができます
 rbac#:#frm_add_thread#:#ユーザは新しいトピックを追加できます
 rbac#:#frm_copy#:#ユーザは掲示板をコピーできます
 rbac#:#frm_delete#:#ユーザは掲示板を移動または削除できます
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#ユーザはアクセス権設定を変更できます
 rbac#:#frm_moderate_frm#:#ユーザは投稿を編集、検閲または削除できます
 rbac#:#frm_read#:#ユーザは掲示板内容を読込む事ができます
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#掲示板を表示
 rbac#:#frm_write#:#ユーザは掲示板設定とモデレータを編集できます
 rbac#:#frma_edit_permission#:#ユーザは掲示板管理のアクセス権設定を変更できます

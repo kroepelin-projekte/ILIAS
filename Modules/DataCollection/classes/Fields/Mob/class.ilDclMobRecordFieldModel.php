@@ -20,21 +20,6 @@ declare(strict_types=1);
 
 class ilDclMobRecordFieldModel extends ilDclFileRecordFieldModel
 {
-    private ilGlobalTemplateInterface $main_tpl;
-    private \ILIAS\FileUpload\FileUpload $upload;
-
-    public function __construct(ilDclBaseRecordModel $record, ilDclBaseFieldModel $field)
-    {
-        parent::__construct($record, $field);
-        global $DIC;
-        $this->upload = $DIC->upload();
-        $this->main_tpl = $DIC->ui()->mainTemplate();
-    }
-
-    /**
-     * @param array|int $value
-     * @throws ilException
-     */
     public function parseValue($value)
     {
         if ($value === -1) {
@@ -91,31 +76,6 @@ class ilDclMobRecordFieldModel extends ilDclFileRecordFieldModel
 
             $format = ilObjMediaObject::getMimeType($target_file_path);
 
-            if ($format === 'image/jpeg') {
-                list($width, $height, $type, $attr) = getimagesize($target_file_path);
-                $new_width = (int) $this->getField()->getProperty(ilDclBaseFieldModel::PROP_WIDTH);
-                $new_height = (int) $this->getField()->getProperty(ilDclBaseFieldModel::PROP_HEIGHT);
-                if ($new_width > 0 || $new_height > 0) {
-                    if ($new_height < $height && $new_width < $width) {
-                        $wh['width'] = $new_width;
-                        $wh['height'] = $new_height;
-                        if ($new_height === 0 || $new_width === 0) {
-                            $wh = ilObjMediaObject::_determineWidthHeight(
-                                $format,
-                                'File',
-                                $target_file_path,
-                                '',
-                                true,
-                                false,
-                                $new_width,
-                                $new_height
-                            );
-                        }
-                        $location = ilObjMediaObject::_resizeImage($target_file_path, $wh['width'], $wh['height']);
-                    }
-                }
-            }
-
             ilObjMediaObject::_saveUsage(
                 $mob->getId(),
                 'dcl:html',
@@ -129,15 +89,14 @@ class ilDclMobRecordFieldModel extends ilDclFileRecordFieldModel
                 $med = $mob->getMediaItem('Standard');
                 $mob_file = ilObjMediaObject::_getDirectory($mob->getId()) . '/' . $med->getLocation();
                 $a_target_dir = ilObjMediaObject::_getDirectory($mob->getId());
-                try {
-                    ilFFmpeg::extractImage($mob_file, 'mob_vpreview.png', $a_target_dir);
-                } catch (Exception $e) {
-                    $this->main_tpl->setOnScreenMessage('failure', $e->getMessage(), true);
-                }
+                ilFFmpeg::extractImage($mob_file, 'mob_vpreview.png', $a_target_dir);
             }
 
             $mob->update();
             $return = $mob->getId();
+            if ($this->value !== null) {
+                $this->removeData();
+            }
         } else {
             if (($media['tmp_name'] ?? '') !== '') {
                 $return = $media;
@@ -176,13 +135,15 @@ class ilDclMobRecordFieldModel extends ilDclFileRecordFieldModel
         return $mob->getTitle();
     }
 
-    public function setValueFromForm(ilPropertyFormGUI $form): void
+    protected function removeData(): void
     {
-        $value = $form->getInput("field_" . $this->getField()->getId());
-        if ($form->getItemByPostVar("field_" . $this->getField()->getId())->getDeletionFlag()) {
-            $value = -1;
-        }
-        $this->setValue($value);
+        $mob = new ilObjMediaObject($this->value);
+        ilObjMediaObject::_removeUsage(
+            $mob->getId(),
+            'dcl:html',
+            $this->getRecord()->getTable()->getCollectionObject()->getId()
+        );
+        $mob->delete();
     }
 
     public function afterClone(): void

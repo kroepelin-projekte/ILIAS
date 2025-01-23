@@ -1,5 +1,23 @@
 /* see content style roadmap */
 
+#il-edit-cont {
+	position: static;
+}
+
+#il-edit-cont p {
+	/*margin: 0px;*/
+	/*padding: 0px;*/
+}
+
+.ilTinyMenuSection .dropdown-menu .btn, .il-copg-button-group .dropdown-menu .btn {
+	width: 100%;
+	text-align: left;
+}
+
+#iltinymenu div.ilTinyMenuSection p, #iltinymenu .il-copg-button-group p {
+	background-color: transparent;
+}
+
 div.ilc_QuestionPlaceHolder
 {
 	padding: 10px 10px 10px 10px;

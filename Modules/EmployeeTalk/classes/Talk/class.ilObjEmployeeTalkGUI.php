@@ -150,6 +150,15 @@ final class ilObjEmployeeTalkGUI extends ilObjectGUI
                 );
                 $this->ctrl->forwardCommand($appointmentGUI);
                 break;
+            case strtolower(ilPropertyFormGUI::class):
+                /*
+                 * Only used for async loading of the repository tree in custom md
+                 * internal links (see #43636). This is necessary since EmployeeTalks don't
+                 * use ilObjectMetaDataGUI.
+                 */
+                $form = $this->getMetadataForm()->getFormGUI();
+                $this->ctrl->forwardCommand($form);
+                break;
             default:
                 parent::executeCommand();
         }

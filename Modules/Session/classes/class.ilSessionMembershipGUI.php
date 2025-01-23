@@ -182,6 +182,33 @@ class ilSessionMembershipGUI extends ilMembershipGUI
         return $table;
     }
 
+    protected function getParticipantTableTitle(): string
+    {
+        /*
+         * TODO this exact logic is also in ilSessionParticipantsTableGUI and ilMembershipGUI,
+         *  should be centralized.
+         */
+        if ($member_ref = $this->tree->checkForParentType(
+            $this->getParentObject()->getRefId(),
+            'grp'
+        )) {
+            $member_ref_id = $member_ref;
+        } elseif ($member_ref = $this->tree->checkForParentType(
+            $this->getParentObject()->getRefId(),
+            'crs'
+        )) {
+            $member_ref_id = $member_ref;
+        } else {
+            $this->logger->warning('Cannot find parent course or group for ref_id: ' . $this->getParentObject()->getRefId());
+            $member_ref_id = $this->getParentObject()->getRefId();
+        }
+
+        return sprintf(
+            $this->lng->txt('sess_mem_tbl_header'),
+            ilObjectFactory::getInstanceByRefId($member_ref_id)->getTitle(),
+        );
+    }
+
     protected function initSubscriberTable(): ilSubscriberTableGUI
     {
         $subscriber = new ilSubscriberTableGUI($this, $this->getParentObject(), true, false);

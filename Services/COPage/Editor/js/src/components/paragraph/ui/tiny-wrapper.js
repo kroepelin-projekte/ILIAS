@@ -337,7 +337,7 @@ export default class TinyWrapper {
         cb();
       });
 
-      if (ev.key === "Escape") {
+      if (ev.key === 'Escape') {
         wrapper.getCallbacks(CB.ESCAPE).forEach((cb) => {
           cb();
         });
@@ -699,7 +699,7 @@ export default class TinyWrapper {
 
     if (this.ghost) {
       let cl = ed.dom.getRoot().className;
-      let c = html.p2br(ed.getContent());
+      let c = html.p2br(ed.getContent()); // the tag is added later
 
       if (this.getDataTableMode()) {
         cl = 'ilc_Paragraph ilc_text_block_TableContent';
@@ -720,12 +720,22 @@ export default class TinyWrapper {
           tag = 'h3';
           break;
         default:
-          tag = 'div';
+          tag = 'p';
           break;
+      }
+      if (this.getDataTableMode()) {
+        tag = 'div';
+      }
+
+      if (c.includes('</ul>') || c.includes('</ol>')) {
+        tag = 'div';
       }
 
       if (add_final_spacer) {
-        c += '<br />.';
+        //        c += '<br />.';
+      }
+      if (c.trim() === '') {
+        c = '<p>&nbsp;</p>';
       }
 
       let label = '';
@@ -739,10 +749,9 @@ export default class TinyWrapper {
       }
 
       c = `${label}<${tag} style='position:static;' class='${cl}'>${c}</${tag}>`;
-
       // we remove the first child div content div (edit label)
       this.ghost.querySelector('div').remove(); // edit label in case of paragraph, content div in case of td
-      const div2 = this.ghost.querySelector('div, h1, h2, h3'); // content element in case of paragraph
+      const div2 = this.ghost.querySelector('p, h1, h2, h3'); // content element in case of paragraph
       if (div2) {
         div2.remove();
       }
@@ -974,7 +983,7 @@ export default class TinyWrapper {
       t = 'mycode';
     }
     ed.execCommand('mceToggleFormat', false, t);
-    this.getTinyDomTransform().removeMultiClasses('ilc_text_inline_' + t);
+    this.getTinyDomTransform().removeMultiClasses(`ilc_text_inline_${t}`);
     ed.focus();
     // ed.selection.collapse(false); // see #33963
     this.autoResize();

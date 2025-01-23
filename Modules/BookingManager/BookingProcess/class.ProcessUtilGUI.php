@@ -60,6 +60,8 @@ class ProcessUtilGUI
         if ($retCmd !== "") {
             $this->ctrl->redirectByClass(get_class($this->parent_gui), $retCmd);
         } else {
+            //var_dump(get_class($this->parent_gui));
+            //exit;
             $this->ctrl->returnToParent($this->parent_gui);
         }
     }

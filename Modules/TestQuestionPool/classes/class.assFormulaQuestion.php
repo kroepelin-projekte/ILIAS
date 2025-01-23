@@ -253,7 +253,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, ilAs
             $active_id,
             $pass
         );
-        if(is_null($values)) {
+        if (is_null($values)) {
             $values = $this->getInitialVariableSolutionValues();
             $this->pass_presented_variables_repo->store(
                 $question_id,
@@ -340,7 +340,6 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, ilAs
                 if (is_array($userdata) &&
                     isset($userdata[$result]) &&
                     isset($userdata[$result]["value"])) {
-
                     $input = $this->generateResultInputHTML($result, $userdata[$result]["value"], $forsolution);
                 } elseif ($forsolution) {
                     $value = '';
@@ -1502,5 +1501,4 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, ilAs
             return $this->getResults();
         }
     }
-
 }

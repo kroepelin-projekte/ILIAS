@@ -684,6 +684,7 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
 
         try {
             $upload_handling_required = $this->current_cmd !== 'submitSolution'
+                && $this->current_cmd !== 'showInstantResponse'
                 && !$this->isFileDeletionAction()
                 && $this->isFileUploadAvailable()
                 && $this->checkUpload();
@@ -889,7 +890,8 @@ class assFileUpload extends assQuestion implements ilObjQuestionScoringAdjustabl
         } else {
             // hey: prevPassSolutions - readability spree - get a chance to understand the code
             try {
-                $fileUploadAvailable = $this->isFileUploadAvailable();
+                $fileUploadAvailable = $this->current_cmd !== 'instantResponse'
+                    && $this->isFileUploadAvailable();
             } catch (IllegalStateException $e) {
                 $this->tpl->setOnScreenMessage('failure', $e->getMessage(), true);
                 return;

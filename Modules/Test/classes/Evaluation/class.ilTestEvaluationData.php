@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,17 +18,6 @@
 
 declare(strict_types=1);
 
-/**
-* Class ilTestEvaluationData
-*
-* @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
-* @author		Björn Heyser <bheyser@databay.de>
-* @version		$Id$
-*
-* @defgroup ModulesTest Modules/Test
-* @extends ilObject
-*/
-
 class ilTestEvaluationData
 {
     public const FILTER_BY_NONE = '';
@@ -36,164 +26,23 @@ class ilTestEvaluationData
     public const FILTER_BY_COURSE = 'course';
     public const FILTER_BY_ACTIVE_ID = 'active_id';
 
-    public array $question_titles;
+    public array $question_titles = [];
 
-    /**
-    * @var array<ilTestEvaluationUserData>
-    */
-    protected $participants;
     protected $statistics;
     protected ?array $arr_filter = null;
     protected int $datasets;
-    protected ?ilTestParticipantList $access_filtered_participant_list = null;
 
     public function __sleep(): array
     {
         return ['question_titles', 'participants', 'statistics', 'arr_filter', 'datasets', 'test'];
     }
 
+    /**
+    * @param array<ilTestEvaluationUserData> $participants
+    */
     public function __construct(
-        protected ilDBInterface $db,
-        protected ?ilObjTest $test = null
+        protected array $participants
     ) {
-        $this->participants = [];
-        $this->question_titles = [];
-        if ($test !== null) {
-            if ($this->getTest()->getAccessFilteredParticipantList()) {
-                $this->setAccessFilteredParticipantList(
-                    $this->getTest()->getAccessFilteredParticipantList()
-                );
-            }
-
-            $this->generateOverview();
-        }
-    }
-
-    public function getAccessFilteredParticipantList(): ?ilTestParticipantList
-    {
-        return $this->access_filtered_participant_list;
-    }
-
-    public function setAccessFilteredParticipantList(ilTestParticipantList $access_filtered_participant_list): void
-    {
-        $this->access_filtered_participant_list = $access_filtered_participant_list;
-    }
-
-    protected function checkParticipantAccess(int $active_id): bool
-    {
-        if ($this->getAccessFilteredParticipantList() === null) {
-            return true;
-        }
-
-        return $this->getAccessFilteredParticipantList()->isActiveIdInList($active_id);
-    }
-
-    protected function loadRows(): array
-    {
-        $query = '
-			SELECT			usr_data.usr_id,
-							usr_data.firstname,
-							usr_data.lastname,
-							usr_data.title,
-							usr_data.login,
-							tst_pass_result.*,
-							tst_active.submitted,
-							tst_active.last_finished_pass
-			FROM			tst_pass_result, tst_active
-			LEFT JOIN		usr_data
-			ON				tst_active.user_fi = usr_data.usr_id
-			WHERE			tst_active.active_id = tst_pass_result.active_fi
-			AND				tst_active.test_fi = %s
-			ORDER BY		usr_data.lastname,
-							usr_data.firstname,
-							tst_pass_result.active_fi,
-							tst_pass_result.pass,
-							tst_pass_result.tstamp
-		';
-
-        $result = $this->db->queryF(
-            $query,
-            ['integer'],
-            [$this->getTest()->getTestId()]
-        );
-
-        $rows = [];
-
-        while ($row = $this->db->fetchAssoc($result)) {
-            if (!$this->checkParticipantAccess($row['active_fi'])) {
-                continue;
-            }
-
-            $rows[] = $row;
-        }
-
-        return $rows;
-    }
-
-    public function generateOverview(): void
-    {
-        $this->participants = [];
-
-        $pass = null;
-        $thissets = 0;
-
-        foreach ($this->loadRows() as $row) {
-            $thissets++;
-
-            $remove = false;
-
-            if (!$this->participantExists($row['active_fi'])) {
-                $this->addParticipant($row['active_fi'], new ilTestEvaluationUserData($this->getTest()->getPassScoring()));
-
-                $this->getParticipant($row['active_fi'])->setName(
-                    $this->getTest()->buildName($row['usr_id'], $row['firstname'], $row['lastname'], $row['title'])
-                );
-
-                if ($row['login'] !== null) {
-                    $this->getParticipant($row['active_fi'])->setLogin($row['login']);
-                }
-                if ($row['usr_id'] !== null) {
-                    $this->getParticipant($row['active_fi'])->setUserID($row['usr_id']);
-                }
-                $this->getParticipant($row['active_fi'])->setSubmitted((bool) $row['submitted']);
-                $this->getParticipant($row['active_fi'])->setLastFinishedPass($row['last_finished_pass']);
-            }
-
-            if (!is_object($this->getParticipant($row['active_fi'])->getPass($row['pass']))) {
-                $pass = new ilTestEvaluationPassData();
-                $pass->setPass($row['pass']);
-                $this->getParticipant($row['active_fi'])->addPass($row['pass'], $pass);
-            }
-
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setReachedPoints($row['points']);
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setObligationsAnswered((bool) $row['obligations_answered']);
-
-            if ($row['questioncount'] == 0) {
-                $data = ilObjTest::_getQuestionCountAndPointsForPassOfParticipant($row['active_fi'], $row['pass']);
-                $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setMaxPoints($data['points']);
-                $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setQuestionCount($data['count']);
-            } else {
-                $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setMaxPoints($row['maxpoints']);
-                $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setQuestionCount($row['questioncount']);
-            }
-
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setNrOfAnsweredQuestions($row['answeredquestions']);
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setWorkingTime($row['workingtime']);
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setExamId((string) $row['exam_id']);
-
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setRequestedHintsCount($row['hint_count']);
-            $this->getParticipant($row['active_fi'])->getPass($row['pass'])->setDeductedHintPoints($row['hint_points']);
-        }
-    }
-
-    public function getTest(): ilObjTest
-    {
-        return $this->test;
-    }
-
-    public function setTest(ilObjTest $test): void
-    {
-        $this->test = &$test;
     }
 
     public function setDatasets(int $datasets): void
