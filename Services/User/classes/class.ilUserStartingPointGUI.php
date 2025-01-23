@@ -438,7 +438,7 @@ class ilUserStartingPointGUI
             $entries = $res->getEntries();
 
             if ($entries === []) {
-                $this->tpl->setOnScreenMessage('failure', $this->lng->txt('obj_ref_id_not_exist'), true);
+                $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_corresponding_roles'), true);
                 $form->setValuesByPost();
                 $this->tpl->setContent($form->getHTML());
                 return;

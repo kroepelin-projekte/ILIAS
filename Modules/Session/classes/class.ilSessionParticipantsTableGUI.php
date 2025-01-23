@@ -54,6 +54,10 @@ class ilSessionParticipantsTableGUI extends ilTable2GUI
             $this->getRepositoryObject()->getRefId()
         );
 
+        /*
+         * TODO this exact logic is also in ilSessionMembershipGUI and ilMembershipGUI,
+         *  should be centralized.
+         */
         if ($member_ref = $this->tree->checkForParentType($this->parent_ref_id, 'grp')) {
             $this->member_ref_id = $member_ref;
         } elseif ($member_ref = $this->tree->checkForParentType($this->parent_ref_id, 'crs')) {

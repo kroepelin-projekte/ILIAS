@@ -10770,6 +10770,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#Edit Document###30 04 2024 new variable
 ldoc#:#ldoc_form_new_doc_head#:#Create Document###30 04 2024 new variable
 ldoc#:#ldoc_last_modified#:#Last Change###30 04 2024 new variable
 ldoc#:#ldoc_ldoc_settings#:#Settings###30 04 2024 new variable
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#Period###30 04 2024 new variable
 ldoc#:#ldoc_period_from#:#From###30 04 2024 new variable
 ldoc#:#ldoc_period_until#:#Until###30 04 2024 new variable
@@ -14001,9 +14002,11 @@ rbac#:#frm_add_reply#:#Użytkownicy mogą odpowiadać na posty na forum
 rbac#:#frm_add_thread#:#Dodaj nowy temat
 rbac#:#frm_copy#:#Kopiuj forum
 rbac#:#frm_delete#:#Usuń forum
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#Zmień ustawienia uprawnień
 rbac#:#frm_moderate_frm#:#Usuń post, cenzura
 rbac#:#frm_read#:#Prawo czytania forum
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#Forum jest widoczne
 rbac#:#frm_write#:#Edycja ustawień i moderatorów forum
 rbac#:#frma_edit_permission#:#Zmień ustawienia systemowe dotyczące uprawnień

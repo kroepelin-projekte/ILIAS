@@ -1378,7 +1378,7 @@ class ilObjStyleSheet extends ilObject
                 }
                 if (in_array($tag[0]["tag"], array("h1", "h2", "h3"))) {
                     fwrite($css_file, ",div.ilc_text_block_" . $tag[0]["class"] . "\n");
-                    fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . "\n");
+                    fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . " > p \n");
                 }
                 if ($tag[0]["type"] == "section") {	// sections can use a tags, if links are used
                     fwrite($css_file, ",div a.ilc_" . $tag[0]["type"] . "_" . $tag[0]["class"] . "\n");
@@ -1390,7 +1390,7 @@ class ilObjStyleSheet extends ilObject
                     fwrite($css_file, ",span.ilc_text_inline_" . $tag[0]["class"] . "\n");
                 }
                 if ($tag[0]["type"] == "text_block") {
-                    fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . "\n");
+                    fwrite($css_file, ",html.il-no-tiny-bg body#tinymce.ilc_text_block_" . $tag[0]["class"] . " > p, #copg-editor-slate-content p.ilc_text_block_" . $tag[0]["class"] . "\n");
                 }
                 if ($tag[0]["class"] == "VAccordCntr") {
                     fwrite($css_file, ",div.ilc_va_cntr_AccordCntr\n");
@@ -1970,6 +1970,10 @@ class ilObjStyleSheet extends ilObject
                     }
                 }
 
+                if ($tag["type"] === "text_block" && $tag["tag"] === "div") {
+                    $tag["tag"] = "p";
+                }
+
                 $q = "INSERT INTO style_parameter (id,style_id, tag, class, parameter, type, value, custom) VALUES " .
                     "(" .
                     $ilDB->quote($id, "integer") . "," .
@@ -1996,7 +2000,7 @@ class ilObjStyleSheet extends ilObject
                         array(
                             "style_id" => array("integer", $this->getId()),
                             "type" => array("text", $char["type"]),
-                            "characteristic" => array("text", $char["class"])),
+                            "characteristic" => array("text", ilStr::subStr($char["class"], 0, 30))),
                         array("hide" => array("integer", 0))
                     );
                     $this->is_3_10_skin = false;

@@ -956,7 +956,7 @@ class ilObjSCORM2004LearningModule extends ilObjSCORMLearningModule
                 $row = $ilDB->fetchAssoc($res);
                 if ($row['c_max'] != null) {
                     $set++;
-                    $max = $row['c_max'];
+                    $max = floatval($row['c_max']);
                 }
             }
         }

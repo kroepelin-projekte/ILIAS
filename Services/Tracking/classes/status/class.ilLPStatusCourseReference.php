@@ -180,7 +180,7 @@ class ilLPStatusCourseReference extends ilLPStatus
     private function readTargetObjId(int $a_obj_id): void
     {
         $this->target_obj_id = ilObject::_lookupObjId(
-            ilObjCourseReference::_lookupTargetRefId($a_obj_id)
+            (int) ilObjCourseReference::_lookupTargetRefId($a_obj_id)
         );
     }
 }

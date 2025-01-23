@@ -47,9 +47,6 @@ class ilEvaluationAllTableGUI extends ilTable2GUI
 
         if (!$this->anonymity) {
             foreach ($this->getSelectedColumns() as $c) {
-                if (strcmp($c, 'gender') == 0) {
-                    $this->addColumn($this->lng->txt("gender"), 'gender', '');
-                }
                 if (strcmp($c, 'email') == 0) {
                     $this->addColumn($this->lng->txt("email"), 'email', '');
                 }
@@ -144,10 +141,6 @@ class ilEvaluationAllTableGUI extends ilTable2GUI
     {
         $cols = [];
         if (!$this->anonymity) {
-            $cols["gender"] = array(
-                "txt" => $this->lng->txt("gender"),
-                "default" => false
-            );
             $cols["email"] = array(
                 "txt" => $this->lng->txt("email"),
                 "default" => false
@@ -241,11 +234,6 @@ class ilEvaluationAllTableGUI extends ilTable2GUI
         $this->tpl->setVariable("LOGIN", $a_set['login']);
         foreach ($this->getSelectedColumns() as $c) {
             if (!$this->anonymity) {
-                if (strcmp($c, 'gender') == 0) {
-                    $this->tpl->setCurrentBlock('gender');
-                    $this->tpl->setVariable("GENDER", strlen($a_set['gender']) ? $this->lng->txt('gender_' . $a_set['gender']) : '&nbsp;');
-                    $this->tpl->parseCurrentBlock();
-                }
                 if (strcmp($c, 'email') == 0) {
                     $this->tpl->setCurrentBlock('email');
                     $this->tpl->setVariable("EMAIL", strlen($a_set['email']) ? $a_set['email'] : '&nbsp;');

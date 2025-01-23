@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -463,8 +464,6 @@ class assMatchingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
         $show_manual_scoring = false,
         $show_question_text = true
     ): string {
-        $template = new ilTemplate("tpl.il_as_qpl_matching_output_solution.html", true, true, "Modules/TestQuestionPool");
-        $solutiontemplate = new ilTemplate("tpl.il_as_tst_solution_output.html", true, true, "Modules/TestQuestionPool");
 
         $solutions = array();
         if (($active_id > 0) && (!$show_correct_solution)) {
@@ -479,6 +478,42 @@ class assMatchingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             }
         }
 
+        $user_solutions = $solutions;
+        $show_inline_feedback = false;
+        return $this->renderSolutionOutput(
+            $user_solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            $show_inline_feedback,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+        $solutions = $user_solutions;
+
+        $template = new ilTemplate("tpl.il_as_qpl_matching_output_solution.html", true, true, "Modules/TestQuestionPool");
+        $solutiontemplate = new ilTemplate("tpl.il_as_tst_solution_output.html", true, true, "Modules/TestQuestionPool");
         $i = 0;
 
         foreach ($solutions as $solution) {
@@ -563,7 +598,7 @@ class assMatchingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
                 $i++;
             }
             if (($active_id > 0) && (!$show_correct_solution)) {
-                if ($graphicalOutput) {
+                if ($graphical_output) {
                     // output of ok/not ok icons for user entered solutions
                     $ok = false;
                     foreach ($this->object->getMatchingPairs() as $pair) {
@@ -831,10 +866,10 @@ class assMatchingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
             $counter = 0;
             foreach ($solutions as $idx => $solution_value) {
-                if (($solution_value["value2"] > -1) && ($solution_value["value1"] > -1)) {
+                if (($solution_value['value2'] > -1) && ($solution_value['value1'] > -1)) {
                     $template->setCurrentBlock("matching_data");
-                    $template->setVariable("TERM_ID", $solution_value["value1"]);
-                    $template->setVariable("DEFINITION_ID", $solution_value["value2"]);
+                    $template->setVariable("TERM_ID", $solution_value['value1']);
+                    $template->setVariable("DEFINITION_ID", $solution_value['value2']);
                     $template->parseCurrentBlock();
                 }
 

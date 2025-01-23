@@ -52,25 +52,6 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
 
     }
 
-    /**
-     * @param $active_id
-     * @param $pass
-     * @return array
-     */
-    protected function getUserSolution($active_id, $pass): array
-    {
-        $user_solution = array();
-        if ($active_id) {
-            $solutions = $this->object->getSolutionValues($active_id, $pass, true);
-            // hey.
-            foreach ($solutions as $idx => $solution_value) {
-                $user_solution[$solution_value["value1"]] = $solution_value["value2"];
-            }
-            return $user_solution;
-        }
-        return $user_solution;
-    }
-
     public function getCommand($cmd)
     {
         return $cmd;
@@ -136,7 +117,7 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
         }
 
         $correct_answers = $this->stripSlashesRecursive(json_decode($this->request->raw('hidden_correct_answers')));
-        foreach($correct_answers as $answer) {
+        foreach ($correct_answers as $answer) {
             if (!is_numeric(str_replace(',', '.', $answer[1]))) {
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('points_non_numeric_or_negative_msg'));
                 return false;
@@ -363,17 +344,61 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
         $show_manual_scoring = false,
         $show_question_text = true
     ): string {
-        $template = new ilTemplate("tpl.il_as_qpl_longmenu_question_output_solution.html", true, true, "Modules/TestQuestionPool");
 
+        if (($active_id > 0) && (!$show_correct_solution)) {
+            $user_solutions = $this->object->getSolutionValues($active_id, $pass, true);
+        } else {
+            $user_solutions = [];
+            foreach ($this->object->getCorrectAnswersForQuestionSolution($this->object->getId()) as $idx => $val) {
+                $user_solutions[] = [
+                    'value1' => $idx,
+                    'value2' => $val,
+                ];
+            }
+        }
+
+        return $this->renderSolutionOutput(
+            $user_solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            false
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+
+        $user_solution = [];
+        foreach ($user_solutions as $idx => $solution_value) {
+            $user_solution[$solution_value['value1']] = $solution_value['value2'];
+        }
+
+
+        $template = new ilTemplate("tpl.il_as_qpl_longmenu_question_output_solution.html", true, true, "Modules/TestQuestionPool");
         if ($show_question_text) {
             $template->setVariable("QUESTIONTEXT", $this->object->getQuestionForHTMLOutput());
         }
-        if (($active_id > 0) && (!$show_correct_solution)) {
-            $correct_solution = $this->getUserSolution($active_id, $pass);
-        } else {
-            $correct_solution = $this->object->getCorrectAnswersForQuestionSolution($this->object->getId());
-        }
-        $template->setVariable('LONGMENU_TEXT_SOLUTION', $this->getLongMenuTextWithInputFieldsInsteadOfGaps($correct_solution, true, $graphicalOutput));
+        $template->setVariable('LONGMENU_TEXT_SOLUTION', $this->getLongMenuTextWithInputFieldsInsteadOfGaps($user_solution, true, $graphical_output));
         $solution_template = new ilTemplate("tpl.il_as_tst_solution_output.html", true, true, "Modules/TestQuestionPool");
         $question_output = $template->get();
         $feedback = '';
@@ -430,11 +455,11 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
         $use_post_solutions = false,
         $show_feedback = false
     ): string {
-        $user_solution = array();
+        $user_solution = [];
         if ($active_id) {
             $solutions = $this->object->getUserSolutionPreferingIntermediate($active_id, $pass);
             foreach ($solutions as $idx => $solution_value) {
-                $user_solution[$solution_value["value1"]] = $solution_value["value2"];
+                $user_solution[$solution_value['value1']] = $solution_value['value2'];
             }
         }
 
@@ -537,7 +562,7 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
         return $tpl->get();
     }
 
-    public function getLongMenuTextWithInputFieldsInsteadOfGaps($user_solution = array(), $solution = false, $graphical = false): string
+    public function getLongMenuTextWithInputFieldsInsteadOfGaps($user_solution = [], $solution = false, $graphical = false): string
     {
         $return_value = '';
         $text_array = preg_split("/\\[" . assLongMenu::GAP_PLACEHOLDER . " (\\d+)\\]/", $this->object->getLongMenuTextValue());

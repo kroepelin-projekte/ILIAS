@@ -823,8 +823,8 @@ class ilChatroom
         }
 
         usort($results, static function (stdClass $a, stdClass $b): int {
-            $a_timestamp = strlen((string) $a->timestamp) === 13 ? ((int) substr($a->timestamp, 0, -3)) : $a->timestamp;
-            $b_timestamp = strlen((string) $b->timestamp) === 13 ? ((int) substr($b->timestamp, 0, -3)) : $b->timestamp;
+            $a_timestamp = strlen((string) $a->timestamp) === 13 ? ((int) substr((string) $a->timestamp, 0, -3)) : $a->timestamp;
+            $b_timestamp = strlen((string) $b->timestamp) === 13 ? ((int) substr((string) $b->timestamp, 0, -3)) : $b->timestamp;
 
             return $b_timestamp - $a_timestamp;
         });

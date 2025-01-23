@@ -1743,6 +1743,24 @@ abstract class assQuestionGUI
         $show_question_text = true
     ): string;
 
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+        return null;
+    }
+
+
     protected function hasCorrectSolution($activeId, $passIndex): bool
     {
         $reachedPoints = $this->object->getAdjustedReachedPoints((int) $activeId, (int) $passIndex, true);
@@ -2071,4 +2089,38 @@ abstract class assQuestionGUI
             }
         ");
     }
+
+    public function getAutoSavedSolutionOutput(
+        int $active_id,
+        int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false
+    ): ?string {
+        $autosave_solutions = $this->object->getSolutionValues($active_id, $pass, false);
+        if ($autosave_solutions === []) {
+            return null;
+        }
+        return $this->renderSolutionOutput(
+            $autosave_solutions,
+            $active_id,
+            $pass,
+            $graphical_output,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            $show_autosave_title,
+            $show_inline_feedback
+        );
+    }
+
 }

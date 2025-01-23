@@ -445,7 +445,7 @@ class ilTestScoringByQuestionsGUI extends ilTestScoringGUI
         $participant = $data->getParticipant($active_id);
         $question_gui = $this->object->createQuestionGUI('', $question_id);
         $tmp_tpl = new ilTemplate('tpl.il_as_tst_correct_solution_output.html', true, true, 'Modules/Test');
-        if ($question_gui instanceof assTextQuestionGUI && $this->object->getAutosave()) {
+        if ($this->object->getAutosave()) {
             $aresult_output = $question_gui->getAutoSavedSolutionOutput(
                 $active_id,
                 $pass,
@@ -457,8 +457,10 @@ class ilTestScoringByQuestionsGUI extends ilTestScoringGUI
                 true,
                 false
             );
-            $tmp_tpl->setVariable('TEXT_ASOLUTION_OUTPUT', $this->lng->txt('autosavecontent'));
-            $tmp_tpl->setVariable('ASOLUTION_OUTPUT', $aresult_output);
+            if ($aresult_output) {
+                $tmp_tpl->setVariable('TEXT_ASOLUTION_OUTPUT', $this->lng->txt('autosavecontent'));
+                $tmp_tpl->setVariable('ASOLUTION_OUTPUT', $aresult_output);
+            }
         }
         $result_output = $question_gui->getSolutionOutput(
             $active_id,

@@ -10770,6 +10770,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#Edit Document###30 04 2024 new variable
 ldoc#:#ldoc_form_new_doc_head#:#Create Document###30 04 2024 new variable
 ldoc#:#ldoc_last_modified#:#Last Change###30 04 2024 new variable
 ldoc#:#ldoc_ldoc_settings#:#Settings###30 04 2024 new variable
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#Period###30 04 2024 new variable
 ldoc#:#ldoc_period_from#:#From###30 04 2024 new variable
 ldoc#:#ldoc_period_until#:#Until###30 04 2024 new variable
@@ -14001,9 +14002,11 @@ rbac#:#frm_add_reply#:#Os utilizadores podem responder a um posting
 rbac#:#frm_add_thread#:#Tags de outros utilizadores
 rbac#:#frm_copy#:#Definições
 rbac#:#frm_delete#:#Definir tags
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#Tags
 rbac#:#frm_moderate_frm#:#Para anexar tags a um recurso, abra o ecrã de informação do recurso e insira os seus tags.
 rbac#:#frm_read#:#O destino não pode ser um subnó dos itens selecionados.
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#Exportar CSV
 rbac#:#frm_write#:#Exportar Excel
 rbac#:#frma_edit_permission#:#Adiciona uma secção ‘Todos os utilizadores’ aos ecrãs de informação que listam todos os tags de todos os utilizadores anexados a um recurso.

@@ -46,6 +46,7 @@ class Settings extends ilSetting implements Setting
     private const F_PREVIEW_IMAGE_SIZE = 'preview_image_size';
     private const F_PREVIEW_PERSISTING = 'preview_persisting';
     private const F_PREVIEW_IMAGE_QUALITY = 'preview_image_quality';
+    private const F_TILE_PREVIEWS = 'tile_previews';
     /**
      * @readonly
      */
@@ -65,6 +66,16 @@ class Settings extends ilSetting implements Setting
     public function isPersisting(): bool
     {
         return $this->strToBool($this->get(self::F_PREVIEW_PERSISTING, '1'));
+    }
+
+    public function setTilePreviews(bool $a_value): void
+    {
+        $this->set(self::F_TILE_PREVIEWS, $this->boolToStr($a_value));
+    }
+
+    public function hasTilePreviews(): bool
+    {
+        return $this->strToBool($this->get(self::F_TILE_PREVIEWS, '1'));
     }
 
     public function isPreviewPossible(): bool

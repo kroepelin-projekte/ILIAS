@@ -86,10 +86,6 @@ class ilDclTextRecordRepresentation extends ilDclBaseRecordRepresentation
             $html = (is_array($value) && isset($value['link'])) ? $value['link'] : nl2br((string) $value);
         }
 
-        if (!$html) {
-            $html = "";
-        }
-
         return $html;
     }
 

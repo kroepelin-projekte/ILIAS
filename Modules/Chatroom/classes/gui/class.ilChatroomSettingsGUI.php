@@ -67,7 +67,11 @@ class ilChatroomSettingsGUI extends ilChatroomGUIHandler
         }
 
         foreach ($mutated_settings as $setting => &$value) {
-            if (array_key_exists($setting, $values)) {
+            if ($setting === ilChatroomFormFactory::PROP_ALLOW_CUSTOM_NAMES) {
+                $value = is_array($values[$setting] ?? null);
+            } elseif ($setting === ilChatroomFormFactory::PROP_AUTOGEN_USERNAMES) {
+                $value = $values[ilChatroomFormFactory::PROP_ALLOW_CUSTOM_NAMES][ilChatroomFormFactory::PROP_AUTOGEN_USERNAMES] ?? '';
+            } elseif (array_key_exists($setting, $values)) {
                 $value = $values[$setting];
             }
         }

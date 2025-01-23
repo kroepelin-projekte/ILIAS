@@ -10770,6 +10770,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#Dokumentum módosítása
 ldoc#:#ldoc_form_new_doc_head#:#Dokumentum létrehozása
 ldoc#:#ldoc_last_modified#:#Utolsó módosítás
 ldoc#:#ldoc_ldoc_settings#:#Beállítások
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#Időszak
 ldoc#:#ldoc_period_from#:#Kezdő időpont
 ldoc#:#ldoc_period_until#:#Záró időpont
@@ -14001,9 +14002,11 @@ rbac#:#frm_add_reply#:#A felhasználó válaszolhat a hozzászólásra
 rbac#:#frm_add_thread#:#A felhasználó vehet fel új témát
 rbac#:#frm_copy#:#A felhasználó másolhat fórumot
 rbac#:#frm_delete#:#A felhasználó áthelyezhet vagy törölhet fórumot
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#A felhasználó módosíthatja a jogosultsági beállításokat
 rbac#:#frm_moderate_frm#:#A felhasználó módosíthatja, cenzúrázhatja és törölheti a hozzászólásokat
 rbac#:#frm_read#:#A felhasználónak olvasási hozzáférése van a fórumhoz
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#A fórum látható
 rbac#:#frm_write#:#A felhasználó módosíthatja a fórum beállításait és moderátorait
 rbac#:#frma_edit_permission#:#Jogosultsági beállítások változtatása

@@ -10771,6 +10771,7 @@ ldoc#:#ldoc_form_edit_doc_head#:#Edit Document###30 04 2024 new variable
 ldoc#:#ldoc_form_new_doc_head#:#Create Document###30 04 2024 new variable
 ldoc#:#ldoc_last_modified#:#Last Change###30 04 2024 new variable
 ldoc#:#ldoc_ldoc_settings#:#Settings###30 04 2024 new variable
+ldoc#:#ldoc_order_invalid#:#Please enter a number for the order###14 01 2025 new variable
 ldoc#:#ldoc_period#:#Period###30 04 2024 new variable
 ldoc#:#ldoc_period_from#:#From###30 04 2024 new variable
 ldoc#:#ldoc_period_until#:#Until###30 04 2024 new variable
@@ -14002,9 +14003,11 @@ rbac#:#frm_add_reply#:#Users can reply to a posting###28 08 2012 new variable
 rbac#:#frm_add_thread#:#Add new topi
 rbac#:#frm_copy#:#Copy Forum
 rbac#:#frm_delete#:#Διαγραφή φόρουμ
+rbac#:#frm_edit_learning_progress#:#User can edit learning progress settings###14 01 2025 new variable
 rbac#:#frm_edit_permission#:#Αλλαγή ρυθμίσεων άδειας
 rbac#:#frm_moderate_frm#:#Delete a post, censorship
 rbac#:#frm_read#:#Πρόσβαση ανάγνωσης στο φόρουμ
+rbac#:#frm_read_learning_progress#:#User can view learning progress of other users###14 01 2025 new variable
 rbac#:#frm_visible#:#Το φόρουμ είναι ορατό
 rbac#:#frm_write#:#Επεξεργασία φόρουμ
 rbac#:#frma_edit_permission#:#Change permission settings###20 10 2010 new variable

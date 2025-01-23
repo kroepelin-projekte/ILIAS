@@ -114,20 +114,21 @@ class ilTestResultsFactory
                 $show_inline_feedback
             );
 
-            if ($test_obj->getAutosave() &&
-                $type === 'assTextQuestion'
-            ) {
-                $usr_solution .= $question_gui->getAutoSavedSolutionOutput(
+            $autosave_output = null;
+            $show_autosave_title = false;
+            if ($test_obj->getAutosave()) {
+                $autosave_output = $question_gui->getAutoSavedSolutionOutput(
                     $active_id,
                     $pass_id,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    true
+                    $graphical_output,
+                    $result_output,
+                    $show_question_only,
+                    $show_feedback,
+                    $show_correct_solution,
+                    $show_manual_scoring,
+                    $show_question_text,
+                    $show_autosave_title,
+                    $show_inline_feedback
                 );
             }
 
@@ -172,7 +173,8 @@ class ilTestResultsFactory
                 $workedthrough,
                 $answered,
                 $requested_hints,
-                $recapitulation
+                $recapitulation,
+                $autosave_output
             );
         }
 

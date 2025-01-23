@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -18,6 +16,7 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
+declare(strict_types=1);
 
 /**
 *
@@ -68,7 +67,7 @@ class ilLuceneAdvancedQueryParser extends ilLuceneQueryParser
     public function parse(): void
     {
         foreach ((array) $this->getQueryData() as $field => $query) {
-            if (!is_array($query) && !trim($query)) {
+            if (!is_array($query) && !trim((string) $query)) {
                 continue;
             }
             $parsed = $this->getFieldDefinition()->parseFieldQuery((string) $field, $query);

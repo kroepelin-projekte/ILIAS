@@ -410,7 +410,6 @@ class ilTestScreenGUI
                         if ($anonymous && !empty($value)) {
                             $this->test_session->setAccessCodeToSession($value);
                         } else {
-                            $conditions_met = false;
                             $this->test_session->unsetAccessCodeInSession();
                         }
                         break;

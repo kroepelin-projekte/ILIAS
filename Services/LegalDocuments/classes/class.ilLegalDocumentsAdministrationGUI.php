@@ -36,6 +36,7 @@ use ILIAS\Filesystem\Stream\Streams;
 use ILIAS\HTTP\Response\ResponseHeader;
 use ILIAS\LegalDocuments\Provide\ProvideDocument;
 use ILIAS\LegalDocuments\HTMLPurifier;
+use ILIAS\Refinery\ConstraintViolationException;
 
 class ilLegalDocumentsAdministrationGUI
 {
@@ -135,11 +136,9 @@ class ilLegalDocumentsAdministrationGUI
 
         $form = $this->admin->withFormData($form, function (array $x) use ($document) {
             $content = new CriterionContent(...$x[0]['content']);
-            $this->config->legalDocuments()->document()->validateCriteriaContent($document->criteria(), $content)->map(
+            $this->returnWithResult($this->config->legalDocuments()->document()->validateCriteriaContent($document->criteria(), $content)->map(
                 fn() => $this->config->legalDocuments()->document()->repository()->createCriterion($document, $content)
-            )->except($this->criterionInvalid(...))->value();
-
-            $this->returnWithMessage('doc_crit_attached', 'documents');
+            ), 'doc_crit_attached', 'documents');
         });
 
         $this->admin->setContent($form);
@@ -155,11 +154,9 @@ class ilLegalDocumentsAdministrationGUI
             $form = $this->admin->withFormData($form, function (array $data) use ($document, $criterion) {
                 $content = new CriterionContent(...$data[0]['content']);
                 $criteria = array_filter($document->criteria(), fn(Criterion $other) => $other->id() !== $criterion->id());
-                $this->config->legalDocuments()->document()->validateCriteriaContent($criteria, $content)->map(
+                $this->returnWithResult($this->config->legalDocuments()->document()->validateCriteriaContent($criteria, $content)->map(
                     fn() => $this->config->legalDocuments()->document()->repository()->updateCriterionContent($criterion->id(), $content)
-                )->except($this->criterionInvalid(...))->value();
-
-                $this->returnWithMessage('doc_crit_changed', 'documents');
+                ), 'doc_crit_changed', 'documents');
             });
 
             $this->container->tabs()->clearTargets();
@@ -247,8 +244,14 @@ class ilLegalDocumentsAdministrationGUI
     public function saveOrder(): void
     {
         $this->admin->requireEditable();
-        $this->admin->withDocumentsAndOrder($this->admin->saveDocumentOrder(...));
-        $this->returnWithMessage('saved_successfully', 'documents');
+        try {
+            $this->admin->withDocumentsAndOrder($this->admin->saveDocumentOrder(...));
+            $this->returnWithMessage('saved_successfully', 'documents');
+        } catch (ConstraintViolationException) {
+            $this->ui->mainTemplate()->setOnScreenMessage('failure', $this->ui->txt('ldoc_order_invalid'), true);
+            $this->ctrlTo('redirectByClass', 'documents');
+        }
+
     }
 
     /**
@@ -308,24 +311,33 @@ class ilLegalDocumentsAdministrationGUI
     /**
      * @param string|Exception $error
      */
-    private function criterionInvalid($error): Result
+    private function criterionErrorMessage($error): string
     {
         if (!is_string($error)) {
-            return new Error($error);
+            throw $error;
         }
 
-        $message = match ($error) {
+        return match ($error) {
             ProvideDocument::CRITERION_ALREADY_EXISTS => $this->ui->txt('criterion_assignment_must_be_unique'),
             ProvideDocument::CRITERION_WOULD_NEVER_MATCH => $this->ui->txt('criterion_assignment_cannot_match'),
             default => $error,
         };
-
-        return new Ok($this->ui->mainTemplate()->setOnScreenMessage('failure', $message, true));
     }
 
     private function returnWithMessage(string $message, string $command): void
     {
         $this->ui->mainTemplate()->setOnScreenMessage('success', $this->ui->txt($message), true);
         $this->ctrlTo('redirectByClass', $command);
+    }
+
+    private function returnWithResult(Result $result, string $success_message, string $target): void
+    {
+        if ($result->isOk()) {
+            $this->ui->mainTemplate()->setOnScreenMessage('success', $this->ui->txt($success_message), true);
+        } else {
+            $this->ui->mainTemplate()->setOnScreenMessage('failure', $this->criterionErrorMessage($result->error()), true);
+        }
+
+        $this->ctrlTo('redirectByClass', $target);
     }
 }

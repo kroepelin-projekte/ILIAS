@@ -42,7 +42,7 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
 
     public function getLabel(): string
     {
-        return "Delete All Data of Dynamic (CTM)Tests from Database.";
+        return "Delete All Data of Dynamic (CTM) Tests from Database.";
     }
 
     public function getDefaultAmountOfStepsPerRun(): int
@@ -64,9 +64,6 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
         $this->io = $environment->getResource(Environment::RESOURCE_ADMIN_INTERACTION);
     }
 
-    /**
-     * @throws Exception
-     */
     public function step(Environment $environment): void
     {
         if (!$this->ilias_is_initialized) {
@@ -75,17 +72,42 @@ class ilRemoveDynamicTestsAndCorrespondingDataMigration implements Setup\Migrati
             \ilInitialisation::initILIAS();
             $this->ilias_is_initialized = true;
         }
-        $tests_query = $this->db->query(
-            'SELECT ref_id FROM tst_tests '
-            . 'INNER JOIN object_reference '
-            . 'ON tst_tests.obj_fi = object_reference.obj_id '
-            . 'WHERE '
-            . $this->db->equals('question_set_type', 'DYNAMIC_QUEST_SET', 'text', true)
-            . 'Limit 1'
+        $row_test_info = $this->db->fetchObject(
+            $this->db->query(
+                'SELECT obj_fi, test_id FROM tst_tests '
+                . 'WHERE '
+                . $this->db->equals('question_set_type', 'DYNAMIC_QUEST_SET', \ilDBConstants::T_TEXT, true)
+                . 'Limit 1'
+            )
         );
 
-        $row_test = $this->db->fetchObject($tests_query);
-        \ilRepUtil::removeObjectsFromSystem([$row_test->ref_id]);
+        $row_ref_id = $this->db->fetchObject(
+            $this->db->query(
+                'SELECT ref_id FROM object_reference '
+                . 'WHERE '
+                . $this->db->equals('object_reference.obj_id', $row_test_info->obj_fi, \ilDBConstants::T_INTEGER)
+            )
+        );
+
+        if ($row_ref_id !== null) {
+            try {
+                \ilRepUtil::removeObjectsFromSystem([$row_ref_id->ref_id]);
+                return;
+            } catch (\Exception $e) {
+            }
+        }
+
+        try {
+            (new \ilObjTest($row_test_info->obj_fi, false))->delete();
+        } catch (\Exception $e) {
+        }
+
+        try {
+            $test_obj = new \ilObjTest();
+            $test_obj->setTestId($row_test_info->test_id);
+            $test_obj->deleteTest();
+        } catch (\Exception $e) {
+        }
     }
 
     public function getRemainingAmountOfSteps(): int

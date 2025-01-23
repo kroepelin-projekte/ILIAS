@@ -53,6 +53,9 @@ class ilTestEvaluationUserData
     */
     public array $passes;
     public ?int $lastFinishedPass;
+    /**
+     * @var array<int, list<array{id: int, o_id: int, points: float, sequenence: ?int}>>
+     */
     public array $questions;
 
     /**
@@ -163,12 +166,14 @@ class ilTestEvaluationUserData
     public function getQuestionsWorkedThrough(): int
     {
         $questionpass = $this->getScoredPass();
-        if (!is_object($this->passes[$questionpass])) {
+        if (!isset($this->passes[$questionpass])) {
             $questionpass = 0;
         }
-        if (is_object($this->passes[$questionpass])) {
+
+        if (isset($this->passes[$questionpass])) {
             return $this->passes[$questionpass]->getNrOfAnsweredQuestions();
         }
+
         return 0;
     }
 
@@ -180,12 +185,14 @@ class ilTestEvaluationUserData
     public function getNumberOfQuestions(): int
     {
         $questionpass = $this->getScoredPass();
-        if (!is_object($this->passes[$questionpass])) {
+        if (!isset($this->passes[$questionpass])) {
             $questionpass = 0;
         }
-        if (is_object($this->passes[$questionpass])) {
+
+        if (isset($this->passes[$questionpass])) {
             return $this->passes[$questionpass]->getQuestionCount();
         }
+
         return 0;
     }
 
@@ -233,6 +240,9 @@ class ilTestEvaluationUserData
         $this->lastVisit = $time;
     }
 
+    /**
+     * @return array<int, ilTestEvaluationPassData>
+     */
     public function getPasses(): array
     {
         return $this->passes;
@@ -245,11 +255,7 @@ class ilTestEvaluationUserData
 
     public function getPass(int $pass_nr): ?ilTestEvaluationPassData
     {
-        if (array_key_exists($pass_nr, $this->passes)) {
-            return $this->passes[$pass_nr];
-        } else {
-            return null;
-        }
+        return $this->passes[$pass_nr] ?? null;
     }
 
     public function getPassCount(): int
@@ -259,11 +265,11 @@ class ilTestEvaluationUserData
 
     public function getScoredPass(): int
     {
-        if ($this->getPassScoring() == 1) {
+        if ($this->getPassScoring() === 1) {
             return $this->getBestPass();
-        } else {
-            return $this->getLastPass();
         }
+
+        return $this->getLastPass();
     }
     /**
      * This is used in the export of test results
@@ -329,13 +335,12 @@ class ilTestEvaluationUserData
         return $this->questionTitles;
     }
 
+    /**
+     * @return null|list<array{id: int, o_id: int, points: float, sequenence: ?int}>
+     */
     public function getQuestions(int $pass = 0): ?array
     {
-        if (array_key_exists($pass, $this->questions)) {
-            return $this->questions[$pass];
-        } else {
-            return null;
-        }
+        return $this->questions[$pass] ?? null;
     }
 
     public function addQuestion(int $original_id, int $question_id, float $max_points, int $sequence = null, int $pass = 0): void
@@ -345,20 +350,19 @@ class ilTestEvaluationUserData
         }
 
         $this->questions[$pass][] = [
-            "id" => $question_id, // the so called "aid" from any historical time
-            "o_id" => $original_id, // when the "aid" was valid this was the "id"
-            "points" => $max_points,
-            "sequence" => $sequence
+            'id' => $question_id, // the so called "aid" from any historical time
+            'o_id' => $original_id, // when the "aid" was valid this was the "id"
+            'points' => $max_points,
+            'sequence' => $sequence
         ];
     }
 
+    /**
+     * @return array{id: int, o_id: int, points: float, sequenence: ?int}|null
+     */
     public function getQuestion(int $index, int $pass = 0): ?array
     {
-        if (array_key_exists($index, $this->questions[$pass])) {
-            return $this->questions[$pass][$index];
-        } else {
-            return null;
-        }
+        return $this->questions[$pass][$index] ?? null;
     }
 
     public function getQuestionCount(int $pass = 0): int
@@ -383,15 +387,17 @@ class ilTestEvaluationUserData
 
     public function getAvailablePoints(int $pass = 0): float
     {
-        $available = 0;
-        if (!is_object($this->passes[$pass])) {
+        if (!isset($this->passes[$pass])) {
             $pass = 0;
         }
-        if (!is_object($this->passes[$pass])) {
+
+        if (!isset($this->passes[$pass])) {
             return 0;
         }
+
         $available = $this->passes[$pass]->getMaxPoints();
         $available = round($available, 2);
+
         return $available;
     }
 
@@ -429,11 +435,11 @@ class ilTestEvaluationUserData
      */
     public function getScoredPassObject(): ilTestEvaluationPassData
     {
-        if ($this->getPassScoring() == 1) {
+        if ($this->getPassScoring() === 1) {
             return $this->getBestPassObject();
-        } else {
-            return $this->getLastPassObject();
         }
+
+        return $this->getLastPassObject();
     }
 
     /**

@@ -252,7 +252,7 @@ class assErrorTextGUI extends assQuestionGUI implements ilGuiQuestionScoringAdju
     public function getSolutionOutput(
         $active_id,
         $pass = null,
-        $graphical_output = false,
+        $graphicalOutput = false,
         $result_output = false,
         $show_question_only = true,
         $show_feedback = false,
@@ -260,13 +260,48 @@ class assErrorTextGUI extends assQuestionGUI implements ilGuiQuestionScoringAdju
         $show_manual_scoring = false,
         $show_question_text = true
     ): string {
+        $user_solutions = $this->getUsersSolutionFromPreviewOrDatabase((int) $active_id, $pass);
+        $show_inline_feedback = false;
+        return $this->renderSolutionOutput(
+            $user_solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            $show_inline_feedback,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
         // get the solution of the user for the active pass or from the last pass if allowed
         $template = new ilTemplate("tpl.il_as_qpl_errortext_output_solution.html", true, true, "Modules/TestQuestionPool");
 
-
         $selections = [
-            'user' => $this->getUsersSolutionFromPreviewOrDatabase((int) $active_id, $pass)
+            'user' => $user_solutions ?
+                $user_solutions :
+                $this->getUsersSolutionFromPreviewOrDatabase((int) $active_id, $pass)
         ];
+
+
         $selections['best'] = $this->object->getBestSelection();
 
         $reached_points = $this->object->getPoints();

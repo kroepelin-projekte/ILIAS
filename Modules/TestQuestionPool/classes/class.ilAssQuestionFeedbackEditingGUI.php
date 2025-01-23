@@ -16,6 +16,8 @@
  *
  *********************************************************************/
 
+use ILIAS\Style\Content\Service as ContentStyle;
+
 /**
  * GUI class for feedback editing of assessment questions
  *
@@ -102,6 +104,8 @@ class ilAssQuestionFeedbackEditingGUI
      */
     protected $lng = null;
 
+    protected ContentStyle $content_style;
+
     /**
      * Constructor
      *
@@ -118,6 +122,7 @@ class ilAssQuestionFeedbackEditingGUI
         $this->questionGUI = $questionGUI;
         $this->questionOBJ = $questionGUI->object;
         $this->feedbackOBJ = $questionGUI->object->feedbackOBJ;
+        /** @var ILIAS\DI\Container $DIC */
         global $DIC;
         $this->request = $DIC->testQuestionPool()->internal()->request();
         $this->ctrl = $ctrl;
@@ -126,6 +131,7 @@ class ilAssQuestionFeedbackEditingGUI
         $this->tabs = $tabs;
         $this->lng = $lng;
         $this->questioninfo = $DIC->testQuestionPool()->questionInfo();
+        $this->content_style = $DIC->contentStyle();
     }
 
     /**
@@ -166,7 +172,7 @@ class ilAssQuestionFeedbackEditingGUI
      */
     protected function setContentStyle(): void
     {
-        $this->tpl->addCss(ilObjStyleSheet::getContentStylePath(0));
+        $this->content_style->gui()->addCss($this->tpl, $this->request->getRefId());
     }
 
     /**
@@ -176,10 +182,6 @@ class ilAssQuestionFeedbackEditingGUI
      */
     private function showFeedbackFormCmd(): void
     {
-        $this->tpl->setCurrentBlock("ContentStyle");
-        $this->tpl->setVariable("LOCATION_CONTENT_STYLESHEET", ilObjStyleSheet::getContentStylePath(0));
-        $this->tpl->parseCurrentBlock();
-
         $form = $this->buildForm();
 
         $this->feedbackOBJ->initGenericFormProperties($form);

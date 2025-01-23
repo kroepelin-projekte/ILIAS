@@ -7366,6 +7366,7 @@ INSERT INTO `il_db_steps` VALUES ('ilTest9DBUpdateSteps',17,'2023-12-12 16:39:41
 INSERT INTO `il_db_steps` VALUES ('ilTest9DBUpdateSteps',18,'2023-12-12 16:39:41.302072','2023-12-12 16:39:41.307756');
 INSERT INTO `il_db_steps` VALUES ('ilTest9DBUpdateSteps',19,'2024-04-30 15:11:09.036627','2024-04-30 15:11:09.040172');
 INSERT INTO `il_db_steps` VALUES ('ilTest9DBUpdateSteps',20,'2024-12-10 15:59:52.847725','2024-12-10 15:59:52.851730');
+INSERT INTO `il_db_steps` VALUES ('ilTest9DBUpdateSteps',21,'2025-01-14 15:57:34.331279','2025-01-14 15:57:34.331841');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',1,'2023-12-12 16:39:41.023770','2023-12-12 16:39:41.025028');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',2,'2023-12-12 16:39:41.025620','2023-12-12 16:39:41.031146');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool80DBUpdateSteps',3,'2023-12-12 16:39:41.031863','2023-12-12 16:39:41.038435');
@@ -7385,6 +7386,7 @@ INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',2,'2023-12-12 16:39:41.
 INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',3,'2023-12-12 16:39:41.415252','2023-12-12 16:39:41.420387');
 INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',4,'2024-01-31 14:38:25.421546','2024-01-31 14:38:25.426800');
 INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',5,'2024-08-27 13:48:37.218362','2024-08-27 13:48:37.221598');
+INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',6,'2025-01-14 15:57:34.332515','2025-01-14 15:57:34.336442');
 INSERT INTO `il_db_steps` VALUES ('ilUserDB90',1,'2023-12-12 16:39:41.421460','2023-12-12 16:39:41.427774');
 INSERT INTO `il_db_steps` VALUES ('ilUserDB90',2,'2023-12-12 16:39:41.428399','2023-12-12 16:39:41.440313');
 INSERT INTO `il_db_steps` VALUES ('ilUserDB90',3,'2023-12-12 16:39:41.441020','2023-12-12 16:39:41.446411');
@@ -8231,13 +8233,13 @@ CREATE TABLE `il_md_cpr_selections` (
 -- Dumping data for table `il_md_cpr_selections`
 --
 
-INSERT INTO `il_md_cpr_selections` VALUES (1,'Attribution Non-commercial No Derivatives (by-nc-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (2,'Attribution Non-commercial Share Alike (by-nc-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (3,'Attribution Non-commercial (by-nc)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\">Creative Commons Attribution-NonCommercial 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (4,'Attribution No Derivatives (by-nd)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\">Creative Commons Attribution-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (5,'Attribution Share Alike (by-sa)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\">Creative Commons Attribution-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (6,'Attribution (by)','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.','en',0,1,0,0,0,NULL,NULL,NULL,NULL,0,NULL);
-INSERT INTO `il_md_cpr_selections` VALUES (7,'All rights reserved','','This work has all rights reserved by the owner.','en',0,1,1,0,0,NULL,NULL,NULL,NULL,0,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (1,'Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\">Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License','http://creativecommons.org/licenses/by-nc-nd/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-nd.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (2,'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-sa/4.0/\">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License','http://creativecommons.org/licenses/by-nc-sa/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (3,'Creative Commons Attribution-NonCommercial 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nc/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc/4.0/\">Creative Commons Attribution-NonCommercial 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NonCommercial 4.0 International License','http://creativecommons.org/licenses/by-nc/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (4,'Creative Commons Attribution-NoDerivatives 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-nd/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nd/4.0/\">Creative Commons Attribution-NoDerivatives 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-NoDerivatives 4.0 International License','http://creativecommons.org/licenses/by-nd/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nd.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (5,'Creative Commons Attribution-ShareAlike 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by-sa/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/4.0/\">Creative Commons Attribution-ShareAlike 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution-ShareAlike 4.0 International License','http://creativecommons.org/licenses/by-sa/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-sa.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (6,'Creative Commons Attribution 4.0 International License','Creative Commons License','<a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\"><img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"https://i.creativecommons.org/l/by/4.0/88x31.png\" /></a><br />This work is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by/4.0/\">Creative Commons Attribution 4.0 International License</a>.','en',0,1,0,0,0,'Creative Commons Attribution 4.0 International License','http://creativecommons.org/licenses/by/4.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by.svg','Creative Commons License',1,NULL);
+INSERT INTO `il_md_cpr_selections` VALUES (7,'All rights reserved','','This work has all rights reserved by the owner.','en',0,1,1,0,0,'All rights reserved','','','',1,NULL);
 INSERT INTO `il_md_cpr_selections` VALUES (8,'Public Domain','Creative work to which no exclusive intellectual property rights apply.',NULL,NULL,0,1,0,0,1,'Public Domain','http://creativecommons.org/publicdomain/zero/1.0/','https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg','CC0',1,'');
 
 --
@@ -8379,7 +8381,8 @@ CREATE TABLE `il_meta_context` (
   `parent_type` varchar(16) DEFAULT NULL,
   `parent_id` int(11) DEFAULT NULL,
   `context` varchar(16) DEFAULT NULL,
-  PRIMARY KEY (`meta_context_id`)
+  PRIMARY KEY (`meta_context_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -8452,7 +8455,8 @@ CREATE TABLE `il_meta_coverage` (
   `parent_id` int(11) DEFAULT NULL,
   `coverage` varchar(4000) DEFAULT NULL,
   `coverage_language` char(2) DEFAULT NULL,
-  PRIMARY KEY (`meta_coverage_id`)
+  PRIMARY KEY (`meta_coverage_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -8564,7 +8568,8 @@ CREATE TABLE `il_meta_end_usr_role` (
   `parent_type` varchar(16) DEFAULT NULL,
   `parent_id` int(11) DEFAULT NULL,
   `intended_end_user_role` varchar(16) DEFAULT NULL,
-  PRIMARY KEY (`meta_end_usr_role_id`)
+  PRIMARY KEY (`meta_end_usr_role_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -8919,7 +8924,8 @@ CREATE TABLE `il_meta_lr_type` (
   `parent_type` varchar(16) DEFAULT NULL,
   `parent_id` int(11) DEFAULT NULL,
   `learning_resource_type` varchar(32) DEFAULT NULL,
-  PRIMARY KEY (`meta_lr_type_id`)
+  PRIMARY KEY (`meta_lr_type_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -8987,7 +8993,8 @@ CREATE TABLE `il_meta_meta_schema` (
   `parent_type` varchar(16) DEFAULT NULL,
   `parent_id` int(11) DEFAULT NULL,
   `meta_data_schema` varchar(16) DEFAULT NULL,
-  PRIMARY KEY (`meta_meta_schema_id`)
+  PRIMARY KEY (`meta_meta_schema_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -9040,7 +9047,8 @@ CREATE TABLE `il_meta_or_composite` (
   `name` varchar(32) DEFAULT NULL,
   `min_version` varchar(255) DEFAULT NULL,
   `max_version` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`meta_or_composite_id`)
+  PRIMARY KEY (`meta_or_composite_id`),
+  KEY `i1_idx` (`rbac_id`,`obj_id`)
 ) ;
 
 --
@@ -13568,7 +13576,7 @@ INSERT INTO `object_data` VALUES (34,'typ','lm','Learning module Object',-1,'200
 INSERT INTO `object_data` VALUES (35,'typ','notf','Note Folder Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL,NULL);
 INSERT INTO `object_data` VALUES (36,'typ','note','Note Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL,NULL);
 INSERT INTO `object_data` VALUES (37,'typ','frm','Forum object',-1,'2002-07-15 15:54:22','2003-08-15 12:36:40','',NULL,NULL);
-INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2024-12-10 15:59:52','',NULL,NULL);
+INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2025-01-14 15:57:34','',NULL,NULL);
 INSERT INTO `object_data` VALUES (71,'lng','de','not_installed',6,'2003-08-15 10:25:19','2015-12-22 16:29:24','',NULL,NULL);
 INSERT INTO `object_data` VALUES (72,'lng','es','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL,NULL);
 INSERT INTO `object_data` VALUES (73,'lng','it','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL,NULL);
@@ -14469,7 +14477,7 @@ CREATE TABLE `personal_clipboard` (
   `user_id` int(11) NOT NULL DEFAULT 0,
   `item_id` int(11) NOT NULL DEFAULT 0,
   `type` char(4) NOT NULL DEFAULT '',
-  `title` char(70) DEFAULT NULL,
+  `title` char(255) DEFAULT NULL,
   `insert_time` datetime DEFAULT NULL,
   `parent` int(11) NOT NULL DEFAULT 0,
   `order_nr` int(11) NOT NULL DEFAULT 0,
@@ -20383,7 +20391,7 @@ INSERT INTO `settings` VALUES ('common','ilfrmnoti1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmreadidx1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmthri2','1');
 INSERT INTO `settings` VALUES ('common','ilGlobalTstPoolUsageSettingInitilisation','1');
-INSERT INTO `settings` VALUES ('common','ilias_version','9.6.0');
+INSERT INTO `settings` VALUES ('common','ilias_version','9.7.0');
 INSERT INTO `settings` VALUES ('common','ilinc_akclassvalues_required','1');
 INSERT INTO `settings` VALUES ('common','ilmpathix','1');
 INSERT INTO `settings` VALUES ('common','iloscmsgidx1','1');
@@ -24023,8 +24031,8 @@ CREATE TABLE `usr_data` (
 -- Dumping data for table `usr_data`
 --
 
-INSERT INTO `usr_data` VALUES (6,'root','$2y$09$uhSHx5YHS6G1zv0gdTZfx.VNK482euQm2HmPd6cBhmOn3lgPd.NSC','root','user','','m','ilias@yourserver.com','','','','','','','2016-12-21 13:55:17','2016-12-14 14:44:49',NULL,'','','','','',7,1,1450795200,1450795200,0,'','',1,NULL,NULL,'','local',0,NULL,'',NULL,NULL,0,0,1481723089,'',NULL,'','',NULL,0,'bcryptphp',NULL,NULL,'2016-12-21 13:55:17',NULL,0,NULL);
-INSERT INTO `usr_data` VALUES (13,'anonymous','294de3557d9d00b3d2d8a1e6aab028cf','anonymous','anonymous','','m','nomail','','','','','','','2003-08-15 11:03:36','2003-08-15 10:07:30','2003-08-15 10:07:30','','','','','',7,1,0,0,0,'','',1,NULL,NULL,'','local',0,'','','','',0,0,1217068076,'',NULL,'','',NULL,0,'md5','',NULL,'2003-08-15 11:03:36',NULL,0,NULL);
+INSERT INTO `usr_data` VALUES (6,'root','$2y$09$uhSHx5YHS6G1zv0gdTZfx.VNK482euQm2HmPd6cBhmOn3lgPd.NSC','root','user','','m','ilias@yourserver.com','','','','','','','2016-12-21 13:55:17','2016-12-14 14:44:49',NULL,'','','','','',7,1,1450795200,1450795200,0,'','',1,NULL,NULL,'','local',0,NULL,'',NULL,NULL,0,0,1481723089,'',NULL,'','',NULL,0,'bcryptphp',NULL,NULL,'2016-12-21 13:55:17',NULL,0,'-');
+INSERT INTO `usr_data` VALUES (13,'anonymous','294de3557d9d00b3d2d8a1e6aab028cf','anonymous','anonymous','','m','nomail','','','','','','','2003-08-15 11:03:36','2003-08-15 10:07:30','2003-08-15 10:07:30','','','','','',7,1,0,0,0,'','',1,NULL,NULL,'','local',0,'','','','',0,0,1217068076,'',NULL,'','',NULL,0,'md5','',NULL,'2003-08-15 11:03:36',NULL,0,'-');
 
 --
 -- Table structure for table `usr_data_multi`
@@ -25103,4 +25111,4 @@ CREATE TABLE `xmlvalue_seq` (
 
 
 
--- Dump completed on 2024-12-10 15:59:53
+-- Dump completed on 2025-01-14 15:59:32

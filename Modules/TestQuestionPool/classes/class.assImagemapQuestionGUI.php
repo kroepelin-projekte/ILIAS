@@ -397,8 +397,8 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
         $info = $this->object->getTestOutputSolutions($active_id, $pass);
 
         if (count($info)) {
-            if ($info[0]["value1"] !== "") {
-                $formAction .= "&selImage=" . $info[0]["value1"];
+            if ($info[0]['value1'] !== "") {
+                $formAction .= "&selImage=" . $info[0]['value1'];
             }
         }
 
@@ -430,10 +430,11 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
         $show_manual_scoring = false,
         $show_question_text = true
     ): string {
-        $imagepath = $this->object->getImagePathWeb() . $this->object->getImageFilename();
-        $solutions = array();
+        $user_solutions = array();
+
+
         if (($active_id > 0) && (!$show_correct_solution)) {
-            $solutions = $this->object->getSolutionValues($active_id, $pass);
+            $user_solutions = $this->object->getSolutionValues($active_id, $pass);
         } else {
             if (!$this->object->getIsMultipleChoice()) {
                 $found_index = -1;
@@ -444,7 +445,7 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
                         $found_index = $index;
                     }
                 }
-                array_push($solutions, array("value1" => $found_index));
+                array_push($user_solutions, array("value1" => $found_index));
             } else {
                 // take the correct solution instead of the user solution
                 foreach ($this->object->answers as $index => $answer) {
@@ -452,17 +453,50 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
                     $points_unchecked = $answer->getPointsUnchecked();
                     if ($points_checked > $points_unchecked) {
                         if ($points_checked > 0) {
-                            array_push($solutions, array("value1" => $index));
+                            array_push($user_solutions, array("value1" => $index));
                         }
                     }
                 }
             }
         }
+
+        $show_inline_feedback = false;
+        return $this->renderSolutionOutput(
+            $user_solutions,
+            $active_id,
+            $pass,
+            $graphicalOutput,
+            $result_output,
+            $show_question_only,
+            $show_feedback,
+            $show_correct_solution,
+            $show_manual_scoring,
+            $show_question_text,
+            false,
+            $show_inline_feedback,
+        );
+    }
+
+    public function renderSolutionOutput(
+        mixed $user_solutions,
+        int $active_id,
+        ?int $pass,
+        bool $graphical_output = false,
+        bool $result_output = false,
+        bool $show_question_only = true,
+        bool $show_feedback = false,
+        bool $show_correct_solution = false,
+        bool $show_manual_scoring = false,
+        bool $show_question_text = true,
+        bool $show_autosave_title = false,
+        bool $show_inline_feedback = false,
+    ): ?string {
+        $imagepath = $this->object->getImagePathWeb() . $this->object->getImageFilename();
         $solution_id = -1;
-        if (is_array($solutions)) {
+        if (is_array($user_solutions)) {
             $preview = new ilImagemapPreview($this->object->getImagePath() . $this->object->getImageFilename());
-            foreach ($solutions as $idx => $solution_value) {
-                $value1 = $solution_value["value1"];
+            foreach ($user_solutions as $idx => $solution_value) {
+                $value1 = $solution_value['value1'];
                 if (
                     $value1 === '' ||
                     !isset($this->object->answers[$value1])
@@ -506,7 +540,7 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
         $template->setVariable("IMG_ALT", $this->lng->txt("imagemap"));
         $template->setVariable("IMG_TITLE", $this->lng->txt("imagemap"));
         if (($active_id > 0) && (!$show_correct_solution)) {
-            if ($graphicalOutput) {
+            if ($graphical_output) {
                 $correctness_icon = $this->generateCorrectnessIconsForCorrectness(self::CORRECTNESS_NOT_OK);
                 $reached_points = $this->object->getReachedPoints($active_id, $pass);
                 if ($reached_points == $this->object->getMaximumPoints()) {
@@ -633,9 +667,9 @@ class assImagemapQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             $preview = new ilImagemapPreview($this->object->getImagePath() . $this->object->getImageFilename());
 
             foreach ($solutions as $idx => $solution_value) {
-                if ($solution_value["value1"] !== null) {
-                    $preview->addArea($solution_value["value1"], $this->object->answers[$solution_value["value1"]]->getArea(), $this->object->answers[$solution_value["value1"]]->getCoords(), $this->object->answers[$solution_value["value1"]]->getAnswertext(), "", "", true, $this->linecolor);
-                    $userSelection[$selectionIndex] = $solution_value["value1"];
+                if ($solution_value['value1'] !== null) {
+                    $preview->addArea($solution_value['value1'], $this->object->answers[$solution_value['value1']]->getArea(), $this->object->answers[$solution_value['value1']]->getCoords(), $this->object->answers[$solution_value['value1']]->getAnswertext(), "", "", true, $this->linecolor);
+                    $userSelection[$selectionIndex] = $solution_value['value1'];
 
                     $selectionIndex = $this->object->getIsMultipleChoice() ? ++$selectionIndex : $selectionIndex;
                 }

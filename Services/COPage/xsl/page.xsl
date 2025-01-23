@@ -940,6 +940,20 @@
 			<xsl:comment>Break</xsl:comment>
 		</h3>
 		</xsl:when>
+		<xsl:when test="./SimpleBulletList or ./SimpleNumberedList">
+			<xsl:variable name="char_name">
+				<xsl:call-template name="CharacteristicName">
+					<xsl:with-param name="pctype">heading3</xsl:with-param>
+					<xsl:with-param name="characteristic"><xsl:value-of select="@Characteristic"/></xsl:with-param>
+				</xsl:call-template>
+			</xsl:variable>
+			<!-- Label -->
+			<xsl:call-template name="EditLabel"><xsl:with-param name="text"><xsl:value-of select="//LVs/LV[@name='pc_par']/@value"/>  <xsl:value-of select="$char_name"/></xsl:with-param></xsl:call-template>
+			<div>
+				<xsl:call-template name="ShowParagraph"/>
+				<xsl:comment>Break</xsl:comment>
+			</div>
+		</xsl:when>
 		<xsl:when test="not (@Characteristic) or @Characteristic != 'Code'">
 			<xsl:variable name="char_name">
 				<xsl:call-template name="CharacteristicName">
@@ -1005,7 +1019,7 @@
 	</xsl:choose>
 
 	<!-- command selectbox -->
-	<xsl:if test="$mode = 'edit'">
+	<!-- <xsl:if test="$mode = 'edit'">
 		<br />
 		<xsl:if test="((../../../../@DataTable != 'y' or not(../../../../@DataTable)))">
 			<xsl:if test="$javascript='disable'">
@@ -1021,7 +1035,7 @@
 				<xsl:with-param name="edit">y</xsl:with-param>
 			</xsl:call-template>
 		</xsl:if>
-	</xsl:if>
+	</xsl:if> -->
 </xsl:template>
 
 <xsl:template name="Sourcecode">

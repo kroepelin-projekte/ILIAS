@@ -354,4 +354,10 @@ class ilTest9DBUpdateSteps implements ilDatabaseUpdateSteps
     {
         $this->db->modifyTableColumn('ass_log', 'logtext', ['type' => \ilDBConstants::T_CLOB]);
     }
+
+    public function step_21(): void
+    {
+        $this->db->manipulate('UPDATE tst_pass_result SET points = 0 WHERE points < 0');
+        $this->db->manipulate('UPDATE tst_result_cache SET reached_points = 0 WHERE reached_points < 0');
+    }
 }

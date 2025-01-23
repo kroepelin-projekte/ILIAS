@@ -142,7 +142,7 @@ class ilObjTestListGUI extends ilObjectListGUI
     {
         $commands = parent::getCommands();
         if ($this->access->checkAccess('read', '', $this->ref_id)) {
-            $this->insertCommand($this->getCommandLink('testScreen'), $this->lng->txt('tst_start_test'));
+            $this->insertCommand($this->getCommandLink('ilTestScreenGUI::testScreen'), $this->lng->txt('tst_start_test'));
         }
         return $this->handleUserResultsCommand($commands);
     }

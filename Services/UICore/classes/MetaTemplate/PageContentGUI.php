@@ -381,7 +381,6 @@ class PageContentGUI
     protected function getTabsHTML(): void
     {
         global $DIC;
-
         $ilTabs = $DIC["ilTabs"];
 
         if ($this->template->blockExists("tabs_outer_start")) {

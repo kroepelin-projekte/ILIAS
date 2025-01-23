@@ -371,6 +371,8 @@ class ilImagemapFileInputGUI extends ilImageFileInputGUI
         $template->setVariable("POST_VAR", $this->getPostVar());
         $template->setVariable("ID", $this->getFieldId());
         $template->setVariable("TXT_BROWSE", $lng->txt("select_file"));
+        $template->setVariable('MAX_SIZE_WARNING', $this->lng->txt('form_msg_file_size_exceeds'));
+        $template->setVariable('MAX_SIZE', $this->upload_limit->getPhpUploadLimitInBytes());
         $template->setVariable("TXT_MAX_SIZE", $lng->txt("file_notice") . " " .
         $this->getMaxFileSizeString());
 

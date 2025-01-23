@@ -347,7 +347,8 @@ class ilUserSearchCache
                     'failed' => array('clob',serialize(array(0))),
                     'page' => array('integer',0),
                     'usr_id' => array('integer', $this->usr_id),
-                    'search_type' => array('integer', $this->search_type)
+                    'search_type' => array('integer', $this->search_type),
+                    'query' => array('clob',serialize(''))
             )
             );
         }

@@ -374,6 +374,8 @@ class ilTestScoringGUI extends ilTestServiceGUI
         $form->setTitle(sprintf($this->lng->txt('manscoring_results_pass'), $pass + 1));
         $form->setTableWidth('100%');
 
+        $autosave_enabled = $this->object->getAutosave();
+        $show_solutions_enabled = $this->object->getShowSolutionFeedback();
         foreach ($questionGuiList as $questionId => $questionGUI) {
             $questionHeader = sprintf($this->lng->txt('tst_manscoring_question_section_header'), $questionGUI->object->getTitle());
             $questionSolution = $questionGUI->getSolutionOutput($active_id, $pass, false, false, true, false, false, true);
@@ -394,22 +396,26 @@ class ilTestScoringGUI extends ilTestServiceGUI
             $cust->setHtml($questionSolution);
             $form->addItem($cust);
 
-            if ($questionGUI instanceof assTextQuestionGUI && $this->object->getAutosave()) {
+            if ($autosave_enabled) {
                 $aresult_output = $questionGUI->getAutoSavedSolutionOutput(
                     $active_id,
                     $pass,
                     false,
                     false,
+                    true,
+                    $show_solutions_enabled,
                     false,
-                    false,
-                    false,
-                    false,
+                    true,
                     false
                 );
-                $cust = new ilCustomInputGUI($this->lng->txt('autosavecontent'));
-                $cust->setHtml($aresult_output);
-                $form->addItem($cust);
+                if ($aresult_output) {
+                    $cust = new ilCustomInputGUI($this->lng->txt('autosavecontent'));
+                    $cust->setHtml($aresult_output);
+                    $form->addItem($cust);
+                }
             }
+
+
 
             $text = new ilTextInputGUI($this->lng->txt('tst_change_points_for_question'), "question__{$questionId}__points");
             if ($initValues) {
