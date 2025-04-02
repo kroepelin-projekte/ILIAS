@@ -82,15 +82,6 @@ class ilAssQuestionSkillAssignmentsTableGUI extends ilTable2GUI
     public function init(): void
     {
         $this->initColumns();
-
-        if ($this->areManipulationsEnabled()) {
-            $this->setFormAction($this->ctrl->getFormAction($this->parent_obj));
-
-            $this->addCommandButton(
-                ilAssQuestionSkillAssignmentsGUI::CMD_SAVE_SKILL_POINTS,
-                $this->lng->txt('tst_save_comp_points')
-            );
-        }
     }
 
     /**
@@ -137,12 +128,7 @@ class ilAssQuestionSkillAssignmentsTableGUI extends ilTable2GUI
             $this->tpl->setVariable('COMPETENCE', $assignment->getSkillTitle());
             $this->tpl->setVariable('COMPETENCE_PATH', $assignment->getSkillPath());
             $this->tpl->setVariable('EVAL_MODE', $this->getEvalModeLabel($assignment));
-
-            if ($this->isSkillPointInputRequired($assignment)) {
-                $this->tpl->setVariable('SKILL_POINTS', $this->buildSkillPointsInput($assignment));
-            } else {
-                $this->tpl->setVariable('SKILL_POINTS', $assignment->getMaxSkillPoints());
-            }
+            $this->tpl->setVariable('SKILL_POINTS', $assignment->getMaxSkillPoints());
 
             if ($this->areManipulationsEnabled() || ($i + 1) < $numAssigns) {
                 $this->tpl->parseCurrentBlock();
@@ -261,33 +247,5 @@ class ilAssQuestionSkillAssignmentsTableGUI extends ilTable2GUI
         }
 
         return $this->lng->txt('qpl_skill_point_eval_mode_quest_result');
-    }
-
-    private function buildSkillPointsInput(ilAssQuestionSkillAssignment $assignment): string
-    {
-        $assignmentKey = implode(':', array(
-            $assignment->getSkillBaseId(), $assignment->getSkillTrefId(), $assignment->getQuestionId()
-        ));
-
-        if ($this->loadSkillPointsFromRequest) {
-            $points = isset($_POST['skill_points'][$assignmentKey]) ? ilUtil::stripSlashes($_POST['skill_points'][$assignmentKey]) : '';
-        } else {
-            $points = $assignment->getSkillPoints();
-        }
-
-        return "<input type\"text\" size=\"2\" name=\"skill_points[{$assignmentKey}]\" value=\"{$points}\" />";
-    }
-
-    private function isSkillPointInputRequired(ilAssQuestionSkillAssignment $assignment): bool
-    {
-        if (!$this->areManipulationsEnabled()) {
-            return false;
-        }
-
-        if ($assignment->hasEvalModeBySolution()) {
-            return false;
-        }
-
-        return true;
     }
 }

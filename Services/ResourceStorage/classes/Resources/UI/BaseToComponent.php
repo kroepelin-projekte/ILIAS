@@ -36,6 +36,7 @@ abstract class BaseToComponent implements ToComponent
     protected \ilLanguage $language;
     protected \ILIAS\UI\Factory $ui_factory;
     protected ActionGenerator $action_generator;
+    protected \ilObjUser $acting_user;
 
     public function __construct(
         ?ActionGenerator $action_generator = null
@@ -45,6 +46,7 @@ abstract class BaseToComponent implements ToComponent
         $this->language = $DIC->language();
         $this->language->loadLanguageModule('irss');
         $this->ui_factory = $DIC->ui()->factory();
+        $this->acting_user = $DIC->user();
     }
 
 
@@ -57,13 +59,15 @@ abstract class BaseToComponent implements ToComponent
             default => DataSize::Byte,
         };
 
-        $size = (int)(round((float)$size / (float)$unit, 2) * (float)$unit);
+        $size = (int) (round((float) $size / (float) $unit, 2) * (float) $unit);
 
-        return (string)(new DataSize($size, $unit));
+        return (string) (new DataSize($size, $unit));
     }
 
     protected function formatDate(\DateTimeImmutable $date): string
     {
-        return $date->format(self::DATE_FORMAT);
+        return $date
+            ->setTimezone(new \DateTimeZone($this->acting_user->getTimeZone()))
+            ->format(self::DATE_FORMAT);
     }
 }

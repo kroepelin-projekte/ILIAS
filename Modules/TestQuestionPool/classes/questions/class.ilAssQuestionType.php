@@ -128,6 +128,10 @@ class ilAssQuestionType
             return true;
         }
 
+        if (!isset($this->pluginName)) {
+            return false;
+        }
+
         // Plugins MAY overwrite this method an report back their activation status
         if (!$this->component_repository->getComponentByTypeAndName(
             ilComponentInfo::TYPE_MODULES,

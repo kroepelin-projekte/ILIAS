@@ -24,7 +24,6 @@ use ILIAS\Object\Properties\ObjectReferenceProperties\ObjectReferencePropertiesR
 use ILIAS\Object\Properties\ObjectReferenceProperties\ObjectAvailabilityPeriodProperty;
 use ILIAS\UI\Component\Button\Standard as StandardButton;
 use ILIAS\UI\Component\Modal\RoundTrip as RoundTripModal;
-use ILIAS\UI\Implementation\Component\Listing\Unordered as UnorderedListing;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Data\Factory as DataFactory;
@@ -81,8 +80,9 @@ class MultiObjectPropertiesManipulator
 
     public function saveEditAvailabilityPeriodPropertiesModal(
         \ilObjectGUI $parent_gui,
+        \Closure $check_access,
         ServerRequestInterface $request
-    ): ?RoundTripModal {
+    ): RoundTripModal|bool {
         $post_url = $this->ctrl->getFormAction($parent_gui, 'saveAvailabilityPeriod');
         $availability_period_modal = $this->buildModal($post_url)
             ->withRequest($request);
@@ -90,10 +90,17 @@ class MultiObjectPropertiesManipulator
         if ($data === null) {
             return $availability_period_modal;
         }
-        $ref_ids = explode(',', $data['affected_items']);
+        $ref_ids = $this->refinery->kindlyTo()->listOf($this->refinery->kindlyTo()->int())->transform(
+            explode(',', $data['affected_items'])
+        );
+
+        if (!$check_access($ref_ids)) {
+            return false;
+        }
+
         $availability_period_property = $data['enable_availability_period'];
         $this->saveAvailabilityPeriodPropertyForObjectRefIds($ref_ids, $availability_period_property);
-        return null;
+        return true;
     }
 
     private function buildModal(
@@ -156,7 +163,7 @@ class MultiObjectPropertiesManipulator
     ): void {
         foreach ($object_reference_ids as $object_reference_id) {
             $this->object_reference_properties_repo->storePropertyAvailabilityPeriod(
-                $property->withObjectReferenceId((int) $object_reference_id)
+                $property->withObjectReferenceId($object_reference_id)
             );
         }
     }

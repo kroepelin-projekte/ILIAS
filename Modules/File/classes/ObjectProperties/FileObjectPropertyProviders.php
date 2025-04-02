@@ -82,6 +82,10 @@ class FileObjectPropertyProviders implements ilObjectTypeSpecificPropertyProvide
         $available_widths = $this->crop_definition->getWidths();
         array_pop($available_widths);
 
+        if (!isset($urls[count($available_widths)])) {
+            return null;
+        }
+
         $image = $factory->responsive($urls[count($available_widths)], '');
         return array_reduce(
             $available_widths,

@@ -132,7 +132,7 @@ class GUIService
         $lng = $this->domain_service->lng();
         $lng->loadLanguageModule("exc");
 
-        $write = $this->domain_service->access()->checkAccess('write', '', $ref_id);
+        $write = $this->domain_service->access()->checkAccess('edit_submissions_grades', '', $ref_id);
 
         return $this->irss_wrapper_gui->getResourceCollectionGUI(
             $feedback_file_manager->getStakeholder(),

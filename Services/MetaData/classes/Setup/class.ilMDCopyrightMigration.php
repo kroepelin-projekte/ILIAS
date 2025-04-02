@@ -119,7 +119,7 @@ class ilMDCopyrightMigration implements Setup\Migration
         $title = $this->updatePreInstalledTitles($link, $title);
 
         return [
-            'title' => [\ilDBConstants::T_TEXT, $full_name],
+            'title' => [\ilDBConstants::T_TEXT, $title],
             'full_name' => [\ilDBConstants::T_TEXT, $full_name],
             'link' => [\ilDBConstants::T_TEXT, $link],
             'image_link' => [\ilDBConstants::T_TEXT, $image_link],

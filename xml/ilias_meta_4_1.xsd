@@ -176,7 +176,7 @@
    <xs:sequence>
     <xs:element ref='t:Identifier' maxOccurs='unbounded'/>
     <xs:element ref='t:Title'/>
-    <xs:element ref='t:Language' maxOccurs='unbounded'/>
+    <xs:element ref='t:Language' minOccurs="0" maxOccurs='unbounded'/>
     <xs:element ref='t:Description' maxOccurs='unbounded'/>
     <xs:element ref='t:Keyword' maxOccurs='unbounded'/>
     <xs:element ref='t:Coverage' minOccurs='0' maxOccurs='1'/>

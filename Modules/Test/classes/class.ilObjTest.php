@@ -268,7 +268,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
          * Dynamic-Tests in migration. The check can go with ILIAS10
          * @todo: Remove check with ILIAS10
          */
-        if ($this->isFixedTest() || $this->isRandomTest()) {
+        if ($this->main_settings !== null
+            && ($this->isFixedTest() || $this->isRandomTest())) {
             $this->question_set_config_factory->getQuestionSetConfig()->removeQuestionSetRelatedData();
         }
 
@@ -447,7 +448,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
                 [
                     'test_id' => ['integer', $next_id],
                     'obj_fi' => ['integer', $this->getId()],
-                    'author' => ['text', $this->getAuthor()],
+                    'author' => ['text', mb_substr($this->getAuthor(), 0, 50)],
                     'created' => ['integer', time()],
                     'tstamp' => ['integer', time()],
                     'template_id' => ['integer', $this->getTemplate()],
@@ -477,7 +478,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             $this->db->update(
                 'tst_tests',
                 [
-                    'author' => ['text', $this->getAuthor()],
+                    'author' => ['text', mb_substr($this->getAuthor(), 0, 50)],
                     'broken' => ['integer', (int) $this->isTestFinalBroken()]
                 ],
                 [
@@ -554,12 +555,12 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             }
         }
 
-        $this->storeActivationSettings([
-            'is_activation_limited' => $this->isActivationLimited(),
-            'activation_starting_time' => $this->getActivationStartingTime(),
-            'activation_ending_time' => $this->getActivationEndingTime(),
-            'activation_visibility' => $this->getActivationVisibility()
-        ]);
+        $this->storeActivationSettings(
+            $this->isActivationLimited(),
+            $this->getActivationStartingTime(),
+            $this->getActivationEndingTime(),
+            $this->getActivationVisibility(),
+        );
 
         if (!$properties_only) {
             if ($this->getQuestionSetType() == self::QUESTION_SET_TYPE_FIXED) {
@@ -1733,7 +1734,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
                 [$user_id, $this->test_id, $anonymous_id]
             );
         } else {
-            if ($this->user->getId() === ANONYMOUS_USER_ID) {
+            if ((int) $user_id === ANONYMOUS_USER_ID) {
                 return null;
             }
             $result = $this->db->queryF(
@@ -1748,7 +1749,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             return (int) $row['active_id'];
         }
 
-        return 0;
+        return null;
     }
 
     public static function _getActiveIdOfUser($user_id = "", $test_id = "")
@@ -2792,22 +2793,25 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
     * @return string The output name of the user
     * @access public
     */
-    public function buildName($user_id, $firstname, $lastname, $title): string
-    {
-        $name = "";
-        if (strlen($firstname . $lastname . $title) == 0) {
-            $name = $this->lng->txt('deleted_user');
-        } else {
-            if ($user_id == ANONYMOUS_USER_ID) {
-                $name = $lastname;
-            } else {
-                $name = trim($lastname . ", " . $firstname . " " . $title);
-            }
-            if ($this->getAnonymity()) {
-                $name = $this->lng->txt("anonymous");
-            }
+    public function buildName(
+        ?int $user_id,
+        ?string $firstname,
+        ?string $lastname
+    ): string {
+        if ($user_id === null
+            || $firstname . $lastname === '') {
+            return $this->lng->txt('deleted_user');
         }
-        return $name;
+
+        if ($this->getAnonymity()) {
+            return $this->lng->txt('anonymous');
+        }
+
+        if ($user_id == ANONYMOUS_USER_ID) {
+            return $lastname;
+        }
+
+        return trim($lastname . ', ' . $firstname);
     }
 
     public function evalTotalStartedAverageTime(?array $active_ids_to_filter = null): float
@@ -3111,7 +3115,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
      * Receives parameters from a QTI parser and creates a valid ILIAS test object
      * @param ilQTIAssessment $assessment
      */
-    public function fromXML(ilQTIAssessment $assessment)
+    public function fromXML(ilQTIAssessment $assessment, array $mappings)
     {
         ilSession::clear('import_mob_xhtml');
 
@@ -3132,7 +3136,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             foreach ($objectives->materials as $material) {
                 $introduction_settings = $this->addIntroductionToSettingsFromImport(
                     $introduction_settings,
-                    $this->qtiMaterialToArray($material)
+                    $this->qtiMaterialToArray($material),
+                    $mappings
                 );
             }
         }
@@ -3144,7 +3149,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
                 $finishing_settings,
                 $this->qtiMaterialToArray(
                     $assessment->getPresentationMaterial()->getFlowMat(0)->getMaterial(0)
-                )
+                ),
+                $mappings
             );
         }
 
@@ -3437,13 +3443,16 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         $this->loadFromDb();
     }
 
-    private function addIntroductionToSettingsFromImport(ilObjTestSettingsIntroduction $settings, array $material)
-    {
+    private function addIntroductionToSettingsFromImport(
+        ilObjTestSettingsIntroduction $settings,
+        array $material,
+        array $mappings
+    ): ilObjTestSettingsIntroduction {
         $text = $material['text'];
         $mobs = $material['mobs'];
         if (str_starts_with($text, '<PageObject>')) {
-            $text = $this->retrieveMobsFromPageImports($text, $mobs);
-            $text = $this->retrieveFilesFromPageImports($text);
+            $text = $this->replaceMobsInPageImports($text, $mappings['Services/MediaObjects']['mob'] ?? []);
+            $text = $this->replaceFilesInPageImports($text, $mappings['Modules/File']['file'] ?? []);
             $page_object = new ilTestPage();
             $page_object->setParentId($this->getId());
             $page_object->setXMLContent($text);
@@ -3460,13 +3469,16 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         );
     }
 
-    private function addConcludingRemarksToSettingsFromImport(ilObjTestSettingsFinishing $settings, array $material)
-    {
+    private function addConcludingRemarksToSettingsFromImport(
+        ilObjTestSettingsFinishing $settings,
+        array $material,
+        array $mappings
+    ): ilObjTestSettingsFinishing {
         $text = $material['text'];
         $mobs = $material['mobs'];
         if (str_starts_with($text, '<PageObject>')) {
-            $text = $this->retrieveMobsFromPageImports($text, $mobs);
-            $text = $this->retrieveFilesFromPageImports($text);
+            $text = $this->replaceMobsInPageImports($text, $mappings['Services/MediaObjects']['mob'] ?? []);
+            $text = $this->replaceFilesInPageImports($text, $mappings['Modules/File']['file'] ?? []);
             $page_object = new ilTestPage();
             $page_object->setParentId($this->getId());
             $page_object->setXMLContent($text);
@@ -3489,33 +3501,27 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         );
     }
 
-    private function retrieveMobsFromPageImports(string $text, array $mobs): string
+    private function replaceMobsInPageImports(string $text, array $mappings): string
     {
-        foreach ($mobs as $mob) {
-            $importfile = ilObjTest::_getImportDirectory() . '/' . ilSession::get('tst_import_subdir') . '/' . $mob['uri'];
-            if (file_exists($importfile)) {
-                $media_object = ilObjMediaObject::_saveTempFileAsMediaObject(basename($importfile), $importfile, false);
-                ilObjMediaObject::_saveUsage($media_object->getId(), 'tst:gp', $this->getId());
-                $text = str_replace($mob['mob'], 'il__mob_' . (string) $media_object->getId(), $text);
+        preg_match_all('/il_(\d+)_mob_(\d+)/', $text, $matches);
+        foreach ($matches[0] as $index => $match) {
+            if (empty($mappings[$matches[2][$index]])) {
+                continue;
             }
+            $text = str_replace($match, "il__mob_{$mappings[$matches[2][$index]]}", $text);
+            ilObjMediaObject::_saveUsage((int) $mappings[$matches[2][$index]], 'tst', $this->getId());
         }
         return $text;
     }
 
-    private function retrieveFilesFromPageImports(string $text): string
+    private function replaceFilesInPageImports(string $text, $mappings): string
     {
         preg_match_all('/il_(\d+)_file_(\d+)/', $text, $matches);
-        foreach ($matches[0] as $match) {
-            $source_dir = ilObjTest::_getImportDirectory() . '/' . ilSession::get('tst_import_subdir') . '/objects/' . $match;
-            $files = scandir($source_dir, SCANDIR_SORT_DESCENDING);
-            if ($files !== false && $files !== [] && is_file($source_dir . '/' . $files[0])) {
-                $file = fopen($source_dir . '/' . $files[0], 'rb');
-                $file_stream = Streams::ofResource($file);
-                $file_obj = new ilObjFile();
-                $file_id = $file_obj->create();
-                $file_obj->appendStream($file_stream, $files[0]);
-                $text = str_replace($match, "il__file_{$file_id}", $text);
+        foreach ($matches[0] as $index => $match) {
+            if (empty($mappings[$matches[2][$index]])) {
+                continue;
             }
+            $text = str_replace($match, "il__file_{$mappings[$matches[2][$index]]}", $text);
         }
         return $text;
     }
@@ -3647,10 +3653,13 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         if ($this->getScoreSettings()->getResultSummarySettings()->getReportingDate() !== null) {
             $a_xml_writer->xmlStartTag("qtimetadatafield");
             $a_xml_writer->xmlElement("fieldlabel", null, "reporting_date");
-            $reporting_date = $this->buildPeriodFromFormatedDateString(
-                $this->getScoreSettings()->getResultSummarySettings()->getReportingDate()->format('Y-m-d H:i:s')
+            $a_xml_writer->xmlElement(
+                "fieldentry",
+                null,
+                $this->buildIso8601PeriodForExportCompatibility(
+                    $this->getScoreSettings()->getResultSummarySettings()->getReportingDate(),
+                ),
             );
-            $a_xml_writer->xmlElement("fieldentry", null, $reporting_date);
             $a_xml_writer->xmlEndTag("qtimetadatafield");
         }
         // number of tries
@@ -3897,19 +3906,29 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
 
 
         // starting time
-        if ($this->getStartingTime()) {
+        if ($this->getStartingTime() > 0) {
             $a_xml_writer->xmlStartTag("qtimetadatafield");
             $a_xml_writer->xmlElement("fieldlabel", null, "starting_time");
-            $backward_compatibility_format = $this->buildIso8601PeriodFromUnixtimeForExportCompatibility($this->getStartingTime());
-            $a_xml_writer->xmlElement("fieldentry", null, $backward_compatibility_format);
+            $a_xml_writer->xmlElement(
+                "fieldentry",
+                null,
+                $this->buildIso8601PeriodForExportCompatibility(
+                    (new DateTimeImmutable())->setTimestamp($this->getStartingTime()),
+                ),
+            );
             $a_xml_writer->xmlEndTag("qtimetadatafield");
         }
         // ending time
-        if ($this->getEndingTime()) {
+        if ($this->getEndingTime() > 0) {
             $a_xml_writer->xmlStartTag("qtimetadatafield");
             $a_xml_writer->xmlElement("fieldlabel", null, "ending_time");
-            $backward_compatibility_format = $this->buildIso8601PeriodFromUnixtimeForExportCompatibility($this->getEndingTime());
-            $a_xml_writer->xmlElement("fieldentry", null, $backward_compatibility_format);
+            $a_xml_writer->xmlElement(
+                "fieldentry",
+                null,
+                $this->buildIso8601PeriodForExportCompatibility(
+                    (new DateTimeImmutable())->setTimestamp($this->getEndingTime()),
+                ),
+            );
             $a_xml_writer->xmlEndTag("qtimetadatafield");
         }
 
@@ -4039,21 +4058,9 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         return $xml;
     }
 
-    /**
-     * @param $unix_timestamp
-     * @return string
-     */
-    protected function buildIso8601PeriodFromUnixtimeForExportCompatibility($unix_timestamp): string
+    protected function buildIso8601PeriodForExportCompatibility(DateTimeImmutable $date_time): string
     {
-        $date_time_unix = new ilDateTime($unix_timestamp, IL_CAL_UNIX);
-        $date_time = $date_time_unix->get(IL_CAL_DATETIME);
-        return $this->buildPeriodFromFormatedDateString($date_time);
-    }
-
-    protected function buildPeriodFromFormatedDateString(string $date_time): string
-    {
-        preg_match("/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/", $date_time, $matches);
-        return sprintf("P%dY%dM%dDT%dH%dM%dS", $matches[1], $matches[2], $matches[3], $matches[4], $matches[5], $matches[6]);
+        return $date_time->setTimezone(new DateTimeZone('UTC'))->format('\PY\Yn\Mj\D\TG\Hi\Ms\S');
     }
 
     protected function buildDateTimeImmutableFromPeriod(?string $period): ?DateTimeImmutable
@@ -4284,14 +4291,18 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
     public function canEditMarks(): bool
     {
         $total = $this->evalTotalPersons();
-        if ($total > 0) {
-            $reporting_date = $this->getScoreSettings()->getResultSummarySettings()->getReportingDate();
-            if ($reporting_date !== null) {
-                return $reporting_date <= new DateTimeImmutable('now', new DateTimeZone('UTC'));
-            }
-            return false;
+        $results_summary_settings = $this->getScoreSettings()->getResultSummarySettings();
+        if ($total === 0
+            || $results_summary_settings->getScoreReportingEnabled() === false) {
+            return true;
         }
-        return true;
+
+        if ($results_summary_settings->getScoreReporting() === ilObjTestSettingsResultSummary::SCORE_REPORTING_DATE) {
+            return $results_summary_settings->getReportingDate()
+                >= new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        }
+
+        return false;
     }
 
     /**
@@ -4356,7 +4367,7 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
                 }
             }
         }
-        return join(",", $author);
+        return join(", ", $author);
     }
 
     /**
@@ -4437,8 +4448,11 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         $new_obj->setTmpCopyWizardCopyId($copy_id);
         $this->cloneMetaData($new_obj);
 
+        $new_obj->mark_schema = clone $this->mark_schema;
+        $new_obj->setTemplate($this->getTemplate());
         $new_obj->saveToDb();
         $new_obj->addToNewsOnOnline(false, $new_obj->getObjectProperties()->getPropertyIsOnline()->getIsOnline());
+
         $this->getMainSettingsRepository()->store(
             $this->getMainSettings()->withTestId($new_obj->getTestId())
                 ->withIntroductionSettings(
@@ -4454,9 +4468,6 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         $this->getScoreSettingsRepository()->store(
             $this->getScoreSettings()->withTestId($new_obj->getTestId())
         );
-
-        $new_obj->mark_schema = clone $this->mark_schema;
-        $new_obj->setTemplate($this->getTemplate());
 
         // clone certificate
         $pathFactory = new ilCertificatePathFactory();
@@ -4827,33 +4838,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         $participants = &$this->getTestParticipants();
         $filtered_participants = [];
         foreach ($participants as $active_id => $participant) {
-            $qstType_IN_manScoreableQstTypes = $this->db->in('qpl_questions.question_type_fi', $scoring, false, 'integer');
-
-            $queryString = "
-				SELECT		tst_test_result.manual
-
-				FROM		tst_test_result
-
-				INNER JOIN	qpl_questions
-				ON			tst_test_result.question_fi = qpl_questions.question_id
-
-				WHERE		tst_test_result.active_fi = %s
-				AND			$qstType_IN_manScoreableQstTypes
-			";
-
-            $result = $this->db->queryF(
-                $queryString,
-                ["integer"],
-                [$active_id]
-            );
-
-            $count = $result->numRows();
-
-            if ($count > 0) {
+            if ($participant['tries'] > 0) {
                 switch ($filter) {
-                    case 3: // all users
-                        $filtered_participants[$active_id] = $participant;
-                        break;
                     case 4:
                         if ($this->testManScoringDoneHelper->isDone((int) $active_id)) {
                             $filtered_participants[$active_id] = $participant;
@@ -4864,21 +4850,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
                             $filtered_participants[$active_id] = $participant;
                         }
                         break;
-                    case 6:
-                        // partially scored participants
-                        $found = 0;
-                        while ($row = $this->db->fetchAssoc($result)) {
-                            if ($row["manual"]) {
-                                $found++;
-                            }
-                        }
-                        if (($found > 0) && ($found < $count)) {
-                            $filtered_participants[$active_id] = $participant;
-                        }
-                        break;
                     default:
                         $filtered_participants[$active_id] = $participant;
-                        break;
                 }
             }
         }
@@ -5433,6 +5406,12 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             "errormessage" => ""
         ];
 
+        if (!$this->getObjectProperties()->getPropertyIsOnline()->getIsOnline()) {
+            $result["executable"] = false;
+            $result["errormessage"] = $this->lng->txt('autosave_failed') . ': ' . $this->lng->txt('offline');
+            return $result;
+        }
+
         if (!$this->startingTimeReached()) {
             $result["executable"] = false;
             $result["errormessage"] = sprintf($this->lng->txt("detail_starting_time_not_reached"), ilDatePresentation::formatDate(new ilDateTime($this->getStartingTime(), IL_CAL_UNIX)));
@@ -5450,22 +5429,8 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             && $active_id > 0
             && ($starting_time = $this->getStartingTimeOfUser($active_id)) !== false
             && $this->isMaxProcessingTimeReached($starting_time, $active_id)) {
-            if ($allow_pass_increase
-                    && $this->getResetProcessingTime()
-                    && (($this->getNrOfTries() === 0)
-                || ($this->getNrOfTries() > (self::_getPass($active_id) + 1)))) {
-                // a test pass was quitted because the maximum processing time was reached, but the time
-                // will be resetted for future passes, so if there are more passes allowed, the participant may
-                // start the test again.
-                // This code block is only called when $allowPassIncrease is TRUE which only happens when
-                // the test info page is opened. Otherwise this will lead to unexpected results!
-                $test_session->increasePass();
-                $test_session->setLastSequence(0);
-                $test_session->saveToDb();
-            } else {
-                $result["executable"] = false;
-                $result["errormessage"] = $this->lng->txt("detail_max_processing_time_reached");
-            }
+            $result["executable"] = false;
+            $result["errormessage"] = $this->lng->txt("detail_max_processing_time_reached");
             return $result;
         }
 
@@ -6276,6 +6241,12 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
     public function applyDefaults($test_defaults): bool
     {
         $testsettings = unserialize($test_defaults['defaults']);
+        $activation_starting_time = is_numeric($testsettings['activation_starting_time'] ?? false)
+            ? (int) $testsettings['activation_starting_time']
+            : null;
+        $activation_ending_time = is_numeric($testsettings['activation_ending_time'] ?? false)
+            ? (int) $testsettings['activation_ending_time']
+            : null;
         $unserialized_marks = unserialize($test_defaults['marks']);
 
         if ($unserialized_marks instanceof ASS_MarkSchema) {
@@ -6284,12 +6255,12 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
 
         $this->mark_schema->setMarkSteps($unserialized_marks);
 
-        $this->storeActivationSettings([
-            'is_activation_limited' => $testsettings['activation_limited'],
-            'activation_starting_time' => $testsettings['activation_start_time'],
-            'activation_ending_time' => $testsettings['activation_end_time'],
-            'activation_visibility' => $testsettings['activation_visibility']
-        ]);
+        $this->storeActivationSettings(
+            (bool) ($testsettings['is_activation_limited'] ?? false),
+            $activation_starting_time,
+            $activation_ending_time,
+            (bool) ($testsettings['activation_visibility'] ?? false),
+        );
 
         $main_settings = $this->getMainSettings();
         $main_settings = $main_settings
@@ -7270,28 +7241,34 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
         $this->activation_limited = (bool) $a_value;
     }
 
-    public function storeActivationSettings(array $settings): void
-    {
+    public function storeActivationSettings(
+        ?bool $is_activation_limited = false,
+        ?int $activation_starting_time = null,
+        ?int $activation_ending_time = null,
+        bool $activation_visibility = false,
+    ): void {
         if (!$this->ref_id) {
             return;
         }
 
         $item = new ilObjectActivation();
-        if (!$settings['is_activation_limited']) {
+        $is_activation_limited ??= false;
+
+        if (!$is_activation_limited) {
             $item->setTimingType(ilObjectActivation::TIMINGS_DEACTIVATED);
         } else {
             $item->setTimingType(ilObjectActivation::TIMINGS_ACTIVATION);
-            $item->setTimingStart($settings['activation_starting_time']);
-            $item->setTimingEnd($settings['activation_ending_time']);
-            $item->toggleVisible($settings['activation_visibility']);
+            $item->setTimingStart($activation_starting_time);
+            $item->setTimingEnd($activation_ending_time);
+            $item->toggleVisible($activation_visibility);
         }
 
         $item->update($this->ref_id);
 
-        $this->setActivationLimited($settings['is_activation_limited']);
-        $this->setActivationStartingTime($settings['activation_starting_time']);
-        $this->setActivationStartingTime($settings['activation_ending_time']);
-        $this->setActivationVisibility($settings['activation_visibility']);
+        $this->setActivationLimited($is_activation_limited);
+        $this->setActivationStartingTime($activation_starting_time);
+        $this->setActivationStartingTime($activation_ending_time);
+        $this->setActivationVisibility($activation_visibility);
     }
 
     public function getIntroductionPageId(): int
@@ -8064,8 +8041,11 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
 
         if ($pass !== null) {
             $query = '
-                SELECT		tst_pass_result.*
+                SELECT		tst_pass_result.*,
+                            tst_active.last_finished_pass
                 FROM		tst_pass_result
+                INNER JOIN  tst_active
+                on          tst_pass_result.active_fi = tst_active.active_id
                 WHERE		active_fi = %s
                 AND			pass = %s
             ';
@@ -8084,11 +8064,10 @@ class ilObjTest extends ilObject implements ilMarkSchemaAware
             $max = (float) ($test_pass_result_row['maxpoints'] ?? 0);
             $reached = (float) ($test_pass_result_row['points'] ?? 0);
             $percentage = ($max <= 0.0 || $reached <= 0.0) ? 0 : ($reached / $max) * 100.0;
-
             $obligations_answered = (int) ($test_pass_result_row['obligations_answered'] ?? 1);
 
             $mark = $this->mark_schema->getMatchingMark($percentage);
-            $is_passed = (bool) $mark->getPassed();
+            $is_passed = $pass <= $test_pass_result_row['last_finished_pass'] && $mark->getPassed();
 
             $hint_count = $test_pass_result_row['hint_count'] ?? 0;
             $hint_points = $test_pass_result_row['hint_points'] ?? 0.0;

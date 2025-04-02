@@ -77,6 +77,7 @@ class ilTestEvaluationDataTest extends ilTestBaseTestCase
     {
         $records = [];
         $records[7] = [
+            "active_id" => 7 ,
             "question_fi" => 9,
             "result_points" => 1.2,
             "answered" => true,

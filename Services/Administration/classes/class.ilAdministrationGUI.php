@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,6 +15,8 @@ declare(strict_types=1);
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
 
 use ILIAS\Administration\AdminGUIRequest;
 
@@ -75,6 +75,7 @@ class ilAdministrationGUI implements ilCtrlBaseClassInterface
     protected int $requested_obj_id = 0;
     protected AdminGUIRequest $request;
     protected ilObjectGUI $gui_obj;
+    private readonly ilErrorHandling $error;
 
     public function __construct()
     {
@@ -89,6 +90,7 @@ class ilAdministrationGUI implements ilCtrlBaseClassInterface
         $rbacsystem = $DIC->rbac()->system();
         $objDefinition = $DIC["objDefinition"];
         $ilCtrl = $DIC->ctrl();
+        $this->error = $DIC['ilErr'];
 
         $this->lng = $lng;
         $this->lng->loadLanguageModule('administration');
@@ -141,7 +143,7 @@ class ilAdministrationGUI implements ilCtrlBaseClassInterface
         // permission checks
         if (!$rbacsystem->checkAccess("visible", SYSTEM_FOLDER_ID) &&
                 !$rbacsystem->checkAccess("read", SYSTEM_FOLDER_ID)) {
-            throw new ilPermissionException($this->lng->txt('permission_denied'));
+            $this->error->raiseError($this->lng->txt('permission_denied'), $this->error->MESSAGE);
         }
 
         // check creation mode

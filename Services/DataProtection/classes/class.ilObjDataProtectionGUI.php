@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 use ILIAS\DataProtection\Consumer;
 use ILIAS\DataProtection\Settings;
-use ILIAS\LegalDocuments\ConsumerToolbox\Settings as SettingsInterface;
 use ILIAS\LegalDocuments\ConsumerToolbox\Setting;
 use ILIAS\LegalDocuments\ConsumerToolbox\KeyValueStore\ReadOnlyStore;
 use ILIAS\LegalDocuments\ConsumerToolbox\KeyValueStore\ILIASSettingStore;
@@ -45,7 +44,7 @@ final class ilObjDataProtectionGUI extends ilObject2GUI
     private readonly ilLegalDocumentsAdministrationGUI $legal_documents;
     private readonly Container $container;
     private readonly Config $config;
-    private readonly SettingsInterface $data_protection_settings;
+    private readonly Settings $data_protection_settings;
     private readonly UI $ui;
 
     public function __construct()
@@ -200,6 +199,13 @@ final class ilObjDataProtectionGUI extends ilObject2GUI
             $this->ctrl->getFormAction($this, 'settings'),
             ['enabled' => $enabled]
         );
+
+        if (!$this->config->editable()) {
+            $form = $form->withSubmitLabel($this->lng->txt('refresh'));
+            return $this->legal_documents->admin()->withFormData($form, function () {
+                $this->ctrl->redirect($this, 'settings');
+            });
+        }
 
         return $this->legal_documents->admin()->withFormData($form, function (array $data): void {
             $no_documents = $this->config->legalDocuments()->document()->repository()->countAll() === 0;

@@ -374,15 +374,15 @@ class ilRegistrationCode
                     $end = new ilDateTime(time(), IL_CAL_UNIX);
 
                     if ($rel['y'] > 0) {
-                        $end->increment(IL_CAL_YEAR, $rel['y']);
+                        $end->increment(IL_CAL_YEAR, (int) $rel['y']);
                     }
 
                     if ($rel['m'] > 0) {
-                        $end->increment(IL_CAL_MONTH, $rel['m']);
+                        $end->increment(IL_CAL_MONTH, (int) $rel['m']);
                     }
 
                     if ($rel['d'] > 0) {
-                        $end->increment(IL_CAL_DAY, $rel['d']);
+                        $end->increment(IL_CAL_DAY, (int) $rel['d']);
                     }
 
                     //$user->setTimeLimitFrom(time());

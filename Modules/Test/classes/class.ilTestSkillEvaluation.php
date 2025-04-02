@@ -268,7 +268,7 @@ class ilTestSkillEvaluation
                     continue;
                 }
 
-                if ($skillPointAccount->getTotalReachedSkillPercent() <= $threshold->getThreshold()) {
+                if ($skillPointAccount->getTotalReachedSkillPercent() < $threshold->getThreshold()) {
                     break;
                 }
 

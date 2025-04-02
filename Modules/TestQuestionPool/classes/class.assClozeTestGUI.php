@@ -285,6 +285,7 @@ JS;
                     $_POST['gap_combination'],
                     $_POST['gap_combination_values']
                 );
+                $this->object->setGapCombinationsExists(true);
             }
         }
         if ($this->ctrl->getCmd() != 'createGaps') {
@@ -384,6 +385,7 @@ JS;
             // author
             $author = new ilTextInputGUI($this->lng->txt("author"), "author");
             $author->setValue($this->object->getAuthor());
+            $author->setMaxLength(512);
             $author->setRequired(true);
             $form->addItem($author);
 
@@ -1823,5 +1825,6 @@ JS;
             $combinationPoints,
             $combinationValues
         );
+        $this->object->setGapCombinationsExists(true);
     }
 }

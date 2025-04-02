@@ -145,7 +145,10 @@ class ilObjTermsOfServiceGUI extends ilObject2GUI
         );
 
         if ($read_only) {
-            return $form;
+            $form = $form->withSubmitLabel($this->lng->txt('refresh'));
+            return $this->legal_documents->admin()->withFormData($form, function () {
+                $this->ctrl->redirect($this, 'settings');
+            });
         }
 
         return $this->legal_documents->admin()->withFormData($form, function (array $data): void {

@@ -179,7 +179,7 @@ class ilTestPassResultsTable
 
             $title = sprintf(
                 '%s [ID: %s]',
-                $question->getTitle(),
+                $question->getTitleForHTMLOutput(),
                 (string) $question->getId()
             );
 

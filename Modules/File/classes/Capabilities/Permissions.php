@@ -36,4 +36,20 @@ enum Permissions: string
     case COPY = 'copy';
     case EDIT_CONTENT = 'edit_file';
 
+    public static function ANY(): array
+    {
+        return [
+            self::VISIBLE,
+            self::READ,
+            self::VIEW_CONTENT,
+            self::READ_LP,
+            self::EDIT_LP,
+            self::EDIT_PERMISSIONS,
+            self::WRITE,
+            self::DELETE,
+            self::COPY,
+            self::EDIT_CONTENT
+        ];
+    }
+
 }

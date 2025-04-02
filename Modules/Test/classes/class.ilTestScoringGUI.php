@@ -313,7 +313,7 @@ class ilTestScoringGUI extends ilTestServiceGUI
 
         $scorer = new ilTestScoring($this->object, $this->db);
         $scorer->setPreserveManualScores(true);
-        $scorer->recalculateSolutions();
+        $scorer->recalculateSolution($active_id, $pass);
 
         if ($this->object->getAnonymity() == 0) {
             $user_name = ilObjUser::_lookupName(ilObjTestAccess::_getParticipantId($active_id));
@@ -377,7 +377,7 @@ class ilTestScoringGUI extends ilTestServiceGUI
         $autosave_enabled = $this->object->getAutosave();
         $show_solutions_enabled = $this->object->getShowSolutionFeedback();
         foreach ($questionGuiList as $questionId => $questionGUI) {
-            $questionHeader = sprintf($this->lng->txt('tst_manscoring_question_section_header'), $questionGUI->object->getTitle());
+            $questionHeader = sprintf($this->lng->txt('tst_manscoring_question_section_header'), $questionGUI->object->getTitleForHTMLOutput());
             $questionSolution = $questionGUI->getSolutionOutput($active_id, $pass, false, false, true, false, false, true);
             $bestSolution = $questionGUI->object->getSuggestedSolutionOutput();
 

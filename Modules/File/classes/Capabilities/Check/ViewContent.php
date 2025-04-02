@@ -22,6 +22,7 @@ namespace ILIAS\File\Capabilities\Check;
 
 use ILIAS\File\Capabilities\Capability;
 use ILIAS\File\Capabilities\Capabilities;
+use ILIAS\File\Capabilities\Context;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -37,17 +38,21 @@ class ViewContent extends BaseCheck implements Check
         Capability $capability,
         CheckHelpers $helpers,
         \ilObjFileInfo $info,
-        int $ref_id,
+        Context $context,
     ): Capability {
-        return $capability; // currrently not available
-        if (!$this->hasPermission($helpers, $ref_id, $capability->getPermission())) {
+        return $capability->withUnlocked(false); // currently not possible in ILIAS 9
+
+        if ($context->getContext() !== Context::CONTEXT_REPO) {
+            return $capability->withUnlocked(false);
+        }
+        if (!$this->hasPermission($helpers, $context, ...$capability->getPermissions())) {
             return $capability->withUnlocked(false);
         }
 
         return $capability->withUnlocked($this->hasWopiViewAction($helpers, $info->getSuffix()));
     }
 
-    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, int $ref_id): Capability
+    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, Context $context): Capability
     {
         if (!$capability->isUnlocked()) {
             return $capability;
@@ -55,7 +60,11 @@ class ViewContent extends BaseCheck implements Check
         return $capability->withURI(
             $helpers->fromTarget(
                 $helpers->ctrl->getLinkTargetByClass(
-                    [\ilRepositoryGUI::class, \ilObjFileGUI::class, \ilWOPIEmbeddedApplicationGUI::class],
+                    [
+                        $this->baseClass($context),
+                        \ilObjFileGUI::class,
+                        \ilWOPIEmbeddedApplicationGUI::class
+                    ],
                     \ilWOPIEmbeddedApplicationGUI::CMD_VIEW
                 )
             )

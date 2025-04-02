@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -401,8 +402,8 @@ class assQuestionImport
             return $this->object->getThumbSize();
         }
 
-        if ($size < $this->object->getMaximumThumbSize()) {
-            return $this->object->getMaximumThumbSize();
+        if ($size < $this->object->getMinimumThumbSize()) {
+            return $this->object->getMinimumThumbSize();
         }
 
         if ($size > $this->object->getMaximumThumbSize()) {

@@ -23,11 +23,11 @@ use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\GlobalScreen\Services as GlobalScreenServices;
 use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\Refinery\Transformation;
 use ILIAS\Test\InternalRequestService;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\DI\LoggingServices;
 use ILIAS\Skill\Service\SkillService;
+use ILIAS\Style\Content\Service as ContentStyle;
 
 require_once "./Modules/Test/classes/inc.AssessmentConstants.php";
 
@@ -62,6 +62,7 @@ class ilTestServiceGUI
      * `ilTestPlayerAbstractGUI::populateIntantResponseModal()`.
      */
     protected ilGlobalTemplateInterface|ilTemplate $tpl;
+    protected ContentStyle $content_style;
     protected ilErrorHandling $error;
     protected ilAccess $access;
     protected HTTPServices $http;
@@ -120,6 +121,7 @@ class ilTestServiceGUI
         global $DIC;
         $this->lng = $DIC['lng'];
         $this->tpl = $DIC['tpl'];
+        $this->content_style = $DIC->contentStyle();
         $this->error = $DIC['ilErr'];
         $this->access = $DIC['ilAccess'];
         $this->http = $DIC['http'];
@@ -393,7 +395,7 @@ class ilTestServiceGUI
                         $template->setVariable("COUNTER_QUESTION", $counter . ". ");
                         $template->setVariable("TXT_QUESTION_ID", $this->lng->txt('question_id_short'));
                         $template->setVariable("QUESTION_ID", $question_gui->object->getId());
-                        $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitle()));
+                        $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitleForHTMLOutput()));
 
                         if ($objectives_list !== null) {
                             $objectives = $this->lng->txt('tst_res_lo_objectives_header') . ': ';
@@ -479,7 +481,7 @@ class ilTestServiceGUI
                     $scoretemplate = new ilTemplate("tpl.il_as_tst_manual_scoring_points.html", true, true, "Modules/Test");
                     #mbecker: No such block. $this->tpl->setCurrentBlock("printview_question");
                     $template->setVariable("COUNTER_QUESTION", $counter . ". ");
-                    $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitle()));
+                    $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitleForHTMLOutput()));
                     $points = $question_gui->object->getMaximumPoints();
                     if ($points == 1) {
                         $template->setVariable("QUESTION_POINTS", $points . " " . $this->lng->txt("point"));
@@ -719,9 +721,9 @@ class ilTestServiceGUI
         // I set both old and new since the old one is set as well in several places.
         $maxpoints = $question_gui->object->getMaximumPoints();
         if ($maxpoints == 1) {
-            $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitle()) . " (" . $maxpoints . " " . $this->lng->txt("point") . ")");
+            $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitleForHTMLOutput()) . " (" . $maxpoints . " " . $this->lng->txt("point") . ")");
         } else {
-            $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitle()) . " (" . $maxpoints . " " . $this->lng->txt("points") . ")");
+            $template->setVariable("QUESTION_TITLE", $this->object->getQuestionTitle($question_gui->object->getTitleForHTMLOutput()) . " (" . $maxpoints . " " . $this->lng->txt("points") . ")");
         }
         if ($objectives_list !== null) {
             $objectives = $this->lng->txt('tst_res_lo_objectives_header') . ': ';
@@ -973,15 +975,15 @@ class ilTestServiceGUI
 
     protected function isGradingMessageRequired(): bool
     {
-        if ($this->getObjectiveOrientedContainer()->isObjectiveOrientedPresentationRequired()) {
+        $session = $this->testSessionFactory->getSession();
+        if ($this->getObjectiveOrientedContainer()->isObjectiveOrientedPresentationRequired()
+            || $this->object->getScoreSettings()->getScoringSettings()->getPassScoring() === SCORE_LAST_PASS
+                && $session->getLastFinishedPass() < $session->getLastStartedPass()) {
             return false;
         }
 
-        if ($this->object->isShowGradingStatusEnabled()) {
-            return true;
-        }
-
-        if ($this->object->isShowGradingMarkEnabled()) {
+        if ($this->object->isShowGradingStatusEnabled()
+            || $this->object->isShowGradingMarkEnabled()) {
             return true;
         }
 

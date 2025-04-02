@@ -1258,6 +1258,7 @@ assessment#:#toplist_col_percentage#:#Percentage
 assessment#:#toplist_col_rank#:#Rank
 assessment#:#toplist_col_score#:#Score
 assessment#:#toplist_col_wtime#:#Working Time
+assessment#:#total_max_points_cannot_be_negative#:#The maximum amount of reachable points cannot be negative.
 assessment#:#true#:#True
 assessment#:#tst_access_code_created#:#To provide you with permanent access to your test results and to offer you a possibility to resume this test, a unique test access code was created. Please make a note of this code so that you can continue the test later.
 assessment#:#tst_activate_skill_service#:#Competence Service
@@ -1606,7 +1607,6 @@ assessment#:#tst_objective_oriented_test_pass_without_questions#:#The started pa
 assessment#:#tst_objective_progress_header#:#Learning Objective Progress
 assessment#:#tst_objectives_progress_header#:#Learning Objectives Progress
 assessment#:#tst_old_style_rnd_quest_set_broken#:#This random test is in a irreparable state, because one or more connected question pools have been deleted. Therefor participants cannot take the test any longer.
-assessment#:#tst_optional_questions_confirmation_fixed_test#:#<b>Question related to already passed learning objectives were answered in previous passes.</b><br /><br />You want to navigate to a question, that relates to an already passed learning objective.<br />You can choose:<br /><br />I you proceed, you can work on or simply review these questions. If you change your answers that were adopted from previous passes, you can also degrade your learning objective result.<br /><br />If you decide to not work on or review these questions, you can go back. The questions will be considered in the evaluation in every case.
 assessment#:#tst_optional_questions_confirmation_non_fixed_test#:#<b>Question related to already passed learning objectives are optional.</b><br /><br />You want to navigate to a question, that relates to an already passed learning objective.<br />You can choose:<br /><br />I you proceed, you can work on these questions. Your answers from previous attempts were not adopted, since new random questions were selected for this attempt. With working on this questions you can also degrade your learning objective result.<br /><br />If you decide to not work on these questions, you can go back. In this case these questions won't be considered in the evaluation.
 assessment#:#tst_out_of_time_message#:#You have reached the maximum allowed processing time of the test!
 assessment#:#tst_participant#:#Participant
@@ -1661,7 +1661,7 @@ assessment#:#tst_previous_access_code_not_available#:#No previous code available
 assessment#:#tst_print#:#Test and Assessment - Print View
 assessment#:#tst_proceed#:#Proceed
 assessment#:#tst_processing_time#:#Limit Duration of Test
-assessment#:#tst_processing_time_desc#:#Participants can work through the test only for a specified period of time. Time is clocking away from the moment a user starts a test for the first time. Suspending the test does not stop the clock. If the number of possible test attempts is limited an additional feature for granting extra time to participants appears in the tab 'Dashboard'.
+assessment#:#tst_processing_time_desc#:#Participants can work through the test only for a specified period of time. Time is clocking away from the moment a user starts a test for the first time. Suspending the test does not stop the clock. If the number of possible test attempts is limited an additional feature for granting extra time to participants appears in the tab 'Participants'.
 assessment#:#tst_processing_time_duration#:#Maximum Duration of the Test im Minutes
 assessment#:#tst_processing_time_duration_desc#:#Maximum of time granted to take the test.
 assessment#:#tst_qbt_filter_question_title#:#Title of Question
@@ -1763,6 +1763,7 @@ assessment#:#tst_res_jump_to_participant_hint_opt#:#Jump to Participant
 assessment#:#tst_res_lo_objectives_header#:#Relevant Learning Objectives
 assessment#:#tst_res_lo_try_header#:#Attempt
 assessment#:#tst_res_lo_try_n#:#Attempt %s
+assessment#:#tst_res_tab_msg_no_lp_access#:#You are currently not allowed to access your Learning Progress, as you are not allowed to see your test results.
 assessment#:#tst_res_tab_msg_res_after_date#:#Your test results will be shown here after: %s
 assessment#:#tst_res_tab_msg_res_after_date_no_res#:#Once you have taken the test your results will be shown here after: %s
 assessment#:#tst_res_tab_msg_res_after_finish_test#:#After finishing the test your results will be shown here.
@@ -2017,7 +2018,6 @@ auth#:#auth_cron_destroy_expired_sessions_desc#:#This job deletes expires sessio
 auth#:#auth_err_expired#:#Your session has been deactivated due to inactivity.
 auth#:#auth_err_invalid_user_account#:#Authentication failed due to an internal failure.
 auth#:#auth_err_ldap_exception#:#Authentication failed due to an internal authentication failure (LDAP).
-auth#:#auth_err_login_attempts_deactivation#:#This user account has been deactivated due to too many incorrect login attempts.
 auth#:#auth_info_add#:#Choose this option if you have never registered to ILIAS. A new account will be created.
 auth#:#auth_info_migrate#:#If you have already an ILIAS account, enter username and password to migrate your personal data (mail, test results...).
 auth#:#auth_ldap_server_ds#:#LDAP-Server
@@ -2479,7 +2479,7 @@ book#:#book_assign#:#Book
 book#:#book_assign_object#:#Book Items for Participant
 book#:#book_assign_participant#:#Book for Other Participant(s)
 book#:#book_back_to_list#:#Back to List
-book#:#book_bobj#:#Booked Items
+book#:#book_bobj#:#Bookable Item
 book#:#book_book#:#Book
 book#:#book_book_available#:#Book Available Dates
 book#:#book_book_recurrence#:#Book multiple dates
@@ -2889,8 +2889,6 @@ chatroom#:#chat_osc_accepts_messages_yes#:#Receives Chat Messages
 chatroom#:#chat_osc_add_user#:#Add Further Users
 chatroom#:#chat_osc_conversations#:#Conversations
 chatroom#:#chat_osc_doesnt_accept_msg#:#Conversations not possible
-chatroom#:#chat_osc_dont_accept_msg#:#You currently cannot be invited to conversations. If desired you can change this in your %s.
-chatroom#:#chat_osc_dont_accept_msg_link_txt#:#'Personal Settings'
 chatroom#:#chat_osc_head_grp_x_persons#:#%s Users
 chatroom#:#chat_osc_invite_to_conversation#:#Add to Conversation
 chatroom#:#chat_osc_leave_grp_conv#:#Leave Conversation
@@ -3463,7 +3461,7 @@ common#:#adve_assessment_settings#:#Test and Assessment Settings
 common#:#adve_frm_post_settings#:#Forum Posts
 common#:#adve_general_settings#:#General Settings
 common#:#adve_survey_settings#:#Survey Settings
-common#:#agree_date#:#Agreed on
+common#:#agree_date#:#ToS agreed to on
 common#:#all#:#All
 common#:#all_global_roles#:#Global Roles
 common#:#all_local_roles#:#Local Roles (all)
@@ -3918,6 +3916,7 @@ common#:#download_selected_items#:#Download
 common#:#downloading_settings#:#Download Settings
 common#:#dpro_accept_usr_agreement#:#Accept Declaration of Data Protection?
 common#:#dpro_accept_usr_agreement_intro#:#There is a new Declaration of Data Protection. You need to accept it before proceeding with the use of ILIAS. Read the following document carefully and give your consent or dissent at the bottom of the page.
+common#:#dpro_agreed_on#:#DoDP agreed to on
 common#:#dpro_force_accept_usr_agreement#:#You must accept the Declaration of Data Protection!
 common#:#dpro_no_agreement_description#:#There is currently no Declaration of Data Protection document available for this installation. Please contact the <a href="%1$s">system administrator</a>.
 common#:#dpro_refuse_acceptance#:#Refuse to Accept the Declaration of Data Protection
@@ -5633,7 +5632,6 @@ common#:#show_users_online#:#Show active users
 common#:#show_who_is_online#:#Show who is online
 common#:#side_frame#:#Side Frame
 common#:#signature#:#Signature
-common#:#simultaneous_login_detected#:#Your access is denied because of a simultaneous login with the same account.
 common#:#size#:#Size
 common#:#skills#:#Competences
 common#:#skin_style#:#Default Skin / Style
@@ -6010,7 +6008,6 @@ common#:#withdrawal_sure_account_no_consent_yet#:#Are you sure that you do not w
 common#:#wizard_search_list#:#Your search produced the following hits. Please select one of them.
 common#:#wizard_title_info#:#Search for the object you want to duplicate. Please enter the object's title or a part of it and click on 'Continue' to get matching search results.
 common#:#write#:#Write
-common#:#wrong_ip_detected#:#Your access is denied because of a wrong client ip.<br>You are currently using this IP address: %s<br>Please contact the system administrator.
 common#:#year#:#Year
 common#:#yearly#:#yearly
 common#:#years#:#Years
@@ -7255,8 +7252,6 @@ content#:#glo_online_info#:#Only if the glossary is online, users are able to us
 content#:#glo_presentation_mode#:#Presentation Mode
 content#:#glo_presentation_view#:#Presentation View
 content#:#glo_quick_navigation#:#Quick Navigation
-content#:#glo_show_taxonomy#:#Show Taxonomy
-content#:#glo_show_taxonomy_info#:#The taxonomy will be visible in the presentation view of the glossary and can be used to select referenced terms.
 content#:#glo_style#:#Glossary Style
 content#:#glo_table_form#:#In Table Form
 content#:#glo_table_form_info#:#Terms and definition are first shown in a two-column overview. Clicking the term opens the full content of a term on a separate screen.
@@ -8720,7 +8715,7 @@ dcl#:#dcl_plugin_hooks#:#Available Plugins
 dcl#:#dcl_plugin_no_hooks_available#:#No active field-type plugins found
 dcl#:#dcl_prev_record#:#Previous Entry
 dcl#:#dcl_prop_expression#:#Expression
-dcl#:#dcl_prop_expression_info#:#Supported operators: <b>%s</b><br>Supported functions: <b>%s</b><br>Use brackets <b>‘(’, ‘)’</b> to group calculations.<br>Concatenate strings and placeholders with &: <b>‘The result is ’ & [[Int 1]] * [[Int2]]</b><br>Using functions: <b>SUM([[Int 1]];[[Int 2]])</b><br><br>Allowed fields (click on title to copy field inside expression):<br>%s<br><b>(Allowed fields are boolean, number, text and date that dont contain formular-sensitive chars inside their title)<b>
+dcl#:#dcl_prop_expression_info#:#Supported operators: <b>%s</b><br>Supported functions: <b>%s</b><br>Use brackets <b>‘(’, ‘)’</b> to group calculations.<br>Concatenate strings and placeholders with &: <b>‘The result is ’ & [[Int 1]] * [[Int2]]</b><br>Using functions: <b>SUM([[Int 1]];[[Int 2]])</b><br><br>Allowed fields (click on title to copy field inside expression):<br>%s<br><b>(Allowed fields are boolean, number, text and date that dont contain formular-sensitive chars inside their title)</b>
 dcl#:#dcl_public_comments#:#Activate Public Comments
 dcl#:#dcl_public_comments_desc#:#Users can comment on entries of the table.
 dcl#:#dcl_rating#:#Rating
@@ -10728,7 +10723,7 @@ ldap#:#ldap_user_sync_cron#:#LDAP User Synchronization
 ldap#:#ldap_user_sync_cron_info#:#If activated, user accounts will be imported from the LDAP directory and synchronised continuously as an option.
 ldap#:#ldap_user_sync_info#:#Defines whether new users are automatically created on login or regularly per cron job.
 ldap#:#ldap_username_filter#:#Username Filter
-ldap#:#ldap_username_filter_info#:#Use * as wildcard.
+ldap#:#ldap_username_filter_info#:#The username filter can be optionally used for the automatic determination of this LDAP server configuration by the entered username on the login page. The "*" character can be used as a wildcard. For example, "*example\.com" matches all users whose entered username ends with "example.com". If the configured filter matches the entered username, this LDAP server configuration is preferred if a fixed authentication sequence is configured.
 ldoc#:#deleteDocument#:#Delete
 ldoc#:#detachCriterionAssignment#:#Delete
 ldoc#:#ldoc_acceptance_history#:#Acceptance History
@@ -11869,7 +11864,7 @@ meta#:#meta_advmd_select_option_position#:#Position
 meta#:#meta_advmd_select_option_value#:#Value
 meta#:#meta_advmd_select_options#:#Entries
 meta#:#meta_advmd_select_options_edit#:#Edit Entries
-meta#:#meta_advmd_select_position_identifier#:#After %s
+meta#:#meta_advmd_select_position_identifier#:#After ‘%s’
 meta#:#meta_aggregation_level#:#Aggregation Level
 meta#:#meta_amaya#:#Amaya
 meta#:#meta_annotation#:#Annotation
@@ -12795,18 +12790,12 @@ noti#:#noti_notification_deactivated#:#Notification Deactivated
 notifications_adm#:#enable_osd#:#Enable Toasts
 notifications_adm#:#enable_osd_desc#:#If enabled, users are notified by a pop-up about new notifications.
 notifications_adm#:#notification_settings#:#Notification Settings
-notifications_adm#:#osd_delay#:#Presentation Delay
-notifications_adm#:#osd_delay_desc#:#Delay of the visible presentation in milliseconds.
-notifications_adm#:#osd_error_presentation_time_too_small#:#The Presentation Time has to be at least than 1000 miliseconds.
-notifications_adm#:#osd_error_refresh_interval_smaller_than_delay_and_vanish_combined#:#The Refresh Interval has to be greater than the Presentation Time and the Presentation Delay combined.
 notifications_adm#:#osd_error_refresh_interval_too_small#:#The Refresh Interval has to be at least than 3000 miliseconds.
 notifications_adm#:#osd_interval#:#Refresh interval
 notifications_adm#:#osd_interval_desc#:#Polling interval for checking of new notifications in miliseconds. A lower number will notify the user more quickly but increases the number of requests the web server must handle.
 notifications_adm#:#osd_play_sound#:#Play a Sound
 notifications_adm#:#osd_play_sound_desc#:#Play a sound when receiving a new notficiation.
 notifications_adm#:#osd_settings#:#Toasts
-notifications_adm#:#osd_vanish#:#Presentation Time
-notifications_adm#:#osd_vanish_desc#:#Visible time of a notification on the screen in miliseconds.
 obj#:#activation_visible_when_disabled#:#Visibility
 obj#:#activation_visible_when_disabled_info#:#The item is visible outside of the selected availability period, but it cannot be opened.
 obj#:#availability_period_changed#:#The availability period for the selected objects has been changed successfully.
@@ -13852,7 +13841,7 @@ rbac#:#chtr_moderate#:#User can moderate discussion in chat room
 rbac#:#chtr_read#:#User can join and participate at chat room
 rbac#:#chtr_visible#:#Chat Room is visible
 rbac#:#chtr_write#:#User can edit settings of chat room and ban users
-rbac#:#cmis_edit_permissions#:#User can change permission settings of xAPI/cmi5 administration.
+rbac#:#cmis_edit_permission#:#User can change permission settings of xAPI/cmi5 administration.
 rbac#:#cmis_read#:#User has read access to xAPI/cmi5 administration.
 rbac#:#cmis_visible#:#Administration of xAPI/cmi5 is visible.
 rbac#:#cmis_write#:#User can edit settings of xAPI/cmi5 administration.
@@ -13924,6 +13913,10 @@ rbac#:#dcl_write#:#User can edit settings and content of data collection
 rbac#:#delete_files#:#Delete Files
 rbac#:#delete_folders#:#Delete Folders
 rbac#:#delete_wiki_pages#:#Delete Pages
+rbac#:#dpro_edit_permission#:#User can change permission settings in the Declaration of Data Protected administration
+rbac#:#dpro_read#:#User has read access to the Declaration of Data Protection administration
+rbac#:#dpro_visible#:#Declaration of Data Protection administration is visible
+rbac#:#dpro_write#:#Edit settings in the Declaration of Data Protection
 rbac#:#dshs_change_presentation#:#Change presentation of dashboard view
 rbac#:#dshs_edit_permission#:#User can change permission settings of Dashboard administration
 rbac#:#dshs_read#:#User has read access to Dashboard administration
@@ -14072,6 +14065,10 @@ rbac#:#il_lti_global_role#:#LTI User
 rbac#:#il_sess_participant#:#Session Participant
 rbac#:#il_sess_status_closed#:#Non-Participant Closed Session
 rbac#:#ilias_id#:#ILIAS-ID
+rbac#:#impr_edit_permission#:#User can change permission settings of Legal Notice administration
+rbac#:#impr_read#:#User can read in Legal Notice administration
+rbac#:#impr_visible#:#Administration of Legal Notice is visible
+rbac#:#impr_write#:#User can edit content and settings of Legal Notice
 rbac#:#info_user_view_changed#:#User view changed
 rbac#:#internal_mail#:#Internal Mail
 rbac#:#invite#:#Inviting to survey
@@ -14119,7 +14116,7 @@ rbac#:#lso_read_learning_progress#:#User can view learning progress of other use
 rbac#:#lso_unparticipate#:#User can unsubscribe from a Learning Sequence
 rbac#:#lso_visible#:#Learning Sequence is visible
 rbac#:#lso_write#:#User can edit settings of Learning Sequence
-rbac#:#lsos_edit_permissions#:#User can change permission settings of Learning Sequences administration.
+rbac#:#lsos_edit_permission#:#User can change permission settings of Learning Sequences administration.
 rbac#:#lsos_read#:#User has read access to Learning Sequences administration.
 rbac#:#lsos_visible#:#Administration of Learning Sequences is visible.
 rbac#:#lsos_write#:#User can edit settings of Learning Sequences administration.
@@ -14185,7 +14182,7 @@ rbac#:#msg_anonymous_cannot_be_assigned#:#Anonymous cannot be assigned to a role
 rbac#:#msg_no_roles_of_type#:#No Roles available with selected filter setting
 rbac#:#news_add_news#:#Add News
 rbac#:#no_corresponding_roles#:#No corresponding roles could be found.
-rbac#:#nots_edit_permissions#:#User can change permission settings of Notes administration.
+rbac#:#nots_edit_permission#:#User can change permission settings of Notes administration.
 rbac#:#nots_read#:#User has read access to Notes administration.
 rbac#:#nots_visible#:#Administration of Notes is visible.
 rbac#:#nots_write#:#User can edit settings of Notes administration.
@@ -14262,7 +14259,7 @@ rbac#:#prgs_edit_permission#:#Change permission settings in Study Programme admi
 rbac#:#prgs_read#:#User has read access to Study Programme administration
 rbac#:#prgs_visible#:#Study Programme administration is visible
 rbac#:#prgs_write#:#Edit settings in Study Programme administration
-rbac#:#prss_edit_permissions#:#User can change permission settings of Personal Resources administration.
+rbac#:#prss_edit_permission#:#User can change permission settings of Personal Resources administration.
 rbac#:#prss_read#:#User has read access to Personal Resources administration.
 rbac#:#prss_visible#:#Administration of Personal Resources is visible.
 rbac#:#prss_write#:#User can edit settings of Personal Resources administration.
@@ -14611,7 +14608,7 @@ rbac#:#usrf_read#:#User has read access to User administration
 rbac#:#usrf_read_users#:#User has read access to local user accounts (local administrators)
 rbac#:#usrf_visible#:#User administration is visible
 rbac#:#usrf_write#:#Edit settings in User administration
-rbac#:#wbdv_edit_permissions#:#User can change permission settings of WebDAV administration.
+rbac#:#wbdv_edit_permission#:#User can change permission settings of WebDAV administration.
 rbac#:#wbdv_read#:#User has read access to WebDAV administration.
 rbac#:#wbdv_visible#:#Administration of WebDAV is visible.
 rbac#:#wbdv_write#:#User can edit settings of WebDAV administration.
@@ -14795,6 +14792,7 @@ rep#:#rep_fav_intro2#:#Click on '%s' and select a learning object from the avail
 rep#:#rep_fav_intro3#:#When you have found something that interests you, you can easily add it to your favourites. Select the desired item in the <i>Actions</i> menu and choose "<i>Add to favourites</i>".
 rep#:#rep_favourites#:#Favourites
 rep#:#rep_favourites_info#:#Users can mark single repository items as favourites. Favourites lists can be activated and configured in the dashboard and menu settings.
+rep#:#rep_input_not_empty#:#This field must not be empty, please provide a value.
 rep#:#rep_intro#:#Welcome to the Repository!
 rep#:#rep_intro1#:#In this area you can create learning and working resources for all users. All resources are organised in categories. Categories can reflect the structure of your organisation (e.g. departments), a hierarchy of disciplines, or classes of a school.
 rep#:#rep_intro2#:#Three steps are needed to build an initial structure:
@@ -17197,6 +17195,7 @@ ui#:#order_option_numerical_ascending#:#0 to 9
 ui#:#order_option_numerical_descending#:#9 to 0
 ui#:#presentation_table_collapse#:#collapse all
 ui#:#presentation_table_expand#:#expand all
+ui#:#table_posinput_col_title#:#Position
 ui#:#ui_chars_max#:#Maximum:
 ui#:#ui_chars_min#:#Minimum:
 ui#:#ui_chars_remaining#:#Characters remaining:
@@ -17227,7 +17226,7 @@ user#:#confirm_delete_starting_point#:#Are you sure you want to delete this rule
 user#:#confirm_logout_for_email_change#:#You changed your email. To finalize this change, you will need to provide your password. The system is thus going to log you out and you will have 5 minutes to log in again. All other changes will be saved before logging you out.
 user#:#create_starting_point#:#Create Rule
 user#:#criteria#:#Criteria
-user#:#del_mail_body#:#Hello %1$s, %2$s You have not logged in to %3$s for a long time. Therefore, your ILIAS account is expected to be deleted on %4$s. In order to keep your ILIAS account, you must log in again before the aforementioned date.
+user#:#del_mail_body#:#Hello %1$s, %2$s You have not logged in to %3$s for a long time. Therefore, your ILIAS account %5$s is expected to be deleted on %4$s. In order to keep your ILIAS account, you must log in again before the aforementioned date.
 user#:#del_mail_subject#:#Your ILIAS account will be deleted soon
 user#:#delete_inactive_user_accounts_frequency#:#Frequency
 user#:#delete_inactive_user_accounts_frequency_desc#:#Frequency, in which the deletion and e-mail distribution will be tested.

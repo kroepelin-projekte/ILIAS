@@ -22,9 +22,9 @@
 
 namespace ILIAS\File\Capabilities\Check;
 
-use ILIAS\Data\URI;
 use ILIAS\File\Capabilities\Capability;
 use ILIAS\File\Capabilities\Capabilities;
+use ILIAS\File\Capabilities\Context;
 
 interface Check
 {
@@ -36,12 +36,12 @@ interface Check
         Capability $capability,
         CheckHelpers $helpers,
         \ilObjFileInfo $info,
-        int $ref_id,
+        Context $context,
     ): Capability;
 
     public function maybeBuildURI(
         Capability $capability,
         CheckHelpers $helpers,
-        int $ref_id,
+        Context $context,
     ): Capability;
 }

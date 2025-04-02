@@ -32,7 +32,8 @@ class CheckHelpers
         public \ilAccessHandler $access,
         public \ilCtrlInterface $ctrl,
         public ActionRepository $action_repository,
-        public Services $http
+        public Services $http,
+        public \ilWorkspaceAccessHandler $workspace_access_handler
     ) {
     }
 

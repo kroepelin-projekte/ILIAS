@@ -313,6 +313,9 @@ class ilObjContentObjectGUI extends ilObjectGUI
 
                 // infoscreen
             case 'ilinfoscreengui':
+                if (!$this->object->isInfoEnabled()) {
+                    return;
+                }
                 $this->addHeaderAction();
                 $this->addLocations(true);
                 $this->setTabs("info");

@@ -22,6 +22,7 @@ namespace ILIAS\File\Capabilities\Check;
 
 use ILIAS\File\Capabilities\Capability;
 use ILIAS\File\Capabilities\Capabilities;
+use ILIAS\File\Capabilities\Context;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -37,12 +38,12 @@ class None extends BaseCheck implements Check
         Capability $capability,
         CheckHelpers $helpers,
         \ilObjFileInfo $info,
-        int $ref_id,
+        Context $context,
     ): Capability {
         return $capability->withUnlocked(true);
     }
 
-    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, int $ref_id): Capability
+    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, Context $context): Capability
     {
         return $capability;
     }
