@@ -344,7 +344,7 @@ class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringA
     public function saveWorkingData($active_id, $pass = null, $authorized = true): bool
     {
         global $DIC;
-        if($DIC->testQuestionPool()->internal()->request()->raw('test_answer_changed') === null) {
+        if ($DIC->testQuestionPool()->internal()->request()->raw('test_answer_changed') === null) {
             return true;
         }
 
@@ -633,7 +633,7 @@ class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringA
         $result = array();
         $result['id'] = $this->getId();
         $result['type'] = (string) $this->getQuestionType();
-        $result['title'] = $this->getTitle();
+        $result['title'] = $this->getTitleForHTMLOutput();
         $result['question'] = $this->formatSAQuestion($this->getQuestion());
         $result['nr_of_tries'] = $this->getNrOfTries();
         $result['shuffle'] = true;

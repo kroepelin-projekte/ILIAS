@@ -275,8 +275,8 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                 $page_gui->setQuestionHTML(array($q_gui->object->getId() => $q_gui->getPreview(true)));
                 $page_gui->setTemplateTargetVar("ADM_CONTENT");
                 $page_gui->setOutputMode("edit");
-                $page_gui->setHeader($question->getTitle());
-                $page_gui->setPresentationTitle($question->getTitle());
+                $page_gui->setHeader($question->getTitleForHTMLOutput());
+                $page_gui->setPresentationTitle($question->getTitleForHTMLOutput());
                 $ret = $this->ctrl->forwardCommand($page_gui);
                 if ($ret != "") {
                     $tpl->setContent($ret);
@@ -557,6 +557,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
     */
     public function uploadQplObject($questions_only = false)
     {
+
         $this->ctrl->setParameter($this, 'new_type', $this->qplrequest->raw('new_type'));
         if (!isset($_FILES['xmldoc']) || !isset($_FILES['xmldoc']['error']) || $_FILES['xmldoc']['error'] > UPLOAD_ERR_OK) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt("error_upload"), true);
@@ -767,6 +768,11 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
     */
     public function importVerifiedFileObject(): void
     {
+        if (!$this->checkPermissionBool('create', '', $this->qplrequest->raw('new_type'))) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('permission_denied'), true);
+            $this->ctrl->redirect($this, 'create');
+            return;
+        }
         $title = '';
         $description = null;
         if ($this->qplrequest->int('questions_only') === 1) {
@@ -1425,7 +1431,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
             return;
         }
         if (!$this->checkPermissionBool("create", "", $_REQUEST["new_type"])) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("no_create_permission"), true);
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("permission_denied"), true);
             $this->ctrl->redirect($this, 'create');
             return;
         }

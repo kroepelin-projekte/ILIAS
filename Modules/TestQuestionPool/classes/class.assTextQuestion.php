@@ -851,7 +851,7 @@ class assTextQuestion extends assQuestion implements ilObjQuestionScoringAdjusta
         $result = array();
         $result['id'] = $this->getId();
         $result['type'] = (string) $this->getQuestionType();
-        $result['title'] = $this->getTitle();
+        $result['title'] = $this->getTitleForHTMLOutput();
         $result['question'] = $this->formatSAQuestion($this->getQuestion());
         $result['nr_of_tries'] = $this->getNrOfTries();
         $result['shuffle'] = $this->getShuffle();
@@ -1091,7 +1091,7 @@ class assTextQuestion extends assQuestion implements ilObjQuestionScoringAdjusta
 
     public function countWords($text): int
     {
-        if($text === '') {
+        if ($text === '') {
             return 0;
         }
         $text = str_replace('&nbsp;', ' ', $text);

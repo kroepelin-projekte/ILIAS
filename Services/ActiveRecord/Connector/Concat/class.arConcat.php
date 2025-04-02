@@ -1,18 +1,21 @@
 <?php
 
-/******************************************************************************
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
  *
- * This file is part of ILIAS, a powerful learning management system.
- *
- * ILIAS is licensed with the GPL-3.0, you should have received a copy
- * of said license along with the source code.
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
  *
  * If this is not the case or you just want to try ILIAS, you'll find
  * us at:
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- *****************************************************************************/
+ *********************************************************************/
+
 /**
  * Class arConcat
  * @author  Fabian Schmid <fs@studer-raimann.ch>
@@ -26,9 +29,11 @@ class arConcat extends arStatement
      */
     protected array $fields = [];
 
-    public function asSQLStatement(ActiveRecord $ar): string
+    public function asSQLStatement(ActiveRecord $activeRecord, ilDBInterface $db): string
     {
-        return ' CONCAT(' . implode(', ', $this->getFields()) . ') AS ' . $this->getAs();
+        $fields = $this->wrapFields($this->getFields(), $db);
+
+        return ' CONCAT(' . implode(', ', $fields) . ') AS ' . $this->getAs();
     }
 
     public function getAs(): string

@@ -360,7 +360,7 @@ class ilTestScoringByQuestionsGUI extends ilTestScoringGUI
 
             if ($lastAndHopefullyCurrentQuestionId) {
                 $question = assQuestion::_instantiateQuestion($lastAndHopefullyCurrentQuestionId);
-                $qTitle = $question->getTitle();
+                $qTitle = $question->getTitleForHTMLOutput();
             }
 
             $msg = sprintf(
@@ -489,7 +489,7 @@ class ilTestScoringByQuestionsGUI extends ilTestScoringGUI
         $max_points = $question_gui->object->getMaximumPoints();
 
         $this->appendUserNameToModal($tmp_tpl, $participant);
-        $this->appendQuestionTitleToModal($tmp_tpl, $question_id, $max_points, $question_gui->object->getTitle());
+        $this->appendQuestionTitleToModal($tmp_tpl, $question_id, $max_points, $question_gui->object->getTitleForHTMLOutput());
         $this->appendSolutionAndPointsToModal(
             $tmp_tpl,
             $result_output,
@@ -507,7 +507,7 @@ class ilTestScoringByQuestionsGUI extends ilTestScoringGUI
         $tmp_tpl->setVariable('TEXT_SOLUTION_OUTPUT', $this->lng->txt('question'));
         $tmp_tpl->setVariable('TEXT_RECEIVED_POINTS', $this->lng->txt('scoring'));
         $add_title = ' [' . $this->lng->txt('question_id_short') . ': ' . $question_id . ']';
-        $question_title = $this->object->getQuestionTitle($question_gui->object->getTitle());
+        $question_title = $this->object->getQuestionTitle($question_gui->object->getTitleForHTMLOutput());
         $lng = $this->lng->txt('points');
         if ($max_points == 1) {
             $lng = $this->lng->txt('point');

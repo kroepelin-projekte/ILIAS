@@ -636,11 +636,11 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
                 $page_gui->setOutputMode($this->object->evalTotalPersons() == 0 ? "edit" : 'preview');
 
-                $page_gui->setHeader($question->getTitle());
+                $page_gui->setHeader($question->getTitleForHTMLOutput());
                 $page_gui->setFileDownloadLink($this->ctrl->getLinkTarget($this, "downloadFile"));
                 $page_gui->setFullscreenLink($this->ctrl->getLinkTarget($this, "fullscreen"));
                 $page_gui->setSourcecodeDownloadScript($this->ctrl->getLinkTarget($this));
-                $page_gui->setPresentationTitle($question->getTitle() . ' [' . $this->lng->txt('question_id_short') . ': ' . $question->getId() . ']');
+                $page_gui->setPresentationTitle($question->getTitleForHTMLOutput() . ' [' . $this->lng->txt('question_id_short') . ': ' . $question->getId() . ']');
                 $ret = $this->ctrl->forwardCommand($page_gui);
                 if ($ret != "") {
                     $tpl->setContent($ret);
@@ -1053,13 +1053,13 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     protected function importFileObject(int $parent_id = null): void
     {
         if (!$this->checkPermissionBool("create", "", $_REQUEST["new_type"])) {
-            $this->error->raiseError($this->lng->txt("no_create_permission"));
+            $this->redirectAfterMissingWrite();
         }
 
         $form = $this->initImportForm($this->testrequest->raw("new_type"));
         if ($form->checkInput()) {
             $this->ctrl->setParameter($this, "new_type", $this->type);
-            $this->uploadTstObject();
+            $this->uploadTst();
             return;
         }
 
@@ -1133,7 +1133,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     /**
     * imports test and question(s)
     */
-    public function uploadTstObject()
+    public function uploadTst()
     {
         if ($_FILES["xmldoc"]["error"] > UPLOAD_ERR_OK) {
             $this->lng->loadLanguageModule('file');
@@ -1312,6 +1312,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function importVerifiedFileObject()
     {
+        if (!$this->checkPermissionBool('create', '', $this->testrequest->strVal('new_type'))) {
+            $this->redirectAfterMissingWrite();
+        }
+
         // create new questionpool object
         $newObj = new ilObjTest(0, true);
         // set type of questionpool object
@@ -1387,7 +1391,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function uploadObject($redirect = true)
     {
-        $this->uploadTstObject();
+        if (!$this->checkPermissionBool('create', '', $this->testrequest->strVal('new_type'))) {
+            $this->redirectAfterMissingWrite();
+        }
+        $this->uploadTst();
     }
 
     /**
@@ -1476,6 +1483,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     public function randomselectObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
 
@@ -1520,6 +1530,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     public function createRandomSelectionObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
 
@@ -1541,6 +1554,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertRandomSelectionObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
         $selected_array = explode(",", $_POST["chosen_questions"]);
         if (!count($selected_array)) {
             $this->tpl->setOnScreenMessage('info', $this->lng->txt("tst_insert_missing_question"));
@@ -1575,6 +1591,9 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function executeCreateQuestionObject(): void
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
         $qpl_ref_id = $this->testrequest->raw("sel_qpl");
 
         try {
@@ -1650,6 +1669,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     {
         global $DIC;
         $lng = $DIC['lng'];
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
@@ -1738,6 +1761,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
      */
     public function confirmRemoveQuestionsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $removeQuestionIds = (array) $_POST["q_id"];
 
         $questions = $this->object->getQuestionTitlesAndIndexes();
@@ -1813,6 +1840,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function removeQuestionsForm($checked_questions)
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $total = $this->object->evalTotalPersons();
         if ($total) {
             // the test was executed previously
@@ -1858,6 +1889,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
      */
     public function removeQuestionsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
 
@@ -1884,6 +1919,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function moveQuestionsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $selected_questions = $this->testrequest->getQuestionIds()
             ? $this->testrequest->getQuestionIds()
             : [$this->testrequest->getQuestionId()];
@@ -1901,6 +1940,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsBeforeObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->insertQuestionsBeforeOrAfter(self::INSERT_MODE_BEFORE);
     }
 
@@ -1909,6 +1952,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsAfterObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->insertQuestionsBeforeOrAfter(self::INSERT_MODE_AFTER);
     }
 
@@ -1942,6 +1989,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function insertQuestionsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $selected_questions = $this->testrequest->getQuestionIds()
             ? $this->testrequest->getQuestionIds()
             : [$this->testrequest->getQuestionId()];
@@ -1974,6 +2025,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
         $tpl = $DIC['tpl'];
         global $DIC; /* @var \ILIAS\DI\Container $DIC */
         $ilHelp = $DIC['ilHelp']; /* @var ilHelpGUI $ilHelp */
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
@@ -2248,6 +2303,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     {
         global $DIC; /* @var ILIAS\DI\Container $DIC */
 
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $DIC->tabs()->activateTab(ilTestTabsManager::TAB_ID_HISTORY);
         $table_gui = new ilTestHistoryTableGUI($this, 'history');
         $table_gui->setTestObject($this->object);
@@ -2369,7 +2428,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
                 $question_gui->setRenderPurpose(assQuestionGUI::RENDER_PURPOSE_PRINT_PDF);
             }
 
-            $questionHeaderBlockBuilder->setQuestionTitle($question_gui->object->getTitle());
+            $questionHeaderBlockBuilder->setQuestionTitle($question_gui->object->getTitleForHTMLOutput());
             $questionHeaderBlockBuilder->setQuestionPoints($question_gui->object->getMaximumPoints());
             $questionHeaderBlockBuilder->setQuestionPosition($counter);
             $template->setVariable("QUESTION_HEADER", $questionHeaderBlockBuilder->getHTML());
@@ -2383,7 +2442,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
             $max_points += $question_gui->object->getMaximumPoints();
         }
 
-        $template->setVariable("TITLE", strip_tags($this->object->getTitle(), ilObjectGUI::ALLOWED_TAGS_IN_TITLE_AND_DESCRIPTION));
+        $template->setVariable("TITLE", strip_tags($this->object->getTitleForHTMLOutput(), ilObjectGUI::ALLOWED_TAGS_IN_TITLE_AND_DESCRIPTION));
         $template->setVariable("PRINT_TEST", ilLegacyFormElementsUtil::prepareFormOutput($this->lng->txt("tst_print")));
         $template->setVariable("TXT_PRINT_DATE", ilLegacyFormElementsUtil::prepareFormOutput($this->lng->txt("date")));
         $used_relative_dates = ilDatePresentation::useRelativeDates();
@@ -2447,7 +2506,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
             $question_gui = $this->object->createQuestionGUI("", $question);
             $question_gui->setRenderPurpose(assQuestionGUI::RENDER_PURPOSE_PREVIEW);
 
-            $questionHeaderBlockBuilder->setQuestionTitle($question_gui->object->getTitle());
+            $questionHeaderBlockBuilder->setQuestionTitle($question_gui->object->getTitleForHTMLOutput());
             $questionHeaderBlockBuilder->setQuestionPoints($question_gui->object->getMaximumPoints());
             $questionHeaderBlockBuilder->setQuestionPosition($counter);
             $template->setVariable("QUESTION_HEADER", $questionHeaderBlockBuilder->getHTML());
@@ -2534,6 +2593,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
      */
     public function deleteDefaultsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         if (isset($_POST['chb_defaults']) && is_array($_POST['chb_defaults']) && count($_POST['chb_defaults'])) {
             foreach ($_POST['chb_defaults'] as $test_default_id) {
                 $this->object->deleteDefaults($test_default_id);
@@ -2549,6 +2612,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
      */
     public function confirmedApplyDefaultsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->applyDefaultsObject(true);
         return;
     }
@@ -2643,6 +2710,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     */
     public function addDefaultsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         if (strlen($_POST["name"]) > 0) {
             $this->object->addDefaults($_POST['name']);
         } else {
@@ -2843,6 +2914,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     protected function removeImportFailsObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $qsaImportFails = new ilAssQuestionSkillAssignmentImportFails($this->object->getId());
         $qsaImportFails->deleteRegisteredImportFails();
         $sltImportFails = new ilTestSkillLevelThresholdImportFails($this->object->getId());
@@ -2913,6 +2988,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     public function certificateObject()
     {
         global $DIC; /* @var ILIAS\DI\Container $DIC */
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         $DIC->tabs()->activateTab(ilTestTabsManager::TAB_ID_SETTINGS);
 
@@ -3136,6 +3215,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     public function copyQuestionsToPoolObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->copyQuestionsToPool($this->testrequest->raw('q_id'), $this->testrequest->raw('sel_qpl'));
         $this->ctrl->redirect($this, 'questions');
     }
@@ -3178,6 +3261,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     {
         global $DIC;
         $ilObjDataCache = $DIC['ilObjDataCache'];
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         if (!(int) $this->testrequest->raw('sel_qpl')) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt("questionpool_not_selected"));
@@ -3233,6 +3320,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     public function copyToQuestionpoolObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $this->createQuestionpoolTargetObject('copyQuestionsToPool');
     }
 
@@ -3240,6 +3331,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     {
         global $DIC;
         $lng = $DIC['lng'];
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         // #13761; All methods use for this request should be revised, thx japo ;-)
         if (
@@ -3271,6 +3366,11 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
 
     public function createQuestionPoolAndCopyObject()
     {
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())
+            || !$this->checkPermissionBool('create', '', 'qpl')) {
+            $this->redirectAfterMissingWrite();
+        }
+
         if ($this->testrequest->raw('title')) {
             $title = $this->testrequest->raw('title');
         } else {
@@ -3305,6 +3405,10 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
     public function createQuestionpoolTargetObject($cmd)
     {
         global $DIC; /* @var \ILIAS\DI\Container $DIC */
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
 
         $this->getTabsManager()->getQuestionsSubTabs();
         $this->getTabsManager()->activateSubTab(ilTestTabsManager::SUBTAB_ID_QST_LIST_VIEW);
@@ -3637,6 +3741,11 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface
         $lng = $DIC['lng'];
         $ilCtrl = $DIC['ilCtrl'];
         $tpl = $DIC['tpl'];
+
+        if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
+            $this->redirectAfterMissingWrite();
+        }
+
         $form = new ilPropertyFormGUI();
         $form->setFormAction($ilCtrl->getFormAction($this, "movePage"));
         $form->setTitle($lng->txt("test_move_page"));

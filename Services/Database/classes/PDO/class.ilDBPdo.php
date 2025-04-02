@@ -163,7 +163,7 @@ abstract class ilDBPdo implements ilDBInterface, ilDBPdoInterface
 
     public function quoteIdentifier(string $identifier, bool $check_option = false): string
     {
-        return '`' . $identifier . '`';
+        return '`' . preg_replace('/[^a-zA-Z0-9_$]/', '', $identifier) . '`';
     }
 
     /**

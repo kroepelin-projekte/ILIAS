@@ -36,6 +36,7 @@ class ilObjectTranslationGUI
     public const CMD_SET_FALLBACK = "setFallback";
     protected ilToolbarGUI $toolbar;
     protected ilObjUser $user;
+    protected ilAccess $access;
     protected ilLanguage $lng;
     protected ilCtrl $ctrl;
     protected ilGlobalTemplateInterface $tpl;
@@ -57,6 +58,7 @@ class ilObjectTranslationGUI
 
         $this->toolbar = $DIC->toolbar();
         $this->user = $DIC->user();
+        $this->access = $DIC['ilAccess'];
         $this->lng = $DIC->language();
         $this->ctrl = $DIC->ctrl();
         $this->tpl = $DIC["tpl"];
@@ -182,6 +184,11 @@ class ilObjectTranslationGUI
 
         $this->ctrl->getNextClass($this);
         $cmd = $this->ctrl->getCmd(self::CMD_LIST_TRANSLATIONS);
+        if (!$this->access->checkAccess('write', '', $this->obj_gui->getRefId())) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_permission'));
+            $this->ctrl->redirect($this->obj_gui);
+        }
+
         if (in_array($cmd, $commands)) {
             $this->$cmd();
         }

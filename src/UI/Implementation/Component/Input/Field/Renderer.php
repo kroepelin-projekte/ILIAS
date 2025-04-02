@@ -733,7 +733,7 @@ class Renderer extends AbstractComponentRenderer
     {
         $template = $this->getTemplate('tpl.hidden.html', true, true);
         $this->applyName($input, $template);
-        $this->applyValue($input, $template);
+        $this->applyValue($input, $template, $this->escapeSpecialChars());
         $this->maybeDisable($input, $template);
         $this->bindJSandApplyId($input, $template);
         return $template->get();
