@@ -346,8 +346,6 @@ class ilInfoScreenGUI
         $md_data_helper = $this->metadata->dataHelper();
 
         // general
-        $description = $md_reader->firstData($md_paths->descriptions())->value();
-
         $lang_data = $md_reader->allData($md_paths->languages());
         $langs = $md_data_helper->makePresentableAsList(', ', ...$lang_data);
 
@@ -372,30 +370,24 @@ class ilInfoScreenGUI
 
         // output
 
-        // description
-        if ($description != "") {
-            $this->addSection($lng->txt("description"));
-            $this->addProperty("", nl2br($description));
-        }
-
         // general section
         $this->addSection($lng->txt("meta_general"));
         if ($langs != "") {	// language
             $this->addProperty(
                 $lng->txt("language"),
-                $langs
+                $this->html->escape($langs)
             );
         }
         if ($keywords != "") {	// keywords
             $this->addProperty(
                 $lng->txt("keywords"),
-                $keywords
+                $this->html->escape($keywords)
             );
         }
         if ($author != "") {		// author
             $this->addProperty(
                 $lng->txt("author"),
-                $author
+                $this->html->escape($author)
             );
         }
         if ($copyright != "") {		// copyright
@@ -407,7 +399,7 @@ class ilInfoScreenGUI
         if ($learning_time != "") {		// typical learning time
             $this->addProperty(
                 $lng->txt("meta_typical_learning_time"),
-                $learning_time
+                $this->html->escape($learning_time)
             );
         }
     }

@@ -951,7 +951,7 @@ class ilRegistrationSettingsGUI
                         $date = serialize([
                             "d" => $date["dd"],
                             "m" => $date["MM"] % 12,
-                            "y" => floor($date["MM"] / 12)
+                            "y" => (int) floor($date["MM"] / 12)
                         ]);
                     }
                     break;

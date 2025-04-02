@@ -42,12 +42,19 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
      */
     public function executeCommand()
     {
-        $this->checkReadAccess();
-
         $this->tabs->clearTargets();
 
         $cmd = $this->ctrl->getCmd();
         $next_class = $this->ctrl->getNextClass($this);
+
+        if (($read_access = $this->checkReadAccess()) !== true) {
+            if ($cmd === 'autosave') {
+                echo $this->lng->txt('autosave_failed') . ': ' . $read_access;
+                exit;
+            }
+            $this->tpl->setOnScreenMessage('failure', $read_access, true);
+            $this->ctrl->redirectByClass([ilRepositoryGUI::class, ilObjTestGUI::class, TestScreenGUI::class]);
+        }
 
         $this->ctrl->saveParameter($this, "sequence");
         $this->ctrl->saveParameter($this, "pmode");
@@ -171,7 +178,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
                 break;
 
             default:
-                if (ilTestPlayerCommands::isTestExecutionCommand($cmd)) {
+                if ($cmd !== 'autosave' && ilTestPlayerCommands::isTestExecutionCommand($cmd)) {
                     $this->checkTestExecutable();
                 }
 
@@ -182,7 +189,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
 
                     if (!$testPassesSelector->openPassExists()) {
                         $this->tpl->setOnScreenMessage('info', $this->lng->txt('tst_pass_finished'), true);
-                        $this->ctrl->redirectByClass("ilobjtestgui", "infoScreen");
+                        $this->ctrl->redirectByClass([ilRepositoryGUI::class, ilObjTestGUI::class, ilTestScreenGUI::class]);
                     }
                 }
 
@@ -340,16 +347,21 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
         );
 
         // fau: testNav - always use edit mode, except for fixed answer
+        $instant_response = false;
         if ($this->isParticipantsAnswerFixed($questionId)) {
             $presentationMode = ilTestPlayerAbstractGUI::PRESENTATION_MODE_VIEW;
-            $instantResponse = true;
+            $s = $this->object->getMainSettings()->getQuestionBehaviourSettings();
+            if ($s->getInstantFeedbackGenericEnabled()
+                || $s->getInstantFeedbackPointsEnabled()
+                || $s->getInstantFeedbackSolutionEnabled()
+                || $s->getInstantFeedbackSpecificEnabled()) {
+                $instant_response = true;
+            }
         } else {
             $presentationMode = ilTestPlayerAbstractGUI::PRESENTATION_MODE_EDIT;
             // #37025 don't show instant response if a request for it should fix the answer and answer is not yet fixed
-            if ($this->object->isInstantFeedbackAnswerFixationEnabled()) {
-                $instantResponse = false;
-            } else {
-                $instantResponse = $this->getInstantResponseParameter();
+            if (!$this->object->isInstantFeedbackAnswerFixationEnabled()) {
+                $instant_response = $this->getInstantResponseParameter();
             }
         }
         // fau.
@@ -365,7 +377,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
 
         $headerBlockBuilder = new ilTestQuestionHeaderBlockBuilder($this->lng);
         $headerBlockBuilder->setHeaderMode($this->object->getTitleOutput());
-        $headerBlockBuilder->setQuestionTitle($questionGui->object->getTitle());
+        $headerBlockBuilder->setQuestionTitle($questionGui->object->getTitleForHTMLOutput());
         $headerBlockBuilder->setQuestionPoints($questionGui->object->getPoints());
         $headerBlockBuilder->setQuestionPosition($this->testSequence->getPositionOfSequence($sequence_element));
         $headerBlockBuilder->setQuestionCount($this->testSequence->getUserQuestionCount());
@@ -400,7 +412,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
                 // fau: testNav - enable navigation toolbar in edit mode
                 $navigationToolbarGUI->setDisabledStateEnabled(false);
                 // fau.
-                $this->showQuestionEditable($questionGui, $formAction, $isQuestionWorkedThrough, $instantResponse);
+                $this->showQuestionEditable($questionGui, $formAction, $isQuestionWorkedThrough, $instant_response);
 
                 break;
 
@@ -410,7 +422,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
                     $this->populateQuestionOptionalMessage();
                 }
 
-                $this->showQuestionViewable($questionGui, $formAction, $isQuestionWorkedThrough, $instantResponse);
+                $this->showQuestionViewable($questionGui, $formAction, $isQuestionWorkedThrough, $instant_response);
 
                 break;
 
@@ -425,7 +437,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
         $this->populateQuestionNavigation($sequence_element, $isNextPrimary);
         // fau.
 
-        if ($instantResponse) {
+        if ($instant_response) {
             // fau: testNav - always use authorized solution for instant feedback
             $this->populateInstantResponseBlocks(
                 $questionGui,

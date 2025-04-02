@@ -1258,6 +1258,7 @@ assessment#:#toplist_col_percentage#:#Процент
 assessment#:#toplist_col_rank#:#Ранг
 assessment#:#toplist_col_score#:#Резултат
 assessment#:#toplist_col_wtime#:#Работно време
+assessment#:#total_max_points_cannot_be_negative#:#The maximum amount of reachable points cannot be negative.###01 04 2025 new variable
 assessment#:#true#:#Вярно
 assessment#:#tst_access_code_created#:#За да ви осигурим постоянен достъп до резултатите от теста и да ви предложим възможност да възобновите теста, беше създаден уникален код за достъп до теста. Моля, запишете този код и го използвайте за по-нататъшни действия.
 assessment#:#tst_activate_skill_service#:#Активиране на услугата за компетентност
@@ -1606,7 +1607,6 @@ assessment#:#tst_objective_oriented_test_pass_without_questions#:#Започна
 assessment#:#tst_objective_progress_header#:#Напредък на учебната цел
 assessment#:#tst_objectives_progress_header#:#Напредък на целите на обучението
 assessment#:#tst_old_style_rnd_quest_set_broken#:#Този тест за случаен избор е в непоправимо състояние, тъй като един или повече свързани пулове с въпроси са били изтрити. Поради това участниците не могат повече да се явяват на теста.
-assessment#:#tst_optional_questions_confirmation_fixed_test#:#<b>Въпроси, свързани с вече преминати цели на обучението, са получили отговор при предишни преминавания.</b><br /><br />Искате да преминете към въпрос, свързан с вече премината учебна цел.<br />Можете да изберете:<br /><br />При продължаването можете да работите или просто да прегледате тези въпроси. Ако промените отговорите си, които са били приети от предишни преминавания, можете също да влошите резултата си по учебната цел.<br /><br />Ако решите да не работите или да преглеждате тези въпроси, можете да се върнете назад. Въпросите ще бъдат взети предвид при оценката във всеки случай.
 assessment#:#tst_optional_questions_confirmation_non_fixed_test#:#<b>Въпросите, свързани с вече преминали цели на обучението, не са задължителни.</b><br /><br />Искате да преминете към въпрос, който е свързан с вече премината цел на обучението.<br />Можете да изберете:<br /><br />Ако продължите, можете да работите по тези въпроси. Отговорите ви от предишните опити не бяха приети, тъй като за този опит бяха избрани нови въпроси на случаен принцип. С работата по тези въпроси можете също така да влошите резултата си по учебната цел.<br /><br />Ако решите да не работите по тези въпроси, можете да се върнете назад. В този случай тези въпроси няма да бъдат взети предвид при оценката.
 assessment#:#tst_out_of_time_message#:#You have reached the maximum allowed processing time of the test!###30 04 2024 new variable
 assessment#:#tst_participant#:#Участник
@@ -1763,6 +1763,7 @@ assessment#:#tst_res_jump_to_participant_hint_opt#:#--Преминаване к�
 assessment#:#tst_res_lo_objectives_header#:#Съответни цели на обучението
 assessment#:#tst_res_lo_try_header#:#Опит
 assessment#:#tst_res_lo_try_n#:#Опит за %s
+assessment#:#tst_res_tab_msg_no_lp_access#:#You are currently not allowed to access your Learning Progress, as you are not allowed to see your test results.###01 04 2025 new variable
 assessment#:#tst_res_tab_msg_res_after_date#:#Резултатите от теста ви ще бъдат предложени тук на следващата дата: %s
 assessment#:#tst_res_tab_msg_res_after_date_no_res#:#Когато се явите на теста, резултатите ви ще бъдат представени тук на следващата дата: %s
 assessment#:#tst_res_tab_msg_res_after_finish_test#:#След като приключите теста, тук ще видите резултатите си.
@@ -2017,7 +2018,6 @@ auth#:#auth_cron_destroy_expired_sessions_desc#:#This job deletes expires sessio
 auth#:#auth_err_expired#:#Сесията ви е деактивирана поради липса на активност.
 auth#:#auth_err_invalid_user_account#:#Удостоверяването на автентичността се е провалило поради вътрешна грешка.
 auth#:#auth_err_ldap_exception#:#Удостоверяването се е провалило поради вътрешна грешка в удостоверяването (LDAP).
-auth#:#auth_err_login_attempts_deactivation#:#Потребителският акаунт е деактивиран поради грешни опити за влизане.
 auth#:#auth_info_add#:#Изберете тази опция, ако никога не сте се регистрирали в ILIAS. Ще бъде създаден нов акаунт
 auth#:#auth_info_migrate#:#Ако вече имате акаунт в ILIAS, въведете потребителско име и парола, за да мигрирате личните си данни (поща, резултати от тестове...).
 auth#:#auth_ldap_server_ds#:#LDAP-Server
@@ -2889,8 +2889,6 @@ chatroom#:#chat_osc_accepts_messages_yes#:#Приема съобщения в ч
 chatroom#:#chat_osc_add_user#:#Добавяне на допълнителни потребители
 chatroom#:#chat_osc_conversations#:#Разговори###22 06 2022 new variable
 chatroom#:#chat_osc_doesnt_accept_msg#:#Конверсиите не са възможни
-chatroom#:#chat_osc_dont_accept_msg#:#Понастоящем не можете да бъдете поканени в разговори. Ако желаете, можете да промените това във вашите <a href=&quot;%s&quot;>&quot;Лични настройки&quot;</a>.
-chatroom#:#chat_osc_dont_accept_msg_link_txt#:#'Персонални настройки'###22 06 2022 new variable
 chatroom#:#chat_osc_head_grp_x_persons#:#%s Потребители
 chatroom#:#chat_osc_invite_to_conversation#:#Добавяне към разговора###22 06 2022 new variable
 chatroom#:#chat_osc_leave_grp_conv#:#Остави разговора
@@ -3918,6 +3916,7 @@ common#:#download_selected_items#:#Download
 common#:#downloading_settings#:#Настройки за изтегляне
 common#:#dpro_accept_usr_agreement#:#Accept Declaration of Data Protection?###30 04 2024 new variable
 common#:#dpro_accept_usr_agreement_intro#:#There is a new Declaration of Data Protection. You need to accept it before proceeding with the use of ILIAS. Read the following document carefully and give your consent or dissent at the bottom of the page.###30 04 2024 new variable
+common#:#dpro_agreed_on#:#DoDP agreed to on###01 04 2025 new variable
 common#:#dpro_force_accept_usr_agreement#:#You must accept the Declaration of Data Protection!###30 04 2024 new variable
 common#:#dpro_no_agreement_description#:#There is currently no Declaration of Data Protection document available for this installation. Please contact the <a href="%1$s">system administrator</a>.###30 04 2024 new variable
 common#:#dpro_refuse_acceptance#:#Refuse to Accept the Declaration of Data Protection###30 04 2024 new variable
@@ -5633,7 +5632,6 @@ common#:#show_users_online#:#Показване на потребителите 
 common#:#show_who_is_online#:#Покажете кой е онлайн
 common#:#side_frame#:#Сайд Frame
 common#:#signature#:#Подпис
-common#:#simultaneous_login_detected#:#Достъпът ви е отказан поради едновременно влизане със същия акаунт.
 common#:#size#:#Размер###22 06 2022 new variable
 common#:#skills#:#Skills
 common#:#skin_style#:#Оформление / стил по подразбиране
@@ -6010,7 +6008,6 @@ common#:#withdrawal_sure_account_no_consent_yet#:#Сигурни ли сте, ч
 common#:#wizard_search_list#:#Вашето търсене даде следните резултати. Моля, изберете една от тях
 common#:#wizard_title_info#:#Внесете заглавието на обекта, който искате да дублирате.
 common#:#write#:#Записване
-common#:#wrong_ip_detected#:#Достъпът ви е отказан поради грешен IP адрес на клиента.<br>Моля, свържете се със системния администратор.
 common#:#year#:#Година
 common#:#yearly#:#годишно
 common#:#years#:#Години###22 06 2022 new variable
@@ -7255,8 +7252,6 @@ content#:#glo_online_info#:#Само ако речникът е онлайн, п
 content#:#glo_presentation_mode#:#Режим на представяне
 content#:#glo_presentation_view#:#Поглед на презентация
 content#:#glo_quick_navigation#:#Бърза навигация
-content#:#glo_show_taxonomy#:#Показване на таксономията
-content#:#glo_show_taxonomy_info#:#Таксономията ще бъде видима в изгледа за представяне на речника и може да се използва за избор на термините, към които се отнасят.
 content#:#glo_style#:#Стил на речника
 content#:#glo_table_form#:#В таблична форма
 content#:#glo_table_form_info#:#Термините и определенията се показват първо в преглед в две колони. Щракването върху термина отваря пълното съдържание на термина на отделен екран.
@@ -8687,7 +8682,7 @@ dcl#:#dcl_no_content_warning#:#Внимание, събирането на да�
 dcl#:#dcl_no_entry#:#Няма вписване
 dcl#:#dcl_no_export_content_available#:#Няма налични данни за експортиране.
 dcl#:#dcl_no_export_data_available#:#Няма налични данни или полета за експортиране.
-dcl#:#dcl_no_export_fields_available#:#Няма активирани полета за експортиране. Маркирайте поне едно поле като експортируемо в <a href=&quot;%s&quot;>настройките на таблицата</a>.
+dcl#:#dcl_no_export_fields_available#:#Няма активирани полета за експортиране. Маркирайте поне едно поле като експортируемо в <a href="%s">настройките на таблицата</a>.
 dcl#:#dcl_no_fields_yet#:#Няма дефинирани полета за тази таблица, поради което все още не можете да създавате записи.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#Нямате достъп за четене до нито един стандартен изглед на таблица.
 dcl#:#dcl_no_search_results_found_for#:#Няма намерени модули за
@@ -9783,6 +9778,8 @@ file#:#preview_caption#:#Preview %sof %s###30 04 2024 new variable
 file#:#preview_image_size_info#:#The preview versions of images will be downscaled or upscaled as appropriate, so that their longest side is the length (in px) entered here.###30 04 2024 new variable
 file#:#preview_persisting#:#Persistent Preview Images###30 04 2024 new variable
 file#:#preview_persisting_info#:#Generated preview images will be stored by ILIAS and used from then on each time the preview icon for that file is clicked on. If deactivated, previews will be generated anew each time.###30 04 2024 new variable
+file#:#previews_for_tiles#:#Tiles###01 04 2025 new variable
+file#:#previews_for_tiles_info#:#Use Preview for Tiles where possible.###01 04 2025 new variable
 file#:#publish_before_delete#:#Version(s) could not be deleted because an unpublished draft exists.###30 04 2024 new variable
 file#:#replace_file_info#:#Всички версии на файловете ще бъдат изтрити.
 file#:#resource_id#:#Идентификатор на ресурс###22 06 2022 new variable
@@ -10863,7 +10860,7 @@ logging#:#log_error_file_cleanup_title#:#Изтриване на стари ил
 logging#:#log_error_folder#:#Път към файла
 logging#:#log_error_mail#:#Пощенски получател
 logging#:#log_error_message#:#Възникна грешка %s.
-logging#:#log_error_message_send_mail#:#Поискайте да изпратите писмо до <a href=&quot;mailto:%s?subject=code: %s&quot;>%s</a>
+logging#:#log_error_message_send_mail#:#Поискайте да изпратите писмо до <a href="mailto:%s?subject=code: %s">%s</a>
 logging#:#log_error_path_not_configured_or_wrong#:#Пътят към грешките (error_path) не е конфигуриран или е недостъпен.
 logging#:#log_error_settings#:#Настройки за регистриране на грешки
 logging#:#logs_settings#:#Настройки на записването
@@ -11464,7 +11461,7 @@ mail#:#mail_serial_letter_placeholders#:#Заместители за серий�
 mail#:#mail_settings_external_frm_head#:#Външни имейли
 mail#:#mail_settings_external_tab#:#External
 mail#:#mail_settings_general_tab#:#General
-mail#:#mail_settings_incoming_type_see_also#:#По-нататъшна възможност за промяна на типа на входящите имейли за потребителите можете да намерите <a href=&quot;%s&quot;>тук</a>
+mail#:#mail_settings_incoming_type_see_also#:#По-нататъшна възможност за промяна на типа на входящите имейли за потребителите можете да намерите <a href="%s">тук</a>
 mail#:#mail_settings_system_frm_head#:#Системна поща
 mail#:#mail_settings_user_frm_head#:#Имейли на потребителя
 mail#:#mail_smtp_encryption#:#Encryption
@@ -12793,18 +12790,12 @@ noti#:#noti_notification_deactivated#:#Деактивирана нотифика
 notifications_adm#:#enable_osd#:#Enable On-Screen Notifications###31 03 2023 new variable
 notifications_adm#:#enable_osd_desc#:#If enabled, users are notified by a popup about new notifications.###31 03 2023 new variable
 notifications_adm#:#notification_settings#:#Notification Settings###31 03 2023 new variable
-notifications_adm#:#osd_delay#:#Presentation Delay###31 03 2023 new variable
-notifications_adm#:#osd_delay_desc#:#Delay of the visible presentation in milliseconds.###31 03 2023 new variable
-notifications_adm#:#osd_error_presentation_time_too_small#:#The Presentation Time has to be at least than 1000 miliseconds.###31 03 2023 new variable
-notifications_adm#:#osd_error_refresh_interval_smaller_than_delay_and_vanish_combined#:#The Refresh Interval has to be greater than the Presentation Time and the Presentation Delay combined.###31 03 2023 new variable
 notifications_adm#:#osd_error_refresh_interval_too_small#:#The Refresh Interval has to be at least than 3000 miliseconds.###31 03 2023 new variable
 notifications_adm#:#osd_interval#:#Refreshinterval###31 03 2023 new variable
 notifications_adm#:#osd_interval_desc#:#Polling interval for checking of new notifications in miliseconds. A lower number will notify the user more quickly but increases the number of requests the web server must handle.###31 03 2023 new variable
 notifications_adm#:#osd_play_sound#:#Play a Sound###31 03 2023 new variable
 notifications_adm#:#osd_play_sound_desc#:#Play a sound when receiving a new notficiation.###31 03 2023 new variable
 notifications_adm#:#osd_settings#:#On-Screen Notifications###31 03 2023 new variable
-notifications_adm#:#osd_vanish#:#Presentation Time###31 03 2023 new variable
-notifications_adm#:#osd_vanish_desc#:#Visible time of a notification on the screen in miliseconds.###31 03 2023 new variable
 obj#:#activation_visible_when_disabled#:#Visibility###30 04 2024 new variable
 obj#:#activation_visible_when_disabled_info#:#The item is visible outside of the selected availability period, but it cannot be opened.###30 04 2024 new variable
 obj#:#availability_period_changed#:#The availability period for the selected objects has been changed successfully.###30 04 2024 new variable
@@ -12817,6 +12808,7 @@ obj#:#copy_container_page_yes_label#:#Copy Content Page###30 04 2024 new variabl
 obj#:#custom_icon#:#Custom Icon###30 04 2024 new variable
 obj#:#edit_availability_period#:#Availability Period###30 04 2024 new variable
 obj#:#edit_questions#:#Едит на въпроси
+obj#:#multiple_reference_deletion_info#:#Further references exist for the following objects.###01 04 2025 new variable
 obj#:#no_objects_selected#:#At least one object needs to be selected.###30 04 2024 new variable
 obj#:#obj_activate_content_lang#:#Активиране на превода за редактиране на страницата
 obj#:#obj_activate_multilang#:#Активиране на многоезичието
@@ -13849,7 +13841,7 @@ rbac#:#chtr_moderate#:#Умерен чат
 rbac#:#chtr_read#:#Read
 rbac#:#chtr_visible#:#Видим
 rbac#:#chtr_write#:#Write
-rbac#:#cmis_edit_permissions#:#Потребителят може да променя настройките за достъп до администрацията на xAPI/cmi5.###22 06 2022 new variable
+rbac#:#cmis_edit_permission#:#User can change permission settings of xAPI/cmi5 administration.###01 04 2025 new variable
 rbac#:#cmis_read#:#Потребителят има права за четене на xAPI/cmi5 администрация.###22 06 2022 new variable
 rbac#:#cmis_visible#:#Администрацията на xAPI/cmi5 е видима.###22 06 2022 new variable
 rbac#:#cmis_write#:#Потребителят може да редактира настройките за достъп до администрацията на xAPI/cmi5.###22 06 2022 new variable
@@ -13921,6 +13913,10 @@ rbac#:#dcl_write#:#Потребителят може да редактира н�
 rbac#:#delete_files#:#Изтриване на файлове
 rbac#:#delete_folders#:#Изтриване на папки
 rbac#:#delete_wiki_pages#:#Изтриване на страници
+rbac#:#dpro_edit_permission#:#User can change permission settings in the Declaration of Data Protected administration###01 04 2025 new variable
+rbac#:#dpro_read#:#User has read access to the Declaration of Data Protection administration###01 04 2025 new variable
+rbac#:#dpro_visible#:#Declaration of Data Protection administration is visible###01 04 2025 new variable
+rbac#:#dpro_write#:#Edit settings in the Declaration of Data Protection###01 04 2025 new variable
 rbac#:#dshs_change_presentation#:#Промяна на изгледа на информационното табло
 rbac#:#dshs_edit_permission#:#Потребителят може да променя настройките за разрешение на администрацията на таблото за управление
 rbac#:#dshs_read#:#Потребителят има достъп за четене до администрацията на таблото за управление
@@ -14069,6 +14065,10 @@ rbac#:#il_lti_global_role#:#LTI потребител###08 12 2021 new variable
 rbac#:#il_sess_participant#:#Участник в сесията
 rbac#:#il_sess_status_closed#:#Закрито заседание без участници
 rbac#:#ilias_id#:#ILIAS-ID
+rbac#:#impr_edit_permission#:#User can change permission settings of Legal Notice administration###01 04 2025 new variable
+rbac#:#impr_read#:#User can read in Legal Notice administration###01 04 2025 new variable
+rbac#:#impr_visible#:#Administration of Legal Notice is visible###01 04 2025 new variable
+rbac#:#impr_write#:#User can edit content and settings of Legal Notice###01 04 2025 new variable
 rbac#:#info_user_view_changed#:#Погледът на потребителя е променен
 rbac#:#internal_mail#:#Вътрешна поща
 rbac#:#invite#:#Покана за участие в проучване
@@ -14116,7 +14116,7 @@ rbac#:#lso_read_learning_progress#:#Потребителят може да ви�
 rbac#:#lso_unparticipate#:#Потребителят може да се отпише от дадена учебна поредица
 rbac#:#lso_visible#:#Последователността на обучението е видима
 rbac#:#lso_write#:#Потребителят може да редактира настройките на учебната последователност
-rbac#:#lsos_edit_permissions#:#Потребителят може да променя настройките за достъп до администриране на последователността на обучение.###22 06 2022 new variable
+rbac#:#lsos_edit_permission#:#User can change permission settings of Learning Sequences administration.###01 04 2025 new variable
 rbac#:#lsos_read#:#Потребителят има права за четене до администрацията на учебните последователности.###22 06 2022 new variable
 rbac#:#lsos_visible#:#Администрирането на учебни последователности е видимо.###22 06 2022 new variable
 rbac#:#lsos_write#:#Потребителят може да редактира настройките за администриране на последователността на обучение.###22 06 2022 new variable
@@ -14181,7 +14181,8 @@ rbac#:#moderate_frm#:#Модериране
 rbac#:#msg_anonymous_cannot_be_assigned#:#Anonymous cannot be assigned to a role.###19 03 2024 new variable
 rbac#:#msg_no_roles_of_type#:#Няма налични роли с избраната настройка на филтъра
 rbac#:#news_add_news#:#Добавяне на новини
-rbac#:#nots_edit_permissions#:#Потребителят може да променя настройките за достъп до администрацията на Notes.###22 06 2022 new variable
+rbac#:#no_corresponding_roles#:#No corresponding roles could be found.###01 04 2025 new variable
+rbac#:#nots_edit_permission#:#User can change permission settings of Notes administration.###01 04 2025 new variable
 rbac#:#nots_read#:#Потребителят има права за четене до администрацията на Notes.###22 06 2022 new variable
 rbac#:#nots_visible#:#Администрацията на Notes е видима.###22 06 2022 new variable
 rbac#:#nots_write#:#Потребителят може да редактира настройките на администрацията на Notes.###22 06 2022 new variable
@@ -14258,7 +14259,7 @@ rbac#:#prgs_edit_permission#:#Промяна на настройките на р
 rbac#:#prgs_read#:#Потребителят има достъп за четене до администрацията на учебната програма
 rbac#:#prgs_visible#:#Администрацията на учебната програма е видима
 rbac#:#prgs_write#:#Изменете настройките в администрацията на учебната програма
-rbac#:#prss_edit_permissions#:#Потребителят може да променя настройките за достъп до администрацията на личните ресурси.###22 06 2022 new variable
+rbac#:#prss_edit_permission#:#User can change permission settings of Personal Resources administration.###01 04 2025 new variable
 rbac#:#prss_read#:#Потребителят има права за четене до администрацията на личните ресурси.###22 06 2022 new variable
 rbac#:#prss_visible#:#Администрацията на личните ресурси е видима.###22 06 2022 new variable
 rbac#:#prss_write#:#Потребителят може да редактира настройките на администрацията на личните ресурси.###22 06 2022 new variable
@@ -14607,7 +14608,7 @@ rbac#:#usrf_read#:#Достъп за четене от потребителск�
 rbac#:#usrf_read_users#:#Разпределяне на роли за локални администратори
 rbac#:#usrf_visible#:#Потребителските акаунти са видими
 rbac#:#usrf_write#:#Редактиране на потребителски акаунти
-rbac#:#wbdv_edit_permissions#:#Потребителят може да промени настройките за достъп до администрирането на WebDAV.###22 06 2022 new variable
+rbac#:#wbdv_edit_permission#:#User can change permission settings of WebDAV administration.###01 04 2025 new variable
 rbac#:#wbdv_read#:#Потребителят има права за четене за администрацията на WebDAV.###22 06 2022 new variable
 rbac#:#wbdv_visible#:#Администрацията на WebDAV е видима.###22 06 2022 new variable
 rbac#:#wbdv_write#:#Потребителят може да редактира настройките на WebDAV администрацията.###22 06 2022 new variable
@@ -14791,6 +14792,7 @@ rep#:#rep_fav_intro2#:#Натиснете "%s" и изберете учебен 
 rep#:#rep_fav_intro3#:#Когато откриете нещо, което ви интересува, можете лесно да го добавите към любимите си. Изберете желания елемент в менюто <i>Действия</i> и изберете &quot;<i>Добавяне към любими</i>&quot;.
 rep#:#rep_favourites#:#Любими обекти###22 06 2022 new variable
 rep#:#rep_favourites_info#:#Потребителите могат да отбелязват отделни елементи от хранилището като любими обекти. Списъците с любими файлове могат да бъдат активирани и конфигурирани в таблото за управление и в настройките на менюто.###22 06 2022 new variable
+rep#:#rep_input_not_empty#:#This field must not be empty, please provide a value.###01 04 2025 new variable
 rep#:#rep_intro#:#Добре дошли в хранилището!
 rep#:#rep_intro1#:#В тази област можете да създавате учебни и работни ресурси за всички потребители. Всички ресурси са подредени в категории. Категориите могат да отразяват структурата на вашата организация (напр. отдели), йерархията на дисциплините или класовете на училището.
 rep#:#rep_intro2#:#За изграждането на първоначалната структура са необходими три стъпки:
@@ -17193,6 +17195,7 @@ ui#:#order_option_numerical_ascending#:#0 to 9###30 04 2024 new variable
 ui#:#order_option_numerical_descending#:#9 to 0###30 04 2024 new variable
 ui#:#presentation_table_collapse#:#collapse all###30 04 2024 new variable
 ui#:#presentation_table_expand#:#expand all###30 04 2024 new variable
+ui#:#table_posinput_col_title#:#Position###01 04 2025 new variable
 ui#:#ui_chars_max#:#Максимум:
 ui#:#ui_chars_min#:#Минимално:
 ui#:#ui_chars_remaining#:#Останали символи:

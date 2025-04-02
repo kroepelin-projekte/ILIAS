@@ -22,7 +22,7 @@ namespace ILIAS\File\Capabilities\Check;
 
 use ILIAS\File\Capabilities\Capability;
 use ILIAS\File\Capabilities\Capabilities;
-use ILIAS\Data\ReferenceId;
+use ILIAS\File\Capabilities\Context;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -46,13 +46,13 @@ class Download extends BaseCheck implements Check
         Capability $capability,
         CheckHelpers $helpers,
         \ilObjFileInfo $info,
-        int $ref_id,
+        Context $context,
     ): Capability {
         $this->info = $info;
-        return $capability->withUnlocked($this->hasPermission($helpers, $ref_id, $capability->getPermission()));
+        return $capability->withUnlocked($this->hasPermission($helpers, $context, ...$capability->getPermissions()));
     }
 
-    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, int $ref_id): Capability
+    public function maybeBuildURI(Capability $capability, CheckHelpers $helpers, Context $context): Capability
     {
         if (!$capability->isUnlocked()) {
             return $capability;
@@ -61,17 +61,12 @@ class Download extends BaseCheck implements Check
         return $capability->withURI(
             $helpers->fromTarget(
                 $helpers->ctrl->getLinkTargetByClass(
-                    [\ilRepositoryGUI::class, \ilObjFileGUI::class],
+                    [
+                        $this->baseClass($context),
+                        \ilObjFileGUI::class
+                    ],
                     Capabilities::DOWNLOAD->value
                 )
-            )
-        );
-
-        return $capability->withURI(
-            $this->static_url->build(
-                'file',
-                new ReferenceId($ref_id),
-                ['download']
             )
         );
     }

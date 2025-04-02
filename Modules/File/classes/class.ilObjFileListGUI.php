@@ -22,6 +22,7 @@ use ILIAS\ResourceStorage\Services;
 use ILIAS\Services\WOPI\Discovery\ActionDBRepository;
 use ILIAS\File\Capabilities\Capabilities;
 use ILIAS\File\Capabilities\CapabilityBuilder;
+use ILIAS\File\Capabilities\Context;
 
 /**
  * Class ilObjFileListGUI
@@ -37,15 +38,23 @@ class ilObjFileListGUI extends ilObjectListGUI
     private ilObjFileInfoRepository $file_info;
     private CapabilityBuilder $capability_builder;
     private ?CapabilityCollection $capabilities = null;
+    private Context $capability_context;
     protected string $title;
     private IconDatabaseRepository $icon_repo;
     private Services $irss;
 
     public function __construct(int $context = self::CONTEXT_REPOSITORY)
     {
+        global $DIC;
+        $this->capability_context = new Context(
+            0,
+            0,
+            ($context === self::CONTEXT_REPOSITORY) ? Context::CONTEXT_REPO : Context::CONTEXT_WORKSPACE
+        );
+
         parent::__construct($context);
 
-        global $DIC;
+
         $DIC->language()->loadLanguageModule('wopi');
         $this->file_info = new ilObjFileInfoRepository();
         $this->capability_builder = new CapabilityBuilder(
@@ -56,6 +65,14 @@ class ilObjFileListGUI extends ilObjectListGUI
             $DIC->http()
         );
 
+
+    }
+
+    protected function updateContext(): void
+    {
+        $this->capability_context = $this->capability_context
+            ->withCallingId($this->ref_id ?? 0)
+            ->withObjectId($this->obj_id ?? 0);
     }
 
     /**
@@ -79,11 +96,13 @@ class ilObjFileListGUI extends ilObjectListGUI
         }
 
         $this->commands = ilObjFileAccess::_getCommands();
+        $this->updateContext();
     }
 
     public function getCommands(): array
     {
-        $this->capabilities = $this->capability_builder->get($this->ref_id);
+        $this->updateContext();
+        $this->capabilities = $this->capability_builder->get($this->capability_context);
 
         $best = $this->capabilities->getBest();
 
@@ -99,8 +118,9 @@ class ilObjFileListGUI extends ilObjectListGUI
 
     public function getCommandLink(string $cmd): string
     {
+        $this->updateContext();
         $info = $this->file_info->getByObjectId($this->obj_id);
-        $this->capabilities = $this->capability_builder->get($this->ref_id);
+        $this->capabilities = $this->capability_builder->get($this->capability_context);
 
         $needed_capability = Capabilities::fromCommand($cmd);
         $capability = $this->capabilities->get($needed_capability);
@@ -138,28 +158,16 @@ class ilObjFileListGUI extends ilObjectListGUI
         return $this->secure(preg_replace('/\.[^.]*$/', '', $a_title));
     }
 
-    /**
-     * Get command target frame
-     */
     public function getCommandFrame(string $cmd): string
     {
+        $this->updateContext();
         $info = $this->file_info->getByObjectId($this->obj_id);
 
-        $frame = "";
-        switch ($cmd) {
-            case Capabilities::DOWNLOAD->value:
-                if ($info->shouldDeliverInline()) {
-                    $frame = '_blank';
-                }
-                break;
-            case "":
-                $frame = ilFrameTargetInfo::_getFrame("RepositoryContent");
-                break;
-
-            default:
+        if ($cmd === Capabilities::DOWNLOAD->value) {
+            return $info->shouldDeliverInline() ? '_blank' : '';
         }
 
-        return $frame;
+        return '';
     }
 
     /**
@@ -188,7 +196,7 @@ class ilObjFileListGUI extends ilObjectListGUI
     {
         global $DIC;
 
-        $this->capabilities = $this->capability_builder->get($this->ref_id);
+        $this->capabilities = $this->capability_builder->get($this->capability_context);
 
         $props = parent::getProperties();
 
@@ -264,13 +272,18 @@ class ilObjFileListGUI extends ilObjectListGUI
         string $type,
         ?int $obj_id = null
     ): bool {
+        $this->updateContext();
+
+        $this->capability_context = $this->capability_context
+            ->withCallingId($ref_id)
+            ->withObjectId($obj_id ?? $this->capability_context->getObjectId());
 
         // LP settings only in repository
         if ($this->context !== self::CONTEXT_REPOSITORY && $permission === "edit_learning_progress") {
             return false;
         }
 
-        $this->capabilities = $this->capability_builder->get($this->ref_id);
+        $this->capabilities = $this->capability_builder->get($this->capability_context);
 
         $capability = Capabilities::fromCommand($cmd);
         $additional_check = $this->capabilities->get($capability)->isUnlocked();

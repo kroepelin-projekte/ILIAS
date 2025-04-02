@@ -138,8 +138,6 @@ class ilSoapAdministration
 
     protected function initAuth(string $sid): void
     {
-        global $DIC;
-
         [$sid, $client] = $this->explodeSid($sid);
 
         if (session_status() === PHP_SESSION_ACTIVE && $sid === session_id()) {
@@ -151,6 +149,12 @@ class ilSoapAdministration
         }
 
         session_id($sid);
+
+        if (ilContext::getType() !== ilContext::CONTEXT_SOAP) {
+            require_once("Services/Init/classes/class.ilInitialisation.php");
+            ilInitialisation::reInitUser();
+            ilUtil::setCookie(session_name(), $sid);
+        }
     }
 
     protected function initIlias(): void
@@ -192,7 +196,7 @@ class ilSoapAdministration
             case self::NUSOAP:
                 return new soap_fault($a_code, '', $a_message);
             case self::PHP5:
-                return new SoapFault($a_code, $a_message);
+                return new SoapFault((string) $a_code, $a_message);
         }
         return null;
     }

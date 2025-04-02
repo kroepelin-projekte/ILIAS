@@ -159,11 +159,13 @@ class ilCertificateCron extends ilCronJob
 
         $result->setStatus($status);
         if ($succeededGenerations !== []) {
-            $result->setMessage(sprintf(
+            $message = sprintf(
                 'Generated %s certificate(s) in run. Result: %s',
                 count($succeededGenerations),
                 implode(' | ', $succeededGenerations)
-            ));
+            );
+            $this->logger->info($message);
+            $result->setMessage(ilStr::subStr($message, 0, 400));
         } else {
             $result->setMessage('0 certificates generated in current run.');
         }

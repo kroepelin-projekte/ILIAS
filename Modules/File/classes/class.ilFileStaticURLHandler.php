@@ -60,15 +60,25 @@ class ilFileStaticURLHandler extends BaseHandler implements Handler
 
     public function handle(Request $request, Context $context, Factory $response_factory): Response
     {
-        $ref_id = $request->getReferenceId()?->toInt() ?? 0;
-        $additional_params = $request->getAdditionalParameters()[0] ?? null;
-        $context->ctrl()->setParameterByClass(ilObjFileGUI::class, 'ref_id', $ref_id);
-
-        if ($additional_params === "_wsp") {
-            ilObjectGUI::_gotoSharedWorkspaceNode((int) $ref_id);
+        $reference_id = $request->getReferenceId();
+        if ($reference_id === null) {
+            return $response_factory->cannot();
         }
 
-        $capabilities = $this->capabilities->get($ref_id);
+        // special case for shared workspace
+        $additional_params = $request->getAdditionalParameters()[0] ?? null;
+        if ($additional_params === '_wsp') {
+            ilObjectGUI::_gotoSharedWorkspaceNode($reference_id->toInt());
+            return $response_factory->loginFirst();
+        }
+
+        $capability_context = new \ILIAS\File\Capabilities\Context(
+            $reference_id->toObjectId()->toInt(),
+            $reference_id->toInt(),
+            \ILIAS\File\Capabilities\Context::CONTEXT_REPO
+        );
+
+        $capabilities = $this->capabilities->get($capability_context);
 
         $capability = match ($additional_params) {
             self::DOWNLOAD => $capabilities->get(Capabilities::DOWNLOAD),

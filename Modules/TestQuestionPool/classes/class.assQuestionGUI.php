@@ -961,6 +961,7 @@ abstract class assQuestionGUI
             $description = new ilTextInputGUI($this->lng->txt("description"), "comment");
             $description->setValue($this->object->getComment());
             $description->setRequired(false);
+            $description->setMaxLength(1000);
             $form->addItem($description);
         } else {
             // author as hidden field

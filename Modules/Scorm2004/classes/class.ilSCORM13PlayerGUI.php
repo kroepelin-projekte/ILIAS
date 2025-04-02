@@ -894,6 +894,8 @@ class ilSCORM13PlayerGUI
         $ilUser = $DIC->user();
         $g_data = json_decode(file_get_contents('php://input'));
 
+	if ($g_data == null) return;
+	    
         //Step 1: Get the writeable stores for this SCO that already have values
         $query = 'SELECT dm.target_id, sd.store '
                . 'FROM cp_datamap dm '

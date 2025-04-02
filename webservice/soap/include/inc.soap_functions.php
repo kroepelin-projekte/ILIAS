@@ -253,7 +253,7 @@ class ilSoapFunctions
     /**
      * @return soap_fault|SoapFault|string|null
      */
-    public static function getTreeChilds(string $sid, int $ref_id, array $types, int $user_id)
+    public static function getTreeChilds(string $sid, int $ref_id, ?array $types = null, ?int $user_id = null)
     {
         include_once './webservice/soap/classes/class.ilSoapObjectAdministration.php';
         $soa = new ilSoapObjectAdministration();
@@ -263,7 +263,7 @@ class ilSoapFunctions
     /**
      * @return soap_fault|SoapFault|string|null
      */
-    public static function getXMLTree(string $sid, int $ref_id, array $types, ?int $user_id = null)
+    public static function getXMLTree(string $sid, int $ref_id, ?array $types = null, ?int $user_id = null)
     {
         include_once './webservice/soap/classes/class.ilSoapObjectAdministration.php';
         $soa = new ilSoapObjectAdministration();

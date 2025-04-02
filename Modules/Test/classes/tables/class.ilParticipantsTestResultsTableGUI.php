@@ -36,6 +36,8 @@ class ilParticipantsTestResultsTableGUI extends ilTable2GUI
 
     protected bool $anonymity = false;
 
+    protected bool $is_score_last_pass;
+
     public function __construct(
         ilParticipantsTestResultsGUI $parent_obj,
         string $parent_cmd,
@@ -44,6 +46,9 @@ class ilParticipantsTestResultsTableGUI extends ilTable2GUI
     ) {
         $this->setId('tst_participants_' . $parent_obj->getTestObj()->getRefId());
         parent::__construct($parent_obj, $parent_cmd);
+
+        $this->is_score_last_pass = $parent_obj->getTestObj()->getScoreSettings()
+            ->getScoringSettings()->getPassScoring() === SCORE_LAST_PASS;
 
         $this->setStyle('table', 'fullwidth');
 
@@ -172,7 +177,7 @@ class ilParticipantsTestResultsTableGUI extends ilTable2GUI
         $this->tpl->setVariable("PERCENT_RESULT", $this->buildPercentResultString($a_set));
 
         $this->tpl->setVariable("PASSED_STATUS", $this->buildPassedStatusString($a_set));
-        $this->tpl->setVariable("FINAL_MARK", $a_set['final_mark']);
+        $this->tpl->setVariable("FINAL_MARK", $this->buildMarkString($a_set));
     }
 
     protected function buildActionsMenu(array $data): string
@@ -212,6 +217,10 @@ class ilParticipantsTestResultsTableGUI extends ilTable2GUI
 
     protected function buildPassedStatusString(array $data): string
     {
+        if ($data['has_unfinished_passes'] && $this->is_score_last_pass) {
+            return '';
+        }
+
         if ($data['passed_status']) {
             return $this->buildPassedIcon() . ' ' . $this->lng->txt('tst_passed');
         }
@@ -272,6 +281,14 @@ class ilParticipantsTestResultsTableGUI extends ilTable2GUI
             $data['reached_points'],
             $data['max_points']
         );
+    }
+
+    protected function buildMarkString(array $data): string
+    {
+        if ($data['has_unfinished_passes'] && $this->is_score_last_pass) {
+            return '';
+        }
+        return $data['final_mark'];
     }
 
     protected function buildPercentResultString(array $data): string

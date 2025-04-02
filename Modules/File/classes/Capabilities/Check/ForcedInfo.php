@@ -23,6 +23,7 @@ namespace ILIAS\File\Capabilities\Check;
 use ILIAS\File\Capabilities\Capability;
 use ILIAS\File\Capabilities\Capabilities;
 use ILIAS\File\Capabilities\Permissions;
+use ILIAS\File\Capabilities\Context;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -38,19 +39,25 @@ class ForcedInfo extends Info implements Check
         Capability $capability,
         CheckHelpers $helpers,
         \ilObjFileInfo $info,
-        int $ref_id,
+        Context $context,
     ): Capability {
-        return $capability->withUnlocked(
-            !$info->shouldDownloadDirectly() && $this->hasPermission(
-                $helpers,
-                $ref_id,
-                Permissions::VISIBLE,
-                Permissions::READ,
-                Permissions::WRITE,
-                Permissions::VIEW_CONTENT,
-                Permissions::EDIT_CONTENT
-            )
-        );
-    }
+        $force_info_page = !$info->shouldDownloadDirectly();
+        if ($force_info_page) {
+            return $capability->withUnlocked(true);
 
+            return $capability->withUnlocked(
+                $this->hasPermission(
+                    $helpers,
+                    $context,
+                    Permissions::VISIBLE,
+                    Permissions::READ,
+                    Permissions::WRITE,
+                    Permissions::VIEW_CONTENT,
+                    Permissions::EDIT_CONTENT
+                )
+            );
+        }
+
+        return $capability->withUnlocked(false);
+    }
 }

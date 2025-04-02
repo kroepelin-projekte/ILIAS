@@ -280,4 +280,29 @@ class ilMDCopyrightUpdateSteps implements ilDatabaseUpdateSteps
             }
         }
     }
+
+    /**
+     * Also change description of unmigrated 'All rights reserved',
+     * see https://mantis.ilias.de/view.php?id=41301
+     */
+    public function step_12(): void
+    {
+        $title = "All rights reserved";
+        $old_copyright = "This work has all rights reserved by the owner.";
+        $new_description = "The copyright holder reserves, or holds for their own use, all the rights provided by copyright law.";
+
+        $res = $this->db->query(
+            'SELECT entry_id FROM il_md_cpr_selections WHERE title = ' .
+            $this->db->quote($title, ilDBConstants::T_TEXT) . ' AND copyright = ' .
+            $this->db->quote($old_copyright, ilDBConstants::T_TEXT) .
+            " AND COALESCE(description, '') = ''"
+        );
+        if (($row = $this->db->fetchAssoc($res)) && isset($row['entry_id'])) {
+            $this->db->update(
+                'il_md_cpr_selections',
+                ['description' => [\ilDBConstants::T_TEXT, $new_description]],
+                ['entry_id' => [\ilDBConstants::T_INTEGER, $row['entry_id']]]
+            );
+        }
+    }
 }

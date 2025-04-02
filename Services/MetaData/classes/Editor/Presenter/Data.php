@@ -39,27 +39,37 @@ class Data implements DataInterface
 
     public function dataValue(ElementsDataInterface $data): string
     {
-        return $this->data_presentation->dataValue($data);
+        return $this->utilities->sanitizeForHTML(
+            $this->data_presentation->dataValue($data)
+        );
     }
 
     public function vocabularyValue(string $value): string
     {
-        return $this->data_presentation->vocabularyValue($value);
+        return $this->utilities->sanitizeForHTML(
+            $this->data_presentation->vocabularyValue($value)
+        );
     }
 
     public function language(string $language): string
     {
-        return $this->data_presentation->language($language);
+        return $this->utilities->sanitizeForHTML(
+            $this->data_presentation->language($language)
+        );
     }
 
     public function datetime(string $datetime): string
     {
-        return $this->data_presentation->datetime($datetime);
+        return $this->utilities->sanitizeForHTML(
+            $this->data_presentation->datetime($datetime)
+        );
     }
 
     public function duration(string $duration): string
     {
-        return $this->data_presentation->duration($duration);
+        return $this->utilities->sanitizeForHTML(
+            $this->data_presentation->duration($duration)
+        );
     }
 
     /**

@@ -686,7 +686,6 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, ilAs
             $this->setId($question_id);
             $this->setTitle((string) $data["title"]);
             $this->setComment((string) $data["description"]);
-            //$this->setSuggestedSolution($data["solution_hint"]);
             $this->setPoints($data['points']);
             $this->setOriginalId($data["original_id"]);
             $this->setObjId($data["obj_fi"]);

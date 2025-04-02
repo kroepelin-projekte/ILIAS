@@ -119,23 +119,6 @@ class CollectionTest extends AbstractBaseResourceBuilderTest
         $this->assertEquals([], $collection->getResourceIdentifications());
     }
 
-    public function testGetCollectionOfWrongUser(): void
-    {
-        $identifiation = new ResourceCollectionIdentification(self::DUMMY_RCID);
-
-        $this->collection_repository->method('existing')->with($identifiation)->willReturn(
-            new ResourceCollection($identifiation, 42, '')
-        );
-
-        $this->collection_repository->method('getResourceIdStrings')->with($identifiation)->willReturn(
-            $this->arrayAsGenerator([])
-        );
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Invalid owner of collection');
-        $collection = $this->collections->get($identifiation, 84);
-    }
-
     public function testIsIn(): void
     {
         $collection = new ResourceCollection(new ResourceCollectionIdentification(self::DUMMY_RCID), 42, '');

@@ -414,7 +414,8 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     {
         $ilCtrl = $this->ctrl;
 
-        $ilCtrl->redirect($this, "preview");
+        $ilCtrl->setParameterByClass("ilobjbloggui", "blpg", ""); // #14363
+        $ilCtrl->redirectByClass("ilobjbloggui", "render");
     }
 
     public function confirmBlogPostingDeletion(): void

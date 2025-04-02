@@ -67,6 +67,12 @@ class ilAuthSession
      */
     public function init(): bool
     {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $this->getLogger()->error(__METHOD__ . ' called with active session.');
+            $this->getLogger()->logStack(ilLogLevel::ERROR);
+            return false;
+        }
+
         session_start();
 
         $this->setId(session_id());

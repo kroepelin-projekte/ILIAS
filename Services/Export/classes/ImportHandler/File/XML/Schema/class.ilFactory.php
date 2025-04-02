@@ -89,7 +89,8 @@ class ilFactory implements ilXMLFileSchemaFactoryInterface
         if ($version_str === '') {
             return $this->handler()
                 ->withType($types[0])
-                ->withSubType($types[1]);
+                ->withSubType($types[1])
+                ->withVersion(new Version(((int) ILIAS_VERSION_NUMERIC) . ".0.0"));
         }
         return $this->handler()
             ->withType($types[0])

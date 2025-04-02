@@ -87,6 +87,7 @@ class MediaPoolRepository
         if ($keyword_filter) {
             $res = \ilMDKeyword::_searchKeywords($keyword_filter, 'mob', 0);
 
+            $filtered = [];
             foreach ($objs as $obj) {
                 if (in_array($obj['foreign_id'], $res)) {
                     $filtered[] = $obj;
@@ -143,6 +144,7 @@ class MediaPoolRepository
         if ($keyword_filter) {
             include_once './Services/MetaData/classes/class.ilMDKeyword.php';
             $res = \ilMDKeyword::_searchKeywords($keyword_filter, 'mpg', $pool_id);
+            $filtered = [];
             foreach ($objs as $obj) {
                 if (in_array($obj['obj_id'], $res)) {
                     $filtered[] = $obj;

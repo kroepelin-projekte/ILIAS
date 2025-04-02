@@ -22,6 +22,7 @@ namespace ILIAS\Object\Setup;
 
 use ILIAS\Setup\Migration;
 use ILIAS\Setup\Environment;
+use ILIAS\Setup\AdminInteraction;
 use ILIAS\ResourceStorage\Flavour\FlavourBuilder;
 use ILIAS\Object\Properties\CoreProperties\TileImage\ilObjectTileImageStakeholder;
 use ILIAS\Object\Properties\CoreProperties\TileImage\ilObjectTileImageFlavourDefinition;
@@ -31,9 +32,10 @@ use ILIAS\Object\Properties\CoreProperties\TileImage\ilObjectTileImageFlavourDef
  */
 class ilObjectTileImageMigration implements Migration
 {
-    protected \ilResourceStorageMigrationHelper $helper;
-    protected FlavourBuilder $flavour_builder;
-    protected ilObjectTileImageFlavourDefinition $flavour_definition;
+    private \ilResourceStorageMigrationHelper $helper;
+    private FlavourBuilder $flavour_builder;
+    private ilObjectTileImageFlavourDefinition $flavour_definition;
+    private AdminInteraction $admin_interaction;
 
     public function getLabel(): string
     {
@@ -56,6 +58,7 @@ class ilObjectTileImageMigration implements Migration
             new ilObjectTileImageStakeholder(),
             $environment
         );
+        $this->admin_interaction = $environment->getResource(Environment::RESOURCE_ADMIN_INTERACTION);
         $this->flavour_builder = $this->helper->getFlavourBuilder();
         $this->flavour_definition = new ilObjectTileImageFlavourDefinition();
     }
@@ -87,6 +90,11 @@ class ilObjectTileImageMigration implements Migration
             && (!file_exists(dirname($path))
                 || is_readable(dirname($path)) && !file_exists($path))) {
             $this->deleteTileImageInfoFromContainerSettings($next_record->id);
+            $this->admin_interaction->inform(
+                "The tile image for the object with the id {$next_record->id} and the path {$path} "
+                . 'could not be migrated. The entry linking the image to the object '
+                . 'was removed, the path to the image has been left on the system.'
+            );
             return;
         }
 
@@ -95,6 +103,15 @@ class ilObjectTileImageMigration implements Migration
             $next_record->owner
         );
 
+        if ($rid === null) {
+            $this->deleteTileImageInfoFromContainerSettings($next_record->id);
+            $this->admin_interaction->inform(
+                "The tile image for the object with the id {$next_record->id} and the path {$path} "
+                . 'could not be migrated. The database entry linking the image to the object '
+                . 'was removed, the path to the image has been left on the system.'
+            );
+            return;
+        }
         $this->flavour_builder->get($rid, $this->flavour_definition, true);
 
         $this->helper->getDatabase()->update(
@@ -107,7 +124,7 @@ class ilObjectTileImageMigration implements Migration
         $this->deleteTileImageInfoFromContainerSettings($next_record->id);
     }
 
-    private function getFullPath(int $object_id, string $extension): string
+    private function getFullPath(int $object_id, ?string $extension): string
     {
         return implode(
             DIRECTORY_SEPARATOR,

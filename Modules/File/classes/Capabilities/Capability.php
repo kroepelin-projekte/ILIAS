@@ -28,11 +28,16 @@ class Capability
 {
     private bool $unlocked = false;
     private ?URI $uri = null;
+    /**
+     * @var Permissions[]
+     */
+    private array $permissions = [];
 
     public function __construct(
         private Capabilities $capability,
-        private Permissions $permission
+        Permissions ... $permissions
     ) {
+        $this->permissions = $permissions;
     }
 
     public function withUnlocked(bool $unlocked): Capability
@@ -62,9 +67,9 @@ class Capability
         return $this->capability;
     }
 
-    public function getPermission(): Permissions
+    public function getPermissions(): array
     {
-        return $this->permission;
+        return $this->permissions;
     }
 
 }

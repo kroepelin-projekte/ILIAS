@@ -1809,7 +1809,7 @@ class ilObjectListGUI
         if ($this->std_cmd_only
             || $this->user->getId() === ANONYMOUS_USER_ID
             || !$this->getContainerObject() instanceof ilDesktopItemHandling
-            || $this->settings->get('rep_favourites', '0') === '0') {
+            || $this->settings->get('rep_favourites', '0') !== '1') {
             return;
         }
 
@@ -3209,6 +3209,7 @@ class ilObjectListGUI
     ): ?RepositoryObject {
         $ui = $this->ui;
 
+         $title = htmlspecialchars(addslashes($title));
         // even b tag produced bugs, see #32304
         $description = strip_tags($description);
 
@@ -3253,7 +3254,7 @@ class ilObjectListGUI
         $dropdown = $ui->factory()->dropdown()->standard($actions)
             ->withAriaLabel(sprintf(
                 $this->lng->txt('actions_for'),
-                htmlspecialchars(addslashes($title))
+                $title
             ));
 
         // workaround for #26205

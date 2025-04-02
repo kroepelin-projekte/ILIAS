@@ -53,4 +53,13 @@ class Utilities implements UtilitiesInterface
         }
         return $key . ' ' . implode(', ', $values);
     }
+
+    public function sanitizeForHTML(string $string): string
+    {
+        return htmlspecialchars(
+            $string,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'utf-8'
+        );
+    }
 }

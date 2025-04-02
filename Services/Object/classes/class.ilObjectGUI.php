@@ -880,11 +880,13 @@ class ilObjectGUI implements ImplementsCreationCallback
 
     public function editAvailabilityPeriodObject(): void
     {
-        if (!$this->checkPermissionBool('write')) {
+        $item_ref_ids = $this->retriever->getSelectedIdsFromObjectList();
+        if (!$this->checkPermissionBool('write')
+            && !$this->checkWritePermissionOnRefIdArray($item_ref_ids)) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'));
             return;
         }
-        $item_ref_ids = $this->retriever->getSelectedIdsFromObjectList();
+
         $availability_period_modal = $this->getMultiObjectPropertiesManipulator()->getEditAvailabilityPeriodPropertiesModal(
             $item_ref_ids,
             $this
@@ -904,13 +906,15 @@ class ilObjectGUI implements ImplementsCreationCallback
 
     public function saveAvailabilityPeriodObject(): void
     {
-        if (!$this->checkPermissionBool('write')) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'));
-            return;
-        }
-        $availability_period_modal = $this->getMultiObjectPropertiesManipulator()->saveEditAvailabilityPeriodPropertiesModal($this, $this->request);
-        if ($availability_period_modal === null) {
+        $availability_period_modal = $this->getMultiObjectPropertiesManipulator()->saveEditAvailabilityPeriodPropertiesModal(
+            $this,
+            fn($ref_ids): bool => $this->checkPermissionBool('write') || $this->checkWritePermissionOnRefIdArray($ref_ids),
+            $this->request
+        );
+        if ($availability_period_modal === true) {
             $this->tpl->setOnScreenMessage('success', $this->lng->txt('availability_period_changed'));
+        } elseif ($availability_period_modal === false) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'));
         } else {
             $this->tpl->setVariable(
                 'IL_OBJECT_MODALS',
@@ -1805,5 +1809,15 @@ class ilObjectGUI implements ImplementsCreationCallback
         $this->favourites->remove($this->user->getId(), $item_ref_id);
         $this->tpl->setOnScreenMessage("success", $this->lng->txt("rep_removed_from_favourites"), true);
         $this->ctrl->redirectToURL(ilLink::_getLink($this->requested_ref_id));
+    }
+
+    private function checkWritePermissionOnRefIdArray(array $ref_ids): bool
+    {
+        foreach ($ref_ids as $ref_id) {
+            if (!$this->access->checkAccess('write', '', $ref_id)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

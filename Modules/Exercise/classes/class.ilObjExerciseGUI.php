@@ -90,9 +90,9 @@ class ilObjExerciseGUI extends ilObjectGUI
         } elseif ($this->requested_ass_id > 0) {
             throw new ilExerciseException("Assignment ID does not match Exercise.");
         }
-
-        $this->lp_user_id = ($this->exercise_request->getUserId() > 0)
-            ?: $this->user->getId();
+        $this->lp_user_id = ($this->exercise_request->getUserId() > 0 && $this->access->checkAccess("read_learning_progress", "", $this->exercise_request->getRefId()))
+            ? $this->exercise_request->getUserId()
+            : $this->user->getId();
         $this->requested_sort_order = $this->exercise_request->getSortOrder();
         $this->requested_sort_by = $this->exercise_request->getSortBy();
         $this->requested_offset = $this->exercise_request->getOffset();

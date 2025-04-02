@@ -23,6 +23,7 @@
  */
 class ilObjWiki extends ilObject implements ilAdvancedMetaDataSubItems
 {
+    protected \ILIAS\Notes\Service $notes;
     protected \ILIAS\Wiki\InternalDomainService $domain;
     protected bool $page_toc = false;
     protected int $style_id = 0;
@@ -54,6 +55,7 @@ class ilObjWiki extends ilObject implements ilAdvancedMetaDataSubItems
         $this->user = $DIC->user();
         $this->type = "wiki";
         $this->setting = $DIC->settings();
+        $this->notes = $DIC->notes();
         parent::__construct($a_id, $a_call_by_reference);
 
         $this->content_style_service = $DIC
@@ -219,6 +221,8 @@ class ilObjWiki extends ilObject implements ilAdvancedMetaDataSubItems
             $start_page->create();
         }
 
+        $this->notes->domain()->activateComments($this->getId(), $this->getPublicNotes());
+
         return $id;
     }
 
@@ -259,6 +263,8 @@ class ilObjWiki extends ilObject implements ilAdvancedMetaDataSubItems
             $start_page->create();
         }
 
+        $this->notes->domain()->activateComments($this->getId(), $this->getPublicNotes());
+
         return true;
     }
 
@@ -281,11 +287,12 @@ class ilObjWiki extends ilObject implements ilAdvancedMetaDataSubItems
         $this->setRatingAsBlock((bool) $rec["rating_side"]);
         $this->setRatingForNewPages((bool) $rec["rating_new"]);
         $this->setRatingCategories((bool) $rec["rating_ext"]);
-        $this->setPublicNotes((bool) $rec["public_notes"]);
+        //$this->setPublicNotes((bool) $rec["public_notes"]);
         $this->setIntroduction((string) $rec["introduction"]);
         $this->setPageToc((bool) $rec["page_toc"]);
         $this->setEmptyPageTemplate((bool) $rec["empty_page_templ"]);
         $this->setLinkMetadataValues((bool) $rec["link_md_values"]);
+        $this->setPublicNotes($this->notes->domain()->commentsActive($this->getId()));
     }
 
 

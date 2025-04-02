@@ -144,7 +144,6 @@ class ilRoleAssignmentTableGUI extends ilTable2GUI
     public function parse(int $usr_id): void
     {
         global $DIC;
-
         $rbacreview = $DIC->rbac()->review();
         $tree = $DIC->repositoryTree();
         $ilUser = $DIC->user();
@@ -202,8 +201,10 @@ class ilRoleAssignmentTableGUI extends ilTable2GUI
                 }
 
                 $parent_node = $tree->getNodeData($rolf2);
-
-                $role["description"] = $this->lng->txt("obj_" . $parent_node["type"]) . "&nbsp;(#" . $parent_node["obj_id"] . ")";
+                if (!isset($parent_node['type']) || !isset($parent_node['obj_id'])) {
+                    continue;
+                }
+                $role['description'] = "{$this->lng->txt("obj_{$parent_node['type']}")}&nbsp;(#{$parent_node['obj_id']})";
             }
 
             $role_ids[$counter] = $role["obj_id"];

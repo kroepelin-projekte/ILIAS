@@ -24,6 +24,7 @@ use ILIAS\BackgroundTasks\Task\UserInteraction;
 use ILIAS\UI\Component\Button\Button;
 use ILIAS\UI\Component\Button\Shy;
 use ILIAS\UI\Component\Legacy\Legacy;
+use ILIAS\BackgroundTasks\Task\Job;
 
 /**
  * Class ilBTPopOverGUI
@@ -126,7 +127,7 @@ class ilBTPopOverGUI
             $item = $item->withAdditionalOnLoadCode(fn ($id) => "var notification_item = il.UI.item.notification.getNotificationItemObject($('#$id'));
                     il.BGTask.refreshItem(notification_item,'$url');");
 
-            $expected = $current_task->getExpectedTimeOfTaskInSeconds();
+            $expected = $current_task instanceof Job ? $current_task->getExpectedTimeOfTaskInSeconds() : 0;
             $possibly_failed = ($observer->getLastHeartbeat() < (time() - $expected));
             if ($possibly_failed) {
                 $item = $item->withDescription($this->txt('task_might_be_failed'));

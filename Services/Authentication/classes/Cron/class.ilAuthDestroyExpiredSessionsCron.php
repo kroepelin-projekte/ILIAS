@@ -65,6 +65,11 @@ class ilAuthDestroyExpiredSessionsCron extends ilCronJob
         return 1;
     }
 
+    public function isManuallyExecutable(): bool
+    {
+        return false;
+    }
+
     public function run(): ilCronJobResult
     {
         $result = new ilCronJobResult();

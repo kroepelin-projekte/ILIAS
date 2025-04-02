@@ -208,11 +208,11 @@ class ilObjContentPageGUI extends ilObject2GUI implements ilContentPageObjectCon
 
         $this->addToNavigationHistory();
 
-        if (
-            !$this->in_page_editor_style_context &&
+        if (!$this->in_page_editor_style_context &&
             strtolower($nextClass) !== strtolower(ilObjectContentStyleSettingsGUI::class) &&
-            (strtolower($cmd) !== strtolower(self::UI_CMD_EDIT) || strtolower($nextClass) !== strtolower(ilContentPagePageGUI::class))
-        ) {
+            (strtolower($cmd) !== strtolower(self::UI_CMD_EDIT) || strtolower($nextClass) !== strtolower(
+                ilContentPagePageGUI::class
+            ))) {
             $this->renderHeaderActions();
         }
 
@@ -231,11 +231,17 @@ class ilObjContentPageGUI extends ilObject2GUI implements ilContentPageObjectCon
             case strtolower(ilObjectContentStyleSettingsGUI::class):
                 $this->checkPermission('write');
                 $this->prepareOutput();
-                $this->setLocator();
-                if (!$this->in_page_editor_style_context) {
+
+                if ($this->in_page_editor_style_context) {
+                    $this->tabs_gui->setBackTarget(
+                        $this->lng->txt('back'),
+                        $this->ctrl->getLinkTarget(new ilContentPagePageGUI($this->object->getId()), 'edit')
+                    );
+                } else {
                     $this->tabs_gui->activateTab(self::UI_TAB_ID_SETTINGS);
                     $this->setSettingsSubTabs(self::UI_TAB_ID_STYLE);
                 }
+
                 $settings_gui = $this->content_style_gui
                     ->objectSettingsGUIForRefId(
                         null,

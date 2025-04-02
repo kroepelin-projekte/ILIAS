@@ -1258,6 +1258,7 @@ assessment#:#toplist_col_percentage#:#Százalék
 assessment#:#toplist_col_rank#:#Helyezés
 assessment#:#toplist_col_score#:#Pont
 assessment#:#toplist_col_wtime#:#Kidolgozási idő
+assessment#:#total_max_points_cannot_be_negative#:#The maximum amount of reachable points cannot be negative.###01 04 2025 new variable
 assessment#:#true#:#Igaz
 assessment#:#tst_access_code_created#:#Egyedi hozzáférési kódot állítottunk be az Ön számára, hogy bármikor elérhesse teszteredményeit, és hogy lehetősége legyen ennek a tesztnek a folytatására. Jegyezze fel ezt a kódot, hogy később a teszt elérhesse, illetve folytathassa.
 assessment#:#tst_activate_skill_service#:#Kompetenciaszolgáltatás
@@ -1606,7 +1607,6 @@ assessment#:#tst_objective_oriented_test_pass_without_questions#:#'%s' teszt ind
 assessment#:#tst_objective_progress_header#:#Tanulási célkitűzés folyamata
 assessment#:#tst_objectives_progress_header#:#Tanulási célkitűzések folyamata
 assessment#:#tst_old_style_rnd_quest_set_broken#:#Ez a véletlen teszt nem helyreállítható állapotban van, mert egy vagy több kérdésgyűjteményét törölték. Ezt a tesztet nem tölthetik ki többé.
-assessment#:#tst_optional_questions_confirmation_fixed_test#:#<b>A már teljesített tanulási célokhoz tartozó kérdést korábban már megválaszolta.</b><br /><br />Olyan kérdésre navigál, melyet már teljesített tanulási célhoz tartozik.<br />Választhat:<br /><br />Ha folytatja, tovább dolgozhat vagy egyszerűen csak megtekintheti ezeket a kérdéseket. Ha megváltoztatja korábbi kitöltéseiből elfogadott válaszait, leronthatja tanulási céljának eredményét.<br /><br />Ha nem kíván sem tovább dolgozni sem megnézni ezeket a kérdéseket, menjen vissza. A kérdéseket minden esetben figyelembe vesszük a kiértékelésnél.
 assessment#:#tst_optional_questions_confirmation_non_fixed_test#:#<b>A már teljesített tanulási célokhoz tartozó kérdés megválaszolása nem kötelező.</b><br /><br />Olyan kérdésre navigál, melyet már teljesített tanulási célhoz tartozik.<br />Választhat:<br /><br />Ha folytatja, tovább dolgozhat ezeken a kérdéseken. Válaszait korábbi teszkitöltéseiből nem fogadjuk el, mert új véletlen kérdéseket választunk ehhez a teszkitöltéshez, így le is ronthatja tanulási céljának eredményét.<br /><br />Ha nem kíván tovább dolgozni a kérdéseken, menjen vissza. Ebben az esetben a kérdéseket nem vesszük figyelembe a kiértékelésnél.
 assessment#:#tst_out_of_time_message#:#Sajnálom, elhasználta a teszt kitöltésére engedélyezett időkeretet!
 assessment#:#tst_participant#:#Résztvevő
@@ -1763,6 +1763,7 @@ assessment#:#tst_res_jump_to_participant_hint_opt#:#--Ugrás a résztvevőkhöz-
 assessment#:#tst_res_lo_objectives_header#:#Releváns Tanulási célkitűzések
 assessment#:#tst_res_lo_try_header#:#Teszkitöltés
 assessment#:#tst_res_lo_try_n#:#%s teszkitöltés
+assessment#:#tst_res_tab_msg_no_lp_access#:#You are currently not allowed to access your Learning Progress, as you are not allowed to see your test results.###01 04 2025 new variable
 assessment#:#tst_res_tab_msg_res_after_date#:#Itt mutatjuk meg az eredményeit ekkortól: %s
 assessment#:#tst_res_tab_msg_res_after_date_no_res#:#A teszt kitöltésekor itt mutatjuk meg az eredményeit ekkortól: %s
 assessment#:#tst_res_tab_msg_res_after_finish_test#:#Itt mutatjuk meg az eredményeit a teszt befejezése után.
@@ -2017,7 +2018,6 @@ auth#:#auth_cron_destroy_expired_sessions_desc#:#Ez az ütemezett feladat törli
 auth#:#auth_err_expired#:#Munkamenete inaktivitás miatt lejárt.
 auth#:#auth_err_invalid_user_account#:#Hitelesítés belső hiba miatt sikertelen.
 auth#:#auth_err_ldap_exception#:#Hitelesítés belső (LDAP) hitelesítési hiba miatt sikertelen.
-auth#:#auth_err_login_attempts_deactivation#:#Sikertelen bejelentkezési próbálkozások miatt fiókját inaktiváltuk.
 auth#:#auth_info_add#:#Válassza ezt a lehetőséget, ha még nem regisztrált az ILIAS-ba. Új ILIAS-fiók jön létre.
 auth#:#auth_info_migrate#:#Ha van már ILIAS-fiókja, adja meg felhasználónevét és jelszavát személyes adatai migrálásához (levelek, teszteredmények, …).
 auth#:#auth_ldap_server_ds#:#LDAP szerver
@@ -2889,8 +2889,6 @@ chatroom#:#chat_osc_accepts_messages_yes#:#Fogad üzeneteket
 chatroom#:#chat_osc_add_user#:#További felhasználók hozzáadása
 chatroom#:#chat_osc_conversations#:#Beszélgetések
 chatroom#:#chat_osc_doesnt_accept_msg#:#Beszélgetés nem lehetséges
-chatroom#:#chat_osc_dont_accept_msg#:#Önt jelenleg nem lehet meghívni beszélgetésbe, ezt '%s' alatt módosíthatja.
-chatroom#:#chat_osc_dont_accept_msg_link_txt#:#'Személyes beállítások'
 chatroom#:#chat_osc_head_grp_x_persons#:#%s felhasználó
 chatroom#:#chat_osc_invite_to_conversation#:#Beszélgetéshez hozzáadás
 chatroom#:#chat_osc_leave_grp_conv#:#Kilépés a beszélgetésből
@@ -3918,6 +3916,7 @@ common#:#download_selected_items#:#Letöltés
 common#:#downloading_settings#:#Letöltési beállítások
 common#:#dpro_accept_usr_agreement#:#Elfogadja az Adatvédelmi Nyilatkozatot?
 common#:#dpro_accept_usr_agreement_intro#:#Az Adatvédelmi Nyilatkozat módosult. El kell fogadnia az ILIAS további használata előtt. Olvassa el figyelmesen, és fogadja vagy utasítsa el az oldal alján lévő gomb használatával.
+common#:#dpro_agreed_on#:#DoDP agreed to on###01 04 2025 new variable
 common#:#dpro_force_accept_usr_agreement#:#El kell fogadnia az Adatvédelmi Nyilatkozatot!
 common#:#dpro_no_agreement_description#:#Jelenleg nem érhető el Adatvédelmi Nyilatkozat. Kérem, keresse az <a href="%1$s">üzemeltetőt</a>.
 common#:#dpro_refuse_acceptance#:#Az Adatvédelmi Nyilatkozat elutasítása
@@ -5633,7 +5632,6 @@ common#:#show_users_online#:#Bejelentkezett felhasználók megjelenítése
 common#:#show_who_is_online#:#Online felhasználók megjelenítése
 common#:#side_frame#:#Oldalkeret
 common#:#signature#:#Aláírás
-common#:#simultaneous_login_detected#:#Hozzáférését elutasították, mert ezzel a felhasználónévvel már bejelentkeztek.
 common#:#size#:#Méret
 common#:#skills#:#Kompetenciáim
 common#:#skin_style#:#Alapértelmezett felület/stílus
@@ -6010,7 +6008,6 @@ common#:#withdrawal_sure_account_no_consent_yet#:#Biztos, hogy nem fogadja el a 
 common#:#wizard_search_list#:#Keresése az alábbi találatokat eredményezte. Válasszon egyet közülük.
 common#:#wizard_title_info#:#Keresse meg a duplikálandó objektumot. Adja meg az objektum teljes címét vagy csak a cím egy részét, majd kattintson a 'Folytatás' gombra a találatok megjelenítéséhez.
 common#:#write#:#Írás
-common#:#wrong_ip_detected#:#Az Ön IP-címe: %s<br/>Erről az IP-címről nem érheti el az ILIAS-t.<br/>Vegye fel a kapcsolatot egy rendszergazdával.
 common#:#year#:#Év
 common#:#yearly#:#évente
 common#:#years#:#Év
@@ -7255,8 +7252,6 @@ content#:#glo_online_info#:#A felhasználók csak akkor használhatják a fogalo
 content#:#glo_presentation_mode#:#Megjelenítés módja
 content#:#glo_presentation_view#:#Megjelenítési nézet
 content#:#glo_quick_navigation#:#Gyors navigáció
-content#:#glo_show_taxonomy#:#Taxonómia
-content#:#glo_show_taxonomy_info#:#Külön allapon lehet definálni, majd szűrésre lehet használni a fogalomtár megjelenítési nézetében.
 content#:#glo_style#:#Fogalomtárstílus
 content#:#glo_table_form#:#Táblázatos formában
 content#:#glo_table_form_info#:#A fogalmak és meghatározásaik először kétoszlopos áttekintésben jelennek meg. Egy fogalomra kattintva új ablakban nyílik meg annak teljes tartalma.
@@ -9783,6 +9778,8 @@ file#:#preview_caption#:#%s/%s előnézet
 file#:#preview_image_size_info#:#Az előnézeti képek maximális hossza px-ben.
 file#:#preview_persisting#:#Állandó előnézeti képek
 file#:#preview_persisting_info#:#A generált előképeket eltároljuk, különben azokat menet közben állítjuk elő.
+file#:#previews_for_tiles#:#Tiles###01 04 2025 new variable
+file#:#previews_for_tiles_info#:#Use Preview for Tiles where possible.###01 04 2025 new variable
 file#:#publish_before_delete#:#A verzió(k) nem törölhető(k), mert nincs közzétett változata.
 file#:#replace_file_info#:#Az összes korábbi fájlverziót törli.
 file#:#resource_id#:#Erőforrás-ID
@@ -12793,18 +12790,12 @@ noti#:#noti_notification_deactivated#:#Az értesítőt sikeresen kikapcsolta
 notifications_adm#:#enable_osd#:#Képernyő-értesítések bekapcsolása
 notifications_adm#:#enable_osd_desc#:#A felhasználók értesítése felugró ablakban.
 notifications_adm#:#notification_settings#:#Értesítés beállításai
-notifications_adm#:#osd_delay#:#Megjelenítés elhalasztása
-notifications_adm#:#osd_delay_desc#:#A láthatóság késleltetése ezredmásodpercben.
-notifications_adm#:#osd_error_presentation_time_too_small#:#A megjelenítési idő legalább 1000 ezredmásodperc lehet.
-notifications_adm#:#osd_error_refresh_interval_smaller_than_delay_and_vanish_combined#:#A frissítési időköznek nagyobbnak kell lennie, mint a megjelenítés elhalasztása és a megjelenítési idő összege.
 notifications_adm#:#osd_error_refresh_interval_too_small#:#A frissítési időköz legalább 3000 ezredmásodperc lehet.
 notifications_adm#:#osd_interval#:#Frissítési időköz
 notifications_adm#:#osd_interval_desc#:#Új értesítések ellenőrzési ideje másodpercekben. Az alacsonyabb értéke gyorsabb értesítést jelent, de növeli a kérések számát és az adatforgalmat.
 notifications_adm#:#osd_play_sound#:#Hang lejátszása
 notifications_adm#:#osd_play_sound_desc#:#Új értesítéskor hangot játszunk le.
 notifications_adm#:#osd_settings#:#Képernyőértesítések
-notifications_adm#:#osd_vanish#:#Megjelenítési idő
-notifications_adm#:#osd_vanish_desc#:#Az értesítés megjelenítési ideje másodpercekben.
 obj#:#activation_visible_when_disabled#:#Láthatóság
 obj#:#activation_visible_when_disabled_info#:#Az objektum a megadott időszakon kívül is látható, de nem nyitható meg.
 obj#:#availability_period_changed#:#A kiválasztott objektumok elérhetőségi időszakát sikeresen módosította.
@@ -12817,6 +12808,7 @@ obj#:#copy_container_page_yes_label#:#Tartalomoldal másolása
 obj#:#custom_icon#:#Egyéni ikon
 obj#:#edit_availability_period#:#Elérhetőségi időszak
 obj#:#edit_questions#:#Kérdések módosítása
+obj#:#multiple_reference_deletion_info#:#Further references exist for the following objects.###01 04 2025 new variable
 obj#:#no_objects_selected#:#Legalább egy objektumot ki kell választania
 obj#:#obj_activate_content_lang#:#Lapszerkesztés fordításának bekapcsolása
 obj#:#obj_activate_multilang#:#Többnyelvűség bekapcsolása
@@ -13849,7 +13841,7 @@ rbac#:#chtr_moderate#:#A felhasználó moderálhat beszélgetést csevegőszobá
 rbac#:#chtr_read#:#A felhasználó csatlakozhat és részt vehet a csevegőszobában
 rbac#:#chtr_visible#:#A csevegőszoba látható
 rbac#:#chtr_write#:#A felhasználó szerkesztheti a csevegőszoba beállításait, és kitilthat felhasználókat
-rbac#:#cmis_edit_permissions#:#A felhasználó módosíthatja a Rendszerbeállítások » xAPI/cmi5 jogosultsági beállításait
+rbac#:#cmis_edit_permission#:#User can change permission settings of xAPI/cmi5 administration.###01 04 2025 new variable
 rbac#:#cmis_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » xAPI/cmi5 beállításaihoz
 rbac#:#cmis_visible#:#A felhasználó láthatja a Rendszerbeállítások » xAPI/cmi5 menüpontot
 rbac#:#cmis_write#:#A felhasználó módosíthatja a Rendszerbeállítások » xAPI/cmi5 beállításait
@@ -13921,6 +13913,10 @@ rbac#:#dcl_write#:#A felhasználó szerkesztheti az adatgyűjtés beállításai
 rbac#:#delete_files#:#Fájlok törlése
 rbac#:#delete_folders#:#Mappák törlése
 rbac#:#delete_wiki_pages#:#Oldalak törlése
+rbac#:#dpro_edit_permission#:#User can change permission settings in the Declaration of Data Protected administration###01 04 2025 new variable
+rbac#:#dpro_read#:#User has read access to the Declaration of Data Protection administration###01 04 2025 new variable
+rbac#:#dpro_visible#:#Declaration of Data Protection administration is visible###01 04 2025 new variable
+rbac#:#dpro_write#:#Edit settings in the Declaration of Data Protection###01 04 2025 new variable
 rbac#:#dshs_change_presentation#:#Műszerfal megjelenítésének módosítása
 rbac#:#dshs_edit_permission#:#A felhasználó módosíthatja a Rendszerbeállítások » Műszerfal jogosultsági beállításait
 rbac#:#dshs_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » Műszerfal beállításaihoz
@@ -14069,6 +14065,10 @@ rbac#:#il_lti_global_role#:#LTI-Felhasználó
 rbac#:#il_sess_participant#:#Munkamenet résztvevők
 rbac#:#il_sess_status_closed#:#Résztvevő nélküli zárt esemény
 rbac#:#ilias_id#:#ILIAS-ID
+rbac#:#impr_edit_permission#:#User can change permission settings of Legal Notice administration###01 04 2025 new variable
+rbac#:#impr_read#:#User can read in Legal Notice administration###01 04 2025 new variable
+rbac#:#impr_visible#:#Administration of Legal Notice is visible###01 04 2025 new variable
+rbac#:#impr_write#:#User can edit content and settings of Legal Notice###01 04 2025 new variable
 rbac#:#info_user_view_changed#:#A felhasználói nézet megváltozott
 rbac#:#internal_mail#:#Belső levelezés
 rbac#:#invite#:#Meghívás kérdőívhez
@@ -14116,7 +14116,7 @@ rbac#:#lso_read_learning_progress#:#A felhasználó megnézheti mások tanulási
 rbac#:#lso_unparticipate#:#A felhasználó leiratkozhat a tanulási sorról
 rbac#:#lso_visible#:#A tanulási sor látható
 rbac#:#lso_write#:#A felhasználó módosíthatja a tanulási sor beállításait
-rbac#:#lsos_edit_permissions#:#A felhasználó módosíthatja a Rendszerbeállítások » Tanulási sor jogosultsági beállításait
+rbac#:#lsos_edit_permission#:#User can change permission settings of Learning Sequences administration.###01 04 2025 new variable
 rbac#:#lsos_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » Tanulási sor beállításaihoz
 rbac#:#lsos_visible#:#A felhasználó láthatja a Rendszerbeállítások » Tanulási sor menüpontot
 rbac#:#lsos_write#:#A felhasználó módosíthatja a Rendszerbeállítások » Tanulási sor beállításait
@@ -14181,7 +14181,8 @@ rbac#:#moderate_frm#:#Moderálás
 rbac#:#msg_anonymous_cannot_be_assigned#:#Az Névtelen felhasználót nem lehet szerephez rendelni.
 rbac#:#msg_no_roles_of_type#:#Nincsenek elérhetők szerepek a kiválasztott szűrőbeállítással.
 rbac#:#news_add_news#:#Hír létrehozása
-rbac#:#nots_edit_permissions#:#A felhasználó módosíthatja a Rendszerbeállítások » Jegyzetek jogosultsági beállításait
+rbac#:#no_corresponding_roles#:#No corresponding roles could be found.###01 04 2025 new variable
+rbac#:#nots_edit_permission#:#User can change permission settings of Notes administration.###01 04 2025 new variable
 rbac#:#nots_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » Jegyzetek beállításaihoz
 rbac#:#nots_visible#:#A felhasználó láthatja a Rendszerbeállítások » Jegyzetek menüpontot
 rbac#:#nots_write#:#A felhasználó módosíthatja a Rendszerbeállítások » Jegyzetek beállításait
@@ -14258,7 +14259,7 @@ rbac#:#prgs_edit_permission#:#A felhasználó módosíthatja a Rendszerbeállít
 rbac#:#prgs_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » Képzési programok beállításaihoz
 rbac#:#prgs_visible#:#A felhasználó láthatja a Rendszerbeállítások » Képzési programok menüpontot
 rbac#:#prgs_write#:#A felhasználó módosíthatja a Rendszerbeállítások » Képzési programok beállításait
-rbac#:#prss_edit_permissions#:#A felhasználó módosíthatja a Rendszerbeállítások » 'Személyes erőforrások kezelése' jogosultsági beállításait
+rbac#:#prss_edit_permission#:#User can change permission settings of Personal Resources administration.###01 04 2025 new variable
 rbac#:#prss_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » 'Személyes erőforrások kezelése' beállításaihoz
 rbac#:#prss_visible#:#A felhasználó láthatja a Rendszerbeállítások » 'Személyes erőforrások kezelése' menüpontot
 rbac#:#prss_write#:#A felhasználó módosíthatja a Rendszerbeállítások » 'Személyes erőforrások kezelése' beállításait
@@ -14607,7 +14608,7 @@ rbac#:#usrf_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbe�
 rbac#:#usrf_read_users#:#A felhasználónak olvasási elérése van a helyi ILIAS-fiókokhoz (helyi rendszergazda)
 rbac#:#usrf_visible#:#A felhasználó láthatja a Rendszerbeállítások » ILIAS-fiókok menüpontot
 rbac#:#usrf_write#:#A felhasználó módosíthatja a Rendszerbeállítások » ILIAS-fiókok beállításait
-rbac#:#wbdv_edit_permissions#:#A felhasználó módosíthatja a Rendszerbeállítások » WebDAV jogosultsági beállításait
+rbac#:#wbdv_edit_permission#:#User can change permission settings of WebDAV administration.###01 04 2025 new variable
 rbac#:#wbdv_read#:#A felhasználónak olvasási hozzáférése van a Rendszerbeállítások » WebDAV beállításaihoz
 rbac#:#wbdv_visible#:#A felhasználó láthatja a Rendszerbeállítások » WebDAV menüpontot
 rbac#:#wbdv_write#:#A felhasználó módosíthatja a Rendszerbeállítások » WebDAV beállításait
@@ -14791,6 +14792,7 @@ rep#:#rep_fav_intro2#:#Kattintson '%s' elemre és válasszon egy tanulási objek
 rep#:#rep_fav_intro3#:#Amikor olyasmire bukkan, ami felkeltette az érdeklődését, adja hozzá a kedvenceihez: válassza a kívánt objektum <i>Műveletek</i> menüjéből a '<i>Hozzáadás a kedvencekhez</i>' lehetőséget.
 rep#:#rep_favourites#:#Kedvencek
 rep#:#rep_favourites_info#:#Kedvencként jelölhet meg tartalkomtárban lévő elemeket. A kedvencek listája az irányítópult és a menü beállításaiban kapcsolaható be és konfigurálható.
+rep#:#rep_input_not_empty#:#This field must not be empty, please provide a value.###01 04 2025 new variable
 rep#:#rep_intro#:#Üdvözöljük a Tartalomtárban!
 rep#:#rep_intro1#:#Ezen a területen tanulási és munkaforrásokat hozhat létre felhasználói számára. Minden forrás kategóriákba van szervezve. A kategóriák utalhatnak az Ön szervezetének struktúrájára (például osztályok), tudományágak hierarchiájára vagy iskolai osztályokra.
 rep#:#rep_intro2#:#Három lépés szükséges a kezdeti struktúra elkészítéséhez:
@@ -17193,6 +17195,7 @@ ui#:#order_option_numerical_ascending#:#0 → 9
 ui#:#order_option_numerical_descending#:#9 → 0
 ui#:#presentation_table_collapse#:#becsukás
 ui#:#presentation_table_expand#:#kinyitás
+ui#:#table_posinput_col_title#:#Pozíció
 ui#:#ui_chars_max#:#Maximum:
 ui#:#ui_chars_min#:#Minimum:
 ui#:#ui_chars_remaining#:#Fennmaradó karakterek száma:

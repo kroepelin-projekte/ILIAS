@@ -103,7 +103,7 @@ class assFormulaQuestionResult
         if (preg_match_all("/(\\\$v\\d+)/ims", $formula, $matches)) {
             foreach ($matches[1] as $variable) {
                 $varObj = $variables[$variable];
-                if (!is_object($varObj)) {
+                if (!is_object($varObj) || !is_numeric($varObj->getValue())) {
                     continue;
                 }
                 $value = $varObj->getBaseValue();
@@ -225,7 +225,7 @@ class assFormulaQuestionResult
         if (preg_match_all("/(\\\$v\\d+)/ims", $formula, $matches)) {
             foreach ($matches[1] as $variable) {
                 $varObj = $variables[$variable];
-                if (!is_object($varObj)) {
+                if (!is_object($varObj) || !is_numeric($varObj->getValue())) {
                     continue;
                 }
 
