@@ -16,6 +16,10 @@
  *
  *********************************************************************/
 
+use ILIAS\Modules\OrgUnit\ARHelper\DIC;
+use ILIAS\UI\Component\Modal\RoundTrip;
+use ILIAS\UI\Component\Modal\Interruptive;
+
 /**
  * Class ilBiblFieldFilterTableGUI
  *
@@ -24,9 +28,9 @@
  */
 class ilBiblFieldFilterTableGUI extends ilTable2GUI
 {
-    use \ILIAS\Modules\OrgUnit\ARHelper\DIC;
+    use DIC;
     public const TBL_ID = 'tbl_bibl_filters';
-    protected \ILIAS\UI\Component\Modal\RoundTrip $modal;
+    protected RoundTrip $modal;
     protected \ilBiblFactoryFacade $facade;
     protected array $interruptive_modals = [];
     protected array $filter = [];
@@ -66,7 +70,7 @@ class ilBiblFieldFilterTableGUI extends ilTable2GUI
 
     protected function initColumns(): void
     {
-        $this->addColumn($this->lng()->txt('field'), 'field');
+        $this->addColumn($this->lng()->txt('field'), 'field_id');
         $this->addColumn($this->lng()->txt('filter_type'), 'filter_type');
         $this->addColumn($this->lng()->txt('actions'), '', '150px');
     }
@@ -83,11 +87,7 @@ class ilBiblFieldFilterTableGUI extends ilTable2GUI
     {
         $this->addFilterItem($field); //
         $field->readFromSession();
-        if ($field instanceof ilCheckboxInputGUI) {
-            $this->filter[$field->getPostVar()] = $field->getChecked();
-        } else {
-            $this->filter[$field->getPostVar()] = $field->getValue();
-        }
+        $this->filter[$field->getPostVar()] = $field instanceof ilCheckboxInputGUI ? $field->getChecked() : $field->getValue();
     }
 
 
@@ -146,9 +146,9 @@ class ilBiblFieldFilterTableGUI extends ilTable2GUI
         $this->determineOffsetAndOrder();
         $this->determineLimit();
 
-        $sorting_column = $this->getOrderField() ? $this->getOrderField() : 'id';
+        $sorting_column = $this->getOrderField() !== '' && $this->getOrderField() !== '0' ? $this->getOrderField() : 'id';
 
-        $offset = $this->getOffset() ? $this->getOffset() : 0;
+        $offset = $this->getOffset();
 
         $sorting_direction = $this->getOrderDirection();
         $num = $this->getLimit();
@@ -165,7 +165,7 @@ class ilBiblFieldFilterTableGUI extends ilTable2GUI
 
 
     /**
-     * @return \ILIAS\UI\Component\Modal\Interruptive[]
+     * @return Interruptive[]
      */
     protected function getInterruptiveModals(): array
     {

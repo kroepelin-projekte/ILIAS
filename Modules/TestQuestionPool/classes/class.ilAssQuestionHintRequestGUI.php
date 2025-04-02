@@ -179,7 +179,7 @@ class ilAssQuestionHintRequestGUI extends ilAssQuestionHintAbstractGUI
         $form->setTitle(sprintf(
             $lng->txt('tst_question_hints_form_header_edit'),
             $questionHint->getIndex(),
-            $this->questionOBJ->getTitle()
+            $this->questionOBJ->getTitleForHTMLOutput()
         ));
 
         $form->addCommandButton(self::CMD_BACK_TO_QUESTION, $lng->txt('tst_question_hints_back_to_question'));

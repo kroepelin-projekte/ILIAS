@@ -3225,6 +3225,7 @@ class ilObjectListGUI
     ): ?RepositoryObject {
         $ui = $this->ui;
 
+        $title = htmlspecialchars(addslashes($title));
         // even b tag produced bugs, see #32304
         $description = strip_tags($description);
 
@@ -3269,7 +3270,7 @@ class ilObjectListGUI
         $dropdown = $ui->factory()->dropdown()->standard($actions)
                        ->withAriaLabel(sprintf(
                            $this->lng->txt('actions_for'),
-                           htmlspecialchars(addslashes($title))
+                           $title
                        ));
 
         $path = $this->getTileImagePath();

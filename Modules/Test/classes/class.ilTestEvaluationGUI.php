@@ -483,7 +483,9 @@ class ilTestEvaluationGUI extends ilTestServiceGUI
                         'counter' => ++$counter,
                         'id' => $question['id'],
                         'id_txt' => $this->lng->txt('question_id_short'),
-                        'title' => $data->getQuestionTitle($question['id'])
+                        'title' => $this->refinery->string()->stripTags()->transform(
+                            $data->getQuestionTitle($question['id'])
+                        )
                     );
 
                     $answeredquestion = $data->getParticipant($active_id)->getPass($pass)->getAnsweredQuestionByQuestionId($question["id"]);
@@ -667,7 +669,7 @@ class ilTestEvaluationGUI extends ilTestServiceGUI
                 $rows,
                 array(
                     'qid' => $question_id,
-                    'title' => $question_title,
+                    'title' => $this->refinery->string()->stripTags()->transform($question_title),
                     'points' => $points_reached,
                     'points_reached' => $points_reached,
                     'points_max' => $points_max,
@@ -1653,7 +1655,7 @@ class ilTestEvaluationGUI extends ilTestServiceGUI
                     $rows,
                     array(
                         'qid' => $question_id,
-                        'question_title' => $question_title,
+                        'question_title' => $this->refinery->string()->stripTags()->transform($question_title),
                         'number_of_answers' => $answered,
                         'output' => "<a href=\"" . $this->ctrl->getLinkTarget($this, "exportQuestionForAllParticipants") . "\">" . $this->lng->txt("pdf_export") . "</a>",
                         'file_uploads' => $download
