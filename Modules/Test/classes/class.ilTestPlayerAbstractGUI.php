@@ -283,12 +283,14 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
             $button = $this->ui_factory->button()->primary(
                 $this->lng->txt('next_question') . '<span class="glyphicon glyphicon-arrow-right"></span> ',
                 ''
-            )->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::NEXT_QUESTION));
+            )->withUnavailableAction(true)
+             ->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::NEXT_QUESTION));
         } else {
             $button = $this->ui_factory->button()->standard(
                 $this->lng->txt('next_question') . '<span class="glyphicon glyphicon-arrow-right"></span> ',
                 ''
-            )->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::NEXT_QUESTION));
+            )->withUnavailableAction(true)
+             ->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::NEXT_QUESTION));
         }
         return $button;
     }
@@ -303,7 +305,8 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $button = $this->ui_factory->button()->standard(
             '<span class="glyphicon glyphicon-arrow-left"></span> ' . $this->lng->txt('previous_question'),
             ''
-        )->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::PREVIOUS_QUESTION));
+        )->withUnavailableAction(true)
+         ->withOnLoadCode($this->getOnLoadCodeForNavigationButtons($target, ilTestPlayerCommands::PREVIOUS_QUESTION));
         return $button;
     }
 
@@ -312,7 +315,8 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         return static function (string $id) use ($target, $cmd): string {
             return "document.getElementById('{$id}').addEventListener('click', "
                 . "(e) => {il.TestPlayerQuestionEditControl.checkNavigation('{$target}', '{$cmd}', e);}"
-                . ");";
+                . "); "
+                . "document.getElementById('{$id}').removeAttribute('disabled');";
         };
     }
 
@@ -527,7 +531,7 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $this->redirectAfterFinish();
     }
 
-    public function redirectAfterDashboardCmd(): void
+    public function redirectAfterQuestionListCmd(): void
     {
         $this->redirectAfterFinish();
     }
@@ -1154,8 +1158,8 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
                 . ($processing_time_minutes == 1 ? $this->lng->txt("minute") : $this->lng->txt("minutes"));
         }
         if ($processing_time_seconds > 0) {
-            if (strlen($str_processing_time) > 0) {
-                $str_processing_time .= " " . $this->lng->txt("and") . " ";
+            if ($str_processing_time !== '') {
+                $str_processing_time .= ' ' . $this->lng->txt('and') . ' ';
             }
             $str_processing_time .= $processing_time_seconds . " " . ($processing_time_seconds == 1 ? $this->lng->txt("second") : $this->lng->txt("seconds"));
         }
@@ -1227,7 +1231,7 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $template->setVariable("PTIME_M", $processing_time_minutes);
         $template->setVariable("PTIME_S", $processing_time_seconds);
         if ($this->ctrl->getCmd() == 'outQuestionSummary') {
-            $template->setVariable("REDIRECT_URL", $this->ctrl->getFormAction($this, 'redirectAfterDashboardCmd'));
+            $template->setVariable("REDIRECT_URL", $this->ctrl->getFormActionByClass(static::class, ilTestPlayerCommands::REDIRECT_AFTER_QUESTION_LIST));
         } else {
             $template->setVariable("REDIRECT_URL", "");
         }
@@ -1256,11 +1260,10 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $active = 0;
 
         foreach ($question_summary_data as $idx => $row) {
-            $title = ilLegacyFormElementsUtil::prepareFormOutput($row['title']);
-            if (strlen($row['description'])) {
-                $description = " title=\"" . htmlspecialchars($row['description']) . "\" ";
-            } else {
-                $description = "";
+            $title = htmlspecialchars($row['title'], ENT_QUOTES, null, false);
+            $description = '';
+            if ($row['description'] !== '') {
+                $description = ' title="' . htmlspecialchars($row['description'], ENT_QUOTES, null, false) . '" ';
             }
 
             if (!$row['disabled']) {

@@ -99,6 +99,10 @@ class ilTestScoring
         foreach ($this->participants as $active_id => $userdata) {
             if (is_object($userdata) && is_array($userdata->getPasses())) {
                 $this->recalculatePasses($userdata, $active_id);
+                ilLPStatusWrapper::_updateStatus(
+                    $this->test->getId(),
+                    $userdata->getUserID()
+                );
             }
         }
 
@@ -223,7 +227,9 @@ class ilTestScoring
             $msg = $this->lng->txtlng('assessment', 'log_answer_changed_points', ilObjAssessmentFolder::_getLogLanguage());
             $msg = sprintf(
                 $msg,
-                $this->participants[$active_id] ? $this->participants[$active_id]->getName() : '',
+                isset($this->participants[$active_id]) && $this->participants[$active_id] instanceof ilTestEvaluationUserData ?
+                    $this->participants[$active_id]->getName() :
+                    '',
                 $old_points,
                 $points,
                 $this->initiator_name

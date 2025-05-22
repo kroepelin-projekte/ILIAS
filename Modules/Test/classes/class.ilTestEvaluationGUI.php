@@ -1169,13 +1169,6 @@ class ilTestEvaluationGUI extends ilTestServiceGUI
             $testResultHeaderLabelBuilder->initObjectiveOrientedMode();
         }
 
-        $result_array = $this->getFilteredTestResult($active_id, $pass, $considerHiddenQuestions, $considerOptionalQuestions);
-
-        $command_solution_details = "";
-        if ($this->object->getShowSolutionListComparison()) {
-            $command_solution_details = "outCorrectSolution";
-        }
-
         $tpl = new ilTemplate('tpl.il_as_tst_pass_details_overview_participants.html', true, true, "Modules/Test");
 
         $toolbar = $this->buildUserTestResultsToolbarGUI();

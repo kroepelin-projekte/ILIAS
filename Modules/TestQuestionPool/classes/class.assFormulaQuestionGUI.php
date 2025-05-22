@@ -165,9 +165,7 @@ class assFormulaQuestionGUI extends assQuestionGUI
                         $this->request->int("result_type_{$result}")
                     );
                     $this->object->addResult($resObj);
-                    if (isset($_POST["units_$result"]) && is_array($_POST["units_{$result}"])) {
-                        $this->object->addResultUnits($resObj, $_POST["units_{$result}"]);
-                    }
+                    $this->object->addResultUnits($resObj, $_POST["units_{$result}"] ?? []);
                 }
             }
             if ($checked == false) {

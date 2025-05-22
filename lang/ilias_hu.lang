@@ -176,6 +176,7 @@ administration#:#auth_auth_mode_determination#:#Azonosítási mód meghatározá
 administration#:#auth_automatic#:#Rögzített sorrend
 administration#:#auth_by_user#:#A felhasználó által
 administration#:#auth_kind_determination#:#Meghatározásfajta
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Jelölje be, ha a felhasználóknak ki kell választaniuk az azonosítási módot a bejelentkező képernyőn, vagy ha bejelentkezési módok rögzített sorrendjével kerül kezelésre.
 administration#:#clean#:#Rendbetétel
 administration#:#clean_desc#:#Érvénytelen hivatkozások és faszerkezet-bejegyzések eltávolítása. Hézagok inicializálása a faszerkezetben.
@@ -4527,6 +4528,7 @@ common#:#login_information_settings_saved#:#A bejelentkezési információkat si
 common#:#login_invalid#:#A választott felhasználónév nem érvényes! Csak a következő karakterek használhatók (minimum 3 karakter): A-Z a-z 0-9 _.+*@!$%~
 common#:#login_to_ilias#:#Bejelentkezés az ILIAS-ba
 common#:#login_to_ilias_via_cas#:#Központi hitelesítési szolgáltatáson keresztüli bejelentkezés az ILIAS-ba
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Bejelentkezés az ILIAS-ba SAML hitelesítésen keresztül
 common#:#login_to_ilias_via_shibboleth#:#ILIAS-ba bejelentkezés ezen keresztül:
 common#:#loginname_already_exists#:#Már van ilyen felhasználónév.
@@ -8565,10 +8567,10 @@ dcl#:#dcl_create_fields#:#Kattintson egy táblára a 'Táblák' lap alatt, majd 
 dcl#:#dcl_creation_date#:#Létrehozás dátuma
 dcl#:#dcl_creation_date_description#:#A bejegyzés létrehozásának dátuma.
 dcl#:#dcl_datatype#:#Adattípus
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Dátumválasztó
 dcl#:#dcl_date_selection_desc#:#Dátumlehetőségek választásának felkínálása.
-dcl#:#dcl_datetime#:#Dátum
-dcl#:#dcl_datetime_desc#:#Dátum beviteli mező.
 dcl#:#dcl_deactivate_view#:#Nézet kikapcsolása
 dcl#:#dcl_default_sort_field#:#Alapértelmezett rendezési mező
 dcl#:#dcl_default_sort_field_desc#:#A táblázatot alapértelmezetten ezen mező alapján rendezzük.
@@ -8680,14 +8682,12 @@ dcl#:#dcl_new_table#:#Új tábla
 dcl#:#dcl_next_record#:#Következő bejegyzés
 dcl#:#dcl_no_content_warning#:#Figyelem, az adatgyűjtés online, de még nincs tartalma!
 dcl#:#dcl_no_entry#:#Egy bejegyzés sem található
-dcl#:#dcl_no_export_content_available#:#Nincs exportálható bejegyzés.
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#Nincs exportálható mező, illetve bejegyzés.
-dcl#:#dcl_no_export_fields_available#:#Nincs exportálhatóként megjelölt mező. Jelöljön meg legalább egy mezőt exportálhatóként a <a href="%s">táblázat beállításaiban</a>.
 dcl#:#dcl_no_fields_yet#:#Ez az adatkészlet még nem tartalmaz mezőket. A metaadatokat a különböző mezőtípusok egyikébe kell bevinni. A metaadatok megadásához hozzon létre legalább egy adatmezőt.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#A táblázat alapértelmezett nézetéhez nincs olvasási hozzáférése.
 dcl#:#dcl_no_search_results_found_for#:#Egyetlen tananyagot sem sikerült találni ez alapján:
 dcl#:#dcl_no_such_reference#:#Az alábbi érték nem érhető el a referenciatáblában:
-dcl#:#dcl_no_warnings#:#Az import figyelmeztetés nélkül véget ért.
 dcl#:#dcl_not_checked#:#Nem kipipált
 dcl#:#dcl_not_supported_in_import#:#Ez a mezőtípus nem támogatott az importban.
 dcl#:#dcl_notification_activate_dcl#:#Értesítés bekapcsolása adatgyűjtésre
@@ -8711,7 +8711,6 @@ dcl#:#dcl_permissions_form#:#Felhasználói műveletek
 dcl#:#dcl_please_select#:#--- Válasszon ---
 dcl#:#dcl_plugin#:#Bővítmény
 dcl#:#dcl_plugin_desc#:#Adatgyűjtésmező-bővítmények
-dcl#:#dcl_plugin_hooks#:#Elérhető bővítmények
 dcl#:#dcl_plugin_no_hooks_available#:#Egy aktív mezőtípusú bővítmény sem található
 dcl#:#dcl_prev_record#:#Előző bejegyzés
 dcl#:#dcl_prop_expression#:#Kifejezés
@@ -8797,7 +8796,9 @@ dcl#:#dcl_title_standardview#:#Standard nézetek
 dcl#:#dcl_unique#:#Egyedi
 dcl#:#dcl_unique_desc#:#Ebben a mezőben minden értéknek különböznie kell egymástól.
 dcl#:#dcl_unique_exception#:#Az Ön által megadott értéket már másik bejegyzés tartalmazza.
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#Az Ön által megadott érték nem érvényes.
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Mező frissítése
 dcl#:#dcl_update_record#:#Bejegyzés módosítása
 dcl#:#dcl_url#:#URL
@@ -8811,7 +8812,7 @@ dcl#:#dcl_width#:#Szélesség
 dcl#:#dcl_wrong_input_type#:#Az Ön által megadott érték nem illeszkedik a specifikációhoz (rossz típus).
 dcl#:#dcl_wrong_length#:#Az Ön által megadott szöveg túl hosszú.
 dcl#:#dcl_wrong_regex#:#Az Ön által megadott szöveg nem illeszkedik ennek a mezőnek a specifikációjához (reguláris kifejezéshez).
-dcl#:#dlc_xls_async_export#:#Aszinkron Excel (.xlsx) exportálás
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Nem engedélyezett karakterek: %s
 dcl#:#fileupload_not_migrated#:#Ezt fájlt még nem migrálták, ezért nem jeleníthető meg. Kérem, keresse a rendszerüzemeltetőt.
 didactic#:#activate_exclusive_template#:#Alapértelmezetten őszülő
@@ -14297,7 +14298,10 @@ rbac#:#rbac_choose_copy_targets#:#Adjon meg egy kifejezést, mellyel megtalálha
 rbac#:#rbac_condition_delete_sure#:#Biztos, hogy törli az alábbi előfeltételeket?
 rbac#:#rbac_context_global#:#Globális
 rbac#:#rbac_copy_behaviour#:#Szerepmásolási beállítások
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#A másolás befejeződött.
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Szerep másolása
 rbac#:#rbac_copy_role_add_perm#:#Hozzáadási engedélyek
 rbac#:#rbac_copy_role_copy#:#Másolási engedélyek
@@ -14418,6 +14422,7 @@ rbac#:#rbac_role_rights_copy_empty#:#Semmi
 rbac#:#rbac_role_selection#:#Szereptípus
 rbac#:#rbac_role_title#:#Szerepcím
 rbac#:#rbac_select_copy_targets#:#Válassza ki a célszerepeket.
+rbac#:#rbac_select_roles#:#Szerep kiválasztása
 rbac#:#rbac_ud_global#:#Felhasználó által létrehozott globális szerep
 rbac#:#rbac_ud_local#:#Felhasználó által létrehozott helyi szerep
 rbac#:#rbac_ud_rolt#:#Felhasználó által létrehozott szerepsablon
@@ -15730,6 +15735,7 @@ style#:#sty_ca_cntr_class#:#Körhintatároló
 style#:#sty_ca_icntr_class#:#Körhintaelem-tároló
 style#:#sty_ca_icont_class#:#Körhintaelem-tartalom
 style#:#sty_ca_ihead_class#:#Körhintafejléc
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Felirat
 style#:#sty_caption_class#:#Felirat
 style#:#sty_carousel_templates#:#Körhinta-sablonok

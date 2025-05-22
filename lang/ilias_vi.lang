@@ -178,6 +178,7 @@ administration#:#auth_auth_mode_determination#:#Authentication Method Determinat
 administration#:#auth_automatic#:#Fixed Sequence###27 11 2007 new variable
 administration#:#auth_by_user#:#By the User###27 11 2007 new variable
 administration#:#auth_kind_determination#:#Kind of Determination###27 11 2007 new variable
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Choose either if the users have to select their authentication method on the login screen or if this is managed by a fixed sequence of authentication methods.###27 11 2007 new variable
 administration#:#clean#:#Dọn sạch
 administration#:#clean_desc#:#Loại bỏ các tham chiếu và mục không hợp lệ trong cây. Điền các chỗ trống trên cây cấu trúc.
@@ -4529,6 +4530,7 @@ common#:#login_information_settings_saved#:#The login information were saved suc
 common#:#login_invalid#:#Tên đăng nhập không hợp lệ! Chỉ các ký tự sau là được phép (tối thiểu 4 ký tự): A-Z a-z 0-9 _.-+*@!$%~
 common#:#login_to_ilias#:#Đăng nhập hệ thống
 common#:#login_to_ilias_via_cas#:#Login to ILIAS via Central Authentication Service###25 02 2007 new variable
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Login to ILIAS via SAML Authentification###31 08 2017 new variable
 common#:#login_to_ilias_via_shibboleth#:#Đăng nhập vào ILIAS qua Shibboleth
 common#:#loginname_already_exists#:#This login name already exists.###24 02 2009 new variable
@@ -8567,10 +8569,10 @@ dcl#:#dcl_create_fields#:#Please create at least one field in the tab "List Fiel
 dcl#:#dcl_creation_date#:#Creation Date###20 07 2014 new variable
 dcl#:#dcl_creation_date_description#:#The date on which the entry was created.###20 07 2014 new variable
 dcl#:#dcl_datatype#:#Datatype###28 08 2012 new variable
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Date Selection###31 08 2017 new variable
 dcl#:#dcl_date_selection_desc#:#Offer selection of date options.###31 08 2017 new variable
-dcl#:#dcl_datetime#:#Datetime###28 08 2012 new variable
-dcl#:#dcl_datetime_desc#:#Datumseingabe per Auswahlmenü oder Kalender###30 08 2015 new variable
 dcl#:#dcl_deactivate_view#:#Deactivate this view###27 01 2015 new variable
 dcl#:#dcl_default_sort_field#:#Default sort field###26 09 2014 new variable
 dcl#:#dcl_default_sort_field_desc#:#Tabelle wird standardmässig nach dem ausgewählten Feld sortiert.###30 08 2015 new variable
@@ -8682,14 +8684,12 @@ dcl#:#dcl_new_table#:#New Table###28 08 2012 new variable
 dcl#:#dcl_next_record#:#Next record###26 09 2014 new variable
 dcl#:#dcl_no_content_warning#:#Attention, the Data Collection is online but does not have content yet!###28 09 2012 new variable
 dcl#:#dcl_no_entry#:#No entry###07 02 2020 new variable
-dcl#:#dcl_no_export_content_available#:#No data available for export.###23 10 2017 new variable
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#No data or fields available for export.###25 10 2016 new variable
-dcl#:#dcl_no_export_fields_available#:#No fields activated for export. Mark at least one field as exportable in the <a href="%s">table settings</a>.###23 10 2017 new variable
 dcl#:#dcl_no_fields_yet#:#There are no fields defined for this table thus you cannot create any entries yet.###14 01 2013 new variable
 dcl#:#dcl_no_read_access_on_any_standard_view#:#You don't have read access on any standard view of a table.###10 11 2018 new variable
 dcl#:#dcl_no_search_results_found_for#:#No modules have been found for###28 11 2012 new variable
 dcl#:#dcl_no_such_reference#:#The following value is not available in the reference table:###24 10 2013 new variable
-dcl#:#dcl_no_warnings#:#The import terminated with no warnings.###24 10 2013 new variable
 dcl#:#dcl_not_checked#:#Not checked.###28 08 2012 new variable
 dcl#:#dcl_not_supported_in_import#:#This type of field is not supported in the import###24 10 2013 new variable
 dcl#:#dcl_notification_activate_dcl#:#Activate Notification for Data Collection###28 08 2012 new variable
@@ -8713,7 +8713,6 @@ dcl#:#dcl_permissions_form#:#User rights###27 10 2012 new variable
 dcl#:#dcl_please_select#:#--- Please select ---###04 01 2014 new variable
 dcl#:#dcl_plugin#:#Plugin###25 10 2016 new variable
 dcl#:#dcl_plugin_desc#:#DataCollection Field-Plugins###25 10 2016 new variable
-dcl#:#dcl_plugin_hooks#:#Available Plugins###25 10 2016 new variable
 dcl#:#dcl_plugin_no_hooks_available#:#No active field-type plugins found###25 10 2016 new variable
 dcl#:#dcl_prev_record#:#Previous record###26 09 2014 new variable
 dcl#:#dcl_prop_expression#:#Expression###26 09 2014 new variable
@@ -8799,7 +8798,9 @@ dcl#:#dcl_title_standardview#:#Standard Views###10 11 2018 new variable
 dcl#:#dcl_unique#:#Unique###28 08 2012 new variable
 dcl#:#dcl_unique_desc#:#In dieses Feld kann ein gleichlautender Eintrag nur einmal vorgenommen werden.###30 08 2015 new variable
 dcl#:#dcl_unique_exception#:#The value you entered is already taken by another record.###28 08 2012 new variable
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#The value you entered is not valid.###28 08 2012 new variable
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Update Field###28 08 2012 new variable
 dcl#:#dcl_update_record#:#Update Record###28 08 2012 new variable
 dcl#:#dcl_url#:#URL###28 08 2012 new variable
@@ -8813,7 +8814,7 @@ dcl#:#dcl_width#:#Width###02 09 2012 new variable
 dcl#:#dcl_wrong_input_type#:#The value you entered does not match the specification (Wrong Type).###28 08 2012 new variable
 dcl#:#dcl_wrong_length#:#The text you entered is to long.###28 08 2012 new variable
 dcl#:#dcl_wrong_regex#:#The text you entered does not match the specification for this field (Regular Expression).###28 08 2012 new variable
-dcl#:#dlc_xls_async_export#:#Asynchronous XLSX-Export###25 10 2016 new variable
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Allowed chars: %s###16 09 2013 new variable
 dcl#:#fileupload_not_migrated#:#File has not yet been migration and cannot be displayed. Please contact your System-Administrator.###30 04 2024 new variable
 didactic#:#activate_exclusive_template#:#Grey Out Default###25 10 2016 new variable
@@ -14299,7 +14300,10 @@ rbac#:#rbac_choose_copy_targets#:#Please enter a quer for selecting the target r
 rbac#:#rbac_condition_delete_sure#:#Are you sure you want to delete the following preconditions?###18 01 2012 new variable
 rbac#:#rbac_context_global#:#Global###06 08 2011 new variable
 rbac#:#rbac_copy_behaviour#:#Role Copy Settings###01 10 2011 new variable
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#Finished copying.###01 10 2011 new variable
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Copy Role###01 10 2011 new variable
 rbac#:#rbac_copy_role_add_perm#:#Add Permissions###24 10 2013 new variable
 rbac#:#rbac_copy_role_copy#:#Copy Permissions###24 10 2013 new variable
@@ -14420,6 +14424,7 @@ rbac#:#rbac_role_rights_copy_empty#:#None###16 07 2010 new variable
 rbac#:#rbac_role_selection#:#Role Type###06 08 2011 new variable
 rbac#:#rbac_role_title#:#Role Title###01 10 2011 new variable
 rbac#:#rbac_select_copy_targets#:#Please select the target roles###01 10 2011 new variable
+rbac#:#rbac_select_roles#:#Role Selection
 rbac#:#rbac_ud_global#:#User defined global role###06 08 2011 new variable
 rbac#:#rbac_ud_local#:#User defined local role###06 08 2011 new variable
 rbac#:#rbac_ud_rolt#:#User defined role template###06 08 2011 new variable
@@ -15732,6 +15737,7 @@ style#:#sty_ca_cntr_class#:#Carousel Container###30 08 2015 new variable
 style#:#sty_ca_icntr_class#:#Carousel Item Container###30 08 2015 new variable
 style#:#sty_ca_icont_class#:#Carousel Item Content###30 08 2015 new variable
 style#:#sty_ca_ihead_class#:#Carousel Item Header###30 08 2015 new variable
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Caption###15 05 2009 new variable
 style#:#sty_caption_class#:#Caption###15 05 2009 new variable
 style#:#sty_carousel_templates#:#Carousel Templates###30 08 2015 new variable
