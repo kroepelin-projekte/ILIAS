@@ -174,6 +174,7 @@ administration#:#auth_auth_mode_determination#:#Authentication Method Determinat
 administration#:#auth_automatic#:#Fixed Sequence
 administration#:#auth_by_user#:#By the User
 administration#:#auth_kind_determination#:#Kind of Determination
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Choose either if the users have to select their authentication method on the login screen or if this is managed by a fixed sequence of authentication methods.
 administration#:#clean#:#Clean up
 administration#:#clean_desc#:#Remove invalid references and tree entries. Initialize gaps in tree structure.
@@ -4525,6 +4526,7 @@ common#:#login_information_settings_saved#:#Informacije za prijavo so bile uspe�
 common#:#login_invalid#:#Izbrano uporabniško ime ni dovoljeno! Uporabniško ime mora imeti vsaj tri znake in lahko vsebuje samo naslednje znake: A-Z a-z 0-9 _.-+*@!$%~
 common#:#login_to_ilias#:#Prijava v ILIAS
 common#:#login_to_ilias_via_cas#:#Prijava v ILIAS preko centralnega sistema za avtentikacijo
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Prijava v ILIAS preko avtentikacije SAML
 common#:#login_to_ilias_via_shibboleth#:#Prijava v ILIAS preko
 common#:#loginname_already_exists#:#To uporabniško ime že obstaja.
@@ -8563,10 +8565,10 @@ dcl#:#dcl_create_fields#:#V zavihku "Tabele" kliknite na tabelo in s pomočjo gu
 dcl#:#dcl_creation_date#:#Datum nastanka
 dcl#:#dcl_creation_date_description#:#Datum nastanka tega vnosa.
 dcl#:#dcl_datatype#:#Tip podatkov
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Izbirni meni za datum
 dcl#:#dcl_date_selection_desc#:#Zagotovitev izbirnih možnosti (datum)
-dcl#:#dcl_datetime#:#Vnos datuma
-dcl#:#dcl_datetime_desc#:#Vnos datuma prek izbirnega menija ali koledarja
 dcl#:#dcl_deactivate_view#:#Onemogoči predlogo strani
 dcl#:#dcl_default_sort_field#:#Razvrstitev
 dcl#:#dcl_default_sort_field_desc#:#Tabela bo privzeto razvrščena po izbranem polju.
@@ -8678,14 +8680,12 @@ dcl#:#dcl_new_table#:#Nova tabela
 dcl#:#dcl_next_record#:#Naslednji vnos
 dcl#:#dcl_no_content_warning#:#Pozor, zbirka podatkov je že na spletu, nima pa še vsebine!
 dcl#:#dcl_no_entry#:#No entry
-dcl#:#dcl_no_export_content_available#:#Ni razpoložljivih podatkov za izvoz.
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#Ni razpoložljivih podatkov ali polj za izvoz.
-dcl#:#dcl_no_export_fields_available#:#Nobeno polje ni aktivirano za izvoz. Označite vsaj eno polje kot "Za izvoz" v <a href="%s">Nastavitve tabele</a>.
 dcl#:#dcl_no_fields_yet#:#Za to tabelo še niso bila ustvarjena polja, zato ne morete vstaviti vnosov.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#Nimate bralnega dostopa do nobenega od privzetih pogledov tabele.
 dcl#:#dcl_no_search_results_found_for#:#Najden ni bil noben modul z:
 dcl#:#dcl_no_such_reference#:#Naslednja vrednost ni na voljo v referenčni tabeli:
-dcl#:#dcl_no_warnings#:#Uvoz se je zaključil brez težav.
 dcl#:#dcl_not_checked#:#Ni izbrano
 dcl#:#dcl_not_supported_in_import#:#Ta tip polja ni podprt za uvoz.
 dcl#:#dcl_notification_activate_dcl#:#Aktiviraj obveščanje
@@ -8709,7 +8709,6 @@ dcl#:#dcl_permissions_form#:#Dovoljenja za to tabelo
 dcl#:#dcl_please_select#:#--- Izberite ---
 dcl#:#dcl_plugin#:#Vtičnik
 dcl#:#dcl_plugin_desc#:#Razširitve za polje DataCollection
-dcl#:#dcl_plugin_hooks#:#Razpoložljive razširitve
 dcl#:#dcl_plugin_no_hooks_available#:#Aktivni vtičniki za tip polja niso bili najdeni
 dcl#:#dcl_prev_record#:#Prejšnji vnos
 dcl#:#dcl_prop_expression#:#Izraz
@@ -8795,7 +8794,9 @@ dcl#:#dcl_title_standardview#:#Privzeti pogled
 dcl#:#dcl_unique#:#Prepreči enake vnose
 dcl#:#dcl_unique_desc#:#V tem polju je dovoljen samo en identičen vnos.
 dcl#:#dcl_unique_exception#:#Vneseno vrednost že uporablja drug vnos.
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#Vnesena vrednost ni veljavna.
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Posodobi polje
 dcl#:#dcl_update_record#:#Posodobi vnos
 dcl#:#dcl_url#:#URL ali e-pošta
@@ -8809,7 +8810,7 @@ dcl#:#dcl_width#:#Širina
 dcl#:#dcl_wrong_input_type#:#Vneseno besedilo se ne ujema s tipom tega polja (napačna vrsta).
 dcl#:#dcl_wrong_length#:#Vneseno besedilo je predolgo.
 dcl#:#dcl_wrong_regex#:#Vneseno besedilo se ne ujema s specifikacijo tega polja (regularni izraz).
-dcl#:#dlc_xls_async_export#:#Asinhroni izvoz XLSX
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Nedovoljeni znaki: %s
 dcl#:#fileupload_not_migrated#:#File has not yet been migration and cannot be displayed. Please contact your System-Administrator.###30 04 2024 new variable
 didactic#:#activate_exclusive_template#:#Privzeto sivo
@@ -14295,7 +14296,10 @@ rbac#:#rbac_choose_copy_targets#:#Vnesite iskalni pojem za izbiro vlog, na kater
 rbac#:#rbac_condition_delete_sure#:#Ali res želite izbrisati naslednje predpogoje?
 rbac#:#rbac_context_global#:#Globalno
 rbac#:#rbac_copy_behaviour#:#Nastavitve kopiranja pravic
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#Pravice so se prenesle na izbrane vloge.
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Kopiraj vlogo
 rbac#:#rbac_copy_role_add_perm#:#Dodaj pravice
 rbac#:#rbac_copy_role_copy#:#Kopiraj pravice
@@ -14416,6 +14420,7 @@ rbac#:#rbac_role_rights_copy_empty#:#Ne obstaja
 rbac#:#rbac_role_selection#:#Tip vloge
 rbac#:#rbac_role_title#:#Naslov vloge
 rbac#:#rbac_select_copy_targets#:#Izberite vloge, na katere želite prenesti pravice.
+rbac#:#rbac_select_roles#:#Role Selection
 rbac#:#rbac_ud_global#:#Uporabniško ustvarjena globalna vloga
 rbac#:#rbac_ud_local#:#Uporabniško ustvarjena lokalna vloga
 rbac#:#rbac_ud_rolt#:#Uporabniško ustvarjena predloga vlog
@@ -15728,6 +15733,7 @@ style#:#sty_ca_cntr_class#:#Carousel Container
 style#:#sty_ca_icntr_class#:#Carousel Item Container
 style#:#sty_ca_icont_class#:#Carousel Item Content
 style#:#sty_ca_ihead_class#:#Carousel Item Header
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Caption
 style#:#sty_caption_class#:#Caption
 style#:#sty_carousel_templates#:#Carousel Templates

@@ -1,9 +1,9 @@
 /*M!999999\- enable the sandbox mode */ 
--- MariaDB dump 10.19  Distrib 10.6.21-MariaDB, for debian-linux-gnu (x86_64)
+-- MariaDB dump 10.19  Distrib 10.6.22-MariaDB, for debian-linux-gnu (x86_64)
 --
 -- Host: localhost    Database: ilias_release
 -- ------------------------------------------------------
--- Server version	10.6.21-MariaDB-0ubuntu0.22.04.2
+-- Server version	10.6.22-MariaDB-0ubuntu0.22.04.1
 
 --
 -- Table structure for table `acc_access_key`
@@ -1802,22 +1802,6 @@ CREATE TABLE `cal_shared_status` (
 
 --
 -- Dumping data for table `cal_shared_status`
---
-
-
---
--- Table structure for table `catch_write_events`
---
-
-CREATE TABLE `catch_write_events` (
-  `obj_id` int(11) NOT NULL DEFAULT 0,
-  `usr_id` int(11) NOT NULL DEFAULT 0,
-  `ts` datetime DEFAULT NULL,
-  PRIMARY KEY (`obj_id`,`usr_id`)
-) ;
-
---
--- Dumping data for table `catch_write_events`
 --
 
 
@@ -7041,6 +7025,7 @@ INSERT INTO `il_db_steps` VALUES ('ilCtrlDatabaseUpdateSteps',4,'2023-12-12 16:3
 INSERT INTO `il_db_steps` VALUES ('ilCtrlDatabaseUpdateSteps',5,'2023-12-12 16:39:41.357629','2023-12-12 16:39:41.364305');
 INSERT INTO `il_db_steps` VALUES ('ilCtrlDatabaseUpdateSteps',6,'2023-12-12 16:39:41.364838','2023-12-12 16:39:41.371618');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollection9HotfixDBUpdateSteps',1,'2025-04-01 15:15:43.524996','2025-04-01 15:15:43.525482');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollection9HotfixDBUpdateSteps',2,'2025-05-20 15:03:13.562112','2025-05-20 15:03:13.562832');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',1,'2023-12-12 16:39:39.706792','2023-12-12 16:39:39.715602');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',2,'2023-12-12 16:39:39.716246','2023-12-12 16:39:39.739058');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',3,'2023-12-12 16:39:39.739786','2023-12-12 16:39:39.748476');
@@ -7058,6 +7043,9 @@ INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',14,'2024-10-0
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',15,'2024-10-08 14:30:30.512201','2024-10-08 14:30:30.519362');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',16,'2024-10-08 14:30:30.519679','2024-10-08 14:30:30.520036');
 INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',17,'2024-12-10 15:59:52.840925','2024-12-10 15:59:52.841376');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',18,'2025-05-20 15:03:13.558355','2025-05-20 15:03:13.558622');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',19,'2025-05-20 15:03:13.558867','2025-05-20 15:03:13.560865');
+INSERT INTO `il_db_steps` VALUES ('ilDataCollectionDBUpdateSteps9',20,'2025-05-20 15:03:13.561117','2025-05-20 15:03:13.561593');
 INSERT INTO `il_db_steps` VALUES ('ilECSDBUpdateSteps',1,'2023-12-12 16:39:39.782084','2023-12-12 16:39:39.788234');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',1,'2023-12-12 16:39:41.504023','2023-12-12 16:39:41.515769');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',2,'2023-12-12 16:39:41.516395','2023-12-12 16:39:41.521923');
@@ -7066,6 +7054,7 @@ INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',4,'2023-12-12 16:39:41.528
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',5,'2023-12-12 16:39:41.534847','2023-12-12 16:39:41.540300');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',6,'2023-12-12 16:39:41.540918','2023-12-12 16:39:41.547675');
 INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps8',7,'2023-12-12 16:39:41.548340','2023-12-12 16:39:41.553727');
+INSERT INTO `il_db_steps` VALUES ('ilECSUpdateSteps9',1,'2025-05-20 15:03:13.563478','2025-05-20 15:03:13.563956');
 INSERT INTO `il_db_steps` VALUES ('ilFileObjectDatabaseObjective',1,'2023-12-12 16:39:39.914414','2023-12-12 16:39:39.920671');
 INSERT INTO `il_db_steps` VALUES ('ilFileObjectDatabaseObjective',2,'2023-12-12 16:39:39.921276','2023-12-12 16:39:39.928502');
 INSERT INTO `il_db_steps` VALUES ('ilFileObjectDatabaseObjective',3,'2023-12-12 16:39:39.929117','2023-12-12 16:39:39.929997');
@@ -7126,6 +7115,7 @@ INSERT INTO `il_db_steps` VALUES ('ILIAS\\COPage\\Setup\\ilCOPageDBUpdateSteps',
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\COPage\\Setup\\ilCOPageDBUpdateSteps',12,'2023-12-12 16:39:37.442881','2023-12-12 16:39:37.445224');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Dashboard\\Setup\\ilDashboardUpdateSteps',1,'2023-12-12 16:39:38.799015','2023-12-12 16:39:38.800401');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\Dashboard\\Setup\\ilDashboardUpdateSteps',2,'2023-12-12 16:39:38.800987','2023-12-12 16:39:38.809540');
+INSERT INTO `il_db_steps` VALUES ('ILIAS\\Dashboard\\Setup\\ilDashboardUpdateSteps',3,'2025-05-20 15:03:13.554607','2025-05-20 15:03:13.554985');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\EmployeeTalk\\Setup\\ilEmployeeTalkDBUpdateSteps',1,'2023-12-12 16:39:38.816858','2023-12-12 16:39:38.817317');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\EmployeeTalk\\Setup\\ilEmployeeTalkDBUpdateSteps',2,'2023-12-12 16:39:38.817979','2023-12-12 16:39:38.841591');
 INSERT INTO `il_db_steps` VALUES ('ILIAS\\EmployeeTalk\\Setup\\ilEmployeeTalkDBUpdateSteps',3,'2023-12-12 16:39:38.842258','2023-12-12 16:39:38.847709');
@@ -7386,6 +7376,7 @@ INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool9DBUpdateSteps',4,'2023-12-
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool9DBUpdateSteps',5,'2024-10-08 14:30:30.526303','2024-10-08 14:30:30.530037');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool9DBUpdateSteps',6,'2024-10-08 14:30:30.530320','2024-10-08 14:30:30.532686');
 INSERT INTO `il_db_steps` VALUES ('ilTestQuestionPool9DBUpdateSteps',7,'2025-04-01 15:15:43.532392','2025-04-01 15:15:43.534713');
+INSERT INTO `il_db_steps` VALUES ('ilTrackingUpdateSteps9',1,'2025-05-20 15:03:13.570257','2025-05-20 15:03:13.574192');
 INSERT INTO `il_db_steps` VALUES ('ilTreeDBUpdateSteps8',1,'2023-12-12 16:39:41.308875','2023-12-12 16:39:41.315183');
 INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',1,'2023-12-12 16:39:41.372439','2023-12-12 16:39:41.392529');
 INSERT INTO `il_db_steps` VALUES ('ilUser8DBUpdateSteps',2,'2023-12-12 16:39:41.393125','2023-12-12 16:39:41.414590');
@@ -7457,7 +7448,6 @@ CREATE TABLE `il_dcl_data_seq` (
 CREATE TABLE `il_dcl_datatype` (
   `id` int(11) NOT NULL DEFAULT 0,
   `title` varchar(256) DEFAULT NULL,
-  `ildb_type` varchar(256) NOT NULL DEFAULT '',
   `storage_location` int(11) NOT NULL DEFAULT 0,
   `sort` smallint(6) DEFAULT 0,
   PRIMARY KEY (`id`)
@@ -7467,19 +7457,19 @@ CREATE TABLE `il_dcl_datatype` (
 -- Dumping data for table `il_dcl_datatype`
 --
 
-INSERT INTO `il_dcl_datatype` VALUES (1,'number','integer',2,20);
-INSERT INTO `il_dcl_datatype` VALUES (2,'text','text',1,0);
-INSERT INTO `il_dcl_datatype` VALUES (3,'reference','text',1,80);
-INSERT INTO `il_dcl_datatype` VALUES (4,'boolean','integer',2,30);
-INSERT INTO `il_dcl_datatype` VALUES (5,'datetime','date',3,40);
-INSERT INTO `il_dcl_datatype` VALUES (7,'rating','integer',0,100);
-INSERT INTO `il_dcl_datatype` VALUES (8,'ilias_reference','integer',2,90);
-INSERT INTO `il_dcl_datatype` VALUES (9,'mob','integer',2,60);
-INSERT INTO `il_dcl_datatype` VALUES (11,'formula','text',0,110);
-INSERT INTO `il_dcl_datatype` VALUES (14,'text_selection','text',1,10);
-INSERT INTO `il_dcl_datatype` VALUES (15,'date_selection','text',1,50);
-INSERT INTO `il_dcl_datatype` VALUES (16,'file','text',1,75);
-INSERT INTO `il_dcl_datatype` VALUES (17,'copy','text',1,85);
+INSERT INTO `il_dcl_datatype` VALUES (1,'number',2,20);
+INSERT INTO `il_dcl_datatype` VALUES (2,'text',1,0);
+INSERT INTO `il_dcl_datatype` VALUES (3,'reference',1,80);
+INSERT INTO `il_dcl_datatype` VALUES (4,'boolean',2,30);
+INSERT INTO `il_dcl_datatype` VALUES (5,'date',3,40);
+INSERT INTO `il_dcl_datatype` VALUES (7,'rating',0,100);
+INSERT INTO `il_dcl_datatype` VALUES (8,'ilias_reference',2,90);
+INSERT INTO `il_dcl_datatype` VALUES (9,'mob',2,60);
+INSERT INTO `il_dcl_datatype` VALUES (11,'formula',0,110);
+INSERT INTO `il_dcl_datatype` VALUES (14,'text_selection',1,10);
+INSERT INTO `il_dcl_datatype` VALUES (15,'date_selection',1,50);
+INSERT INTO `il_dcl_datatype` VALUES (16,'file',1,75);
+INSERT INTO `il_dcl_datatype` VALUES (17,'copy',1,85);
 
 --
 -- Table structure for table `il_dcl_datatype_prop`
@@ -13583,7 +13573,7 @@ INSERT INTO `object_data` VALUES (34,'typ','lm','Learning module Object',-1,'200
 INSERT INTO `object_data` VALUES (35,'typ','notf','Note Folder Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL,NULL);
 INSERT INTO `object_data` VALUES (36,'typ','note','Note Object',-1,'2002-12-21 00:04:00','2002-12-21 00:04:00','',NULL,NULL);
 INSERT INTO `object_data` VALUES (37,'typ','frm','Forum object',-1,'2002-07-15 15:54:22','2003-08-15 12:36:40','',NULL,NULL);
-INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2025-04-01 15:15:43','',NULL,NULL);
+INSERT INTO `object_data` VALUES (70,'lng','en','installed',-1,NULL,'2025-05-20 15:03:13','',NULL,NULL);
 INSERT INTO `object_data` VALUES (71,'lng','de','not_installed',6,'2003-08-15 10:25:19','2015-12-22 16:29:24','',NULL,NULL);
 INSERT INTO `object_data` VALUES (72,'lng','es','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL,NULL);
 INSERT INTO `object_data` VALUES (73,'lng','it','not_installed',6,'2003-08-15 10:25:19','2003-08-15 10:25:19','',NULL,NULL);
@@ -20398,7 +20388,7 @@ INSERT INTO `settings` VALUES ('common','ilfrmnoti1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmreadidx1','1');
 INSERT INTO `settings` VALUES ('common','ilfrmthri2','1');
 INSERT INTO `settings` VALUES ('common','ilGlobalTstPoolUsageSettingInitilisation','1');
-INSERT INTO `settings` VALUES ('common','ilias_version','9.8.0');
+INSERT INTO `settings` VALUES ('common','ilias_version','9.9.0');
 INSERT INTO `settings` VALUES ('common','ilinc_akclassvalues_required','1');
 INSERT INTO `settings` VALUES ('common','ilmpathix','1');
 INSERT INTO `settings` VALUES ('common','iloscmsgidx1','1');
@@ -25118,4 +25108,4 @@ CREATE TABLE `xmlvalue_seq` (
 
 
 
--- Dump completed on 2025-04-01 15:15:44
+-- Dump completed on 2025-05-20 15:03:14

@@ -507,7 +507,6 @@ class ilPersonalProfileGUI
         // user defined fields
         $user_defined_data = $this->user->getUserDefinedData();
 
-
         foreach ($this->user_defined_fields->getVisibleDefinitions() as $field_id => $definition) {
             $value = $user_defined_data['f_' . $field_id] ?? '';
             $changeable = $definition['changeable'] === 1 ? true : false;
@@ -1107,7 +1106,7 @@ class ilPersonalProfileGUI
             if (strpos($k, 'chk_') !== 0) {
                 continue;
             }
-            if  (substr($k, -2) === $key_suffix) {
+            if (substr($k, -2) === $key_suffix) {
                 $k = str_replace(['-1', '-2'], '', $k);
             }
             $checked_values[$k] = $v;

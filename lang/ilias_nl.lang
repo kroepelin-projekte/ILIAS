@@ -176,6 +176,7 @@ administration#:#auth_auth_mode_determination#:#Authenticatie Methode Bepaling (
 administration#:#auth_automatic#:#Vaste volgorde
 administration#:#auth_by_user#:#Door de gebruiker
 administration#:#auth_kind_determination#:#Vorm van Determinatie
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Kies of een gebruiker zijn authenticatie methode in het login scherm moet kiezen of dat dit wordt gedaan door een vaste volgorde van authenticatie methoden
 administration#:#clean#:#Opruimen
 administration#:#clean_desc#:#Verwijderen ongeldige referenties & knooppunten. Initialiseren openingen in de structuur.
@@ -4527,6 +4528,7 @@ common#:#login_information_settings_saved#:#De aanmeldingsinformatie is opgeslag
 common#:#login_invalid#:#De gekozen gebruikersnaam is niet geldig! Alleen de volgende tekens zijn toegestaan (minimaal 4 tekens): A-Z a-z 0-9 _.-+*@!$%~
 common#:#login_to_ilias#:#Aanmelden in ILIAS
 common#:#login_to_ilias_via_cas#:#Login to ILIAS via Central Authentication Service
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Login to ILIAS via SAML Authentification###31 08 2017 new variable
 common#:#login_to_ilias_via_shibboleth#:#Login to ILIAS via Shibboleth
 common#:#loginname_already_exists#:#Deze gebruikersnaam is al in gebruik.
@@ -8565,10 +8567,10 @@ dcl#:#dcl_create_fields#:#Maak tenminste één veld aan in tabblad "Velden".
 dcl#:#dcl_creation_date#:#Aanmaak datum
 dcl#:#dcl_creation_date_description#:#De datum waarop de post was aangemaakt.
 dcl#:#dcl_datatype#:#Datatype
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Date Selection###31 08 2017 new variable
 dcl#:#dcl_date_selection_desc#:#Offer selection of date options.###31 08 2017 new variable
-dcl#:#dcl_datetime#:#Datetime
-dcl#:#dcl_datetime_desc#:#Datumseingabe per Auswahlmenü oder Kalender###30 08 2015 new variable
 dcl#:#dcl_deactivate_view#:#Deactivate this view###06 02 2015 new variable
 dcl#:#dcl_default_sort_field#:#Standaard sorteervelden
 dcl#:#dcl_default_sort_field_desc#:#Tabelle wird standardmässig nach dem ausgewählten Feld sortiert.###30 08 2015 new variable
@@ -8680,14 +8682,12 @@ dcl#:#dcl_new_table#:#Nieuwe tabel
 dcl#:#dcl_next_record#:#Volgend record
 dcl#:#dcl_no_content_warning#:#Let op, de gegevensverzameling is online maar bevat nog geen data.
 dcl#:#dcl_no_entry#:#No entry###07 02 2020 new variable
-dcl#:#dcl_no_export_content_available#:#No data available for export.###23 10 2017 new variable
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#No data or fields available for export.###25 10 2016 new variable
-dcl#:#dcl_no_export_fields_available#:#No fields activated for export. Mark at least one field as exportable in the <a href="%s">table settings</a>.###23 10 2017 new variable
 dcl#:#dcl_no_fields_yet#:#Er zijn geen velden gedefinieerd voor deze tabel dus kun je er geen records aan toevoegen.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#You don't have read access on any standard view of a table.###10 11 2018 new variable
 dcl#:#dcl_no_search_results_found_for#:#Er zijn geen modules gevonden voor
 dcl#:#dcl_no_such_reference#:#The following value is not available in the reference table:
-dcl#:#dcl_no_warnings#:#The import terminated with no warnings.
 dcl#:#dcl_not_checked#:#Not checked.
 dcl#:#dcl_not_supported_in_import#:#This type of field is not supported in the import
 dcl#:#dcl_notification_activate_dcl#:#Inschakelen berichtgeving voor gegevensverzamelingen.
@@ -8711,7 +8711,6 @@ dcl#:#dcl_permissions_form#:#Gebruikersrechten
 dcl#:#dcl_please_select#:#--- Selecteer ---
 dcl#:#dcl_plugin#:#Plugin###25 10 2016 new variable
 dcl#:#dcl_plugin_desc#:#DataCollection Field-Plugins###25 10 2016 new variable
-dcl#:#dcl_plugin_hooks#:#Available Plugins###25 10 2016 new variable
 dcl#:#dcl_plugin_no_hooks_available#:#No active field-type plugins found###25 10 2016 new variable
 dcl#:#dcl_prev_record#:#Vorig record
 dcl#:#dcl_prop_expression#:#Uitdrukking
@@ -8797,7 +8796,9 @@ dcl#:#dcl_title_standardview#:#Standard Views###10 11 2018 new variable
 dcl#:#dcl_unique#:#Uniek
 dcl#:#dcl_unique_desc#:#In dieses Feld kann ein gleichlautender Eintrag nur einmal vorgenommen werden.###30 08 2015 new variable
 dcl#:#dcl_unique_exception#:#De waarde die je hebt ingegeven wordt al gebruikt door een ander record
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#De ingegeven waarde is niet geldig.
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Veld wijzigen
 dcl#:#dcl_update_record#:#Record wijzigen
 dcl#:#dcl_url#:#URL
@@ -8811,7 +8812,7 @@ dcl#:#dcl_width#:#Breedte
 dcl#:#dcl_wrong_input_type#:#De waarde die je hebt ingegeven is niet van het verwachte type.
 dcl#:#dcl_wrong_length#:#De ingegeven tekst is te lang
 dcl#:#dcl_wrong_regex#:#De waarde die je hebt ingegeven heeft niet het verwachte formaat.
-dcl#:#dlc_xls_async_export#:#Asynchronous XLSX-Export###25 10 2016 new variable
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Allowed chars: %s
 dcl#:#fileupload_not_migrated#:#File has not yet been migration and cannot be displayed. Please contact your System-Administrator.###30 04 2024 new variable
 didactic#:#activate_exclusive_template#:#Grey Out Default###25 10 2016 new variable
@@ -14297,7 +14298,10 @@ rbac#:#rbac_choose_copy_targets#:#Voer zoekargumenten in om de bestemmingsrol te
 rbac#:#rbac_condition_delete_sure#:#Weet je zeker dat je de volgende voorwaarden wilt verwijderen?
 rbac#:#rbac_context_global#:#Globaal
 rbac#:#rbac_copy_behaviour#:#Role Copy Settings
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#Finished copying.
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Copy Role
 rbac#:#rbac_copy_role_add_perm#:#Toevoegen rechten
 rbac#:#rbac_copy_role_copy#:#Kopieer rechten
@@ -14418,6 +14422,7 @@ rbac#:#rbac_role_rights_copy_empty#:#Niets
 rbac#:#rbac_role_selection#:#Type rol
 rbac#:#rbac_role_title#:#Titel van rol
 rbac#:#rbac_select_copy_targets#:#Please select the target roles
+rbac#:#rbac_select_roles#:#Role Selection
 rbac#:#rbac_ud_global#:#Gebruikers-gedefinieerde globale rol
 rbac#:#rbac_ud_local#:#Gebruikers-gedefinieerde lokale rol
 rbac#:#rbac_ud_rolt#:#Gebruikers-gedefinieerd rolsjabloon
@@ -15730,6 +15735,7 @@ style#:#sty_ca_cntr_class#:#Carousel Container###30 08 2015 new variable
 style#:#sty_ca_icntr_class#:#Carousel Item Container###30 08 2015 new variable
 style#:#sty_ca_icont_class#:#Carousel Item Content###30 08 2015 new variable
 style#:#sty_ca_ihead_class#:#Carousel Item Header###30 08 2015 new variable
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Onderschrift
 style#:#sty_caption_class#:#Caption
 style#:#sty_carousel_templates#:#Carousel Templates###30 08 2015 new variable

@@ -176,6 +176,7 @@ administration#:#auth_auth_mode_determination#:#Bestämning av autentiseringsmet
 administration#:#auth_automatic#:#Fast order
 administration#:#auth_by_user#:#Av användaren
 administration#:#auth_kind_determination#:#Typ av destination
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Här kan du ange om autentiseringsmetoden måste väljas av användarna vid inloggning eller om autentiseringsdata ska kontrolleras med hjälp av en fördefinierad sekvens.
 administration#:#clean#:#Rensa upp
 administration#:#clean_desc#:#Ta bort ogiltiga referenser och trädposter. Initiera luckor i trädstrukturen
@@ -4527,6 +4528,7 @@ common#:#login_information_settings_saved#:#Inloggningsuppgifterna sparades fram
 common#:#login_invalid#:#Ditt inloggningsnamn måste vara minst tre tecken långt och får endast innehålla följande tecken
 common#:#login_to_ilias#:#Logga in på ILIAS
 common#:#login_to_ilias_via_cas#:#Logga in på ILIAS via det centrala autentiseringssystemet
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Logga in på ILIAS via SAML-autentisering
 common#:#login_to_ilias_via_shibboleth#:#Logga in på ILIAS via
 common#:#loginname_already_exists#:#Detta inloggningsnamn är redan upptaget. Vänligen välj ett annat inloggningsnamn.
@@ -8565,10 +8567,10 @@ dcl#:#dcl_create_fields#:#Klicka på en tabell på fliken "Tabeller" och skapa n
 dcl#:#dcl_creation_date#:#Datum för skapande
 dcl#:#dcl_creation_date_description#:#Det datum då denna post skapades.
 dcl#:#dcl_datatype#:#Typ av data
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Meny för val av datum
 dcl#:#dcl_date_selection_desc#:#Ange alternativ för urval (datum)
-dcl#:#dcl_datetime#:#Inmatning av datum
-dcl#:#dcl_datetime_desc#:#Datuminmatning via valmeny eller kalender
 dcl#:#dcl_deactivate_view#:#Inaktivera mall för enskild vy
 dcl#:#dcl_default_sort_field#:#Sortering
 dcl#:#dcl_default_sort_field_desc#:#Som standard sorteras tabellen efter det valda fältet.
@@ -8680,14 +8682,12 @@ dcl#:#dcl_new_table#:#Ny tabell
 dcl#:#dcl_next_record#:#Nästa post
 dcl#:#dcl_no_content_warning#:#Attention, datainsamlingen är redan online, men har inget innehåll ännu!
 dcl#:#dcl_no_entry#:#Ingen post
-dcl#:#dcl_no_export_content_available#:#Inga data tillgängliga för export.
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#Inga data eller fält tillgängliga för export.
-dcl#:#dcl_no_export_fields_available#:#Inga fält aktiverade för export. Markera minst ett fält som "Exportable" i <a href="%s">tabellinställningarna</a>.
 dcl#:#dcl_no_fields_yet#:#Inga fält har skapats för denna tabell ännu, så inga poster kan infogas ännu.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#Du har inte läsbehörighet till någon standardtabellvy.
 dcl#:#dcl_no_search_results_found_for#:#Inga moduler hittades med
 dcl#:#dcl_no_such_reference#:#Följande värde finns inte i referenstabellen
-dcl#:#dcl_no_warnings#:#Importen slutfördes utan problem.
 dcl#:#dcl_not_checked#:#Inte vald
 dcl#:#dcl_not_supported_in_import#:#Den här fälttypen stöds inte under import.
 dcl#:#dcl_notification_activate_dcl#:# Aktivera avisering
@@ -8711,7 +8711,6 @@ dcl#:#dcl_permissions_form#:#Tillstånd för denna tabell
 dcl#:#dcl_please_select#:#--- Vänligen välj ---
 dcl#:#dcl_plugin#:#Plugin
 dcl#:#dcl_plugin_desc#:#DataCollection Fälttillägg
-dcl#:#dcl_plugin_hooks#:#Tillgängliga tillägg
 dcl#:#dcl_plugin_no_hooks_available#:#Inga aktiva plugins för fälttyp hittades
 dcl#:#dcl_prev_record#:#Tidigare post
 dcl#:#dcl_prop_expression#:#Uttryck
@@ -8797,7 +8796,9 @@ dcl#:#dcl_title_standardview#:#Standardvy
 dcl#:#dcl_unique#:#Förhindra samma inmatningar
 dcl#:#dcl_unique_desc#:#En identisk post kan endast göras en gång i detta fält.
 dcl#:#dcl_unique_exception#:#Det angivna värdet används redan av en annan post.
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#Det angivna värdet är inte giltigt.
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Uppdatera fält
 dcl#:#dcl_update_record#:#Uppdatera inmatning
 dcl#:#dcl_url#:#URL eller e-post
@@ -8811,7 +8812,7 @@ dcl#:#dcl_width#:#Bredd
 dcl#:#dcl_wrong_input_type#:#Den inmatade texten stämmer inte överens med typen av fält (Fel typ).
 dcl#:#dcl_wrong_length#:#Den angivna texten är för lång.
 dcl#:#dcl_wrong_regex#:#Den inmatade texten stämmer inte överens med specifikationen för detta fält (reguljärt uttryck).
-dcl#:#dlc_xls_async_export#:#Asynkron XLSX-export
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Inte tillåtna tecken
 dcl#:#fileupload_not_migrated#:#File has not yet been migration and cannot be displayed. Please contact your System-Administrator.###30 04 2024 new variable
 didactic#:#activate_exclusive_template#:#Grå ut standard
@@ -14297,7 +14298,10 @@ rbac#:#rbac_choose_copy_targets#:#Ange ett sökord för att hitta de roller till
 rbac#:#rbac_condition_delete_sure#:#Vill du verkligen ta bort följande förutsättningar?
 rbac#:#rbac_context_global#:#Global
 rbac#:#rbac_copy_behaviour#:#Inställningar för kopiering av rättigheter
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#Rättigheterna har överförts till de valda rollerna.
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Kopiera roll
 rbac#:#rbac_copy_role_add_perm#:#Lägg till rättigheter
 rbac#:#rbac_copy_role_copy#:#Kopieringsrätt
@@ -14418,6 +14422,7 @@ rbac#:#rbac_role_rights_copy_empty#:#Ingen
 rbac#:#rbac_role_selection#:#Typ av rullning
 rbac#:#rbac_role_title#:#Roll titel
 rbac#:#rbac_select_copy_targets#:#Vänligen välj de roller till vilka rättigheterna ska överföras.
+rbac#:#rbac_select_roles#:#Role Selection
 rbac#:#rbac_ud_global#:#Självskapad global roll
 rbac#:#rbac_ud_local#:#Skapa lokal roll själv
 rbac#:#rbac_ud_rolt#:#Självskapad rollmall
@@ -15730,6 +15735,7 @@ style#:#sty_ca_cntr_class#:#Carousel - Behållare
 style#:#sty_ca_icntr_class#:#Carousel - Elementbehållare
 style#:#sty_ca_icont_class#:#Carousel - Innehållselement
 style#:#sty_ca_ihead_class#:#Carousel - Rubrikelement
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Legend
 style#:#sty_caption_class#:#Legend
 style#:#sty_carousel_templates#:#karusellmallar

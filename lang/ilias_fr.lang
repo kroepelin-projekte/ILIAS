@@ -176,6 +176,7 @@ administration#:#auth_auth_mode_determination#:#Détermination de la Méthode d'
 administration#:#auth_automatic#:#Séquence fixée
 administration#:#auth_by_user#:#Par l'utilisateur
 administration#:#auth_kind_determination#:#Type de Détermination
+administration#:#auth_mode_default_change_info#:#Changing the default authentication method affects all user accounts configured to use the default authentication method. If the selected default method (e.g., Shibboleth, SAML, SOAP, ...) does not support or is not configured to allow fallback to local ILIAS authentication, affected users may no longer be able to log in. To avoid this, please ensure that local fallback authentication is activated in the configuration of the selected method, or that the authentication method stored for affected user accounts is manually changed.###20 05 2025 new variable
 administration#:#auth_mode_determination_info#:#Choisir si les utilisateurs doivent sélectionner leur méthode d'authenfication sur l'écran de connexion ou si l'administration fige les méthodes d'authentification.
 administration#:#clean#:#Nettoyer
 administration#:#clean_desc#:#Supprimer les références et entrées non valides dans l'arborescence.
@@ -4527,6 +4528,7 @@ common#:#login_information_settings_saved#:#L'information de connexion a été e
 common#:#login_invalid#:#Le nom d'utilisateur choisi n'est pas valide ! Seuls les caractères suivants sont autorisés (au moins 3 caractères) : A-Z a-z 0-9 _.-+*@!$%~
 common#:#login_to_ilias#:#Connexion à ILIAS
 common#:#login_to_ilias_via_cas#:#Se connecter à ILIAS via le Service Central d'Authentification CAS
+common#:#login_to_ilias_via_login_form#:#Login to ILIAS###20 05 2025 new variable
 common#:#login_to_ilias_via_saml#:#Connexion à ILIAS par authentification SAML
 common#:#login_to_ilias_via_shibboleth#:#Se connecter à ILIAS via Shibboleth
 common#:#loginname_already_exists#:#Ce nom de connexion (login) existe déjà .
@@ -8565,10 +8567,10 @@ dcl#:#dcl_create_fields#:#Veuillez créer au moins un champ dans l'onglet " List
 dcl#:#dcl_creation_date#:#Date de création
 dcl#:#dcl_creation_date_description#:#La date à laquelle l’entrée a été créée.
 dcl#:#dcl_datatype#:#Type de Donnée
+dcl#:#dcl_date#:#Date Entry###20 05 2025 new variable
+dcl#:#dcl_date_desc#:#Field for a date.###20 05 2025 new variable
 dcl#:#dcl_date_selection#:#Sélection de date
 dcl#:#dcl_date_selection_desc#:#Propose une sélection d’options de dates.
-dcl#:#dcl_datetime#:#Date/Heure
-dcl#:#dcl_datetime_desc#:#Datumseingabe per Auswahlmenü oder Kalender
 dcl#:#dcl_deactivate_view#:#Désactiver cette vue
 dcl#:#dcl_default_sort_field#:#Champ de triage par défaut
 dcl#:#dcl_default_sort_field_desc#:#Tabelle wird standardmässig nach dem ausgewählten Feld sortiert.
@@ -8680,14 +8682,12 @@ dcl#:#dcl_new_table#:#Nouveau Tableau
 dcl#:#dcl_next_record#:#Next record
 dcl#:#dcl_no_content_warning#:#Attention, la Collection de Données est en-ligne mais n'a actuellement aucun contenu !
 dcl#:#dcl_no_entry#:#No entry
-dcl#:#dcl_no_export_content_available#:#Pas de données disponibles pour l’exportation.
+dcl#:#dcl_no_export_async_config#:#No SOAP Configuration for asyncronous exports available.###20 05 2025 new variable
 dcl#:#dcl_no_export_data_available#:#Pas de données ou de champs disponibles pour l’exportation.
-dcl#:#dcl_no_export_fields_available#:#Pas de champs activés pour l’exportation. Marquez au moins un champ comme pouvant être exporté dans les <a href="%s">paramètres de tableaux</a>.
 dcl#:#dcl_no_fields_yet#:#Aucun champ n'a été défini dans la table. Vous ne pouvez donc créer aucune entrée.
 dcl#:#dcl_no_read_access_on_any_standard_view#:#Vous n’avez pas d’accès de lecture pour la moindre vue standard d’un tableau.
 dcl#:#dcl_no_search_results_found_for#:#Aucune module n'a été trouvé pour
 dcl#:#dcl_no_such_reference#:#La valeur suivante n'est pas disponible dans la table de références :
-dcl#:#dcl_no_warnings#:#L'import a réussi sans alerte.
 dcl#:#dcl_not_checked#:#Non coché.
 dcl#:#dcl_not_supported_in_import#:#Ce type de champ n'est pas supporté dans l'import.
 dcl#:#dcl_notification_activate_dcl#:#Activer les Notifications pour la Collection de Données
@@ -8711,7 +8711,6 @@ dcl#:#dcl_permissions_form#:#Permissions Utilisateurs
 dcl#:#dcl_please_select#:#--- Veuillez sélectionner ---
 dcl#:#dcl_plugin#:#Plug-in
 dcl#:#dcl_plugin_desc#:#Plug-ins de champ de collecte de données
-dcl#:#dcl_plugin_hooks#:#Plug-ins disponibles
 dcl#:#dcl_plugin_no_hooks_available#:#Pas de plug-ins de type champ actif trouvés
 dcl#:#dcl_prev_record#:#Previous record
 dcl#:#dcl_prop_expression#:#Expression
@@ -8797,7 +8796,9 @@ dcl#:#dcl_title_standardview#:#Standard Views
 dcl#:#dcl_unique#:#Unique
 dcl#:#dcl_unique_desc#:#In dieses Feld kann ein gleichlautender Eintrag nur einmal vorgenommen werden.
 dcl#:#dcl_unique_exception#:#La valeur que vous avez entrée est déjà utilisée dans un autre enregistrement.
+dcl#:#dcl_unknown#:#Unkown###20 05 2025 new variable
 dcl#:#dcl_unknown_exception#:#La valeur que vous avez entrée n'est pas valide.
+dcl#:#dcl_unknown_plugin#:#Unknown plugin type###20 05 2025 new variable
 dcl#:#dcl_update_field#:#Enregistrer Champ
 dcl#:#dcl_update_record#:#Enregistrer
 dcl#:#dcl_url#:#URL
@@ -8811,7 +8812,7 @@ dcl#:#dcl_width#:#Largeur
 dcl#:#dcl_wrong_input_type#:#La valeur que vous avez entrée ne correspondant pas aux contraintes (Mauvais Type).
 dcl#:#dcl_wrong_length#:#Le texte que vous avez entré est trop long.
 dcl#:#dcl_wrong_regex#:#Le texte que vous avez entré ne correspondant pas aux contraintes de ce champ (Expression Régulière).
-dcl#:#dlc_xls_async_export#:#Asynchronous XLSX-Export
+dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)###20 05 2025 new variable
 dcl#:#fieldtitle_allow_chars#:#Caractères autorisés : %s
 dcl#:#fileupload_not_migrated#:#File has not yet been migration and cannot be displayed. Please contact your System-Administrator.###30 04 2024 new variable
 didactic#:#activate_exclusive_template#:#Griser par défaut
@@ -14297,7 +14298,10 @@ rbac#:#rbac_choose_copy_targets#:#Veuillez saisir une requête pour sélectionne
 rbac#:#rbac_condition_delete_sure#:#Etes-vous sûr de vouloir supprimer les préconditions suivantes ?
 rbac#:#rbac_context_global#:#Global
 rbac#:#rbac_copy_behaviour#:#Paramètres de Copie de Rôle
+rbac#:#rbac_copy_behaviour_info#:#Transfer Permissions from: %s to: %s###20 05 2025 new variable
 rbac#:#rbac_copy_finished#:#Copie terminée.
+rbac#:#rbac_copy_multi_targets#:#%s, %s and %s further Roles selected%s###20 05 2025 new variable
+rbac#:#rbac_copy_no_targets#:#At least one Role must be selected as Target###20 05 2025 new variable
 rbac#:#rbac_copy_role#:#Copier Rôle
 rbac#:#rbac_copy_role_add_perm#:#Ajouter Permissions
 rbac#:#rbac_copy_role_copy#:#Copier Permissions
@@ -14418,6 +14422,7 @@ rbac#:#rbac_role_rights_copy_empty#:#Aucun
 rbac#:#rbac_role_selection#:#Type de Rôle
 rbac#:#rbac_role_title#:#Titre du Rôle
 rbac#:#rbac_select_copy_targets#:#Veuillez sélectionner les rôles ciblés
+rbac#:#rbac_select_roles#:#Role Selection
 rbac#:#rbac_ud_global#:#Rôle global défini par l'utilisateur
 rbac#:#rbac_ud_local#:#Rôle local défini par l'utilisateur
 rbac#:#rbac_ud_rolt#:#Modèle de rôle défini par l'utilisateur
@@ -15730,6 +15735,7 @@ style#:#sty_ca_cntr_class#:#Conteneur Carrousel
 style#:#sty_ca_icntr_class#:#Conteneur d’articles Carrousel
 style#:#sty_ca_icont_class#:#Contenu d’articles Carrousel
 style#:#sty_ca_ihead_class#:#En-tête d’article Carrousel
+style#:#sty_cannot_be_copied#:#The following style types cannot be copied###20 05 2025 new variable
 style#:#sty_caption#:#Titre
 style#:#sty_caption_class#:#Titre
 style#:#sty_carousel_templates#:#Modèles Carrousel

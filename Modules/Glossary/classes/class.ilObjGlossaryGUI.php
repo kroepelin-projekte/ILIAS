@@ -1027,7 +1027,13 @@ class ilObjGlossaryGUI extends ilObjectGUI implements \ILIAS\Taxonomy\Settings\M
         $cgui->setConfirm($this->lng->txt("confirm"), "deleteTerms");
 
         foreach ($ids as $id) {
-            $term = new ilGlossaryTerm($id);
+            try {
+                $term = new ilGlossaryTerm($id);
+            } catch (Exception $e) {
+                $cgui->addItem("id[]", $id, "Error: Page is missing.");
+                continue;
+            }
+
 
             $add = "";
             $nr = ilGlossaryTerm::getNumberOfUsages($id);
@@ -1069,8 +1075,7 @@ class ilObjGlossaryGUI extends ilObjectGUI implements \ILIAS\Taxonomy\Settings\M
                 $refs->deleteTerm($id);
                 $refs->update();
             } else {
-                $term = new ilGlossaryTerm($id);
-                $term->delete();
+                $this->term_manager->deleteTerm($id);
             }
         }
         $this->ctrl->redirect($this, "listTerms");
