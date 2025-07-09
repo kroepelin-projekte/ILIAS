@@ -389,7 +389,8 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 break;
 
             case "iltestplayerfixedquestionsetgui":
-                if ((!$this->access->checkAccess("read", "", $this->testrequest->getRefId()))) {
+                if ($cmd !== 'autosave'
+                    && !$this->access->checkAccess("read", "", $this->testrequest->getRefId())) {
                     $this->redirectAfterMissingRead();
                 }
                 $this->trackTestObjectReadEvent();
@@ -402,7 +403,8 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 break;
 
             case "iltestplayerrandomquestionsetgui":
-                if ((!$this->access->checkAccess("read", "", $this->testrequest->getRefId()))) {
+                if ($cmd !== 'autosave'
+                    && !$this->access->checkAccess("read", "", $this->testrequest->getRefId())) {
                     $this->redirectAfterMissingRead();
                 }
                 $this->trackTestObjectReadEvent();
@@ -2811,7 +2813,6 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $this->lng->txt('tst_score_reporting_date'),
                 ilDatePresentation::formatDate(new ilDateTime(
                     $reporting_date
-                        ->setTimezone(new DateTimeZone($this->user->getTimeZone()))
                         ->format('YmdHis'),
                     IL_CAL_TIMESTAMP,
                     $reporting_date->getTimezone()->getName()
