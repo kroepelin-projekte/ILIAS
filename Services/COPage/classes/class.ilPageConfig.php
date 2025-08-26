@@ -317,7 +317,7 @@ abstract class ilPageConfig
 
     public function getPreventHTMLUnmasking(): bool
     {
-        return true;
+        return false;
     }
 
     public function setEnableSelfAssessment(
