@@ -16,18 +16,21 @@
  *
  *********************************************************************/
 
-declare(strict_types=1);
+namespace ILIAS\StaticURL\Response;
 
 /**
- * @noinspection AutoloadingIssuesInspection
+ * @author Fabian Schmid <fabian@sr.solutions>
  */
-class ilDclFileRecordQueryObject extends ilDclRecordQueryObject
+class CannotReach implements Response
 {
-    public function applyCustomSorting(
-        ilDclBaseFieldModel $field,
-        array $all_records,
-        string $direction = 'asc'
-    ): array {
-        return $all_records;
+    public function getURIPath(): ?string
+    {
+        return null;
     }
+
+    public function targetCanBeReached(): bool
+    {
+        return true;
+    }
+
 }

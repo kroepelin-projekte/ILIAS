@@ -123,6 +123,7 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
 
             case 'iltestsubmissionreviewgui':
                 $this->checkTestExecutable();
+                $this->handleCheckTestPassValid();
 
                 $gui = new ilTestSubmissionReviewGUI($this, $this->object, $this->test_session);
                 $gui->setObjectiveOrientedContainer($this->getObjectiveOrientedContainer());
@@ -161,6 +162,19 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
                 $ret = $this->ctrl->forwardCommand($gui);
 
                 break;
+            case 'ilassspecfeedbackpagegui':
+            case 'ilassgenfeedbackpagegui':
+                $id = $this->testrequest->int('pg_id');
+                if ($this->ctrl->getCmd() !== 'displayMediaFullscreen'
+                    || $id === 0) {
+                    break;
+                }
+
+                (new ilPageObjectGUI(
+                    $next_class === 'ilassgenfeedbackpagegui' ? 'qfbg' : 'qfbs',
+                    $id
+                ))->displayMediaFullscreen();
+                break;
 
             case 'iltestpasswordprotectiongui':
                 $this->checkTestExecutable();
@@ -191,6 +205,11 @@ abstract class ilTestOutputGUI extends ilTestPlayerAbstractGUI
                         $this->tpl->setOnScreenMessage('info', $this->lng->txt('tst_pass_finished'), true);
                         $this->ctrl->redirectByClass([ilRepositoryGUI::class, ilObjTestGUI::class, ilTestScreenGUI::class]);
                     }
+                }
+
+                if ($cmd === 'outQuestionSummary'
+                    || $cmd === 'submitSolution') {
+                    $this->handleCheckTestPassValid();
                 }
 
                 $cmd .= 'Cmd';
