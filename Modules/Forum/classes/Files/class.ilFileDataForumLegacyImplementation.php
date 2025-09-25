@@ -29,7 +29,9 @@ class ilFileDataForumLegacyImplementation extends ilFileData implements ilFileDa
     public function __construct(private readonly int $obj_id = 0, private int $pos_id = 0)
     {
         global $DIC;
-        $this->main_tpl = $DIC->ui()->mainTemplate();
+        if ($DIC->offsetExists('tpl')) {
+            $this->main_tpl = $DIC->ui()->mainTemplate();
+        }
 
         $this->error = $DIC['ilErr'];
 
