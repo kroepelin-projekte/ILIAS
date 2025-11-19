@@ -812,7 +812,7 @@ class ilObjMediaObject extends ilObject
     public static function _getMobsOfObject(
         string $a_type,
         int $a_id,
-        int $a_usage_hist_nr = 0,
+        int|false $a_usage_hist_nr = 0,
         string $a_lang = "-"
     ): array {
         global $DIC;
@@ -824,7 +824,7 @@ class ilObjMediaObject extends ilObject
             $lstr = " AND usage_lang = " . $ilDB->quote($a_lang, "text");
         }
         $hist_str = "";
-        if ($a_usage_hist_nr > 0) {
+        if ($a_usage_hist_nr !== false) {   // see #45933, restore ILIAS 7 behaviour
             $hist_str = " AND usage_hist_nr = " . $ilDB->quote($a_usage_hist_nr, "integer");
         }
 

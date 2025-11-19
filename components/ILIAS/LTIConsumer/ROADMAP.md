@@ -4,8 +4,8 @@
 
 - Improve the robustness and consistency of Learning Progress data transmission in LTI 1.3.
 - Implement LTI 1.3 Dynamic Registration to simplify the setup of external tools and ensure more reliable and standards-compliant integration workflows.
-- Fix the LTI 1.1 event listener to ensure Learning Progress data is transmitted immediately after updates.
 - Introduce support for LTI Deep Linking to simplify the selection and configuration of external learning resources directly within ILIAS.
+- Fix issues related to Learning Progress tracking and status updates to ensure accurate and consistent reporting.
 
 ## Mid Term
 
