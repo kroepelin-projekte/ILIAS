@@ -467,6 +467,13 @@ class ilDclRecordListGUI
     protected function setSubTabs(string $active_mode = self::GET_MODE): void
     {
         $this->ctrl->setParameter($this, self::GET_MODE, self::MODE_VIEW);
+        if ($this->http->wrapper()->query()->has(self::GET_TABLEVIEW_ID)) {
+            $this->ctrl->setParameter(
+                $this,
+                self::GET_TABLEVIEW_ID,
+                $this->http->wrapper()->query()->retrieve(self::GET_TABLEVIEW_ID, $this->refinery->kindlyTo()->int())
+            );
+        }
         $this->tabs->addSubTab(
             self::MODE_VIEW,
             $this->lng->txt('view'),
@@ -543,7 +550,8 @@ class ilDclRecordListGUI
             $this->table_obj->getVisibleTableViews(),
             $this->getTableId(),
             self::class,
-            self::CMD_SHOW
+            self::CMD_SHOW,
+            $this->getTableviewId()
         );
     }
 

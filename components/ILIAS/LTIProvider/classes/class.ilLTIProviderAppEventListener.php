@@ -24,11 +24,11 @@ use ceLTIc\LTI\ResourceLink;
 use ceLTIc\LTI\UserResult;
 
 /**
- * Class ilLTIAppEventListener
+ * Class ilLTIProviderAppEventListener
  */
-class ilLTIAppEventListener implements \ilAppEventListener
+class ilLTIProviderAppEventListener implements \ilAppEventListener
 {
-    private static ?\ilLTIAppEventListener $instance = null;
+    private static ?\ilLTIProviderAppEventListener $instance = null;
 
     private ?\ilLogger $logger = null;
 
@@ -36,7 +36,7 @@ class ilLTIAppEventListener implements \ilAppEventListener
 
 
     /**
-     * ilLTIAppEventListener constructor.
+     * ilLTIProviderAppEventListener constructor.
      */
     protected function __construct()
     {
@@ -46,9 +46,9 @@ class ilLTIAppEventListener implements \ilAppEventListener
         $this->connector = new ilLTIDataConnector();
     }
 
-    protected static function getInstance(): \ilLTIAppEventListener
+    protected static function getInstance(): \ilLTIProviderAppEventListener
     {
-        if (!self::$instance instanceof \ilLTIAppEventListener) {
+        if (!self::$instance instanceof \ilLTIProviderAppEventListener) {
             self::$instance = new self();
         }
         return self::$instance;
