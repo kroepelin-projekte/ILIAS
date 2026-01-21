@@ -48,7 +48,9 @@ abstract class ilECSObjectSettings
     public function __construct(ilObject $a_content_object)
     {
         global $DIC;
-        $this->main_tpl = $DIC->ui()->mainTemplate();
+        if ($DIC->offsetExists('tpl')) {
+            $this->main_tpl = $DIC->ui()->mainTemplate();
+        }
 
         $this->lng = $DIC->language();
         $this->logger = $DIC->logger()->obj();
