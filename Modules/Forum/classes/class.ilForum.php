@@ -1482,11 +1482,8 @@ class ilForum
 
         if ($type !== 'export') {
             if ($edit === 0) {
-                global $DIC;
-                if ($edit === 0 && $DIC->offsetExists('tpl')) {
-                    $text = ilMathJax::getInstance()->insertLatexImages($text, "\<span class\=\"latex\">", "\<\/span>");
-                    $text = ilMathJax::getInstance()->insertLatexImages($text, "\[tex\]", "\[\/tex\]");
-                }
+                $text = ilMathJax::getInstance()->insertLatexImages($text, "\<span class\=\"latex\">", "\<\/span>");
+                $text = ilMathJax::getInstance()->insertLatexImages($text, "\[tex\]", "\[\/tex\]");
             }
 
             // workaround for preventing template engine
