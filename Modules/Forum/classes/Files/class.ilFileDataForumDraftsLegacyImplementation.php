@@ -28,9 +28,7 @@ class ilFileDataForumDraftsLegacyImplementation extends ilFileData implements il
     public function __construct(private readonly int $obj_id, private readonly int $draft_id)
     {
         global $DIC;
-        if ($DIC->offsetExists('tpl')) {
-            $this->main_tpl = $DIC->ui()->mainTemplate();
-        }
+        $this->main_tpl = $DIC->ui()->mainTemplate();
         $this->lng = $DIC->language();
         $this->error = $DIC['ilErr'];
 

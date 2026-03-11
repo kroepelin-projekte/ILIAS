@@ -78,9 +78,7 @@ class ilNewsItem
     public function __construct(int $a_id = 0)
     {
         global $DIC;
-        if ($DIC->offsetExists('tpl')) {
-            $this->main_tpl = $DIC->ui()->mainTemplate();
-        }
+        $this->main_tpl = $DIC->ui()->mainTemplate();
 
         $this->db = $DIC->database();
         $this->tree = $DIC->repositoryTree();
