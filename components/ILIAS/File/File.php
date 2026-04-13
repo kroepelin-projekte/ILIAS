@@ -23,6 +23,8 @@ namespace ILIAS;
 use ILIAS\Component\Component;
 use ILIAS\Setup\Agent;
 use ILIAS\Refinery\Factory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 
 class File implements Component
 {
@@ -40,5 +42,10 @@ class File implements Component
             new \ilFileObjectAgent(
                 $pull[Factory::class]
             );
+
+        $contribute[LanguageFileDirectory::class] = fn(): LanguageFileDirectory => new ComponentLanguageFileDirectory(
+            $this,
+            'file'
+        );
     }
 }

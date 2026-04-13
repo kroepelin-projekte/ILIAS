@@ -8685,7 +8685,7 @@ dcl#:#dcl_file_not_readable#:#The file could not be read. Please make sure that 
 dcl#:#dcl_filter#:#Available in Filter
 dcl#:#dcl_filter_changeable#:#Filter Changeable
 dcl#:#dcl_formula#:#Formula
-dcl#:#dcl_formula_desc#:#Similar to when using a spreadsheet, entries can be combined or calculated using a formula. 
+dcl#:#dcl_formula_desc#:#Similar to when using a spreadsheet, entries can be combined or calculated using a formula.
 dcl#:#dcl_formula_detail_desc#:#Entries in this field are generated automatically. You cannot enter or edit information in this field.
 dcl#:#dcl_height#:#Height in Pixels
 dcl#:#dcl_height_desc#:#The height of the file will be reduced to this value during upload.
@@ -8734,7 +8734,7 @@ dcl#:#dcl_msg_table_edited#:#Table settings saved.
 dcl#:#dcl_msg_tableview_created#:#View created.
 dcl#:#dcl_msg_tableview_deleted#:#View deleted.
 dcl#:#dcl_msg_tableview_updated#:#View updated.
-dcl#:#dcl_msg_tableviews_delete_all#:#Deletion not possible. There must be at least one view in existence. 
+dcl#:#dcl_msg_tableviews_delete_all#:#Deletion not possible. There must be at least one view in existence.
 dcl#:#dcl_multiple_selection#:#Multiple Selection
 dcl#:#dcl_new#:#Create New Data Collection
 dcl#:#dcl_new_entries#:#New Entries
@@ -8771,7 +8771,7 @@ dcl#:#dcl_owner#:#Owner
 dcl#:#dcl_owner_description#:#The owner of the entry.
 dcl#:#dcl_owner_name#:#Owner (Name)
 dcl#:#dcl_page_type_dclf#:#Data Collection Detailed View
-dcl#:#dcl_placeholder_info#:#In order for the data from the fields of this table to be shown in this detailed view, please enter the corresponding placeholders for those fields. Those placeholders are listed in the tool bars of the page elements 'Text' and 'Data Table'. 
+dcl#:#dcl_placeholder_info#:#In order for the data from the fields of this table to be shown in this detailed view, please enter the corresponding placeholders for those fields. Those placeholders are listed in the tool bars of the page elements 'Text' and 'Data Table'.
 dcl#:#dcl_please_select#:#--- Please select ---
 dcl#:#dcl_prop_expression#:#Expression
 dcl#:#dcl_prop_expression_info#:#Valid operators: <b>%s</b><br>Supported functions: <b>%s</b><br>Use brackets <b>‘(’, ‘)’</b> to group calculations.<br>Concatenate strings and placeholders with &: <b>‘The result is ’ & [[Int 1]] * [[Int2]]</b><br>Using functions: <b>SUM([[Int 1]];[[Int 2]])</b><br><br>Allowed fields (click on a title to use as a placeholder within the expression):<br>%s<br><b>(Allowed fields are checkbox, number, text and date that don’t contain any formula-sensitive characters inside their titles)</b>
@@ -8781,7 +8781,7 @@ dcl#:#dcl_record#:#Entry
 dcl#:#dcl_record_deleted#:#Entry deleted.
 dcl#:#dcl_record_settings#:#Entry Settings
 dcl#:#dcl_reference#:#Reference
-dcl#:#dcl_reference_desc#:#A field which will display selected entries made in another field. This other field can be located in a different table. Changes made to the original entry will affect the version displayed in this field. 
+dcl#:#dcl_reference_desc#:#A field which will display selected entries made in another field. This other field can be located in a different table. Changes made to the original entry will affect the version displayed in this field.
 dcl#:#dcl_reference_link#:#Link Referenced Entry
 dcl#:#dcl_reference_link_info#:#Please note: You need to have set up and activated a ‘Detailed View’ template in the table in which the referenced entry is located.
 dcl#:#dcl_reference_title#:#Referenced Field
@@ -8858,7 +8858,7 @@ dcl#:#dcl_wrong_regex#:#The text you entered does not fulfil the requirements of
 dcl#:#dcl_xls_async_export#:#as XLSX (asynchronous)
 dcl#:#disable_comments#:#Disable Comments
 dcl#:#disable_visible#:#Disable Visible
-dcl#:#duplicate_entries_exist#:#Some of the existing values for this field are identical. Please make sure that all existing entries have unique values for this field in order to change this setting. 
+dcl#:#duplicate_entries_exist#:#Some of the existing values for this field are identical. Please make sure that all existing entries have unique values for this field in order to change this setting.
 dcl#:#enable_comments#:#Enable Comments
 dcl#:#enable_visible#:#Enable Visible
 dcl#:#entry_of#:#Entry %1$d of %2$d
@@ -9798,90 +9798,6 @@ export#:#export_resource#:#Resource
 export#:#export_save_selection#:#Start Export
 export#:#export_select_resources#:#Select Resources
 export#:#no_file#:#No file
-file#:#add_icon#:#Add Icon
-file#:#amount_of_downloads#:#Downloads
-file#:#amount_of_downloads_since#:#%d times since %s
-file#:#copyright_custom#:#Custom
-file#:#copyright_custom_info#:#Choose a custom copyright which will be applied to all unzipped files of this archive.
-file#:#copyright_inherited#:#Inherited
-file#:#copyright_inherited_info#:#Apply the copyright of the zip archive to its unzipped files. <br \>Copyright of zip archive: %s.
-file#:#could_not_create_file_objs#:#An error occurred while creating your file objects. Please contact the administrators of this platform.
-file#:#de_activate_icon#:#Activate / Deactivate
-file#:#download_ascii_filename#:#Allow Only ASCII Characters in Downloaded Filenames
-file#:#download_ascii_filename_info#:#Downloaded files should only have ASCII-characters in their filename. Deactivate to use all characters.
-file#:#file_action_download#:#Download file or view content
-file#:#file_action_download_info#:#If WOPI is activated and the permission 'View Content' is given, the file is shown in tab 'Content'. If not, the file will be offered for direct download.
-file#:#file_action_show#:#Redirect user to the file’s ‘Info’ tab
-file#:#file_action_show_info#:#The 'Info' tab is shown where the file could be downloaded in a second step.
-file#:#file_btn_lp_toggle_state_completed#:#Set Not Completed
-file#:#file_btn_lp_toggle_state_not_completed#:#Set Completed
-file#:#file_copy#:#Copy File
-file#:#file_download#:#Download File
-file#:#file_import#:#Import File
-file#:#file_new_version#:#Create New Version
-file#:#file_new_version_info#:#Create new file version. Previous versions will not be modified.
-file#:#file_publish#:#Publish Draft
-file#:#file_rollback_rollback_first#:#The selected version could not be published because an unpublished draft exists.
-file#:#file_rollback_same_version#:#This is already the published version!
-file#:#file_unpublish#:#Mark as Draft
-file#:#file_upload_info_file_with_critical_extension#:#At least one uploaded file contains a critical or unknown file ending. Whenever the file is downloaded, its ending will be changed to ‘.sec’. If necessary, contact your administrator. Filename(s): %s
-file#:#file_uploaded_by#:#Uploaded By
-file#:#file_version_draft#:#Draft Version
-file#:#file_version_draft_info#:#The latest version of this file has the status ‘Draft’. As long as this version has not been published, no new versions can be created. People with read permission for the file get the most recent previously published version.
-file#:#form_icon_creation#:#Create Icon
-file#:#form_icon_updating#:#Update Icon
-file#:#general_upload_error_occured#:#An unexpected error occurred during upload.
-file#:#important_info#:#Important Information
-file#:#important_info_byline#:#The information will be displayed in the ‘Info’ tab.
-file#:#input_active#:#Active
-file#:#input_desc_active#:#Activate this icon.
-file#:#input_desc_icon#:#Image to be used as the icon for files with the specified suffixes.
-file#:#input_desc_suffixes#:#List of comma-separated suffixes (characters and numbers only, without preceding full stop).
-file#:#input_icon#:#Icon
-file#:#input_suffixes#:#Suffix(es)
-file#:#migrated#:#Status
-file#:#mime_type#:#MIME Type
-file#:#msg_cant_unpublish#:#File could not be unpublished.
-file#:#msg_confirm_entry_deletion#:#Are you sure you want to delete the following entry?:
-file#:#msg_error_active_suffixes_blacklisted#:#One of the selected file extensions is on the global blacklist and cannot therefore be currently used.
-file#:#msg_error_active_suffixes_conflict#:#Error: It is not possible to have multiple icons activated for the same suffix. Please deactivate either this icon or the other activated icon whose suffixes overlap with those of this icon.
-file#:#msg_error_active_suffixes_not_whitelisted#:#The selected file extension is not on the global whitelist. The file suffixes will be changed to ‘.sec’ when downloaded.
-file#:#msg_error_duplicate_suffix_entries#:#Error: the comma separated list of suffixes contains duplicate entries.
-file#:#msg_error_icon_deletion#:#Error: icon deletion failed.
-file#:#msg_error_suffixes_with_forbidden_characters#:#Error: forbidden characters. Only letters, numbers, spaces and commas are allowed.
-file#:#msg_icon_missing_from_db#:#Icon missing from database.
-file#:#msg_icon_missing_from_irss#:#Icon missing from resource storage.
-file#:#msg_success_icon_activated#:#Icon successfully activated.
-file#:#msg_success_icon_created#:#Icon successfully created.
-file#:#msg_success_icon_deactivated#:#Icon successfully deactivated.
-file#:#msg_success_icon_deletion#:#Icon successfully deleted.
-file#:#msg_success_icon_updated#:#Icon successfully updated.
-file#:#msg_unzip_success#:#Archive successfully unzipped.
-file#:#on_click_action#:#Action When Title Clicked
-file#:#preview_caption#:#Preview %sof %s
-file#:#preview_image_size_info#:#The preview versions of images will be downscaled or upscaled as appropriate, so that their longest side is the length (in px) entered here.
-file#:#preview_persisting#:#Persistent Preview Images
-file#:#preview_persisting_info#:#Generated preview images will be stored by ILIAS and used from then on each time the preview icon for that file is clicked on. If deactivated, previews will be generated anew each time.
-file#:#previews_for_tiles#:#Tiles
-file#:#previews_for_tiles_info#:#Use Preview for Tiles where possible.
-file#:#publish_before_delete#:#It was not possible to delete any of the existing versions because an unpublished draft exists.
-file#:#replace_file_info#:#All previous file versions will be deleted.
-file#:#resource_id#:#Resource ID
-file#:#service_settings#:#Additional Features
-file#:#service_settings_saved#:#Changes saved.
-file#:#set_license_for_all_files#:#Set License for All Files
-file#:#show_amount_of_downloads#:#Show Number of Downloads
-file#:#show_amount_of_downloads_info#:#Display the number of times a file object has been downloaded on its 'Info' page.
-file#:#storage_id#:#Storage ID
-file#:#suffix_specific_icons#:#Suffix-Specific Icons
-file#:#suffixes#:#Suffix(es)
-file#:#upload_files#:#Upload Files
-file#:#upload_files_limit#:#The maximum file size allowed is %s.
-file#:#upload_files_title#:#Upload Files
-file#:#upload_info#:#File
-file#:#upload_info_desc#:#Uploads and versions can be managed in the ‘Versions’ tab.
-file#:#version_uploaded#:#Version Uploaded
-file#:#versionname#:#Title
 fils#:#add_upload_policy#:#Add Policy
 fils#:#edit_upload_policy#:#Edit Policy
 fils#:#file_services#:#File Services
