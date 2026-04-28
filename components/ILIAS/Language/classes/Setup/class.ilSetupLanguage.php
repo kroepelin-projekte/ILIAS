@@ -55,11 +55,10 @@ class ilSetupLanguage extends ilLanguage
     public function __construct(
         string $a_lang_key,
         private LanguageFileDirectoryManager $language_file_directory_manager,
-    )
-    {
+    ){
         $this->lang_key = $a_lang_key ?: $this->lang_default;
         $this->absolute_path = realpath(__DIR__ . "/../../../../../");
-        $this->cust_lang_path = $il_absolute_path . "/lang/customizing";
+        $this->cust_lang_path = $this->absolute_path . "/lang/customizing";
     }
 
     /**

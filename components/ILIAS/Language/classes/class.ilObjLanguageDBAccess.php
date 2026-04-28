@@ -44,7 +44,7 @@ class ilObjLanguageDBAccess
         $this->comment_separator = $comment_separator;
     }
 
-    public function insertLangEntries(string $lang_file): array
+    public function insertLangEntries(string $lang_file, string $prefix = ''): array
     {
         // initialize the array for updating lng_modules below
         $lang_array = array();
@@ -60,6 +60,9 @@ class ilObjLanguageDBAccess
             // [2]: value
             // [3]: comment (optional)
             $separated = explode($this->separator, trim($val));
+            if ($prefix !== '') {
+                array_unshift($separated, $prefix);
+            }
             $pos = strpos($separated[2], $this->comment_separator);
             if ($pos !== false) {
                 $separated[3] = substr($separated[2], $pos + strlen($this->comment_separator));

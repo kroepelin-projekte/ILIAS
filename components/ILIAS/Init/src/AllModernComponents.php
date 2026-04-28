@@ -95,6 +95,7 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\UI\Implementation\Component\Input\UploadLimitResolver $ui_upload_limit_resolver,
         protected \ILIAS\Setup\AgentFinder $setup_agent_finder,
         protected \ILIAS\UI\Implementation\Component\Navigation\Factory $ui_factory_navigation,
+        protected \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager,
     ) {
     }
 
@@ -172,6 +173,8 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         $DIC['ui.renderer'] = fn() => $this->ui_renderer;
         $DIC['setup.agentfinder'] = fn() => $this->setup_agent_finder;
         $DIC['ui.factory.navigation'] = fn() => $this->ui_factory_input_field;
+        $DIC[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class] = fn() =>
+            $this->language_file_directory_manager;
     }
 
     public function getName(): string

@@ -55,6 +55,11 @@ class Language implements Component\Component
                 ...$seek[LanguageFileDirectory::class]
             );
 
+        // Make the resolved directory list available outside this component.
+        // If we add it to AllModernComponents and Init we need this.
+        $provide[LanguageFileDirectoryManager::class] = static fn() =>
+            $internal[LanguageFileDirectoryManager::class];
+
         $internal[\ilSetupLanguage::class] = static fn() =>
             new \ilSetupLanguage(
                 "en",
@@ -70,3 +75,4 @@ class Language implements Component\Component
             new Language\UserSettings\Settings();
     }
 }
+

@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
+
 /**
  * Class ilObjLanguage
  *
@@ -40,6 +43,8 @@ class ilObjLanguage extends ilObject
     public string $key;
     public string $status;
     public string $cust_lang_path;
+    public string $absolute_path;
+    private LanguageFileDirectoryManager $language_file_directory_manager;
 
     /**
      * Constructor
@@ -47,10 +52,17 @@ class ilObjLanguage extends ilObject
      * $a_id    reference_id or object_id
      * $a_call_by_reference treat the id as reference_id (true) or object_id (false)
      */
-    public function __construct(int $a_id = 0, bool $a_call_by_reference = false)
-    {
+    public function __construct(
+        int $a_id = 0,
+        bool $a_call_by_reference = false,
+        ?LanguageFileDirectoryManager $language_file_directory_manager = null
+    ) {
         global $DIC;
         $lng = $DIC->language();
+
+        $this->language_file_directory_manager = $language_file_directory_manager
+            ?? ($DIC[LanguageFileDirectoryManager::class] ?? null)
+            ?? new LanguageFileDirectoryManager(new MainLanguageFileDirectory());
 
         $this->type = "lng";
         parent::__construct($a_id, $a_call_by_reference);
@@ -64,6 +76,7 @@ class ilObjLanguage extends ilObject
         $this->cust_lang_path = $lng->getCustomLangPath();
         $this->separator = $lng->separator;
         $this->comment_separator = $lng->comment_separator;
+        $this->absolute_path = realpath(__DIR__ . "/../../../../../");
     }
 
 
@@ -442,30 +455,40 @@ class ilObjLanguage extends ilObject
             }
         }
 
-        $path = $this->lang_path;
-        if ($scope === "local") {
-            $path = $this->cust_lang_path;
-        }
+        foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
+            $this->lang_path = rtrim($this->absolute_path, '/') . '/html/' . ltrim($directory->getPath(), '/');
 
-        $lang_file = $path . "/ilias_" . $this->key . ".lang" . $scopeExtension;
-
-        if (is_file($lang_file)) {
-            // remove header first
-            if ($content = self::cut_header(file($lang_file))) {
-                $local_changes = null;
-                if (empty($scope)) {
-                    // get all local changes for a global file
-                    $local_changes = $this->getLocalChanges();
-                } elseif ($scope === "local") {
-                    // get the modification date of the local file
-                    // get the newer local changes for a local file
-                    $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
-                    $local_changes = $this->getLocalChanges($min_date);
-                }
-                $dbAccess = new ilObjLanguageDBAccess($ilDB, $this->key, $content, $local_changes, $scope);
-                $lang_array = $dbAccess->insertLangEntries($lang_file);
-                $dbAccess->replaceLangModules($lang_array);
+            $path = $this->lang_path;
+            // TODO: Move this to another implementation of \ILIAS\Language\ComponentTranslation\LanguageFileDirectory
+            if ($scope === "local") {
+                $path = $this->cust_lang_path;
             }
+
+            $tmpPath = getcwd();
+            chdir($path);
+
+            $lang_file = $path . "ilias_" . $this->key . ".lang" . $scopeExtension;
+
+            if (is_file($lang_file)) {
+                // remove header first
+                if ($content = self::cut_header(file($lang_file))) {
+                    $local_changes = null;
+                    if (empty($scope)) {
+                        // get all local changes for a global file
+                        $local_changes = $this->getLocalChanges();
+                    } elseif ($scope === "local") {
+                        // get the modification date of the local file
+                        // get the newer local changes for a local file
+                        $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
+                        $local_changes = $this->getLocalChanges($min_date);
+                    }
+                    $dbAccess = new ilObjLanguageDBAccess($ilDB, $this->key, $content, $local_changes, $scope);
+                    $lang_array = $dbAccess->insertLangEntries($lang_file, $directory->getPrefix());
+                    $dbAccess->replaceLangModules($lang_array);
+                }
+            }
+
+            chdir($tmpPath);
         }
     }
 
