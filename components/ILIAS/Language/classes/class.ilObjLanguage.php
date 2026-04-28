@@ -446,6 +446,7 @@ class ilObjLanguage extends ilObject
     {
         global $DIC;
         $ilDB = $DIC->database();
+
         $scopeExtension = "";
         if (!empty($scope)) {
             if ($scope === "global") {
@@ -455,41 +456,112 @@ class ilObjLanguage extends ilObject
             }
         }
 
+        // Preserve customizing/local semantics: import local file exactly once
+        if ($scope === "local") {
+            $tmpPath = getcwd();
+            chdir($this->cust_lang_path);
+
+            $lang_file = "ilias_" . $this->key . ".lang" . $scopeExtension;
+            if (is_file($lang_file)) {
+                $content = self::cut_header(file($lang_file));
+                if ($content !== false) {
+                    $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
+                    $local_changes = $this->getLocalChanges($min_date);
+
+                    $dbAccess = new ilObjLanguageDBAccess(
+                        $ilDB,
+                        $this->key,
+                        $content,
+                        $local_changes,
+                        $scope,
+                        $this->separator,
+                        $this->comment_separator
+                    );
+                    $lang_array = $dbAccess->insertLangEntries($lang_file);
+                    $dbAccess->replaceLangModules($lang_array);
+                }
+            }
+
+            chdir($tmpPath);
+            return;
+        }
+
         foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
             $this->lang_path = rtrim($this->absolute_path, '/') . '/html/' . ltrim($directory->getPath(), '/');
-
             $path = $this->lang_path;
-            // TODO: Move this to another implementation of \ILIAS\Language\ComponentTranslation\LanguageFileDirectory
-            if ($scope === "local") {
-                $path = $this->cust_lang_path;
-            }
 
             $tmpPath = getcwd();
             chdir($path);
 
-            $lang_file = $path . "ilias_" . $this->key . ".lang" . $scopeExtension;
+            $lang_file = "ilias_" . $this->key . ".lang" . $scopeExtension;
 
             if (is_file($lang_file)) {
-                // remove header first
-                if ($content = self::cut_header(file($lang_file))) {
-                    $local_changes = null;
-                    if (empty($scope)) {
-                        // get all local changes for a global file
-                        $local_changes = $this->getLocalChanges();
-                    } elseif ($scope === "local") {
-                        // get the modification date of the local file
-                        // get the newer local changes for a local file
-                        $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
-                        $local_changes = $this->getLocalChanges($min_date);
+                $content = self::cut_header(file($lang_file));
+                if ($content !== false) {
+                    $local_changes = $this->getLocalChanges();
+
+                    $prefix = (string) $directory->getPrefix();
+                    if ($prefix !== '') {
+                        $content = $this->injectModulePrefixIntoTwoPartLanguageLines($content, $prefix);
                     }
-                    $dbAccess = new ilObjLanguageDBAccess($ilDB, $this->key, $content, $local_changes, $scope);
-                    $lang_array = $dbAccess->insertLangEntries($lang_file, $directory->getPrefix());
+
+                    $dbAccess = new ilObjLanguageDBAccess(
+                        $ilDB,
+                        $this->key,
+                        $content,
+                        $local_changes,
+                        $scope,
+                        $this->separator,
+                        $this->comment_separator
+                    );
+                    $lang_array = $dbAccess->insertLangEntries($lang_file);
                     $dbAccess->replaceLangModules($lang_array);
                 }
             }
 
             chdir($tmpPath);
         }
+    }
+
+    /**
+     * For ComponentLanguageFileDirectory: lines are "identifier#:#value".
+     * This converts them to "prefix#:#identifier#:#value".
+     *
+     * For MainLanguageFileDirectory: lines are already 3-part ("module#:#identifier#:#value") and are left untouched.
+     *
+     * This also tolerates "old format inside a component dir" (3-part lines) by leaving them unchanged.
+     */
+    private function injectModulePrefixIntoTwoPartLanguageLines(array $content, string $prefix): array
+    {
+        $sep = $this->separator;
+        $sep_len = strlen($sep);
+        $out = [];
+
+        foreach ($content as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+
+            $first = strpos($line, $sep);
+            if ($first === false) {
+                // unexpected format, keep as-is (check() should have prevented this)
+                $out[] = $line;
+                continue;
+            }
+
+            $second = strpos($line, $sep, $first + $sep_len);
+
+            if ($second === false) {
+                // 2-part => inject module prefix
+                $out[] = $prefix . $sep . $line;
+            } else {
+                // 3-part already => leave unchanged
+                $out[] = $line;
+            }
+        }
+
+        return $out;
     }
 
     /**
