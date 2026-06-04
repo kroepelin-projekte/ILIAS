@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Setup\Activities;
 
 use ILIAS\Component\Dependencies\Name;
-use ILIAS\UI\Component\Input\Control\Form\FormInput;
+use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\Data\Result;
 use ILIAS\Data\Text;
 
@@ -34,7 +34,7 @@ class GetStatus extends \ILIAS\Component\Activities\Query
     {
     }
 
-    public function getInputDescription(): \ILIAS\UI\Component\Input\Control\Form\FormInput
+    public function getInputDescription(): \ILIAS\UI\Component\Input\Container\Form\FormInput
     {
     }
 

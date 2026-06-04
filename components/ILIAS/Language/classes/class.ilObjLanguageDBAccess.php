@@ -48,7 +48,7 @@ class ilObjLanguageDBAccess
     {
         // initialize the array for updating lng_modules below
         $lang_array = array();
-        $lang_array["common"] = array();
+        #$lang_array["common"] = array();
 
         $double_checker = [];
         $query_check = false;

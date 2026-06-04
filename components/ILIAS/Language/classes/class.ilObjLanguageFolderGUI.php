@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
+use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
  * Class ilObjLanguageFolderGUI
@@ -193,7 +195,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
      */
     public function installObject(array $ids): void
     {
-        $this->checkPermission("write");
+        /*$this->checkPermission("write");
         $this->lng->loadLanguageModule("meta");
 
         foreach ($ids as $obj_id) {
@@ -221,7 +223,65 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $this->data = $this->lng->txt("languages_already_installed");
         }
 
-        $this->out();
+        $this->out();*/
+
+        global $DIC;
+
+        $activity = new InstallLanguage(
+            $DIC->refinery()
+        );
+
+        $result = $activity->maybePerformAs(
+            $DIC->user()->getId(),
+            [
+                'language_object_ids' => array_map('intval', $ids),
+            ]
+        );
+
+        if ($result->isError()) {
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->lng->txt('language_not_installed'),
+                true
+            );
+
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+        $value = $result->value();
+
+        if (($lang_installed = $value['installed_language_keys']) !== []) {
+            if (count($lang_installed) === 1) {
+                $message = $this->lng->txt("meta_l_" . $lang_installed[0]) . " " . strtolower($this->lng->txt("installed")) . ".";
+            } else {
+                $langnames = [];
+                foreach ($lang_installed as $lang_key) {
+                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
+                }
+                $message = implode(", ", $langnames) . " " . strtolower($this->lng->txt("installed")) . ".";
+            }
+            $this->tpl->setOnScreenMessage(
+                'success',
+                $message,
+                true
+            );
+        }
+
+        if (($lang_already_installed = $value['already_installed_language_keys']) !== []) {
+            $message = $this->lng->txt("languages_already_installed") . ': ';
+            $langnames = [];
+            foreach ($lang_already_installed as $lang_key) {
+                $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
+            }
+            $message .= implode(', ', $langnames);
+            $this->tpl->setOnScreenMessage(
+                'info',
+                $message,
+                true
+            );
+        }
+
+        $this->ctrl->redirect($this, 'view');
     }
 
 
