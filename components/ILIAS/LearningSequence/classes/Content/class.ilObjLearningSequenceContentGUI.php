@@ -115,7 +115,130 @@ class ilObjLearningSequenceContentGUI
 
         $table->addCommandButton(self::CMD_SAVE, $this->lng->txt("save"));
 
-        $this->tpl->setContent($table->getHtml());
+        // -----------------------------------------------------------------
+        // Ticket-Anforderung:
+        // Unterhalb der bestehenden (alten) Content-Management-Tabelle soll
+        // zusätzlich eine Kitchen-Sink Presentation-Table mit Dummy-Daten
+        // angezeigt werden.
+        //
+        // Wichtig:
+        // - Wir ersetzen die bestehende Tabelle NICHT.
+        // - Wir hängen lediglich zusätzlich HTML darunter.
+        // -----------------------------------------------------------------
+        // Table + DTOs laden.
+        // Hinweis: In diesem Prototypen verwenden wir bewusst include_once,
+        // damit klar ist, woher die Klassen kommen (und weil es Dummy-Code ist).
+        include_once __DIR__ . '/../ALP/class.ilLearningSequenceALPConditionDTO.php';
+        include_once __DIR__ . '/../ALP/class.ilLearningSequenceALPInformationDTO.php';
+        include_once __DIR__ . '/../ALP/class.ilLearningSequenceALPContentManagementObjectDTO.php';
+        include_once __DIR__ . '/../ALP/class.ilLearningSequenceALPContentManagementPresentationTable.php';
+
+        // Ticket-Anforderung:
+        // Das CSS liegt im Component-Ressourcen-Bereich und wird über LearningSequence.php
+        // als PublicAsset registriert. Dadurch landet es (wie andere Assets auch) unter
+        // /assets/css/...
+        $this->tpl->addCss('assets/css/alp_content_management_presentation.css');
+
+        // -------------------------------------------------------------
+        // Ticket-Anforderung: Datenquelle aufbrechen
+        // - Die GUI baut mehrere DTOs nach Best Practice.
+        // - Die Table bekommt NUR noch DTOs übergeben und rendert diese.
+        // -------------------------------------------------------------
+
+        // Dummy-DTOs: später werden diese Daten aus dem echten Modell/DB kommen.
+        $objects = [
+            new ilLearningSequenceALPContentManagementObjectDTO(
+                title: 'Object A',
+                link: '#',
+                description: 'Dummy Beschreibung für Object A. Hier steht ein kurzer Beispieltext.',
+                icon_path: ilUtil::getImagePath('standard/icon_tst.svg'),
+                selected_number: 2,
+                input_conditions: [
+                    // Logic Gates: Wert soll aus and/or/not stammen.
+                    new ilLearningSequenceALPConditionDTO('Logic Gates', 'and'),
+                    // passed Subset: Zahl + Dummy-Objektnamen.
+                    new ilLearningSequenceALPConditionDTO('passed Subset', '2 (Object A, Object B)'),
+                ],
+                output_conditions: [
+                    // Output als Key-Value: z.B. "LP => passed".
+                    new ilLearningSequenceALPConditionDTO('LP', 'passed'),
+                    new ilLearningSequenceALPConditionDTO('Tutor', 'yes'),
+                ],
+                information: new ilLearningSequenceALPInformationDTO(
+                    online: 'yes',
+                    start_object: 'yes',
+                    end_object: 'no',
+                    previous_object: 'Object A',
+                    next_object: 'Object C'
+                ),
+                // Option A: nur dieses Objekt ist Start.
+                is_start_object: true,
+                is_end_object: false,
+                // Für das Action-Menü (Set Online/Set Offline)
+                is_online: true
+            ),
+            new ilLearningSequenceALPContentManagementObjectDTO(
+                title: 'Object B',
+                link: '#',
+                description: 'Dummy Beschreibung für Object B. Hier steht ein weiterer Beispieltext.',
+                icon_path: ilUtil::getImagePath('standard/icon_file.svg'),
+                selected_number: 1,
+                input_conditions: [
+                    // point allocation: Zahl.
+                    new ilLearningSequenceALPConditionDTO('point allocation', '15'),
+                ],
+                output_conditions: [
+                    new ilLearningSequenceALPConditionDTO('Point Allocation', '30'),
+                ],
+                information: new ilLearningSequenceALPInformationDTO(
+                    online: 'no',
+                    start_object: 'no',
+                    end_object: 'no',
+                    previous_object: 'Object A',
+                    next_object: 'Object C'
+                ),
+                is_start_object: false,
+                is_end_object: false,
+                is_online: false
+            ),
+            new ilLearningSequenceALPContentManagementObjectDTO(
+                title: 'Object C',
+                link: '#',
+                description: 'Dummy Beschreibung für Object C. Noch ein Beispieltext zur Einordnung.',
+                icon_path: ilUtil::getImagePath('standard/icon_pg.svg'),
+                selected_number: 3,
+                input_conditions: [
+                    new ilLearningSequenceALPConditionDTO('Logic Gates', 'or'),
+                    new ilLearningSequenceALPConditionDTO('passed Subset', '3 (Object A, Object B, Object C)'),
+                    new ilLearningSequenceALPConditionDTO('point allocation', '7'),
+                ],
+                output_conditions: [
+                    new ilLearningSequenceALPConditionDTO('Always', 'true'),
+                ],
+                information: new ilLearningSequenceALPInformationDTO(
+                    online: 'yes',
+                    start_object: 'no',
+                    end_object: 'yes',
+                    previous_object: 'Object A',
+                    next_object: 'Object C'
+                ),
+                // Option A: nur dieses Objekt ist Ende.
+                is_start_object: false,
+                is_end_object: true,
+                is_online: true
+            ),
+        ];
+
+        $dummy_table = new ilLearningSequenceALPContentManagementPresentationTable(
+            $this->ui_factory,
+            $this->ui_renderer,
+            $objects
+        );
+
+        $html = $table->getHtml();
+        $html .= $dummy_table->render();
+
+        $this->tpl->setContent($html);
     }
 
     /**

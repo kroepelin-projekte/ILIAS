@@ -39,5 +39,12 @@ class LearningSequence implements Component\Component
 
         $contribute[Component\Resource\PublicAsset::class] = fn() =>
             new Component\Resource\ComponentJS($this, "js/lso_kiosk_rating.js");
+
+        // Demo-/ALP-Anforderung:
+        // Unser CSS für die Dummy-"Content Managent"-Presentation-Table muss als PublicAsset
+        // registriert werden (analog zu lso_kiosk_rating.js), damit es unter /assets/css
+        // ausgeliefert wird und vom Template via addCss() gefunden werden kann.
+        $contribute[Component\Resource\PublicAsset::class] = fn() =>
+            new Component\Resource\ComponentCSS($this, "css/alp_content_management_presentation.css");
     }
 }
