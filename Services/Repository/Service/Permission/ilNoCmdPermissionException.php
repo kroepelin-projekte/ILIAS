@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -18,13 +16,8 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
-/**
-* sets ILIAS version (this file shouldn't be merged between cvs branches)
-*
-* @author Alex Killing <alex.killing@gmx.de>
-* @version $Id$
-*
-* @package ilias-core
-*/
-const ILIAS_VERSION = "9.21 2026-07-07";
-const ILIAS_VERSION_NUMERIC = "9.21";            // since version ILIAS 6 this must be always x.y: x and y are numbers
+declare(strict_types=1);
+
+class ilNoCmdPermissionException extends ilException
+{
+}
