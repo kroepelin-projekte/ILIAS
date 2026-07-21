@@ -40,6 +40,7 @@ class ilLSPlayer
     public const LSO_CMD_FINISH = 'lsofinish';
 
     public const GS_DATA_LS_KIOSK_MODE = 'ls_kiosk_mode';
+    public const GS_DATA_LS_TITLE = 'ls_title';
     public const GS_DATA_LS_CONTENT = 'ls_content';
     public const GS_DATA_LS_MAINBARCONTROLS = 'ls_mainbar_controls';
     public const GS_DATA_LS_METABARCONTROLS = 'ls_metabar_controls';
@@ -59,6 +60,10 @@ class ilLSPlayer
 
     public function play(RequestWrapper $get): ?string
     {
+        $ls_ref_id = $this->ls_items->getLearningSequenceRefId();
+        $ls_obj_id = ilObject::_lookupObjId($ls_ref_id);
+        $ls_title = ilObject::_lookupTitle($ls_obj_id);
+
         $items = $this->ls_items->getItems();
 
         if (count($items) === 0) {
@@ -115,6 +120,7 @@ class ilLSPlayer
 
         //content
         $obj_title = $next_item->getTitle();
+        $obj_description = $next_item->getDescription();
         $icon = $this->ui_factory->symbol()->icon()->standard(
             $next_item->getType(),
             $next_item->getType(),
@@ -141,11 +147,99 @@ class ilLSPlayer
         //amend controls not set by the view
         $control_builder = $this->buildDefaultControls($control_builder, $item, $item_position, $items);
 
+        // Keep a stable header layout: reserve the rating slot even if rating is not available.
+        // Otherwise the navigation/buttons would shift vertically.
+        $obj_rating_html = '&nbsp;';
+        $obj_id = ilObject::_lookupObjId($next_item->getRefId());
+        if ($obj_id > 0) {
+            $obj_type = ilObject::_lookupType($obj_id);
+            ilRating::preloadListGUIData([$obj_id]);
+            if ($obj_type !== '' && ilRating::hasRatingInListGUI($obj_id, $obj_type)) {
+                global $DIC;
+                $lng = $DIC->language();
+
+                $parent_ref_id = (int) $ls_ref_id;
+                $rating_container_id = 'lg_div_' . $next_item->getRefId() . '_pref_' . $parent_ref_id;
+
+                $ajax_hash = ilCommonActionDispatcherGUI::buildAjaxHash(
+                    ilCommonActionDispatcherGUI::TYPE_REPOSITORY,
+                    $next_item->getRefId(),
+                    $obj_type,
+                    $obj_id
+                );
+
+                $rating_gui = new ilRatingGUI();
+                $rating_gui->setObject($obj_id, $obj_type);
+                $rating_gui->setCtrlPath([
+                    ilCommonActionDispatcherGUI::class,
+                    ilRatingGUI::class
+                ]);
+                $rating_gui->setYourRatingText($lng->txt('rating_your_rating'));
+
+                $rating_content = $rating_gui->getListGUIProperty(
+                    $next_item->getRefId(),
+                    true,
+                    $ajax_hash,
+                    $parent_ref_id
+                );
+
+                $tpl = new ilTemplate(
+                    'tpl.lso_kiosk_rating_container.html',
+                    true,
+                    true,
+                    'components/ILIAS/LearningSequence'
+                );
+                $tpl->setVariable('CONTAINER_ID', $rating_container_id);
+                $tpl->setVariable('CHILD_REF_ID', (string) $next_item->getRefId());
+                $tpl->setVariable('AJAX_HASH', htmlspecialchars($ajax_hash, ENT_QUOTES));
+                $tpl->setVariable('RATING_CONTENT', $rating_content);
+                $obj_rating_html = $tpl->get();
+
+                $ilCtrl = $DIC->ctrl();
+                $redraw_url = $ilCtrl->getLinkTargetByClass(
+                    ilObjLearningSequenceLearnerGUI::class,
+                    ilObjLearningSequenceLearnerGUI::CMD_REDRAW_LIST_ITEM,
+                    '',
+                    true,
+                    false
+                );
+
+                $rating_url = $ilCtrl->getLinkTargetByClass(
+                    [
+                        ilCommonActionDispatcherGUI::class,
+                        ilRatingGUI::class
+                    ],
+                    'saveRating',
+                    '',
+                    true,
+                    false
+                );
+
+                $this->page_renderer->addOnLoadCode(
+                    "if (window.il && window.il.Object) {" .
+                    " if (typeof window.il.Object.setRedrawListItemUrl === 'function') { window.il.Object.setRedrawListItemUrl(" . json_encode($redraw_url, JSON_THROW_ON_ERROR) . "); }" .
+                    " if (typeof window.il.Object.setRatingUrl === 'function') { window.il.Object.setRatingUrl(" . json_encode($rating_url, JSON_THROW_ON_ERROR) . "); }" .
+                    "}"
+                );
+
+                $this->page_renderer->addJs(
+                    'assets/js/lso_kiosk_rating.js',
+                    true
+                );
+                $this->page_renderer->addOnLoadCode(
+                    "if (window.il && window.il.LSO && window.il.LSO.KioskRating && " .
+                    "typeof window.il.LSO.KioskRating.init === 'function') { window.il.LSO.KioskRating.init(); }"
+                );
+            }
+        }
+
         $rendered_body = $this->page_renderer->render(
             $control_builder,
             $obj_title,
+            $obj_description,
             $icon,
-            $content
+            $content,
+            $obj_rating_html
         );
 
         $metabar_controls = [
@@ -154,7 +248,7 @@ class ilLSPlayer
 
         $curriculum_slate = $this->page_renderer->buildCurriculumSlate(
             $this->curriculum_builder
-                ->getLearnerCurriculum(true)
+                ->getLearnerCurriculum(true, $ls_title)
                 ->withActive($item_position)
         );
         $mainbar_controls = [
@@ -169,6 +263,7 @@ class ilLSPlayer
 
         $cc = $this->current_context;
         $cc->addAdditionalData(self::GS_DATA_LS_KIOSK_MODE, true);
+        $cc->addAdditionalData(self::GS_DATA_LS_TITLE, $ls_title);
         $cc->addAdditionalData(self::GS_DATA_LS_METABARCONTROLS, $metabar_controls);
         $cc->addAdditionalData(self::GS_DATA_LS_MAINBARCONTROLS, $mainbar_controls);
         $cc->addAdditionalData(self::GS_DATA_LS_CONTENT, $rendered_body);
@@ -299,7 +394,12 @@ class ilLSPlayer
         if (!$control_builder->getNextControl()) {
             $direction_next = 1;
             $cmd = '';
-            if (!$is_last) {
+            $param = $direction_next;
+
+            if ($is_last) {
+                $cmd = self::LSO_CMD_FINISH;
+                $param = null;
+            } else {
                 $available = $this->getNextItem($items, $item, $direction_next)
                     ->getAvailability() === Step::AVAILABLE;
 
@@ -309,7 +409,7 @@ class ilLSPlayer
             }
 
             $control_builder = $control_builder
-                ->next($cmd, $direction_next);
+                ->next($cmd, $param);
         }
 
         return $control_builder;
