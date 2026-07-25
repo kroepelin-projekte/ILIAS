@@ -1,5 +1,4 @@
 <?php
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -28,33 +27,33 @@ class ilObjLearningSequenceContentGUI
     public const CMD_DELETE = "delete";
     public const CMD_CONFIRM_DELETE = "confirmDelete";
     public const CMD_CANCEL = "cancel";
+    public const CMD_SET_ONLINE = "setOnline";
+    public const CMD_SET_OFFLINE = "setOffline";
 
     public const FIELD_ORDER = 'f_order';
     public const FIELD_ONLINE = 'f_online';
     public const FIELD_POSTCONDITION_TYPE = 'f_pct';
 
     public function __construct(
-        protected ilObjLearningSequenceGUI $parent_gui,
-        protected ilCtrl $ctrl,
-        protected ilGlobalTemplateInterface $tpl,
-        protected ilLanguage $lng,
-        protected ilAccess $access,
-        protected ilConfirmationGUI $confirmation_gui,
-        protected LSItemOnlineStatus $ls_item_online_status,
-        protected ArrayBasedRequestWrapper $post_wrapper,
-        protected Factory $refinery,
-        protected ILIAS\UI\Factory $ui_factory,
-        protected ILIAS\UI\Renderer $ui_renderer
+        protected \ilObjLearningSequenceGUI $parent_gui,
+        protected \ilCtrl $ctrl,
+        protected \ilGlobalTemplateInterface $tpl,
+        protected \ilLanguage $lng,
+        protected \ilAccessHandler $access,
+        protected \ilConfirmationGUI $confirmation_gui,
+        protected \LSItemOnlineStatus $ls_item_online_status,
+        protected \ILIAS\HTTP\Wrapper\RequestWrapper $post_wrapper,
+        protected \ILIAS\Refinery\Factory $refinery,
+        protected \ILIAS\UI\Factory $ui_factory,
+        protected \ILIAS\UI\Renderer $ui_renderer,
+        protected \Psr\Http\Message\ServerRequestInterface $request
     ) {
     }
 
     public function executeCommand(): void
     {
         if (!$this->access->checkAccess("read", '', $this->parent_gui->getRefId())) {
-            $this->tpl->setOnScreenMessage('info', sprintf(
-                $this->lng->txt('msg_no_perm_read_item'),
-                $this->parent_gui->getObjTitle()
-            ), true);
+            $this->tpl->setOnScreenMessage('info', $this->lng->txt('msg_no_perm_read_item'), true);
 
             $this->ctrl->redirect($this->parent_gui, 'view');
         }
@@ -72,6 +71,8 @@ class ilObjLearningSequenceContentGUI
             case self::CMD_SAVE:
             case self::CMD_DELETE:
             case self::CMD_CONFIRM_DELETE:
+            case self::CMD_SET_ONLINE:
+            case self::CMD_SET_OFFLINE:
                 $this->$cmd();
                 break;
             default:
@@ -81,41 +82,229 @@ class ilObjLearningSequenceContentGUI
 
     protected function manageContent(): void
     {
-        // Adds a btn to the gui which allows adding possible objects.
         $this->parent_gui->showPossibleSubObjects();
 
-        $data = $this->parent_gui->getObject()->getLSItems();
-        // Sadly, ilTable2 only wants an array for fillRow, so we need to wrap this...
-        $data = array_map(fn($s) => [$s], $data);
-        $this->renderTable($data);
+        $filter_builder = new \ilObjLearningSequenceContentFilter(
+            $this->ui_factory,
+            $this->lng,
+            $this->ctrl,
+            $this->parent_gui
+        );
+        $filter = $filter_builder->getFilter(
+            $this->ctrl->getLinkTarget($this, self::CMD_MANAGE_CONTENT),
+            $this->getInputConditionOptions(),
+            $this->getOutputConditionOptions()
+        );
+
+        try {
+            $filter = $filter->withRequest($this->request);
+            $filter_data = $filter->getData();
+        } catch (\InvalidArgumentException $e) {
+            $filter_data = [];
+        }
+
+        $items = $this->parent_gui->getObject()->getLSItems();
+        $data = $this->buildData($items, $filter_data);
+        $this->renderTable($data, $filter);
     }
 
-    protected function renderTable(array $ls_items): void
+    protected function buildData(array $items, ?array $filter_data = null): array
     {
-        $alert_icon = $this->ui_renderer->render(
-            $this->ui_factory->symbol()->icon()
-                ->custom(ilUtil::getImagePath("standard/icon_alert.svg"), $this->lng->txt("warning"))
-                ->withSize('small')
-        );
-        $table = new ilObjLearningSequenceContentTableGUI(
-            $this,
-            $this->parent_gui,
-            self::CMD_MANAGE_CONTENT,
-            $this->ctrl,
-            $this->lng,
-            $this->access,
+        $data = [];
+        $items_count = count($items);
+
+        $name_filter = $filter_data['name'] ?? '';
+        $input_filter = $filter_data['input_conditions'] ?? [];
+        $output_filter = $filter_data['output_conditions'] ?? [];
+        
+        foreach ($items as $index => $item) {
+            $ref_id = $item->getRefId();
+            $obj_id = \ilObject::_lookupObjId($ref_id);
+            $title = \ilObject::_lookupTitle($obj_id);
+
+            if ($name_filter !== '' && mb_stripos($title, $name_filter) === false) {
+                continue;
+            }
+
+            $type = $item->getType();
+            $actions = $this->collectActions($ref_id, $obj_id, $type, $item->isOnline());
+
+            // ToDo: Object Condtion hinzufügen
+            $input_opts = $this->getInputConditionOptions();
+            $random_input_key = array_rand($input_opts);
+            $input_conditions = [
+                new \ilObjLearningSequenceConditionData(
+                    $input_opts[$random_input_key],
+                    'dummy'
+                )
+            ];
+
+            // ToDo: Object Condtion hinzufügen
+            $output_opts = $this->getOutputConditionOptions();
+            $random_output_key = array_rand($output_opts);
+            $output_conditions = [
+                new \ilObjLearningSequenceConditionData(
+                    $output_opts[$random_output_key],
+                    'dummy'
+                )
+            ];
+
+            // Information
+            $prev_title = "(keines)";
+            if ($index > 0) {
+                $prev_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index - 1]->getRefId()));
+            }
+            $next_title = "(keines)";
+            if ($index < $items_count - 1) {
+                $next_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index + 1]->getRefId()));
+            }
+
+            $data[] = new \ilObjLearningSequenceContentData(
+                $obj_id,
+                \ilObject::_lookupTitle($obj_id),
+                \ilObject::_lookupDescription($obj_id),
+                $type,
+                \ilObject::_getIcon($obj_id, "big", $type),
+                \ilLink::_getLink($ref_id, $type),
+                $item->isOnline(),
+                ($index === 0) ? "Ja" : "",
+                ($index === $items_count - 1) ? "Ja" : "",
+                $prev_title,
+                $next_title,
+                $input_conditions,
+                $output_conditions,
+                $actions
+            );
+        }
+
+        return $data;
+    }
+
+    protected function collectActions(int $ref_id, int $obj_id, string $type, bool $is_online): array
+    {
+        $actions = [];
+        $standard_actions = [];
+
+        $list_gui = \ilObjectListGUIFactory::_getListGUIByType($type);
+        $list_gui->initItem($ref_id, $obj_id, $type);
+        $list_gui->setContainerObject($this->parent_gui);
+
+        $list_gui->enableCut(true);
+        $list_gui->enableDelete(true);
+        $list_gui->enableLink(true);
+        $list_gui->enableCopy(true);
+
+        if (method_exists($list_gui, 'enableDownload')) {
+            $list_gui->enableDownload(true);
+        }
+
+        $standard_commands = $list_gui->getCommands();
+        $allowed_commands = ['settings', 'delete', 'download', 'link', 'move', 'copy', 'cut', 'info'];
+        foreach ($standard_commands as $cmd) {
+            $lang_var = $cmd['lang_var'];
+            $cmd_name = $cmd['cmd'];
+            $key = ($lang_var !== '') ? $lang_var : $cmd_name;
+
+            if (!in_array($key, $allowed_commands)) {
+                continue;
+            }
+
+            $label = ($lang_var !== '') ? $this->lng->txt($lang_var) : $cmd_name;
+
+            $standard_actions[$key] = new \ilObjLearningSequenceActionData(
+                $label,
+                $cmd['link']
+            );
+        }
+        $manual_cmds = [
+            'delete' => ['permission' => 'delete', 'lang_var' => 'delete'],
+            'cut' => ['permission' => 'delete', 'lang_var' => 'move'],
+            'copy' => ['permission' => 'copy', 'lang_var' => 'copy'],
+            'link' => ['permission' => 'delete', 'lang_var' => 'link'],
+        ];
+
+        foreach ($manual_cmds as $cmd_name => $info) {
+            if (!isset($standard_actions[$cmd_name])) {
+                if ($this->access->checkAccess($info['permission'], '', $ref_id, $type)) {
+                    $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', $ref_id);
+                    $link = $this->ctrl->getLinkTarget($this->parent_gui, $cmd_name);
+                    
+                    $label = $this->lng->txt($info['lang_var']);
+
+                    $standard_actions[$cmd_name] = new \ilObjLearningSequenceActionData(
+                        $label,
+                        $link
+                    );
+                }
+            }
+        }
+
+        if (isset($standard_actions['settings'])) {
+            $actions[] = $standard_actions['settings'];
+            $actions[] = \ilObjLearningSequenceActionData::divider();
+        }
+
+        $actions[] = new \ilObjLearningSequenceActionData('Edit Condition', '#');
+        $actions[] = new \ilObjLearningSequenceActionData('Add Condition', '#');
+        $actions[] = \ilObjLearningSequenceActionData::divider();
+
+        if ($this->ls_item_online_status->hasChangeableOnlineStatus($ref_id)) {
+            $this->ctrl->setParameter($this, 'item_ref_id', $ref_id);
+            if ($is_online) {
+                $label = $this->lng->txt('set_offline');
+                $link = $this->ctrl->getLinkTarget($this, self::CMD_SET_OFFLINE);
+            } else {
+                $label = $this->lng->txt('set_online');
+                $link = $this->ctrl->getLinkTarget($this, self::CMD_SET_ONLINE);
+            }
+            $actions[] = new \ilObjLearningSequenceActionData($label, $link);
+        }
+
+        $actions[] = new \ilObjLearningSequenceActionData('Set Start Objekt', '#');
+        $actions[] = new \ilObjLearningSequenceActionData('Set End Objekt', '#');
+        $actions[] = \ilObjLearningSequenceActionData::divider();
+        
+        $remaining_order = ['download', 'delete', 'link', 'cut', 'copy'];
+        foreach ($remaining_order as $key) {
+            if (isset($standard_actions[$key]) && $key !== 'settings') {
+                $actions[] = $standard_actions[$key];
+            }
+        }
+
+        return $actions;
+    }
+
+    protected function renderTable(array $data, \ILIAS\UI\Component\Input\Container\Filter\Standard $filter): void
+    {
+        $this->lng->loadLanguageModule('trac');
+        $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
+
+        $table = new ilObjLearningSequenceContentTable(
             $this->ui_factory,
             $this->ui_renderer,
-            $this->ls_item_online_status,
-            $alert_icon
+            $data,
+            $filter
         );
 
-        $table->setData($ls_items);
-        $table->addMultiCommand(self::CMD_CONFIRM_DELETE, $this->lng->txt("delete"));
+        $this->tpl->setContent($table->render());
+    }
 
-        $table->addCommandButton(self::CMD_SAVE, $this->lng->txt("save"));
+    protected function getInputConditionOptions(): array
+    {
+        return [
+            'simple_condition' => 'Simple Condition',
+            'logic_gatter' => 'Logic Gatter',
+            'passed_subset' => 'Passed Subset',
+            'point_allocation' => 'Point Allocation'
+        ];
+    }
 
-        $this->tpl->setContent($table->getHtml());
+    protected function getOutputConditionOptions(): array
+    {
+        return [
+            'always' => 'Always',
+            'learning_progress' => 'Learning Progress'
+        ];
     }
 
     /**
@@ -186,6 +375,39 @@ class ilObjLearningSequenceContentGUI
 
         $this->parent_gui->getObject()->storeLSItems($updated);
         $this->tpl->setOnScreenMessage("success", $this->lng->txt('entries_updated'), true);
+        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+    }
+
+    protected function setOnline(): void
+    {
+        $this->updateOnlineStatus(true);
+    }
+
+    protected function setOffline(): void
+    {
+        $this->updateOnlineStatus(false);
+    }
+
+    protected function updateOnlineStatus(bool $status): void
+    {
+        $item_ref_id = (int) ($this->request->getQueryParams()['item_ref_id'] ?? 0);
+        if ($item_ref_id > 0) {
+            $this->ls_item_online_status->setOnlineStatus($item_ref_id, $status);
+            
+            // Wir müssen auch das LSItem in der Lernsequenz aktualisieren
+            $items = $this->parent_gui->getObject()->getLSItems();
+            $updated = [];
+            foreach ($items as $item) {
+                if ($item->getRefId() === $item_ref_id) {
+                    $item = $item->withOnline($status);
+                }
+                $updated[] = $item;
+            }
+            $this->parent_gui->getObject()->storeLSItems($updated);
+
+            $msg = $status ? $this->lng->txt('msg_obj_online') : $this->lng->txt('msg_obj_offline');
+            $this->tpl->setOnScreenMessage('success', $msg, true);
+        }
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 }
