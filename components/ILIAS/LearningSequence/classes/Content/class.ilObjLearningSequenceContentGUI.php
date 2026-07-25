@@ -1,19 +1,4 @@
 <?php
-/**
- * This file is part of ILIAS, a powerful learning management system
- * published by ILIAS open source e-Learning e.V.
- *
- * ILIAS is licensed with the GPL-3.0,
- * see https://www.gnu.org/licenses/gpl-3.0.en.html
- * You should have received a copy of said license along with the
- * source code, too.
- *
- * If this is not the case or you just want to try ILIAS, you'll find
- * us at:
- * https://www.ilias.de
- * https://github.com/ILIAS-eLearning
- *
- *********************************************************************/
 
 declare(strict_types=1);
 
@@ -29,6 +14,10 @@ class ilObjLearningSequenceContentGUI
     public const CMD_CANCEL = "cancel";
     public const CMD_SET_ONLINE = "setOnline";
     public const CMD_SET_OFFLINE = "setOffline";
+    public const CMD_SET_START_OBJECT = "setStartObject";
+    public const CMD_UNSET_START_OBJECT = "unsetStartObject";
+    public const CMD_SET_END_OBJECT = "setEndObject";
+    public const CMD_UNSET_END_OBJECT = "unsetEndObject";
 
     public const FIELD_ORDER = 'f_order';
     public const FIELD_ONLINE = 'f_online';
@@ -73,6 +62,10 @@ class ilObjLearningSequenceContentGUI
             case self::CMD_CONFIRM_DELETE:
             case self::CMD_SET_ONLINE:
             case self::CMD_SET_OFFLINE:
+            case self::CMD_SET_START_OBJECT:
+            case self::CMD_UNSET_START_OBJECT:
+            case self::CMD_SET_END_OBJECT:
+            case self::CMD_UNSET_END_OBJECT:
                 $this->$cmd();
                 break;
             default:
@@ -104,6 +97,16 @@ class ilObjLearningSequenceContentGUI
         }
 
         $items = $this->parent_gui->getObject()->getLSItems();
+        $boundaries_db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+        $boundaries = $boundaries_db->getBoundariesFor($this->parent_gui->getObject()->getId());
+
+        if ($boundaries['start_ref_id'] === 0) {
+            $this->tpl->setOnScreenMessage('info', "Um die Lernsequenz zu starten, wird ein Start Objekt benötigt");
+        }
+        if ($boundaries['end_ref_id'] === 0) {
+            $this->tpl->setOnScreenMessage('info', "Um die Lernsequenz zu starten, wird ein End Objekt benötigt");
+        }
+
         $data = $this->buildData($items, $filter_data);
         $this->renderTable($data, $filter);
     }
@@ -116,7 +119,28 @@ class ilObjLearningSequenceContentGUI
         $name_filter = $filter_data['name'] ?? '';
         $input_filter = $filter_data['input_conditions'] ?? [];
         $output_filter = $filter_data['output_conditions'] ?? [];
-        
+
+        $boundaries_db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+        $boundaries = $boundaries_db->getBoundariesFor($this->parent_gui->getObject()->getId());
+        $start_ref_id = $boundaries['start_ref_id'];
+        $end_ref_id = $boundaries['end_ref_id'];
+
+        usort($items, function ($a, $b) use ($start_ref_id, $end_ref_id) {
+            if ($a->getRefId() === $start_ref_id) {
+                return -1;
+            }
+            if ($b->getRefId() === $start_ref_id) {
+                return 1;
+            }
+            if ($a->getRefId() === $end_ref_id) {
+                return 1;
+            }
+            if ($b->getRefId() === $end_ref_id) {
+                return -1;
+            }
+            return $a->getOrderNumber() <=> $b->getOrderNumber();
+        });
+
         foreach ($items as $index => $item) {
             $ref_id = $item->getRefId();
             $obj_id = \ilObject::_lookupObjId($ref_id);
@@ -127,7 +151,7 @@ class ilObjLearningSequenceContentGUI
             }
 
             $type = $item->getType();
-            $actions = $this->collectActions($ref_id, $obj_id, $type, $item->isOnline());
+            $actions = $this->collectActions($ref_id, $obj_id, $type, $item->isOnline(), $start_ref_id, $end_ref_id);
 
             // ToDo: Object Condtion hinzufügen
             $input_opts = $this->getInputConditionOptions();
@@ -155,7 +179,7 @@ class ilObjLearningSequenceContentGUI
                 $prev_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index - 1]->getRefId()));
             }
             $next_title = "(keines)";
-            if ($index < $items_count - 1) {
+            if ($index < count($items) - 1) {
                 $next_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index + 1]->getRefId()));
             }
 
@@ -167,8 +191,8 @@ class ilObjLearningSequenceContentGUI
                 \ilObject::_getIcon($obj_id, "big", $type),
                 \ilLink::_getLink($ref_id, $type),
                 $item->isOnline(),
-                ($index === 0) ? "Ja" : "",
-                ($index === $items_count - 1) ? "Ja" : "",
+                ($ref_id === $start_ref_id) ? "Start" : "",
+                ($ref_id === $end_ref_id) ? "End" : "",
                 $prev_title,
                 $next_title,
                 $input_conditions,
@@ -180,7 +204,7 @@ class ilObjLearningSequenceContentGUI
         return $data;
     }
 
-    protected function collectActions(int $ref_id, int $obj_id, string $type, bool $is_online): array
+    protected function collectActions(int $ref_id, int $obj_id, string $type, bool $is_online, int $start_ref_id = 0, int $end_ref_id = 0): array
     {
         $actions = [];
         $standard_actions = [];
@@ -228,7 +252,7 @@ class ilObjLearningSequenceContentGUI
                 if ($this->access->checkAccess($info['permission'], '', $ref_id, $type)) {
                     $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', $ref_id);
                     $link = $this->ctrl->getLinkTarget($this->parent_gui, $cmd_name);
-                    
+
                     $label = $this->lng->txt($info['lang_var']);
 
                     $standard_actions[$cmd_name] = new \ilObjLearningSequenceActionData(
@@ -260,10 +284,21 @@ class ilObjLearningSequenceContentGUI
             $actions[] = new \ilObjLearningSequenceActionData($label, $link);
         }
 
-        $actions[] = new \ilObjLearningSequenceActionData('Set Start Objekt', '#');
-        $actions[] = new \ilObjLearningSequenceActionData('Set End Objekt', '#');
+        $this->ctrl->setParameter($this, 'item_ref_id', $ref_id);
+        if ($ref_id === $start_ref_id) {
+            $actions[] = new \ilObjLearningSequenceActionData('Unset start object', $this->ctrl->getLinkTarget($this, self::CMD_UNSET_START_OBJECT));
+        } else {
+            $actions[] = new \ilObjLearningSequenceActionData('Set start object', $this->ctrl->getLinkTarget($this, self::CMD_SET_START_OBJECT));
+        }
+
+        if ($ref_id === $end_ref_id) {
+            $actions[] = new \ilObjLearningSequenceActionData('Unset end object', $this->ctrl->getLinkTarget($this, self::CMD_UNSET_END_OBJECT));
+        } else {
+            $actions[] = new \ilObjLearningSequenceActionData('Set end object', $this->ctrl->getLinkTarget($this, self::CMD_SET_END_OBJECT));
+        }
+
         $actions[] = \ilObjLearningSequenceActionData::divider();
-        
+
         $remaining_order = ['download', 'delete', 'link', 'cut', 'copy'];
         foreach ($remaining_order as $key) {
             if (isset($standard_actions[$key]) && $key !== 'settings') {
@@ -307,9 +342,6 @@ class ilObjLearningSequenceContentGUI
         ];
     }
 
-    /**
-     * Handle the confirmDelete command
-     */
     protected function confirmDelete(): void
     {
         $this->parent_gui->deleteObject();
@@ -328,14 +360,10 @@ class ilObjLearningSequenceContentGUI
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 
-    /**
-     * @return array<"value" => "option_text">
-     */
     public function getPossiblePostConditionsForType(string $type): array
     {
         return $this->parent_gui->getObject()->getPossiblePostConditionsForType($type);
     }
-
 
     public function getFieldName(string $field_name, int $ref_id): string
     {
@@ -393,7 +421,7 @@ class ilObjLearningSequenceContentGUI
         $item_ref_id = (int) ($this->request->getQueryParams()['item_ref_id'] ?? 0);
         if ($item_ref_id > 0) {
             $this->ls_item_online_status->setOnlineStatus($item_ref_id, $status);
-            
+
             // Wir müssen auch das LSItem in der Lernsequenz aktualisieren
             $items = $this->parent_gui->getObject()->getLSItems();
             $updated = [];
@@ -408,6 +436,60 @@ class ilObjLearningSequenceContentGUI
             $msg = $status ? $this->lng->txt('msg_obj_online') : $this->lng->txt('msg_obj_offline');
             $this->tpl->setOnScreenMessage('success', $msg, true);
         }
+        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+    }
+
+    protected function setStartObject(): void
+    {
+        $item_ref_id = (int) ($this->request->getQueryParams()['item_ref_id'] ?? 0);
+        if ($item_ref_id > 0) {
+            $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+            $boundaries = $db->getBoundariesFor($this->parent_gui->getObject()->getId());
+
+            if ($boundaries['end_ref_id'] === $item_ref_id) {
+                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true);
+                $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+                return;
+            }
+
+            $db->setStartRefId($this->parent_gui->getObject()->getId(), $item_ref_id);
+            $this->tpl->setOnScreenMessage('success', 'Start object set.', true);
+        }
+        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+    }
+
+    protected function unsetStartObject(): void
+    {
+        $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+        $db->unsetStartRefId($this->parent_gui->getObject()->getId());
+        $this->tpl->setOnScreenMessage('success', 'Start object unset.', true);
+        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+    }
+
+    protected function setEndObject(): void
+    {
+        $item_ref_id = (int) ($this->request->getQueryParams()['item_ref_id'] ?? 0);
+        if ($item_ref_id > 0) {
+            $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+            $boundaries = $db->getBoundariesFor($this->parent_gui->getObject()->getId());
+
+            if ($boundaries['start_ref_id'] === $item_ref_id) {
+                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true);
+                $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+                return;
+            }
+
+            $db->setEndRefId($this->parent_gui->getObject()->getId(), $item_ref_id);
+            $this->tpl->setOnScreenMessage('success', 'End object set.', true);
+        }
+        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+    }
+
+    protected function unsetEndObject(): void
+    {
+        $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
+        $db->unsetEndRefId($this->parent_gui->getObject()->getId());
+        $this->tpl->setOnScreenMessage('success', 'End object unset.', true);
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 }

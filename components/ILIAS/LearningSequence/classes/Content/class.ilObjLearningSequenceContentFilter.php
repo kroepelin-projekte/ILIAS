@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,9 +18,6 @@
 
 declare(strict_types=1);
 
-/**
- * Filter für die Lernsequenz-Inhaltstabelle.
- */
 class ilObjLearningSequenceContentFilter
 {
     private \ILIAS\UI\Factory $ui_factory;
@@ -39,12 +37,6 @@ class ilObjLearningSequenceContentFilter
         $this->parent_gui = $parent_gui;
     }
 
-    /**
-     * Erstellt die Filter-Komponente für das Kitchen Sink.
-     * @param string $action Link für das Absenden des Filters
-     * @param array $input_options Optionen für den Input-Filter
-     * @param array $output_options Optionen für den Output-Filter
-     */
     public function getFilter(string $action, array $input_options, array $output_options): \ILIAS\UI\Component\Input\Container\Filter\Standard
     {
         $fields = [
@@ -66,11 +58,11 @@ class ilObjLearningSequenceContentFilter
             $action, // expand
             $action, // collapse
             $action, // apply
-            $this->ctrl->getLinkTarget($this->parent_gui, 'manageContent'), // reset
+            $this->ctrl->getLinkTarget($this->parent_gui, 'manageContent'),
             $fields,
-            [true, true, true], // Alle Filter standardmäßig aktiviert/sichtbar
-            true, // Filter ist aktiviert
-            true // Filter ist ausklappbar
+            [true, true, true],
+            true,
+            true
         );
     }
 }

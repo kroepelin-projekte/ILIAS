@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -17,8 +18,8 @@
 
 declare(strict_types=1);
 
-final readonly class ilObjLearningSequenceContentData {
-
+final readonly class ilObjLearningSequenceContentData
+{
     public function __construct(
         public int $obj_id,
         public string $title,
@@ -34,5 +35,6 @@ final readonly class ilObjLearningSequenceContentData {
         public array $input_conditions,
         public array $output_conditions,
         public array $actions = []
-    ) {}
+    ) {
+    }
 }
