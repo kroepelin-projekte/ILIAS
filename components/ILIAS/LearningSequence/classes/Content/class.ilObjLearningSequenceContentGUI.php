@@ -7,21 +7,21 @@ use ILIAS\Refinery\Factory;
 
 class ilObjLearningSequenceContentGUI
 {
-    public const CMD_MANAGE_CONTENT = "manageContent";
-    public const CMD_SAVE = "save";
-    public const CMD_DELETE = "delete";
-    public const CMD_CONFIRM_DELETE = "confirmDelete";
-    public const CMD_CANCEL = "cancel";
-    public const CMD_SET_ONLINE = "setOnline";
-    public const CMD_SET_OFFLINE = "setOffline";
-    public const CMD_SET_START_OBJECT = "setStartObject";
-    public const CMD_UNSET_START_OBJECT = "unsetStartObject";
-    public const CMD_SET_END_OBJECT = "setEndObject";
-    public const CMD_UNSET_END_OBJECT = "unsetEndObject";
+    public const string CMD_MANAGE_CONTENT = "manageContent";
+    public const string CMD_SAVE = "save";
+    public const string CMD_DELETE = "delete";
+    public const string CMD_CONFIRM_DELETE = "confirmDelete";
+    public const string CMD_CANCEL = "cancel";
+    public const string CMD_SET_ONLINE = "setOnline";
+    public const string CMD_SET_OFFLINE = "setOffline";
+    public const string CMD_SET_START_OBJECT = "setStartObject";
+    public const string CMD_UNSET_START_OBJECT = "unsetStartObject";
+    public const string CMD_SET_END_OBJECT = "setEndObject";
+    public const string CMD_UNSET_END_OBJECT = "unsetEndObject";
 
-    public const FIELD_ORDER = 'f_order';
-    public const FIELD_ONLINE = 'f_online';
-    public const FIELD_POSTCONDITION_TYPE = 'f_pct';
+    public const string FIELD_ORDER = 'f_order';
+    public const string FIELD_ONLINE = 'f_online';
+    public const string FIELD_POSTCONDITION_TYPE = 'f_pct';
 
     public function __construct(
         protected \ilObjLearningSequenceGUI $parent_gui,
@@ -163,8 +163,8 @@ class ilObjLearningSequenceContentGUI
             $random_input_key = array_rand($input_opts);
             $input_conditions = [
                 new \ilObjLearningSequenceConditionData(
-                    $input_opts[$random_input_key],
-                    'dummy'
+                    title: $input_opts[$random_input_key],
+                    value: 'dummy'
                 )
             ];
 
@@ -173,8 +173,8 @@ class ilObjLearningSequenceContentGUI
             $random_output_key = array_rand($output_opts);
             $output_conditions = [
                 new \ilObjLearningSequenceConditionData(
-                    $output_opts[$random_output_key],
-                    'dummy'
+                    title: $output_opts[$random_output_key],
+                    value: 'dummy'
                 )
             ];
 
@@ -189,20 +189,20 @@ class ilObjLearningSequenceContentGUI
             }
 
             $data[] = new \ilObjLearningSequenceContentData(
-                $obj_id,
-                \ilObject::_lookupTitle($obj_id),
-                \ilObject::_lookupDescription($obj_id),
-                $type,
-                \ilObject::_getIcon($obj_id, "big", $type),
-                \ilLink::_getLink($ref_id, $type),
-                $item->isOnline(),
-                ($ref_id === $start_ref_id) ? "Start" : "",
-                ($ref_id === $end_ref_id) ? "End" : "",
-                $prev_title,
-                $next_title,
-                $input_conditions,
-                $output_conditions,
-                $actions
+                obj_id: $obj_id,
+                title: \ilObject::_lookupTitle($obj_id),
+                description: \ilObject::_lookupDescription($obj_id),
+                type: $type,
+                icon_path: \ilObject::_getIcon($obj_id, "big", $type),
+                href: \ilLink::_getLink($ref_id, $type),
+                is_online: $item->isOnline(),
+                start_object: ($ref_id === $start_ref_id) ? "Start" : "",
+                end_object: ($ref_id === $end_ref_id) ? "End" : "",
+                previous_objects: $prev_title,
+                next_objects: $next_title,
+                input_conditions: $input_conditions,
+                output_conditions: $output_conditions,
+                actions: $actions
             );
         }
 
@@ -241,8 +241,8 @@ class ilObjLearningSequenceContentGUI
             $label = ($lang_var !== '') ? $this->lng->txt($lang_var) : $cmd_name;
 
             $standard_actions[$key] = new \ilObjLearningSequenceActionData(
-                $label,
-                $cmd['link']
+                label: $label,
+                link: $cmd['link']
             );
         }
         $manual_cmds = [
@@ -261,8 +261,8 @@ class ilObjLearningSequenceContentGUI
                     $label = $this->lng->txt($info['lang_var']);
 
                     $standard_actions[$cmd_name] = new \ilObjLearningSequenceActionData(
-                        $label,
-                        $link
+                        label: $label,
+                        link: $link
                     );
                 }
             }
@@ -273,8 +273,8 @@ class ilObjLearningSequenceContentGUI
             $actions[] = \ilObjLearningSequenceActionData::divider();
         }
 
-        $actions[] = new \ilObjLearningSequenceActionData('Edit Condition', '#');
-        $actions[] = new \ilObjLearningSequenceActionData('Add Condition', '#');
+        $actions[] = new \ilObjLearningSequenceActionData(label: 'Edit Condition', link: '#');
+        $actions[] = new \ilObjLearningSequenceActionData(label: 'Add Condition', link: '#');
         $actions[] = \ilObjLearningSequenceActionData::divider();
 
         if ($this->ls_item_online_status->hasChangeableOnlineStatus($ref_id)) {
@@ -286,20 +286,20 @@ class ilObjLearningSequenceContentGUI
                 $label = $this->lng->txt('set_online');
                 $link = $this->ctrl->getLinkTarget($this, self::CMD_SET_ONLINE);
             }
-            $actions[] = new \ilObjLearningSequenceActionData($label, $link);
+            $actions[] = new \ilObjLearningSequenceActionData(label: $label, link: $link);
         }
 
         $this->ctrl->setParameter($this, 'item_ref_id', $ref_id);
         if ($ref_id === $start_ref_id) {
-            $actions[] = new \ilObjLearningSequenceActionData('Unset start object', $this->ctrl->getLinkTarget($this, self::CMD_UNSET_START_OBJECT));
+            $actions[] = new \ilObjLearningSequenceActionData(label: 'Unset start object', link: $this->ctrl->getLinkTarget($this, self::CMD_UNSET_START_OBJECT));
         } else {
-            $actions[] = new \ilObjLearningSequenceActionData('Set start object', $this->ctrl->getLinkTarget($this, self::CMD_SET_START_OBJECT));
+            $actions[] = new \ilObjLearningSequenceActionData(label: 'Set start object', link: $this->ctrl->getLinkTarget($this, self::CMD_SET_START_OBJECT));
         }
 
         if ($ref_id === $end_ref_id) {
-            $actions[] = new \ilObjLearningSequenceActionData('Unset end object', $this->ctrl->getLinkTarget($this, self::CMD_UNSET_END_OBJECT));
+            $actions[] = new \ilObjLearningSequenceActionData(label: 'Unset end object', link: $this->ctrl->getLinkTarget($this, self::CMD_UNSET_END_OBJECT));
         } else {
-            $actions[] = new \ilObjLearningSequenceActionData('Set end object', $this->ctrl->getLinkTarget($this, self::CMD_SET_END_OBJECT));
+            $actions[] = new \ilObjLearningSequenceActionData(label: 'Set end object', link: $this->ctrl->getLinkTarget($this, self::CMD_SET_END_OBJECT));
         }
 
         $actions[] = \ilObjLearningSequenceActionData::divider();
@@ -331,20 +331,32 @@ class ilObjLearningSequenceContentGUI
 
     protected function getInputConditionOptions(): array
     {
-        return [
-            'simple_condition' => 'Simple Condition',
-            'logic_gatter' => 'Logic Gatter',
-            'passed_subset' => 'Passed Subset',
-            'point_allocation' => 'Point Allocation'
-        ];
+        $discoverer = new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        $classes = $discoverer->getAllInputConditions();
+        $options = [];
+
+        foreach ($classes as $class) {
+            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionHandler $instance */
+            $instance = new $class();
+            $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
+        }
+
+        return $options;
     }
 
     protected function getOutputConditionOptions(): array
     {
-        return [
-            'always' => 'Always',
-            'learning_progress' => 'Learning Progress'
-        ];
+        $discoverer = new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        $classes = $discoverer->getAllOutputConditions();
+        $options = [];
+
+        foreach ($classes as $class) {
+            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionHandler $instance */
+            $instance = new $class();
+            $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
+        }
+
+        return $options;
     }
 
     protected function confirmDelete(): void
@@ -393,7 +405,7 @@ class ilObjLearningSequenceContentGUI
                 $order,
                 $r->in()->series([
                     $r->kindlyTo()->string(),
-                    $r->custom()->transformation(fn($v) => ltrim($v, '0')),
+                    $r->custom()->transformation(fn ($v) => ltrim($v, '0')),
                     $r->kindlyTo()->int()
                 ])
             );
