@@ -23,7 +23,7 @@ namespace ILIAS;
 abstract class LearningProgressOutputCondition extends AbstractCondition implements OutputCondition
 {
     final protected const NAME = "learning_progress";
-    private const STATUS_NOT_STARTED = 'not_started';
+    private const STATUS_NOT_ATTEMPTED = 'not_attempted';
     private const STATUS_IN_PROGRESS = 'in_progress';
     private const STATUS_COMPLETED = 'completed';
     private const STATUS_FAILED = 'failed';
@@ -38,6 +38,7 @@ abstract class LearningProgressOutputCondition extends AbstractCondition impleme
      */
     public function migrate(): array
     {
+        // TODO: To implement
         return [];
     }
 
@@ -51,7 +52,7 @@ abstract class LearningProgressOutputCondition extends AbstractCondition impleme
 
         foreach (
             [
-            self::STATUS_NOT_STARTED,
+            self::STATUS_NOT_ATTEMPTED,
             self::STATUS_IN_PROGRESS,
             self::STATUS_COMPLETED,
             self::STATUS_FAILED
@@ -63,7 +64,7 @@ abstract class LearningProgressOutputCondition extends AbstractCondition impleme
 
             $steps[] = $this->ui_factory->link()->bulky(
                 $icon->withAbbreviation('>'),
-                $status,
+                $this->lang->txt($status),
                 $uri
             );
         }

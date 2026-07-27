@@ -59,7 +59,18 @@ abstract class AbstractCondition
     abstract public function check(): bool;
 
     /**
-     * @return null|string
+     * Returns the additional form for the condition.
+     * Has to be implemented by the child class if additional form is needed.
+     *
+     * @return Standard[]
+     */
+    public function getAdditionalForm(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return string|null
      */
     public function getName(): ?string
     {
