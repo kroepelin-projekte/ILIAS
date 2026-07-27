@@ -20,6 +20,10 @@ declare(strict_types=1);
 
 namespace ILIAS;
 
+use ilObjLearningSequenceContentGUI;
+use ilObjLearningSequenceGUI;
+use ilRepositoryGUI;
+
 abstract class AbstractCondition
 {
     protected const NAME = null;
@@ -27,17 +31,18 @@ abstract class AbstractCondition
 
     protected \ilLanguage $lang;
     protected \ILIAS\DI\Container $dic;
-    // TODO: Ist null ein legitimer Wert? Szenario: Objekt wurde gelöscht, aber die Condition ist noch da?
-    protected ?int $obj_ref_id;
+    protected int $obj_ref_id;
+    protected int $lso_ref_id;
     protected \ILIAS\UI\Factory $ui_factory;
 
-    public function __construct()
+    public function __construct(int $lso_ref_id, int $obj_ref_id)
     {
         global $DIC;
         /** @var \ILIAS\DI\Container $DIC */
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
-        $this->obj_ref_id = null;
+        $this->obj_ref_id = $obj_ref_id;
+        $this->lso_ref_id = $lso_ref_id;
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
@@ -45,11 +50,6 @@ abstract class AbstractCondition
      * @return array
      */
     abstract public function migrate(): array;
-
-    /**
-     * @return array
-     */
-    abstract public function setupSteps(): array;
 
     /**
      * Checks if the condition is fulfilled.
@@ -94,7 +94,7 @@ abstract class AbstractCondition
     }
 
     /**
-     * Saves the condition
+     * Saves the condition to the DB
      */
     public function save(): void
     {
@@ -115,5 +115,24 @@ abstract class AbstractCondition
     public function delete(): void
     {
         // TODO: To implement
+    }
+
+    protected function buildUrl(string $command): \ILIAS\Data\URI
+    {
+        $url = $this->dic->ctrl()->getLinkTargetByClass(
+            [
+                ilRepositoryGUI::class,
+                ilObjLearningSequenceGUI::class,
+                ilObjLearningSequenceContentGUI::class, 
+                ilObjLearningSequenceConditionGUI::class
+            ],
+            $command
+        );
+        return new \ILIAS\Data\URI(ILIAS_HTTP_PATH . '/' . $url);
+    }
+
+    protected function buildIcon(string $abbreviation): \ILIAS\UI\Component\Symbol\Icon\Icon
+    {
+        return $this->ui_factory->symbol()->icon()->custom('', '')->withSize('small')->withAbbreviation($abbreviation);
     }
 }

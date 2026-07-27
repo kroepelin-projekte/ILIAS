@@ -22,8 +22,9 @@ namespace ILIAS;
 
 use ilLPStatus;
 
-final class LearningProgressInProgressOutputCondition extends LearningProgressOutputCondition
+final class LearningProgressInProgressOutputCondition extends AbstractLeafCondition
 {
+    final protected const NAME = "learning_progress_in_progress";
     /**
      * @inheritDoc
      */

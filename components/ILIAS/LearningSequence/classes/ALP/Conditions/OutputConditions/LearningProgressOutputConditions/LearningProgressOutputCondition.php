@@ -20,18 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS;
 
-abstract class LearningProgressOutputCondition extends AbstractCondition implements OutputCondition
+final class LearningProgressOutputCondition extends AbstractCondition implements OutputCondition
 {
-    final protected const NAME = "learning_progress";
-    private const STATUS_NOT_ATTEMPTED = 'not_attempted';
-    private const STATUS_IN_PROGRESS = 'in_progress';
-    private const STATUS_COMPLETED = 'completed';
-    private const STATUS_FAILED = 'failed';
-
-    public function __construct()
-    {
-        parent::__construct();
-    }
+    protected const NAME = 'learning_progress';
 
     /**
      * @inheritDoc
@@ -47,32 +38,18 @@ abstract class LearningProgressOutputCondition extends AbstractCondition impleme
      */
     public function setupSteps(): array
     {
-        $icon = $this->ui_factory->symbol()->icon()->standard('', '')->withSize('small')->withAbbreviation('+');
-        $steps = [];
-
-        foreach (
-            [
-            self::STATUS_NOT_ATTEMPTED,
-            self::STATUS_IN_PROGRESS,
-            self::STATUS_COMPLETED,
-            self::STATUS_FAILED
-            ] as $status
-        ) {
-            $this->dic->ctrl()->setParameterByClass(parent::class, 'value', $status);
-            $url = $this->dic->ctrl()->getLinkTargetByClass(parent::class, parent::SAVE);
-            $uri = new \ILIAS\Data\URI(ILIAS_HTTP_PATH . '/' . $url);
-
-            $steps[] = $this->ui_factory->link()->bulky(
-                $icon->withAbbreviation('>'),
-                $this->lang->txt($status),
-                $uri
-            );
-        }
-
-        $this->dic->ctrl()->setParameterByClass(parent::class, 'value', '');
-
         return [
-            $this->ui_factory->menu()->sub($this->lang->txt(static::NAME), $steps)
+            $this->ui_factory->menu()->sub($this->getName(), [
+                (new LearningProgressNotAttemptedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
+                (new LearningProgressInProgressOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
+                (new LearningProgressCompletedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
+                (new LearningProgressFailedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep()
+            ])
         ];
+    }
+
+    public function check(): bool
+    {
+        return false;
     }
 }

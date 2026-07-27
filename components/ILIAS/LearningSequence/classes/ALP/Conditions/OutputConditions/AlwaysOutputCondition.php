@@ -25,7 +25,7 @@ namespace ILIAS;
  *
  * Bei Always Condition beachten, dass es keine Option gibt eine andere OutputCondition zu wählen. ALWAYS!!!
  */
-final class AlwaysOutputCondition extends AbstractCondition implements OutputCondition
+final class AlwaysOutputCondition extends AbstractLeafCondition implements OutputCondition
 {
     final protected const NAME = "always";
 
@@ -49,22 +49,8 @@ final class AlwaysOutputCondition extends AbstractCondition implements OutputCon
     /**
      * @inheritDoc
      */
-    public function setupSteps(): array
+    protected function getStepIconAbbreviation(): string
     {
-        $icon = $this->ui_factory->symbol()->icon()->standard('', '')->withSize('small')->withAbbreviation('+');
-        $url = $this->dic->ctrl()->getLinkTargetByClass(
-            parent::class,
-            parent::SAVE
-        );
-
-        $uri = new \ILIAS\Data\URI(ILIAS_HTTP_PATH . '/' . $url);
-
-        return [
-            $this->ui_factory->link()->bulky(
-                $icon,
-                $this->lang->txt(static::NAME),
-                $uri
-            )
-        ];
+        return '+';
     }
 }

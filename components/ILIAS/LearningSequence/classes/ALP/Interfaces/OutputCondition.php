@@ -22,4 +22,8 @@ namespace ILIAS;
 
 interface OutputCondition
 {
+    /**
+     * @return array
+     */
+    public function setupSteps(): array;
 }
