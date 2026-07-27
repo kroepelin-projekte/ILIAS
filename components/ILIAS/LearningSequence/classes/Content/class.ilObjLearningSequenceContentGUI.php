@@ -100,11 +100,16 @@ class ilObjLearningSequenceContentGUI
         $boundaries_db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
         $boundaries = $boundaries_db->getBoundariesFor($this->parent_gui->getObject()->getId());
 
+        $messages = [];
         if ($boundaries['start_ref_id'] === 0) {
-            $this->tpl->setOnScreenMessage('info', "Um die Lernsequenz zu starten, wird ein Start Objekt benötigt");
+            $messages[] = "Um die Lernsequenz zu starten, wird ein Start Objekt benötigt";
         }
         if ($boundaries['end_ref_id'] === 0) {
-            $this->tpl->setOnScreenMessage('info', "Um die Lernsequenz zu starten, wird ein End Objekt benötigt");
+            $messages[] = "Um die Lernsequenz zu starten, wird ein End Objekt benötigt";
+        }
+
+        if (count($messages) > 0) {
+            $this->tpl->setOnScreenMessage('info', implode("<br>", $messages));
         }
 
         $data = $this->buildData($items, $filter_data);
