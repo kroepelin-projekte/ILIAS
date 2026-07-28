@@ -22,6 +22,7 @@ final readonly class ilObjLearningSequenceConditionData
     public function __construct(
         public string $title,
         public string $value,
+        public string $internal_name = '',
     ) {
     }
 }

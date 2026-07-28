@@ -2,11 +2,11 @@
 
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\Always;
 
-use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 
-class AlwaysCondition extends ConditionHandler implements InputConditionInterface
+class AlwaysCondition extends ConditionAbstract implements InputConditionInterface
 {
     public function getName(): string
     {

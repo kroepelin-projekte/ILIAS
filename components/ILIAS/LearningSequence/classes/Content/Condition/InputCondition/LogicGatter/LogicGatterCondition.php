@@ -2,10 +2,10 @@
 
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\LogicGatter;
 
-use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 
-class LogicGatterCondition extends ConditionHandler implements InputConditionInterface
+class LogicGatterCondition extends ConditionAbstract implements InputConditionInterface
 {
     public function getName(): string
     {

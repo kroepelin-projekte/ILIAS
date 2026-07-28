@@ -5,6 +5,10 @@ declare(strict_types=1);
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory;
 
+/**
+ * Class ilObjLearningSequenceContentGUI
+ * @ilCtrl_Calls ilObjLearningSequenceContentGUI: ilObjLearningSequenceConditionsGUI
+ */
 class ilObjLearningSequenceContentGUI
 {
     public const string CMD_MANAGE_CONTENT = "manageContent";
@@ -41,35 +45,52 @@ class ilObjLearningSequenceContentGUI
 
     public function executeCommand(): void
     {
+        $next_class = $this->ctrl->getNextClass($this);
+
         if (!$this->access->checkAccess("read", '', $this->parent_gui->getRefId())) {
             $this->tpl->setOnScreenMessage('info', $this->lng->txt('msg_no_perm_read_item'), true);
 
             $this->ctrl->redirect($this->parent_gui, 'view');
         }
 
-        $cmd = $this->ctrl->getCmd();
+        switch ($next_class) {
+            case strtolower(ilObjLearningSequenceConditionsGUI::class):
+                $gui = new ilObjLearningSequenceConditionsGUI(
+                    $this->parent_gui,
+                    $this->ctrl,
+                    $this->tpl,
+                    $this->lng,
+                    $this->access
+                );
+                $this->ctrl->forwardCommand($gui);
+                break;
 
-        switch ($cmd) {
-            case self::CMD_CANCEL:
-                $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
-                break;
-            case 'view':
-                $cmd = self::CMD_MANAGE_CONTENT;
-                // no break
-            case self::CMD_MANAGE_CONTENT:
-            case self::CMD_SAVE:
-            case self::CMD_DELETE:
-            case self::CMD_CONFIRM_DELETE:
-            case self::CMD_SET_ONLINE:
-            case self::CMD_SET_OFFLINE:
-            case self::CMD_SET_START_OBJECT:
-            case self::CMD_UNSET_START_OBJECT:
-            case self::CMD_SET_END_OBJECT:
-            case self::CMD_UNSET_END_OBJECT:
-                $this->$cmd();
-                break;
             default:
-                throw new ilException("ilObjLearningSequenceContentGUI: Command not supported: $cmd");
+                $cmd = $this->ctrl->getCmd();
+
+                switch ($cmd) {
+                    case self::CMD_CANCEL:
+                        $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
+                        break;
+                    case 'view':
+                        $cmd = self::CMD_MANAGE_CONTENT;
+                        // no break
+                    case self::CMD_MANAGE_CONTENT:
+                    case self::CMD_SAVE:
+                    case self::CMD_DELETE:
+                    case self::CMD_CONFIRM_DELETE:
+                    case self::CMD_SET_ONLINE:
+                    case self::CMD_SET_OFFLINE:
+                    case self::CMD_SET_START_OBJECT:
+                    case self::CMD_UNSET_START_OBJECT:
+                    case self::CMD_SET_END_OBJECT:
+                    case self::CMD_UNSET_END_OBJECT:
+                        $this->$cmd();
+                        break;
+                    default:
+                        throw new ilException("ilObjLearningSequenceContentGUI: command not supported: $cmd");
+                }
+                break;
         }
     }
 
@@ -83,6 +104,7 @@ class ilObjLearningSequenceContentGUI
             $this->ctrl,
             $this->parent_gui
         );
+
         $filter = $filter_builder->getFilter(
             $this->ctrl->getLinkTarget($this, self::CMD_MANAGE_CONTENT),
             $this->getInputConditionOptions(),
@@ -119,7 +141,6 @@ class ilObjLearningSequenceContentGUI
     protected function buildData(array $items, ?array $filter_data = null): array
     {
         $data = [];
-        $items_count = count($items);
 
         $name_filter = $filter_data['name'] ?? '';
         $input_filter = $filter_data['input_conditions'] ?? [];
@@ -146,6 +167,9 @@ class ilObjLearningSequenceContentGUI
             return $a->getOrderNumber() <=> $b->getOrderNumber();
         });
 
+        $condition_handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler();
+        $lso_ref_id = $this->parent_gui->getObject()->getRefId();
+
         foreach ($items as $index => $item) {
             $ref_id = $item->getRefId();
             $obj_id = \ilObject::_lookupObjId($ref_id);
@@ -158,25 +182,52 @@ class ilObjLearningSequenceContentGUI
             $type = $item->getType();
             $actions = $this->collectActions($ref_id, $obj_id, $type, $item->isOnline(), $start_ref_id, $end_ref_id);
 
-            // ToDo: Object Condtion hinzufügen
-            $input_opts = $this->getInputConditionOptions();
-            $random_input_key = array_rand($input_opts);
-            $input_conditions = [
-                new \ilObjLearningSequenceConditionData(
-                    title: $input_opts[$random_input_key],
-                    value: 'dummy'
-                )
-            ];
+            $input_conditions = [];
+            $db_input_conditions = $condition_handler->getInputConditionsByRefId($lso_ref_id, $ref_id);
+            foreach ($db_input_conditions as $db_cond) {
+                $input_conditions[] = new \ilObjLearningSequenceConditionData(
+                    title: $db_cond['title'],
+                    value: $db_cond['value'],
+                    internal_name: $db_cond['internal_name']
+                );
+            }
 
-            // ToDo: Object Condtion hinzufügen
-            $output_opts = $this->getOutputConditionOptions();
-            $random_output_key = array_rand($output_opts);
-            $output_conditions = [
-                new \ilObjLearningSequenceConditionData(
-                    title: $output_opts[$random_output_key],
-                    value: 'dummy'
-                )
-            ];
+            $output_conditions = [];
+            $db_output_conditions = $condition_handler->getOutputConditionsByRefId($lso_ref_id, $ref_id);
+            foreach ($db_output_conditions as $db_cond) {
+                $output_conditions[] = new \ilObjLearningSequenceConditionData(
+                    title: $db_cond['title'],
+                    value: $db_cond['value'],
+                    internal_name: $db_cond['internal_name']
+                );
+            }
+
+            // Filterung anwenden
+            if (count($input_filter) > 0) {
+                $found = false;
+                foreach ($db_input_conditions as $ic) {
+                    if (in_array($ic['internal_name'], $input_filter)) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    continue;
+                }
+            }
+
+            if (count($output_filter) > 0) {
+                $found = false;
+                foreach ($db_output_conditions as $oc) {
+                    if (in_array($oc['internal_name'], $output_filter)) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    continue;
+                }
+            }
 
             // Information
             $prev_title = "(keines)";
@@ -273,8 +324,8 @@ class ilObjLearningSequenceContentGUI
             $actions[] = \ilObjLearningSequenceActionData::divider();
         }
 
-        $actions[] = new \ilObjLearningSequenceActionData(label: 'Edit Condition', link: '#');
-        $actions[] = new \ilObjLearningSequenceActionData(label: 'Add Condition', link: '#');
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $ref_id);
+        $actions[] = new \ilObjLearningSequenceActionData(label: 'Conditions', link: $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ''));
         $actions[] = \ilObjLearningSequenceActionData::divider();
 
         if ($this->ls_item_online_status->hasChangeableOnlineStatus($ref_id)) {

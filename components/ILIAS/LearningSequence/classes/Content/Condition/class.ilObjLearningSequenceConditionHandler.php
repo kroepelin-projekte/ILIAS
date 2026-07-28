@@ -2,66 +2,111 @@
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-abstract class ConditionHandler
+class ConditionHandler
 {
-    protected $db = null;
+    protected ?\ilDBInterface $db = null;
+    protected ilObjLearningSequenceConditionDiscover $discoverer;
 
-    public function __construct()
+    public function __construct(?\ilDBInterface $db = null)
     {
         global $DIC;
-        if (isset($DIC) && $DIC instanceof \ILIAS\DI\Container) {
+        $this->db = $db;
+        if ($this->db === null && isset($DIC) && $DIC instanceof \ILIAS\DI\Container) {
             $this->db = $DIC->database();
         }
-    }
-
-    abstract public function getName(): string;
-
-    /**
-     * @return TableDefinition[]
-     */
-    abstract public function migrate(): array;
-
-    /**
-     * @return array[]
-     */
-    public function getInputConditions(int $lso_ref_id, int $obj_ref_id = 0): array
-    {
-        return $this->getConditionsByRefIdAndName($lso_ref_id, $this->getName(), $obj_ref_id);
+        $this->discoverer = new ilObjLearningSequenceConditionDiscover();
     }
 
     /**
      * @return array[]
      */
-    public function getOutputConditions(int $lso_ref_id, int $obj_ref_id = 0): array
+    public function getInputConditionsByRefId(int $lso_ref_id, int $obj_ref_id): array
     {
-        return $this->getConditionsByRefIdAndName($lso_ref_id, $this->getName(), $obj_ref_id);
+        $db_conditions = $this->getConditionsFromDb($lso_ref_id, $obj_ref_id, $this->discoverer->getAllInputConditions());
+        return $this->formatConditionsForGui($db_conditions);
     }
 
     /**
      * @return array[]
      */
-    protected function getConditionsByRefIdAndName(int $lso_ref_id, string $name, int $obj_ref_id = 0): array
+    public function getOutputConditionsByRefId(int $lso_ref_id, int $obj_ref_id): array
     {
+        $db_conditions = $this->getConditionsFromDb($lso_ref_id, $obj_ref_id, $this->discoverer->getAllOutputConditions());
+        return $this->formatConditionsForGui($db_conditions);
+    }
+
+    /**
+     * @param array[] $db_conditions
+     * @return array[]
+     */
+    protected function formatConditionsForGui(array $db_conditions): array
+    {
+        $result = [];
+        foreach ($db_conditions as $db_cond) {
+            $type_id = $db_cond['type_id'];
+            $res = $this->db->queryF(
+                "SELECT condition_name FROM lso_condition_types WHERE type_id = %s",
+                ['integer'],
+                [$type_id]
+            );
+            $row = $this->db->fetchAssoc($res);
+            if ($row) {
+                $class = $this->discoverer->getConditionByName($row['condition_name']);
+                if ($class) {
+                    try {
+                        $short_name = (new \ReflectionClass($class))->getShortName();
+                        $title = str_replace("Condition", "", $short_name);
+                        $result[] = [
+                            'title' => $title,
+                            'value' => '-',
+                            'internal_name' => $row['condition_name']
+                        ];
+                    } catch (\Throwable $e) {
+                        continue;
+                    }
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @return array[]
+     */
+    protected function getConditionsFromDb(int $lso_ref_id, int $obj_ref_id, array $available_classes): array
+    {
+        if ($this->db === null) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($available_classes as $class) {
+            try {
+                $reflection = new \ReflectionClass($class);
+                if ($reflection->isInstantiable()) {
+                    /** @var ConditionAbstract $instance */
+                    $instance = $reflection->newInstance();
+                    $names[] = $instance->getName();
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        if (count($names) === 0) {
+            return [];
+        }
+
         $query = "SELECT c.* 
                   FROM lso_conditions c
                   INNER JOIN lso_condition_types t ON c.type_id = t.type_id
-                  WHERE c.lso_ref_id = %s AND t.condition_name = %s";
+                  WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND " . $this->db->in('t.condition_name', $names, false, 'text');
 
-        $types = ['integer', 'text'];
-        $values = [$lso_ref_id, $name];
-
-        if ($obj_ref_id > 0) {
-            $query .= " AND c.obj_ref_id = %s";
-            $types[] = 'integer';
-            $values[] = $obj_ref_id;
-        }
-
-        $res = $this->db->queryF($query, $types, $values);
-        $conditions = [];
+        $res = $this->db->queryF($query, ['integer', 'integer'], [$lso_ref_id, $obj_ref_id]);
+        $result = [];
         while ($row = $this->db->fetchAssoc($res)) {
-            $conditions[] = $row;
+            $result[] = $row;
         }
-        return $conditions;
+        return $result;
     }
-
 }

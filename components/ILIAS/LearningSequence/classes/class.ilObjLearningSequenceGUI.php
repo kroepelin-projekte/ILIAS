@@ -35,6 +35,7 @@ use ILIAS\User\Profile\Data as ProfileData;
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilExportGUI
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilObjLearningSequenceSettingsGUI
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilObjLearningSequenceContentGUI
+ * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilObjLearningSequenceConditionsGUI
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilObjLearningSequenceLearnerGUI
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilObjLearningSequenceLPPollingGUI
  * @ilCtrl_Calls      ilObjLearningSequenceGUI: ilLearningSequenceMembershipGUI
@@ -313,6 +314,14 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
                 $this->tabs->activateTab(self::TAB_CONTENT_MAIN);
                 $this->addSubTabsForContent(self::TAB_MANAGE);
                 $this->ctrl->forwardCommand($this->getGUIManageContent());
+                break;
+            case "ilobjlearningsequenceconditionsgui":
+                if (!$this->checkAccess("write", '', $this->ref_id)) {
+                    $this->ctrl->redirect($this, 'view');
+                }
+                $this->tabs->activateTab(self::TAB_CONTENT_MAIN);
+                $this->addSubTabsForContent(self::TAB_MANAGE);
+                $this->ctrl->forwardCommand($this->getGUIConditions());
                 break;
             case "ilobjlearningsequencelearnergui":
                 $this->addContentStyleCss();
@@ -596,6 +605,18 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
             $this->ui_factory,
             $this->ui_renderer,
             $this->request
+        );
+    }
+
+    protected function getGUIConditions(): \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI
+    {
+        return new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI(
+            $this,
+            $this->ctrl,
+            $this->tpl,
+            $this->lng,
+            $this->access,
+            $GLOBALS['DIC']->database()
         );
     }
 

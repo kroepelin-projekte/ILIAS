@@ -2,10 +2,10 @@
 
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgress;
 
-use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
-class LearningProgressCondition extends ConditionHandler implements OutputConditionInterface
+class LearningProgressCondition extends ConditionAbstract implements OutputConditionInterface
 {
     public function getName(): string
     {

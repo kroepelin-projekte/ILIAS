@@ -22,8 +22,6 @@ use ILIAS\Setup;
 use ILIAS\Refinery;
 use ILIAS\LearningSequence\Setup\InitLOMForLearningSequenceMigration;
 use ILIAS\LearningSequence\Setup\ilLearningSequenceConditionsSyncedObjective;
-use ilDatabaseUpdateStepsExecutedObjective;
-use ilDatabaseUpdateStepsMetricsCollectedObjective;
 
 class ilLearningSequenceSetupAgent implements Setup\Agent
 {
@@ -63,14 +61,11 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
         );
     }
 
-    /**
-     * @inheritdoc
-     */
     public function getUpdateObjective(?Setup\Config $config = null): Setup\Objective
     {
         return new Setup\ObjectiveCollection(
             'Database is updated for Components/LearningSequence',
-            false,
+            true,
             new \ilFileSystemComponentDataDirectoryCreatedObjective(
                 \ilLearningSequenceFilesystem::PATH_PRE,
                 \ilFileSystemComponentDataDirectoryCreatedObjective::WEBDIR
@@ -89,9 +84,6 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
             ),
             new \ilDatabaseUpdateStepsExecutedObjective(
                 new \ilObjLearningSequenceContentBoundariesUpdateSteps()
-            ),
-            new \ilDatabaseUpdateStepsExecutedObjective(
-                new \ilLearningSequenceConditionDBUpdateSteps()
             ),
             new ilLearningSequenceConditionsSyncedObjective()
         );
@@ -112,12 +104,11 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
     {
         return new Setup\ObjectiveCollection(
             'Component LearningSequence',
-            true,
+            false,
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRegisterNotificationType()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilObjLearningSequenceContentBoundariesUpdateSteps()),
-            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceConditionDBUpdateSteps()),
             new ilLearningSequenceConditionsSyncedObjective()
         );
     }

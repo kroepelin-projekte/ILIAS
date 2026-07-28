@@ -10,6 +10,10 @@ class ilObjLearningSequenceConditionDiscover
 {
     private const string BASE_PATH = __DIR__;
 
+    public function __construct()
+    {
+    }
+
     /**
      * @return string[]
      */
@@ -49,7 +53,7 @@ class ilObjLearningSequenceConditionDiscover
             if (!$reflection->isInstantiable()) {
                 continue;
             }
-            /** @var ConditionHandler $instance */
+            /** @var ConditionAbstract $instance */
             $instance = $reflection->newInstance();
             if ($instance->getName() === $name) {
                 return $class;
