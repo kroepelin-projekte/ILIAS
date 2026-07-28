@@ -149,6 +149,9 @@ class ilObjLearningSequenceContentTableGUI extends ilTable2GUI
         $item_list_gui = $this->getListGuiFor($type);
         $item_list_gui->initItem($ref_id, $item_obj_id, $type);
 
+        $link = $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, 'manageConditions');
+        $item_list_gui->addCustomCommand($link, 'conditions'); // todo language variable
+
         $item_list_gui->enableCut(true);
         $item_list_gui->enableDelete(true);
         $item_list_gui->enableLink(true);

@@ -21,6 +21,9 @@ declare(strict_types=1);
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory;
 
+/**
+ * @ilCtrl_Calls ilObjLearningSequenceContentGUI: ilObjLearningSequenceConditionsGUI
+ */
 class ilObjLearningSequenceContentGUI
 {
     public const CMD_MANAGE_CONTENT = "manageContent";
@@ -59,7 +62,30 @@ class ilObjLearningSequenceContentGUI
             $this->ctrl->redirect($this->parent_gui, 'view');
         }
 
+        $next_class = $this->ctrl->getNextClass();
         $cmd = $this->ctrl->getCmd();
+
+        switch ($next_class) {
+            case strtolower(ilObjLearningSequenceConditionsGUI::class):
+
+                // todo welche parameter braucht man hier?
+
+                $this->ctrl->forwardCommand(new ilObjLearningSequenceConditionsGUI(
+                    $this,
+                    $this->parent_gui,
+                    $this->ctrl,
+                    $this->tpl,
+                    $this->lng,
+                    $this->access,
+                    $this->confirmation_gui,
+                    $this->ls_item_online_status,
+                    $this->post_wrapper,
+                    $this->refinery,
+                    $this->ui_factory,
+                    $this->ui_renderer,
+                ));
+                return;
+        }
 
         switch ($cmd) {
             case self::CMD_CANCEL:
