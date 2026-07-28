@@ -43,11 +43,11 @@ class ilObjLearningSequenceContentFilter
             'name' => $this->ui_factory->input()->field()->text($this->lng->txt('name'))
                 ->withDedicatedName('name'),
             'input_conditions' => $this->ui_factory->input()->field()->multiselect(
-                'Input Conditions',
+                $this->lng->txt('input_conditions'),
                 $input_options
             )->withDedicatedName('input_conditions'),
             'output_conditions' => $this->ui_factory->input()->field()->multiselect(
-                'Output Conditions',
+                $this->lng->txt('output_conditions'),
                 $output_options
             )->withDedicatedName('output_conditions'),
         ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory;
+use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 
 /**
  * Class ilObjLearningSequenceContentGUI
@@ -205,8 +206,8 @@ class ilObjLearningSequenceContentGUI
             // Filterung anwenden
             if (count($input_filter) > 0) {
                 $found = false;
-                foreach ($db_input_conditions as $ic) {
-                    if (in_array($ic['internal_name'], $input_filter)) {
+                foreach ($input_conditions as $ic) {
+                    if (in_array($ic->internal_name, $input_filter)) {
                         $found = true;
                         break;
                     }
@@ -218,8 +219,8 @@ class ilObjLearningSequenceContentGUI
 
             if (count($output_filter) > 0) {
                 $found = false;
-                foreach ($db_output_conditions as $oc) {
-                    if (in_array($oc['internal_name'], $output_filter)) {
+                foreach ($output_conditions as $oc) {
+                    if (in_array($oc->internal_name, $output_filter)) {
                         $found = true;
                         break;
                     }
@@ -402,7 +403,7 @@ class ilObjLearningSequenceContentGUI
         $options = [];
 
         foreach ($classes as $class) {
-            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionHandler $instance */
+            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionAbstract $instance */
             $instance = new $class();
             $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
         }
