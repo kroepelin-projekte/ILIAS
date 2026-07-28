@@ -1,0 +1,110 @@
+/*
+LearningSequence / ALP – Dummy „Content Managent“ Presentation Table
+
+Wichtig:
+- Dieses CSS gehört zu der Demo-Presentation-Table und wird im Content-Tab geladen.
+- Wir nutzen bewusst HTML im ausklappbaren Content (Conditions + Information-Box),
+  aber KEIN Inline-CSS. Alles Styling wird hier zentral definiert.
+- Die Klassen sind bewusst mit „alp-cm-“ prefix versehen, um Kollisionen zu vermeiden.
+*/
+
+/*
+Badges am Titel (Online/Offline/Start/End)
+----------------------------------------
+Die Badges sind bewusst simpel gehalten und sollen optisch „badge-artig“ wirken.
+*/
+.alp-cm-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    line-height: 1.2;
+    vertical-align: middle;
+    background: #f2f2f2;
+    color: #111;
+}
+
+.alp-cm-badge--online {
+    background: #2e7d32;
+    color: #fff;
+}
+
+.alp-cm-badge--offline {
+    background: #c62828;
+    color: #fff;
+}
+
+.alp-cm-badge--start {
+    background: #e6f2ff;
+    color: #111;
+}
+
+.alp-cm-badge--end {
+    background: #f2f2f2;
+    color: #111;
+}
+
+/*
+Linke Spalte: Conditions
+-----------------------
+*/
+.alp-cm-conditions {
+    padding: 4px 8px;
+}
+
+.alp-cm-conditions__title {
+    margin: 0 0 6px 0;
+    font-size: 14px;
+}
+
+.alp-cm-conditions__title--spaced {
+    margin-top: 12px;
+}
+
+.alp-cm-conditions__empty {
+    color: #666;
+}
+
+.alp-cm-kv-list {
+    margin: 0 0 0 16px;
+    padding: 0;
+}
+
+.alp-cm-kv-list__item {
+    margin: 0;
+    padding: 0;
+    list-style: disc;
+}
+
+.alp-cm-kv-list__condition {
+    font-weight: 600;
+}
+
+.alp-cm-kv-list__separator {
+    margin: 0 4px;
+}
+
+.alp-cm-kv-list__value {
+    font-weight: 400;
+}
+
+/*
+Rechte Spalte: Information-Box
+-----------------------------
+Optik wie „graue Box“ aus dem vorherigen Stand, aber ohne Inline-CSS.
+*/
+.alp-cm-info {
+    background: #f2f2f2;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.alp-cm-info__title {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+.alp-cm-info__item {
+    margin: 0 0 4px 0;
+}
