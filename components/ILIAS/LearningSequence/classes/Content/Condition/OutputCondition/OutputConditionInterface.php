@@ -2,4 +2,6 @@
 
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition;
 
-interface OutputConditionInterface {}
+interface OutputConditionInterface
+{
+}

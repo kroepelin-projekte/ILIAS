@@ -405,7 +405,7 @@ class ilObjLearningSequenceContentGUI
                 $order,
                 $r->in()->series([
                     $r->kindlyTo()->string(),
-                    $r->custom()->transformation(fn ($v) => ltrim($v, '0')),
+                    $r->custom()->transformation(fn($v) => ltrim($v, '0')),
                     $r->kindlyTo()->int()
                 ])
             );
