@@ -22,29 +22,28 @@ namespace ILIAS\LearningSequence\Content\Condition;
 
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI;
 use ILIAS\Standard;
+use ilDBInterface;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
 
 abstract class AbstractCondition
 {
-    protected const NAME = null;
-    protected const SAVE = 'save';
+    protected const NAME = '';
 
     protected \ilLanguage $lang;
     protected \ILIAS\DI\Container $dic;
-    protected int $obj_ref_id;
-    protected int $lso_ref_id;
+    protected ?int $obj_ref_id = null;
+    protected ?int $lso_ref_id = null;
+    protected ?int $condition_id = null;
     protected \ILIAS\UI\Factory $ui_factory;
 
-    public function __construct(int $lso_ref_id, int $obj_ref_id)
+    public function __construct()
     {
         global $DIC;
         /** @var \ILIAS\DI\Container $DIC */
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
-        $this->obj_ref_id = $obj_ref_id;
-        $this->lso_ref_id = $lso_ref_id;
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
@@ -74,7 +73,10 @@ abstract class AbstractCondition
     /**
      * @return string|null
      */
-    abstract public function getName(): ?string;
+    public function getName(): ?string
+    {
+        return static::NAME;
+    }
 
     /**
      * @return int|null
@@ -92,12 +94,50 @@ abstract class AbstractCondition
         $this->obj_ref_id = $obj_ref_id;
     }
 
+    public function getLsoRefId(): ?int
+    {
+        return $this->lso_ref_id;
+    }
+
+    public function setLsoRefId(?int $lso_ref_id): void
+    {
+        $this->lso_ref_id = $lso_ref_id;
+    }
+
+    public function getConditionId(): ?int
+    {
+        return $this->condition_id;
+    }
+
+    public function setConditionId(?int $condition_id): void
+    {
+        $this->condition_id = $condition_id;
+    }
+
     /**
      * Saves the condition to the DB
      */
-    public function save(): void
+    public function create(): void
     {
-        // TODO: To implement
+        $this->assertContextSet();
+
+        $type_id = $this->getTypeId();
+        $existing_id = $this->findConditionIdByContextAndType($type_id);
+        if ($existing_id !== null) {
+            throw new \LogicException('Condition already exists for this item and type.');
+        }
+
+        $db = $this->getDatabase();
+        $condition_id = $db->nextId('lso_conditions');
+        $db->insert('lso_conditions', [
+            'condition_id' => ['integer', $condition_id],
+            'lso_ref_id' => ['integer', $this->lso_ref_id],
+            'obj_ref_id' => ['integer', $this->obj_ref_id],
+            'type_id' => ['integer', $type_id]
+        ]);
+
+        $this->condition_id = $condition_id;
+        $this->createConditionData($condition_id);
     }
 
     /**
@@ -105,7 +145,25 @@ abstract class AbstractCondition
      */
     public function edit(): void
     {
-        // TODO: To implement
+        $this->assertContextSet();
+
+        $condition_id = $this->resolveConditionId();
+        $type_id = $this->getTypeId();
+
+        $this->getDatabase()->update(
+            'lso_conditions',
+            [
+                'lso_ref_id' => ['integer', $this->lso_ref_id],
+                'obj_ref_id' => ['integer', $this->obj_ref_id],
+                'type_id' => ['integer', $type_id]
+            ],
+            [
+                'condition_id' => ['integer', $condition_id]
+            ]
+        );
+
+        $this->condition_id = $condition_id;
+        $this->editConditionData($condition_id);
     }
 
     /**
@@ -113,7 +171,17 @@ abstract class AbstractCondition
      */
     public function delete(): void
     {
-        // TODO: To implement
+        $condition_id = $this->resolveConditionId();
+
+        $this->deleteConditionData($condition_id);
+
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM lso_conditions WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+
+        $this->condition_id = null;
     }
 
     protected function buildUrl(string $command): \ILIAS\Data\URI
@@ -133,5 +201,93 @@ abstract class AbstractCondition
     protected function buildIcon(string $abbreviation): \ILIAS\UI\Component\Symbol\Icon\Icon
     {
         return $this->ui_factory->symbol()->icon()->custom('', '')->withSize('small')->withAbbreviation($abbreviation);
+    }
+
+    protected function assertContextSet(): void
+    {
+        if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
+            throw new \LogicException('Condition context is incomplete.');
+        }
+    }
+
+    protected function withCurrentContext(AbstractCondition $condition): AbstractCondition
+    {
+        $this->assertContextSet();
+        $condition->setLsoRefId($this->lso_ref_id);
+        $condition->setObjRefId($this->obj_ref_id);
+        return $condition;
+    }
+
+    // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden, wenn mit migrate()
+    // zusätzliche Tabellen angelegt werden. Diese zusätzlichen Tabellen sollen damit befüllt, bearbeitet und gelöscht werden.
+    protected function createConditionData(int $condition_id): void
+    {
+    }
+
+    protected function editConditionData(int $condition_id): void
+    {
+    }
+
+    protected function deleteConditionData(int $condition_id): void
+    {
+    }
+
+    protected function getDatabase(): ilDBInterface
+    {
+        return $this->dic->database();
+    }
+
+    protected function getTypeId(): int
+    {
+        $res = $this->getDatabase()->queryF(
+            'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
+            ['text'],
+            [$this->getName()]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+
+        if ($row === null) {
+            throw new \LogicException('Condition type is not registered.');
+        }
+
+        return (int) $row['type_id'];
+    }
+
+    protected function resolveConditionId(): int
+    {
+        if ($this->condition_id !== null) {
+            return $this->condition_id;
+        }
+
+        $this->assertContextSet();
+        $type_id = $this->getTypeId();
+        $condition_id = $this->findConditionIdByContextAndType($type_id);
+
+        if ($condition_id === null) {
+            throw new \LogicException('Condition does not exist.');
+        }
+
+        $this->condition_id = $condition_id;
+        return $condition_id;
+    }
+
+    protected function findConditionIdByContextAndType(int $type_id): ?int
+    {
+        $res = $this->getDatabase()->queryF(
+            'SELECT condition_id FROM lso_conditions WHERE lso_ref_id = %s AND obj_ref_id = %s AND type_id = %s',
+            ['integer', 'integer', 'integer'],
+            [$this->lso_ref_id, $this->obj_ref_id, $type_id]
+        );
+
+        $row = $this->getDatabase()->fetchAssoc($res);
+        if ($row === null) {
+            return null;
+        }
+
+        if ($this->getDatabase()->fetchAssoc($res) !== null) {
+            throw new \LogicException('Condition lookup is ambiguous.');
+        }
+
+        return (int) $row['condition_id'];
     }
 }

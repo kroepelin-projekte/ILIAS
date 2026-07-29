@@ -42,8 +42,10 @@ final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCond
         return [];
     }
 
-    public function getName(): ?string
+    public function setupSteps(): array
     {
-        return "";
+        $this->assertContextSet();
+        return parent::setupSteps();
     }
+
 }
