@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\ilObjLearningSequenceConditionGUI;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI;
 use ILIAS\Standard;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
@@ -74,10 +74,7 @@ abstract class AbstractCondition
     /**
      * @return string|null
      */
-    public function getName(): ?string
-    {
-        return $this->lang->txt(static::NAME);
-    }
+    abstract public function getName(): ?string;
 
     /**
      * @return int|null
@@ -125,8 +122,8 @@ abstract class AbstractCondition
             [
                 ilRepositoryGUI::class,
                 ilObjLearningSequenceGUI::class,
-                ilObjLearningSequenceContentGUI::class, 
-                ilObjLearningSequenceConditionGUI::class
+                ilObjLearningSequenceContentGUI::class,
+                ilObjLearningSequenceConditionsGUI::class
             ],
             $command
         );

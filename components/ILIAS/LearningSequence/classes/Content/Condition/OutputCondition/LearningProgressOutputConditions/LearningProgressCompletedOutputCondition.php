@@ -39,6 +39,11 @@ final class LearningProgressCompletedOutputCondition extends AbstractLeafConditi
 
     public function migrate(): array
     {
-        // TODO: Implement migrate() method.
+        return [];
+    }
+
+    public function getName(): ?string
+    {
+        return "";
     }
 }

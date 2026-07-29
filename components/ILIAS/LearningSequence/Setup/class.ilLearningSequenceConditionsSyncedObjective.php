@@ -24,13 +24,13 @@ use ILIAS\Setup;
 use ILIAS\Setup\Environment;
 use ILIAS\Setup\Objective;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 use ilDBInterface;
 use ilDatabaseInitializedObjective;
 use ilDatabaseUpdateStepsExecutedObjective;
 use ilLoggerFactory;
 use ilLogger;
 use ReflectionClass;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 
 /**
  * Objective to ensure all Learning Sequence Conditions are registered in the database.
@@ -84,7 +84,7 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
                         continue;
                     }
 
-                    /** @var ConditionAbstract $instance */
+                    /** @var AbstractCondition $instance */
                     $instance = $reflection->newInstance();
                     $name = $instance->getName();
                     $expected_names[] = $name;
@@ -208,7 +208,7 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
                         continue;
                     }
 
-                    /** @var ConditionAbstract $instance */
+                    /** @var AbstractCondition $instance */
                     $instance = $reflection->newInstance();
                     $name = $instance->getName();
                     $expected_names[] = $name;

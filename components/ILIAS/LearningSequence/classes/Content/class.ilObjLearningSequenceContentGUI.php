@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory;
-use ILIAS\LearningSequence\Content\Condition\ConditionAbstract;
 
 /**
  * Class ilObjLearningSequenceContentGUI
@@ -392,7 +391,7 @@ class ilObjLearningSequenceContentGUI
         $options = [];
 
         foreach ($classes as $class) {
-            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionHandler $instance */
+            /** @var \ILIAS\LearningSequence\Content\Condition\AbstractCondition $instance */
             $instance = new $class();
             $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
         }
@@ -407,7 +406,7 @@ class ilObjLearningSequenceContentGUI
         $options = [];
 
         foreach ($classes as $class) {
-            /** @var \ILIAS\LearningSequence\Content\Condition\ConditionAbstract $instance */
+            /** @var \ILIAS\LearningSequence\Content\Condition\AbstractCondition $instance */
             $instance = new $class();
             $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
         }

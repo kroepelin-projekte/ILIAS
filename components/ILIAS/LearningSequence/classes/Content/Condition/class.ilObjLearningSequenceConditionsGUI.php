@@ -14,6 +14,7 @@ use ILIAS\UI\URLBuilder;
 class ilObjLearningSequenceConditionsGUI
 {
     public const string CMD_MANAGE_CONDITIONS = "manageConditions";
+    public const string SAVE = "save";
 
     public function __construct(
         protected ilObjLearningSequenceContentGUI $content_gui,
@@ -85,15 +86,15 @@ class ilObjLearningSequenceConditionsGUI
 
         $input_conditions = [];
         $output_conditions = [];
-/*        foreach ($conditions as $condition) {
-            if ($condition instanceof InputConditionInterface) {
-                $input_conditions = $condition->getMenuButtons();
-            } elseif ($condition instanceof OutputConditionInterface) {
-                $output_conditions = $condition->getMenuButtons();
-            }
-        }*/
+        /*        foreach ($conditions as $condition) {
+                    if ($condition instanceof InputConditionInterface) {
+                        $input_conditions = $condition->getMenuButtons();
+                    } elseif ($condition instanceof OutputConditionInterface) {
+                        $output_conditions = $condition->getMenuButtons();
+                    }
+                }*/
 
-        $icon  = $this->ui_factory->symbol()->icon()->custom('', '');
+        $icon = $this->ui_factory->symbol()->icon()->custom('', '');
         $input_conditions = [
             $this->ui_factory->menu()->sub(
                 'Always',
