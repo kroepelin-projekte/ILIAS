@@ -143,17 +143,31 @@ class ilObjLearningSequenceConditionsGUI
         $df = new Factory();
 
         // single action - edit
-        $url = ilObjLearningSequenceEditConditionGUI::getUrl(50);
+        $url = ilObjLearningSequenceEditConditionGUI::getUrl(3);
         $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
-        [$url_builder, $action_parameter_token] = $url_builder->acquireParameters(
+        [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
             ['condition'],
-            'id',
-            'edit'
+            'edit',
+            'id'
         );
         $actions['edit'] = $this->ui_factory->table()->action()->single(
             $this->lng->txt('edit'),
             $url_builder,
-            $action_parameter_token,
+            $row_id_token,
+        );
+
+        // standard action - delete
+        $url = ilObjLearningSequenceEditConditionGUI::getUrl(3);
+        $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
+        [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
+            ['condition'],
+            'delete',
+            'id'
+        );
+        $actions['delete'] = $this->ui_factory->table()->action()->standard(
+            $this->lng->txt('delete'),
+            $url_builder,
+            $row_id_token,
         );
 
         return $this->ui_factory->table()->data(

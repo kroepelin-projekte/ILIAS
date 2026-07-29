@@ -25,7 +25,7 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
         ];
 
         foreach ($rows as $key => $row) {
-            yield $row_builder->buildDataRow((string) $key, $row);
+            yield $row_builder->buildDataRow((string) $row['id'], $row);
         }
     }
 

@@ -9,12 +9,20 @@ class ilObjLearningSequenceEditConditionGUI
 {
     private ilCtrlInterface $ctrl;
     private ilGlobalTemplateInterface $tpl;
+    private int $condition_id;
 
     public function __construct()
     {
         global $DIC;
         $this->ctrl = $DIC->ctrl();
         $this->tpl = $DIC->ui()->mainTemplate();
+
+        $query = $DIC->http()->wrapper()->query();
+        $int_list = $DIC->refinery()->kindlyTo()->listOf($DIC->refinery()->kindlyTo()->int());
+        if (!$query->has('condition_id')) {
+            throw new ilException('Permission denied');
+        }
+        $this->condition_id = current($query->retrieve('condition_id', $int_list));
     }
 
     public const string CMD_EDIT_CONDITION = "editCondition";
@@ -38,7 +46,7 @@ class ilObjLearningSequenceEditConditionGUI
 
     protected function editCondition(): void
     {
-        $this->tpl->setContent('Condition');
+        $this->tpl->setContent('Condition: ' . $this->condition_id);
     }
 
     /**
