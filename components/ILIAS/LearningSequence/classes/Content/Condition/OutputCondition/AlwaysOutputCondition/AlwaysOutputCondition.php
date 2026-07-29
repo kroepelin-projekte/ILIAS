@@ -31,7 +31,7 @@ use ILIAS\LearningSequence\Content\Condition\TableDefinition;
  */
 final class AlwaysOutputCondition extends AbstractLeafCondition implements OutputConditionInterface
 {
-    protected const string NAME = "test";
+    protected const string NAME = "always";
 
     /**
      * @inheritDoc

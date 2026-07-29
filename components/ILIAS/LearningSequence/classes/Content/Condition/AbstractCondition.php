@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI;
 use ILIAS\Standard;
 use ilDBInterface;
 use ilObjLearningSequenceContentGUI;
@@ -191,7 +190,7 @@ abstract class AbstractCondition
                 ilRepositoryGUI::class,
                 ilObjLearningSequenceGUI::class,
                 ilObjLearningSequenceContentGUI::class,
-                ilObjLearningSequenceConditionsGUI::class
+                \ilObjLearningSequenceConditionsGUI::class
             ],
             $command
         );
@@ -200,7 +199,7 @@ abstract class AbstractCondition
 
     protected function buildIcon(string $abbreviation): \ILIAS\UI\Component\Symbol\Icon\Icon
     {
-        return $this->ui_factory->symbol()->icon()->custom('', '')->withSize('small')->withAbbreviation($abbreviation);
+        return $this->ui_factory->symbol()->icon()->standard('', '')->withSize('small')->withAbbreviation($abbreviation);
     }
 
     protected function assertContextSet(): void
