@@ -32,12 +32,14 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      */
     public function setupSteps(): array
     {
+        $this->assertContextSet();
+
         return [
             $this->ui_factory->menu()->sub($this->getName(), [
-                (new LearningProgressNotAttemptedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressInProgressOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressCompletedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressFailedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep()
+                $this->withCurrentContext(new LearningProgressNotAttemptedOutputCondition())->setupSteps()[0],
+                $this->withCurrentContext(new LearningProgressInProgressOutputCondition())->setupSteps()[0],
+                $this->withCurrentContext(new LearningProgressCompletedOutputCondition())->setupSteps()[0],
+                $this->withCurrentContext(new LearningProgressFailedOutputCondition())->setupSteps()[0]
             ])
         ];
     }
@@ -51,8 +53,4 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return [];
     }
 
-    public function getName(): ?string
-    {
-        return "";
-    }
 }

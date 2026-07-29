@@ -31,7 +31,7 @@ use ILIAS\LearningSequence\Content\Condition\TableDefinition;
  */
 final class AlwaysOutputCondition extends AbstractLeafCondition implements OutputConditionInterface
 {
-    final protected const string NAME = "always";
+    protected const string NAME = "test";
 
     /**
      * @inheritDoc
@@ -73,12 +73,18 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     /**
      * @inheritDoc
      */
+    public function setupSteps(): array
+    {
+        $this->assertContextSet();
+        return parent::setupSteps();
+    }
+
+    /**
+     * @inheritDoc
+     */
     protected function getStepIconAbbreviation(): string
     {
         return '+';
     }
-    public function getName(): ?string
-    {
-        return static::NAME;
-    }
+
 }
