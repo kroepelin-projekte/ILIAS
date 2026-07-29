@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 /**
  * @ilCtrl_isCalledBy ilObjLearningSequenceEditConditionGUI: ilObjLearningSequenceConditionsGUI
- * @ilCtrl_Calls ilObjLearningSequenceEditConditionGUI: ilObjLearningSequenceConditionsGUI
  */
 class ilObjLearningSequenceEditConditionGUI
 {
