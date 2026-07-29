@@ -39,6 +39,11 @@ final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCond
 
     public function migrate(): array
     {
-        // TODO: Implement migrate() method.
+        return [];
+    }
+
+    public function getName(): ?string
+    {
+        return "";
     }
 }

@@ -18,16 +18,16 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Content\Condition\InputCondition;
+namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SimpleChoiceInputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\InputCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ilLPStatus;
 
 /**
  * Class SimpleChoiceInputCondtion
  */
-final class SimpleChoiceInputCondtion extends AbstractCondition implements InputCondition
+final class SimpleChoiceInputCondition extends AbstractCondition implements InputConditionInterface
 {
     final protected const NAME = "simple_choice";
     private ?int $condition_target_ref_id;
@@ -65,5 +65,10 @@ final class SimpleChoiceInputCondtion extends AbstractCondition implements Input
     {
         // TODO: We need some Tree > Expandable to select the condition_target_ref_id
         return [];
+    }
+
+    public function getName(): ?string
+    {
+        return static::NAME;
     }
 }

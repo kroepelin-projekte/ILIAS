@@ -18,9 +18,9 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Content\Condition\OutputCondition;
+namespace ILIAS\LearningSequence\Content\Condition\InputCondition;
 
-interface OutputCondition
+interface InputConditionInterface
 {
     /**
      * @return array

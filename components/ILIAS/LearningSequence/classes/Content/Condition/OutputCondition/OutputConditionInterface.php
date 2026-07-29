@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition;
 
-interface InputCondition
+interface OutputConditionInterface
 {
     /**
      * @return array

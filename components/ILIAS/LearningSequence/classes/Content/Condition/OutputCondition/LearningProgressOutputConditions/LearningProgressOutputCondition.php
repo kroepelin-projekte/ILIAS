@@ -21,20 +21,11 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
-final class LearningProgressOutputCondition extends AbstractCondition implements OutputCondition
+final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
     protected const NAME = 'learning_progress';
-
-    /**
-     * @inheritDoc
-     */
-    public function migrate(): array
-    {
-        // TODO: To implement
-        return [];
-    }
 
     /**
      * @inheritDoc
@@ -54,5 +45,14 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     public function check(): bool
     {
         return false;
+    }
+    public function migrate(): array
+    {
+        return [];
+    }
+
+    public function getName(): ?string
+    {
+        return "";
     }
 }

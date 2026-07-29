@@ -2,9 +2,9 @@
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
+use ReflectionClass;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
-use ReflectionClass;
 
 class ilObjLearningSequenceConditionDiscover
 {
@@ -53,7 +53,7 @@ class ilObjLearningSequenceConditionDiscover
             if (!$reflection->isInstantiable()) {
                 continue;
             }
-            /** @var ConditionAbstract $instance */
+            /** @var AbstractCondition $instance */
             $instance = $reflection->newInstance();
             if ($instance->getName() === $name) {
                 return $class;
