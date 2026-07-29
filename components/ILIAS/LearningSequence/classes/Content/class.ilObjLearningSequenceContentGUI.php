@@ -57,11 +57,15 @@ class ilObjLearningSequenceContentGUI
         switch ($next_class) {
             case strtolower(ilObjLearningSequenceConditionsGUI::class):
                 $gui = new ilObjLearningSequenceConditionsGUI(
+                    $this,
                     $this->parent_gui,
                     $this->ctrl,
                     $this->tpl,
                     $this->lng,
-                    $this->access
+                    $this->access,
+                    $this->post_wrapper,
+                    $this->ui_factory,
+                    $this->ui_renderer,
                 );
                 $this->ctrl->forwardCommand($gui);
                 break;
@@ -326,7 +330,7 @@ class ilObjLearningSequenceContentGUI
         }
 
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $ref_id);
-        $actions[] = new \ilObjLearningSequenceActionData(label: 'Conditions', link: $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ''));
+        $actions[] = new \ilObjLearningSequenceActionData(label: 'Conditions', link: $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS));
         $actions[] = \ilObjLearningSequenceActionData::divider();
 
         if ($this->ls_item_online_status->hasChangeableOnlineStatus($ref_id)) {

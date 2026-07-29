@@ -7,16 +7,16 @@ use ILIAS\Data\Range;
 use ILIAS\UI\Component\Table\DataRetrieval;
 use ILIAS\UI\Component\Table\DataRowBuilder;
 
-class ilLearningSequenceConditionsTableRetrieval implements DataRetrieval
+class ilLearningSequenceConditionsInputRetrieval implements DataRetrieval
 {
     public function getRows(DataRowBuilder $row_builder, array $visible_column_ids, Range $range, Order $order, mixed $additional_viewcontrol_data, mixed $filter_data, mixed $additional_parameters): Generator
     {
         $rows = [
             [
-                'condition_type' => 'Output Points',
+                'input_condition_type' => 'Inputs Points',
             ],
             [
-                'condition_type' => 'Input Always',
+                'input_condition_type' => 'Input Always',
             ]
         ];
 
