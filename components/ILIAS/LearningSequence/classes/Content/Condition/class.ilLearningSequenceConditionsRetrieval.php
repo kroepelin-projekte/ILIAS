@@ -13,10 +13,12 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
     {
         $rows = [
             [
+                'id' => 1,
                 'type' => 'Input Condition',
                 'name' => 'Inputs Points',
             ],
             [
+                'id' => 2,
                 'type' => 'Output Condition',
                 'name' => 'Always',
             ]
