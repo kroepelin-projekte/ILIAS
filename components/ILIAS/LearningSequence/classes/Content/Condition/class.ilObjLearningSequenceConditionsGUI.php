@@ -7,6 +7,7 @@ use ILIAS\Data\URI;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\UI\Component\Table\Table;
 use ILIAS\UI\URLBuilder;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * @ilCtrl_isCalledBy ilObjLearningSequenceConditionsGUI: ilObjLearningSequenceContentGUI
@@ -16,17 +17,25 @@ class ilObjLearningSequenceConditionsGUI
     public const string CMD_MANAGE_CONDITIONS = "manageConditions";
     public const string SAVE = "save";
 
+    /** @var int LSO content object */
+    protected int $item_ref_id;
+
     public function __construct(
         protected ilObjLearningSequenceContentGUI $content_gui,
-        protected ilObjLearningSequenceGUI $parent_gui,
-        protected ilCtrl $ctrl,
-        protected ilGlobalTemplateInterface $tpl,
-        protected ilLanguage $lng,
-        protected ilAccess $access,
-        protected ArrayBasedRequestWrapper $post_wrapper,
-        protected ILIAS\UI\Factory $ui_factory,
-        protected ILIAS\UI\Renderer $ui_renderer
-    ) {
+        protected ilObjLearningSequenceGUI        $parent_gui,
+        protected ilCtrl                          $ctrl,
+        protected ilGlobalTemplateInterface       $tpl,
+        protected ilLanguage                      $lng,
+        protected ilAccess                        $access,
+        protected ArrayBasedRequestWrapper        $post_wrapper,
+        protected ILIAS\UI\Factory                $ui_factory,
+        protected ILIAS\UI\Renderer               $ui_renderer,
+        protected ServerRequestInterface          $request,
+    )
+    {
+        global $DIC;
+        $this->item_ref_id = $DIC->http()->wrapper()->query()->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
+        $DIC->ctrl()->setParameter($this, 'item_ref_id', $this->item_ref_id);
     }
 
     public function executeCommand(): void
@@ -36,7 +45,16 @@ class ilObjLearningSequenceConditionsGUI
 
         switch ($next_class) {
             case strtolower(ilObjLearningSequenceEditConditionGUI::class):
-                $this->ctrl->forwardCommand(new $next_class());
+                $this->ctrl->forwardCommand(new $next_class(
+                    $this->ctrl,
+                    $this->tpl,
+                    $this->lng,
+                    $this->access,
+                    $this->post_wrapper,
+                    $this->ui_factory,
+                    $this->ui_renderer,
+                    $this->request,
+                ));
                 break;
             default:
                 switch ($cmd) {
@@ -49,7 +67,6 @@ class ilObjLearningSequenceConditionsGUI
                 break;
         }
     }
-
 
 
     protected function manageConditions(): void
@@ -139,7 +156,6 @@ class ilObjLearningSequenceConditionsGUI
     private function buildConditionsTable(): Table
     {
         global $DIC;
-        $request = $DIC->http()->request();
         $df = new Factory();
 
         // single action - edit
@@ -180,6 +196,6 @@ class ilObjLearningSequenceConditionsGUI
             ]
         )
             ->withActions($actions)
-            ->withRequest($request);
+            ->withRequest($this->request);
     }
 }

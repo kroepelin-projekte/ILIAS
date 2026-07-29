@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\HTTP\Wrapper\RequestWrapper;
 use ILIAS\Refinery\Factory;
+use ILIAS\UI\Renderer;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Class ilObjLearningSequenceContentGUI
@@ -28,18 +31,18 @@ class ilObjLearningSequenceContentGUI
     public const string FIELD_POSTCONDITION_TYPE = 'f_pct';
 
     public function __construct(
-        protected \ilObjLearningSequenceGUI $parent_gui,
-        protected \ilCtrl $ctrl,
+        protected \ilObjLearningSequenceGUI  $parent_gui,
+        protected \ilCtrl                    $ctrl,
         protected \ilGlobalTemplateInterface $tpl,
-        protected \ilLanguage $lng,
-        protected \ilAccessHandler $access,
-        protected \ilConfirmationGUI $confirmation_gui,
-        protected \LSItemOnlineStatus $ls_item_online_status,
-        protected \ILIAS\HTTP\Wrapper\RequestWrapper $post_wrapper,
-        protected \ILIAS\Refinery\Factory $refinery,
-        protected \ILIAS\UI\Factory $ui_factory,
-        protected \ILIAS\UI\Renderer $ui_renderer,
-        protected \Psr\Http\Message\ServerRequestInterface $request
+        protected \ilLanguage                $lng,
+        protected \ilAccessHandler           $access,
+        protected \ilConfirmationGUI         $confirmation_gui,
+        protected \LSItemOnlineStatus        $ls_item_online_status,
+        protected RequestWrapper             $post_wrapper,
+        protected Factory                    $refinery,
+        protected \ILIAS\UI\Factory          $ui_factory,
+        protected Renderer                   $ui_renderer,
+        protected ServerRequestInterface     $request
     ) {
     }
 
@@ -65,6 +68,7 @@ class ilObjLearningSequenceContentGUI
                     $this->post_wrapper,
                     $this->ui_factory,
                     $this->ui_renderer,
+                    $this->request,
                 );
                 $this->ctrl->forwardCommand($gui);
                 break;
