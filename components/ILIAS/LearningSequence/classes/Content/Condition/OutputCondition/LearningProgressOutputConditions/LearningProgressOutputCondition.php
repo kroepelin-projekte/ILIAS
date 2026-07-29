@@ -18,7 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
+
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputCondition;
 
 final class LearningProgressOutputCondition extends AbstractCondition implements OutputCondition
 {

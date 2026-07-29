@@ -18,8 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\InputCondition;
 
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\InputCondition;
 use ilLPStatus;
 
 /**

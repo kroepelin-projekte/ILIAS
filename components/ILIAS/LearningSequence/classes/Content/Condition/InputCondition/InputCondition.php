@@ -18,21 +18,12 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\OutputCondition;
 
-use ilLPStatus;
-
-final class LearningProgressCompletedOutputCondition extends AbstractLeafCondition
+interface InputCondition
 {
-    final protected const NAME = "learning_progress_completed";
     /**
-     * @inheritDoc
+     * @return array
      */
-    public function check(): bool
-    {
-        return ilLPStatus::_hasUserCompleted(
-            $this->obj_ref_id,
-            $this->dic->user()->getId()
-        );
-    }
+    public function setupSteps(): array;
 }

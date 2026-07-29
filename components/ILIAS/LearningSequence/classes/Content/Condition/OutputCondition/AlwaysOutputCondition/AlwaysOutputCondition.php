@@ -18,7 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\AlwaysOutputCondition;
+
+use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputCondition;
 
 /**
  * Class AlwaysOutputCondition

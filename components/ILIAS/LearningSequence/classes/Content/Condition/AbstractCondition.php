@@ -18,8 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition;
 
+use ILIAS\ilObjLearningSequenceConditionGUI;
+use ILIAS\Standard;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;

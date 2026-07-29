@@ -18,7 +18,9 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition;
+
+use ILIAS\ilObjLearningSequenceConditionGUI;
 
 abstract class AbstractLeafCondition extends AbstractCondition
 {

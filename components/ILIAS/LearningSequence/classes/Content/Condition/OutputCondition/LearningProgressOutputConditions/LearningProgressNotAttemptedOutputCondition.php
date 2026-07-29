@@ -18,13 +18,14 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
+use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
 use ilLPStatus;
 
-final class LearningProgressFailedOutputCondition extends AbstractLeafCondition
+final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCondition
 {
-    final protected const NAME = "learning_progress_failed";
+    final protected const NAME = "learning_progress_not_attempted";
     /**
      * @inheritDoc
      */
@@ -33,6 +34,11 @@ final class LearningProgressFailedOutputCondition extends AbstractLeafCondition
         return ilLPStatus::_lookupStatus(
             $this->obj_ref_id,
             $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_FAILED;
+        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED;
+    }
+
+    public function migrate(): array
+    {
+        // TODO: Implement migrate() method.
     }
 }

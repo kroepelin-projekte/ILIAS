@@ -18,21 +18,27 @@
 
 declare(strict_types=1);
 
-namespace ILIAS;
+namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
+use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
 use ilLPStatus;
 
-final class LearningProgressInProgressOutputCondition extends AbstractLeafCondition
+final class LearningProgressCompletedOutputCondition extends AbstractLeafCondition
 {
-    final protected const NAME = "learning_progress_in_progress";
+    final protected const NAME = "learning_progress_completed";
     /**
      * @inheritDoc
      */
     public function check(): bool
     {
-        return ilLPStatus::_lookupStatus(
+        return ilLPStatus::_hasUserCompleted(
             $this->obj_ref_id,
             $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_IN_PROGRESS;
+        );
+    }
+
+    public function migrate(): array
+    {
+        // TODO: Implement migrate() method.
     }
 }

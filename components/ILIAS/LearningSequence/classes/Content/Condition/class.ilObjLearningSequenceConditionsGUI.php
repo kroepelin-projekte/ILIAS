@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use ILIAS\Data\URI;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
-use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\UI\Component\Table\Table;
 use ILIAS\UI\URLBuilder;
 
@@ -56,7 +54,7 @@ class ilObjLearningSequenceConditionsGUI
 
         $this->tpl->setContent(
             $this->ui_renderer->render([
-                $this->buildLayout(),
+                $this->buildConditionsTable(),
                 $modal,
             ])
         );
@@ -69,15 +67,6 @@ class ilObjLearningSequenceConditionsGUI
             [
                 'drilldown' => $this->getDrilldown()
             ]
-        );
-    }
-
-    protected function buildLayout(): \ILIAS\UI\Component\Layout\Alignment\Horizontal\EvenlyDistributed
-    {
-        $this->tpl->addInlineCss(".fullwidth {width: 100%;}");
-        return $this->ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(
-            $this->ui_factory->legacy()->content('<div class="fullwidth">' . $this->ui_renderer->render($this->buildInputConditionsTable()) . '</div>'),
-            $this->ui_factory->legacy()->content('<div class="fullwidth">' . $this->ui_renderer->render($this->buildOutputConditionsTable()) . '</div>'),
         );
     }
 
@@ -134,7 +123,7 @@ class ilObjLearningSequenceConditionsGUI
         );
     }
 
-    private function buildInputConditionsTable(): Table
+    private function buildConditionsTable(): Table
     {
         // todo parameter
         global $DIC;
@@ -148,7 +137,7 @@ class ilObjLearningSequenceConditionsGUI
 
 
         return $this->ui_factory->table()->data(
-            new ilLearningSequenceConditionsInputRetrieval(),
+            new ilLearningSequenceConditionsRetrieval(),
             'Input Conditions', // todo lang
             [
                 'input_condition_type' => $this->ui_factory->table()->column()->text('Type'),
@@ -157,32 +146,6 @@ class ilObjLearningSequenceConditionsGUI
             ->withActions([
                 $this->ui_factory->table()->action()->single('Edit', $process_form_url_builder, $process_form_parameter),
                 $this->ui_factory->table()->action()->single('Delete', $process_form_url_builder, $process_form_parameter),
-            ])
-            ->withRequest($request);
-    }
-
-    private function buildOutputConditionsTable(): Table
-    {
-        // todo parameter
-        global $DIC;
-        $request = $DIC->http()->request();
-
-        $data_factory = new \ILIAS\Data\Factory();
-
-        $example_uri = $data_factory->uri((string) $request->getUri());
-        $url_builder = new URLBuilder($example_uri);
-        [$process_form_url_builder, $process_form_parameter] = $url_builder->acquireParameter(explode('\\', __NAMESPACE__), "process_single");
-
-
-        return $this->ui_factory->table()->data(
-            new ilLearningSequenceConditionsOutpubRetrieval(),
-            'Output Conditions', // todo lang
-            [
-                'condition_type' => $this->ui_factory->table()->column()->text('Type'),
-            ]
-        )
-            ->withActions([
-                $this->ui_factory->table()->action()->single('Action', $process_form_url_builder, $process_form_parameter)
             ])
             ->withRequest($request);
     }
