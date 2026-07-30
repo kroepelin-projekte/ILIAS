@@ -20,8 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\Standard;
 use ilDBInterface;
+use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
@@ -62,10 +62,11 @@ abstract class AbstractCondition
      * Returns the additional form for the condition.
      * Has to be implemented by the child class if additional form is needed.
      *
+     * @return FormStandard
      */
-    public function getAdditionalForm(): array
+    public function getAdditionalForm(): ?FormStandard
     {
-        return [];
+        return null;
     }
 
     /**
