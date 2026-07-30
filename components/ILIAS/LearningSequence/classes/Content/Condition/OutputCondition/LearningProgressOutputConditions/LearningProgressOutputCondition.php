@@ -34,10 +34,10 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     {
         return [
             $this->ui_factory->menu()->sub($this->getName(), [
-                (new LearningProgressNotAttemptedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressInProgressOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressCompletedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep(),
-                (new LearningProgressFailedOutputCondition($this->lso_ref_id, $this->obj_ref_id))->getStep()
+                (new LearningProgressNotAttemptedOutputCondition())->getStep(),
+                (new LearningProgressInProgressOutputCondition())->getStep(),
+                (new LearningProgressCompletedOutputCondition())->getStep(),
+                (new LearningProgressFailedOutputCondition())->getStep()
             ])
         ];
     }
@@ -46,13 +46,14 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     {
         return false;
     }
-    public function migrate(): array
+
+    public static function migrate(): array
     {
         return [];
     }
 
     public function getName(): ?string
     {
-        return "";
+        return self::NAME;
     }
 }

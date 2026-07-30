@@ -41,7 +41,7 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
     /**
      * @inheritDoc
      */
-    public function migrate(): array
+    public static function migrate(): array
     {
         // TODO: To implement
         return [];
@@ -69,6 +69,6 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
 
     public function getName(): ?string
     {
-        return static::NAME;
+        return self::NAME;
     }
 }

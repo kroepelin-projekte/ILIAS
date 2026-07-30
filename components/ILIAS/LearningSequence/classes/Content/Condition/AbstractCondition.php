@@ -20,8 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI;
-use ILIAS\Standard;
+use ilObjLearningSequenceConditionsGUI;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
@@ -37,21 +36,19 @@ abstract class AbstractCondition
     protected int $lso_ref_id;
     protected \ILIAS\UI\Factory $ui_factory;
 
-    public function __construct(int $lso_ref_id, int $obj_ref_id)
+    public function __construct()
     {
         global $DIC;
-        /** @var \ILIAS\DI\Container $DIC */
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
-        $this->obj_ref_id = $obj_ref_id;
-        $this->lso_ref_id = $lso_ref_id;
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
     /**
      * @return array
      */
-    abstract public function migrate(): array;
+    abstract public static function migrate(): array;
+    abstract public function getName(): ?string;
 
     /**
      * Checks if the condition is fulfilled.
@@ -64,17 +61,11 @@ abstract class AbstractCondition
      * Returns the additional form for the condition.
      * Has to be implemented by the child class if additional form is needed.
      *
-     * @return Standard[]
      */
     public function getAdditionalForm(): array
     {
         return [];
     }
-
-    /**
-     * @return string|null
-     */
-    abstract public function getName(): ?string;
 
     /**
      * @return int|null

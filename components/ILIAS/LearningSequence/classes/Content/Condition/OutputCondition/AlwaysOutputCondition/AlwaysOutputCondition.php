@@ -36,7 +36,7 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     /**
      * @inheritDoc
      */
-    public function migrate(): array
+    public static function migrate(): array
     {
         return [
             new TableDefinition(
@@ -77,8 +77,9 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     {
         return '+';
     }
+
     public function getName(): ?string
     {
-        return static::NAME;
+        return self::NAME;
     }
 }

@@ -37,13 +37,13 @@ final class LearningProgressInProgressOutputCondition extends AbstractLeafCondit
         ) === ilLPStatus::LP_STATUS_IN_PROGRESS;
     }
 
-    public function migrate(): array
+    public static function migrate(): array
     {
         return [];
     }
 
     public function getName(): ?string
     {
-        return "";
+        return self::NAME;
     }
 }
