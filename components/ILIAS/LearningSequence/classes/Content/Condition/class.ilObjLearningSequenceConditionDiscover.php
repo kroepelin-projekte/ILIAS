@@ -2,6 +2,7 @@
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ReflectionClass;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
@@ -19,11 +20,7 @@ class ilObjLearningSequenceConditionDiscover
      */
     public function getAllInputConditions(): array
     {
-        return $this->discover(
-            self::BASE_PATH . "/InputCondition",
-            InputConditionInterface::class,
-            "ILIAS\\LearningSequence\\Content\\Condition\\InputCondition"
-        );
+        return $this->discover(InputConditionInterface::class);
     }
 
     /**
@@ -31,11 +28,7 @@ class ilObjLearningSequenceConditionDiscover
      */
     public function getAllOutputConditions(): array
     {
-        return $this->discover(
-            self::BASE_PATH . "/OutputCondition",
-            OutputConditionInterface::class,
-            "ILIAS\\LearningSequence\\Content\\Condition\\OutputCondition"
-        );
+        return $this->discover(OutputConditionInterface::class);
     }
 
     /**
@@ -43,57 +36,73 @@ class ilObjLearningSequenceConditionDiscover
      */
     public function getAllConditions(): array
     {
-        return array_merge($this->getAllInputConditions(), $this->getAllOutputConditions());
+        return array_unique(array_merge(
+            $this->getAllInputConditions(),
+            $this->getAllOutputConditions()
+        ));
     }
 
-    public function getConditionByName(string $name): ?string
+    public function getConditionNameByClass(string $class): string
     {
-        foreach ($this->getAllConditions() as $class) {
-            $reflection = new ReflectionClass($class);
-            if (!$reflection->isInstantiable()) {
-                continue;
-            }
-            /** @var AbstractCondition $instance */
-            $instance = $reflection->newInstance();
-            if ($instance->getName() === $name) {
-                return $class;
-            }
+        $parts = explode('\\', $class);
+        $className = end($parts);
+        if (str_ends_with($className, 'Condition')) {
+            return substr($className, 0, -9);
         }
-        return null;
+        return $className;
+    }
+
+    public function getConditionTitleByClass(string $class): string
+    {
+        $name = $this->getConditionNameByClass($class);
+        // CamelCase to Space separated
+        return preg_replace('/(?<!^)[A-Z]/', ' $0', $name);
+    }
+
+    public function getConditionByName(string $name_to_find): ?string
+    {
+        return array_find($this->getAllConditions(), fn($class) => $this->getConditionNameByClass($class) === $name_to_find);
     }
 
     /**
      * @return string[]
      */
-    private function discover(string $path, string $interface, string $baseNamespace): array
+    private function discover(string $baseClassOrInterface): array
     {
         $classes = [];
+        $path = self::BASE_PATH;
+
         if (!is_dir($path)) {
             return $classes;
         }
 
-        $directory = new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS);
-        $iterator = new \RecursiveIteratorIterator($directory);
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+        foreach ($iterator as $fileInfo) {
+            /** @var \SplFileInfo $fileInfo */
+            if ($fileInfo->isDir() || $fileInfo->getExtension() !== 'php') {
+                continue;
+            }
 
-        foreach ($iterator as $file) {
-            /** @var \SplFileInfo $file */
-            if ($file->isFile() && $file->getExtension() === 'php') {
-                if (str_contains($file->getFilename(), 'Interface.php')) {
-                    continue;
-                }
+            $filePath = $fileInfo->getRealPath();
+            $content = file_get_contents($filePath);
 
-                require_once $file->getPathname();
+            if (preg_match('/namespace\s+(.+?);/', $content, $m)) {
+                $namespace = trim($m[1]);
+                $className = $fileInfo->getBasename('.php');
+                $fullClass = $namespace . "\\" . $className;
 
-                $relativePath = substr($file->getPathname(), strlen($path));
-                $classRelative = str_replace(['/', '\\', '.php'], ['\\', '\\', ''], $relativePath);
-
-                $className = $baseNamespace . '\\' . ltrim($classRelative, '\\');
-
-                if (class_exists($className) && is_subclass_of($className, $interface)) {
-                    $reflection = new \ReflectionClass($className);
-                    if (!$reflection->isAbstract()) {
-                        $classes[] = $className;
+                try {
+                    if (!class_exists($fullClass, true)) {
+                        continue;
                     }
+                    $reflection = new \ReflectionClass($fullClass);
+                    if ($reflection->isInstantiable() &&
+                        $reflection->isSubclassOf($baseClassOrInterface)
+                    ) {
+                        $classes[] = $fullClass;
+                    }
+                } catch (\Throwable $t) {
+                    continue;
                 }
             }
         }

@@ -48,7 +48,8 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     {
         return false;
     }
-    public function migrate(): array
+
+    public static function migrate(): array
     {
         return [];
     }

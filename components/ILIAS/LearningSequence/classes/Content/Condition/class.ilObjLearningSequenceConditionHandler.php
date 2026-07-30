@@ -54,10 +54,8 @@ class ConditionHandler
                 $class = $this->discoverer->getConditionByName($row['condition_name']);
                 if ($class) {
                     try {
-                        $short_name = (new \ReflectionClass($class))->getShortName();
-                        $title = str_replace("Condition", "", $short_name);
                         $result[] = [
-                            'title' => $title,
+                            'title' => $this->discoverer->getConditionTitleByClass($class),
                             'value' => '-',
                             'internal_name' => $row['condition_name']
                         ];
@@ -84,9 +82,7 @@ class ConditionHandler
             try {
                 $reflection = new \ReflectionClass($class);
                 if ($reflection->isInstantiable()) {
-                    /** @var ConditionAbstract $instance */
-                    $instance = $reflection->newInstance();
-                    $names[] = $instance->getName();
+                    $names[] = $this->discoverer->getConditionNameByClass($class);
                 }
             } catch (\Throwable $e) {
                 continue;

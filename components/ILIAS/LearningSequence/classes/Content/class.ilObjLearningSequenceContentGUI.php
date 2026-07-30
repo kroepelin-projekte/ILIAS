@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\LearningSequence\Content\Multiselect;
 use ILIAS\HTTP\Wrapper\RequestWrapper;
 use ILIAS\Refinery\Factory;
+use ILIAS\UI\Component\Input\Container\Filter\Standard;
 use ILIAS\UI\Renderer;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -31,18 +35,18 @@ class ilObjLearningSequenceContentGUI
     public const string FIELD_POSTCONDITION_TYPE = 'f_pct';
 
     public function __construct(
-        protected \ilObjLearningSequenceGUI  $parent_gui,
-        protected \ilCtrl                    $ctrl,
+        protected \ilObjLearningSequenceGUI $parent_gui,
+        protected \ilCtrl $ctrl,
         protected \ilGlobalTemplateInterface $tpl,
-        protected \ilLanguage                $lng,
-        protected \ilAccessHandler           $access,
-        protected \ilConfirmationGUI         $confirmation_gui,
-        protected \LSItemOnlineStatus        $ls_item_online_status,
-        protected RequestWrapper             $post_wrapper,
-        protected Factory                    $refinery,
-        protected \ILIAS\UI\Factory          $ui_factory,
-        protected Renderer                   $ui_renderer,
-        protected ServerRequestInterface     $request
+        protected \ilLanguage $lng,
+        protected \ilAccessHandler $access,
+        protected \ilConfirmationGUI $confirmation_gui,
+        protected \LSItemOnlineStatus $ls_item_online_status,
+        protected \ILIAS\HTTP\Wrapper\RequestWrapper $post_wrapper,
+        protected \ILIAS\Refinery\Factory $refinery,
+        protected \ILIAS\UI\Factory $ui_factory,
+        protected \ILIAS\UI\Renderer $ui_renderer,
+        protected \Psr\Http\Message\ServerRequestInterface $request
     ) {
     }
 
@@ -132,10 +136,10 @@ class ilObjLearningSequenceContentGUI
 
         $messages = [];
         if ($boundaries['start_ref_id'] === 0) {
-            $messages[] = "Um die Lernsequenz zu starten, wird ein Start Objekt benötigt";
+            $messages[] = "Um die Lernsequenz zu starten, wird ein Start Objekt benötigt"; # ToDo Sprachvariable
         }
         if ($boundaries['end_ref_id'] === 0) {
-            $messages[] = "Um die Lernsequenz zu starten, wird ein End Objekt benötigt";
+            $messages[] = "Um die Lernsequenz zu starten, wird ein End Objekt benötigt"; # ToDo Sprachvariable
         }
 
         if (count($messages) > 0) {
@@ -175,7 +179,7 @@ class ilObjLearningSequenceContentGUI
             return $a->getOrderNumber() <=> $b->getOrderNumber();
         });
 
-        $condition_handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler();
+        $condition_handler = new ConditionHandler();
         $lso_ref_id = $this->parent_gui->getObject()->getRefId();
 
         foreach ($items as $index => $item) {
@@ -210,7 +214,6 @@ class ilObjLearningSequenceContentGUI
                 );
             }
 
-            // Filterung anwenden
             if (count($input_filter) > 0) {
                 $found = false;
                 foreach ($input_conditions as $ic) {
@@ -238,11 +241,11 @@ class ilObjLearningSequenceContentGUI
             }
 
             // Information
-            $prev_title = "(keines)";
+            $prev_title = "(keines)"; #Todo Sprachvariable
             if ($index > 0) {
                 $prev_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index - 1]->getRefId()));
             }
-            $next_title = "(keines)";
+            $next_title = "(keines)"; #Todo Sprachvariable
             if ($index < count($items) - 1) {
                 $next_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index + 1]->getRefId()));
             }
@@ -373,7 +376,7 @@ class ilObjLearningSequenceContentGUI
         return $actions;
     }
 
-    protected function renderTable(array $data, \ILIAS\UI\Component\Input\Container\Filter\Standard $filter): void
+    protected function renderTable(array $data, Standard $filter): void
     {
         $this->lng->loadLanguageModule('trac');
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
@@ -385,19 +388,30 @@ class ilObjLearningSequenceContentGUI
             $filter
         );
 
-        $this->tpl->setContent($table->render());
+        $html = $table->render();
+
+        // SELECT
+        $picker_factory = new Multiselect($this->ui_factory, $this->lng);
+        $items = $this->parent_gui->getObject()->getLSItems();
+        $multi_picker = $picker_factory->getPicker("LSO Objekt Auswahl (Multi)", true, $items);
+        $single_picker = $picker_factory->getPicker("LSO Objekt Auswahl (Single)", false, $items);
+
+        $html .= $this->ui_renderer->render([
+            $multi_picker,
+            $single_picker
+        ]);
+
+        $this->tpl->setContent($html);
     }
 
     protected function getInputConditionOptions(): array
     {
-        $discoverer = new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        $discoverer = new ilObjLearningSequenceConditionDiscover();
         $classes = $discoverer->getAllInputConditions();
         $options = [];
 
         foreach ($classes as $class) {
-            /** @var \ILIAS\LearningSequence\Content\Condition\AbstractCondition $instance */
-            $instance = new $class();
-            $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
+            $options[$discoverer->getConditionNameByClass($class)] = $discoverer->getConditionTitleByClass($class);
         }
 
         return $options;
@@ -405,14 +419,12 @@ class ilObjLearningSequenceContentGUI
 
     protected function getOutputConditionOptions(): array
     {
-        $discoverer = new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        $discoverer = new ilObjLearningSequenceConditionDiscover();
         $classes = $discoverer->getAllOutputConditions();
         $options = [];
 
         foreach ($classes as $class) {
-            /** @var \ILIAS\LearningSequence\Content\Condition\AbstractCondition $instance */
-            $instance = new $class();
-            $options[$instance->getName()] = str_replace('Condition', '', (new \ReflectionClass($class))->getShortName());
+            $options[$discoverer->getConditionNameByClass($class)] = $discoverer->getConditionTitleByClass($class);
         }
 
         return $options;
@@ -497,8 +509,6 @@ class ilObjLearningSequenceContentGUI
         $item_ref_id = (int) ($this->request->getQueryParams()['item_ref_id'] ?? 0);
         if ($item_ref_id > 0) {
             $this->ls_item_online_status->setOnlineStatus($item_ref_id, $status);
-
-            // Wir müssen auch das LSItem in der Lernsequenz aktualisieren
             $items = $this->parent_gui->getObject()->getLSItems();
             $updated = [];
             foreach ($items as $item) {
@@ -523,13 +533,13 @@ class ilObjLearningSequenceContentGUI
             $boundaries = $db->getBoundariesFor($this->parent_gui->getObject()->getId());
 
             if ($boundaries['end_ref_id'] === $item_ref_id) {
-                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true);
+                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true); # ToDo Sprachvariable
                 $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
                 return;
             }
 
             $db->setStartRefId($this->parent_gui->getObject()->getId(), $item_ref_id);
-            $this->tpl->setOnScreenMessage('success', 'Start object set.', true);
+            $this->tpl->setOnScreenMessage('success', 'Start object set.', true); # ToDo Sprachvariable
         }
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
@@ -538,7 +548,7 @@ class ilObjLearningSequenceContentGUI
     {
         $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
         $db->unsetStartRefId($this->parent_gui->getObject()->getId());
-        $this->tpl->setOnScreenMessage('success', 'Start object unset.', true);
+        $this->tpl->setOnScreenMessage('success', 'Start object unset.', true); # ToDo Sprachvariable
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 
@@ -550,13 +560,13 @@ class ilObjLearningSequenceContentGUI
             $boundaries = $db->getBoundariesFor($this->parent_gui->getObject()->getId());
 
             if ($boundaries['start_ref_id'] === $item_ref_id) {
-                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true);
+                $this->tpl->setOnScreenMessage('failure', 'An object cannot be start and end object at the same time.', true); # ToDo Sprachvariable
                 $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
                 return;
             }
 
             $db->setEndRefId($this->parent_gui->getObject()->getId(), $item_ref_id);
-            $this->tpl->setOnScreenMessage('success', 'End object set.', true);
+            $this->tpl->setOnScreenMessage('success', 'End object set.', true); # ToDo Sprachvariable
         }
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
@@ -565,7 +575,7 @@ class ilObjLearningSequenceContentGUI
     {
         $db = new \ilObjLearningSequenceContentBoundaries($GLOBALS['DIC']->database());
         $db->unsetEndRefId($this->parent_gui->getObject()->getId());
-        $this->tpl->setOnScreenMessage('success', 'End object unset.', true);
+        $this->tpl->setOnScreenMessage('success', 'End object unset.', true); # ToDo Sprachvariable
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 }

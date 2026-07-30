@@ -40,16 +40,15 @@ class ilObjLearningSequenceContentFilter
     public function getFilter(string $action, array $input_options, array $output_options): \ILIAS\UI\Component\Input\Container\Filter\Standard
     {
         $fields = [
-            'name' => $this->ui_factory->input()->field()->text($this->lng->txt('name'))
-                ->withDedicatedName('name'),
+            'name' => $this->ui_factory->input()->field()->text($this->lng->txt('name')),
             'input_conditions' => $this->ui_factory->input()->field()->multiselect(
                 $this->lng->txt('input_conditions'),
                 $input_options
-            )->withDedicatedName('input_conditions'),
+            ),
             'output_conditions' => $this->ui_factory->input()->field()->multiselect(
                 $this->lng->txt('output_conditions'),
                 $output_options
-            )->withDedicatedName('output_conditions'),
+            ),
         ];
 
         return $this->ui_factory->input()->container()->filter()->standard(

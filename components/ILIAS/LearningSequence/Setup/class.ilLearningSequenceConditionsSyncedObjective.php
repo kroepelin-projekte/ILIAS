@@ -67,57 +67,35 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
         }
 
         $discoverer = $this->getDiscoverer();
-        $input_conditions = $discoverer->getAllInputConditions();
-        $output_conditions = $discoverer->getAllOutputConditions();
+        $conditions = $discoverer->getAllConditions();
 
         $expected_names = [];
         $expected_tables = [];
 
-        $check_conditions = function (array $classes) use ($db, &$expected_names, &$expected_tables) {
-            foreach ($classes as $class) {
-                try {
-                    if (!class_exists($class)) {
-                        continue;
-                    }
-                    $reflection = new ReflectionClass($class);
-                    if (!$reflection->isInstantiable()) {
-                        continue;
-                    }
+        foreach ($conditions as $class) {
+            $name = $discoverer->getConditionNameByClass($class);
+            if ($name === '') {
+                continue;
+            }
 
-                    /** @var AbstractCondition $instance */
-                    $instance = $reflection->newInstance();
-                    $name = $instance->getName();
-                    $expected_names[] = $name;
+            $expected_names[] = $name;
 
-                    $res = $db->queryF(
-                        "SELECT type_id FROM lso_condition_types WHERE condition_name = %s",
-                        ['text'],
-                        [$name]
-                    );
-                    $row = $db->fetchAssoc($res);
-                    if (!$row) {
-                        return false;
-                    }
-
-                    $table_definitions = $instance->migrate();
-                    foreach ($table_definitions as $def) {
-                        $expected_tables[] = $def->tableName;
-                        if (!$db->tableExists($def->tableName)) {
-                            return false;
-                        }
-                    }
-                } catch (\Throwable $t) {
-                    continue;
+            $res = $db->queryF(
+                "SELECT type_id FROM lso_condition_types WHERE condition_name = %s",
+                ['text'],
+                [$name]
+            );
+            if (!$db->fetchAssoc($res)) {
+                return false;
+            }
+            /** @var AbstractCondition $class */
+            $table_definitions = $class::migrate();
+            foreach ($table_definitions as $def) {
+                $expected_tables[] = $def->tableName;
+                if (!$db->tableExists($def->tableName)) {
+                    return false;
                 }
             }
-            return true;
-        };
-
-        if (!$check_conditions($input_conditions)) {
-            return false;
-        }
-        if (!$check_conditions($output_conditions)) {
-            return false;
         }
         $res = $db->query("SELECT condition_name FROM lso_condition_types");
         while ($row = $db->fetchAssoc($res)) {
@@ -191,63 +169,47 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
         }
 
         $discoverer = $this->getDiscoverer();
-        $input_conditions = $discoverer->getAllInputConditions();
-        $output_conditions = $discoverer->getAllOutputConditions();
+        $conditions = $discoverer->getAllConditions();
 
         $expected_names = [];
         $expected_tables = [];
 
-        $sync_conditions = function (array $classes) use ($db, &$expected_names, &$expected_tables) {
-            foreach ($classes as $class) {
-                try {
-                    if (!class_exists($class)) {
-                        continue;
-                    }
-                    $reflection = new ReflectionClass($class);
-                    if (!$reflection->isInstantiable()) {
-                        continue;
-                    }
+        foreach ($conditions as $class) {
+            $name = $discoverer->getConditionNameByClass($class);
+            if ($name === '') {
+                continue;
+            }
 
-                    /** @var AbstractCondition $instance */
-                    $instance = $reflection->newInstance();
-                    $name = $instance->getName();
-                    $expected_names[] = $name;
+            $expected_names[] = $name;
 
-                    $res = $db->queryF(
-                        "SELECT type_id FROM lso_condition_types WHERE condition_name = %s",
-                        ['text'],
-                        [$name]
-                    );
-                    $row = $db->fetchAssoc($res);
-                    if (!$row) {
-                        $next_id = $db->nextId("lso_condition_types");
-                        $db->insert("lso_condition_types", [
-                            "type_id" => ["integer", $next_id],
-                            "condition_name" => ["text", $name]
-                        ]);
+            $res = $db->queryF(
+                "SELECT type_id FROM lso_condition_types WHERE condition_name = %s",
+                ['text'],
+                [$name]
+            );
+            if (!$db->fetchAssoc($res)) {
+                $next_id = $db->nextId("lso_condition_types");
+                $db->insert("lso_condition_types", [
+                    "type_id" => ["integer", $next_id],
+                    "condition_name" => ["text", $name]
+                ]);
+            }
+            /** @var AbstractCondition $class */
+            $table_definitions = $class::migrate();
+            foreach ($table_definitions as $def) {
+                $table_name = $def->tableName;
+                $expected_tables[] = $table_name;
+                if (!$db->tableExists($table_name)) {
+                    $db->createTable($table_name, $def->fields);
+                    if (count($def->primaryKeys) > 0) {
+                        $db->addPrimaryKey($table_name, $def->primaryKeys);
                     }
-                    $table_definitions = $instance->migrate();
-                    foreach ($table_definitions as $def) {
-                        $table_name = $def->tableName;
-                        $expected_tables[] = $table_name;
-                        if (!$db->tableExists($table_name)) {
-                            $db->createTable($table_name, $def->fields);
-                            if (count($def->primaryKeys) > 0) {
-                                $db->addPrimaryKey($table_name, $def->primaryKeys);
-                            }
-                            if ($def->hasSequence) {
-                                $db->createSequence($table_name);
-                            }
-                        }
+                    if ($def->hasSequence) {
+                        $db->createSequence($table_name);
                     }
-                } catch (\Throwable $t) {
-                    continue;
                 }
             }
-        };
-
-        $sync_conditions($input_conditions);
-        $sync_conditions($output_conditions);
+        }
         $res = $db->query("SELECT condition_name FROM lso_condition_types");
         $names_in_db = [];
         while ($row = $db->fetchAssoc($res)) {

@@ -20,8 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\Standard;
 use ilDBInterface;
+use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
@@ -40,7 +40,6 @@ abstract class AbstractCondition
     public function __construct()
     {
         global $DIC;
-        /** @var \ILIAS\DI\Container $DIC */
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
         $this->ui_factory = $this->dic->ui()->factory();
@@ -49,7 +48,7 @@ abstract class AbstractCondition
     /**
      * @return array
      */
-    abstract public function migrate(): array;
+    abstract public static function migrate(): array;
 
     /**
      * Checks if the condition is fulfilled.
@@ -62,11 +61,11 @@ abstract class AbstractCondition
      * Returns the additional form for the condition.
      * Has to be implemented by the child class if additional form is needed.
      *
-     * @return Standard[]
+     * @return FormStandard
      */
-    public function getAdditionalForm(): array
+    public function getAdditionalForm(): ?FormStandard
     {
-        return [];
+        return null;
     }
 
     /**

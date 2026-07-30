@@ -22,7 +22,6 @@ namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\AlwaysOutputC
 
 use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
-use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 
 /**
  * Class AlwaysOutputCondition
@@ -36,30 +35,9 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     /**
      * @inheritDoc
      */
-    public function migrate(): array
+    public static function migrate(): array
     {
-        return [
-            new TableDefinition(
-                tableName: "lso_c_always_settings",
-                fields: [
-                    "id" => ["type" => "integer", "length" => 4, "notnull" => true],
-                    "setting_key" => ["type" => "text", "length" => 255, "notnull" => true],
-                    "setting_value" => ["type" => "text", "length" => 1000, "notnull" => false],
-                ],
-                primaryKeys: ["id"],
-                hasSequence: true
-            ),
-            new TableDefinition(
-                tableName: "lso_c_always_data",
-                fields: [
-                    "data_id" => ["type" => "integer", "length" => 4, "notnull" => true],
-                    "ref_id" => ["type" => "integer", "length" => 4, "notnull" => true],
-                    "content" => ["type" => "clob", "notnull" => false],
-                ],
-                primaryKeys: ["data_id"],
-                hasSequence: true
-            )
-        ];
+        return [];
     }
 
     /**
@@ -86,5 +64,4 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     {
         return '+';
     }
-
 }
