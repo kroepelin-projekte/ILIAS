@@ -42,8 +42,10 @@ final class LearningProgressInProgressOutputCondition extends AbstractLeafCondit
         return [];
     }
 
-    public function getName(): ?string
+    public function setupSteps(): array
     {
-        return self::NAME;
+        $this->assertContextSet();
+        return parent::setupSteps();
     }
+
 }

@@ -67,8 +67,4 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
         return [];
     }
 
-    public function getName(): ?string
-    {
-        return self::NAME;
-    }
 }

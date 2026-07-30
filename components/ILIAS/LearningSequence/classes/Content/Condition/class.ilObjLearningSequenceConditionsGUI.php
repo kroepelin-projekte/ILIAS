@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Data\Factory;
 use ILIAS\Data\URI;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\UI\Component\Table\Table;
@@ -31,15 +32,25 @@ class ilObjLearningSequenceConditionsGUI
     public function executeCommand(): void
     {
         $cmd = $this->ctrl->getCmd();
+        $next_class = $this->ctrl->getNextClass();
 
-        switch ($cmd) {
-            case self::CMD_MANAGE_CONDITIONS:
-                $this->$cmd();
+        switch ($next_class) {
+            case strtolower(ilObjLearningSequenceEditConditionGUI::class):
+                $this->ctrl->forwardCommand(new $next_class());
                 break;
             default:
-                throw new ilException("ilObjLearningSequenceConditionsGUI: Command not supported: $cmd");
+                switch ($cmd) {
+                    case self::CMD_MANAGE_CONDITIONS:
+                        $this->$cmd();
+                        break;
+                    default:
+                        throw new ilException("ilObjLearningSequenceConditionsGUI: Command not supported: $cmd");
+                }
+                break;
         }
     }
+
+
 
     protected function manageConditions(): void
     {
@@ -50,8 +61,6 @@ class ilObjLearningSequenceConditionsGUI
         $modal = $this->buildAddConditionModal();
         $button = $this->ui_factory->button()->standard('Add condition', '#')->withOnClick($modal->getShowSignal());
         $DIC->toolbar()->addComponent($button);
-
-        $this->tpl->addInlineCss(".c-table-data__table { width: 80%; }");
 
         $this->tpl->setContent(
             $this->ui_renderer->render([
@@ -124,30 +133,53 @@ class ilObjLearningSequenceConditionsGUI
         );
     }
 
+    /**
+     * @throws ilCtrlException
+     */
     private function buildConditionsTable(): Table
     {
-        // todo parameter
         global $DIC;
         $request = $DIC->http()->request();
+        $df = new Factory();
 
-        $data_factory = new \ILIAS\Data\Factory();
+        // single action - edit
+        $url = ilObjLearningSequenceEditConditionGUI::getUrl(3);
+        $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
+        [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
+            ['condition'],
+            'edit',
+            'id'
+        );
+        $actions['edit'] = $this->ui_factory->table()->action()->single(
+            $this->lng->txt('edit'),
+            $url_builder,
+            $row_id_token,
+        );
 
-        $example_uri = $data_factory->uri((string) $request->getUri());
-        $url_builder = new URLBuilder($example_uri);
-        [$process_form_url_builder, $process_form_parameter] = $url_builder->acquireParameter(explode('\\', __NAMESPACE__), "process_single");
-
+        // standard action - delete
+        $url = ilObjLearningSequenceEditConditionGUI::getUrl(3);
+        $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
+        [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
+            ['condition'],
+            'delete',
+            'id'
+        );
+        $actions['delete'] = $this->ui_factory->table()->action()->standard(
+            $this->lng->txt('delete'),
+            $url_builder,
+            $row_id_token,
+        );
 
         return $this->ui_factory->table()->data(
             new ilLearningSequenceConditionsRetrieval(),
-            'Input Conditions', // todo lang
+            'Conditions',
             [
-                'input_condition_type' => $this->ui_factory->table()->column()->text('Type'),
+                'id' => $this->ui_factory->table()->column()->text('ID'),
+                'type' => $this->ui_factory->table()->column()->text('Type'),
+                'name' => $this->ui_factory->table()->column()->text('Name'),
             ]
         )
-            ->withActions([
-                $this->ui_factory->table()->action()->single('Edit', $process_form_url_builder, $process_form_parameter),
-                $this->ui_factory->table()->action()->single('Delete', $process_form_url_builder, $process_form_parameter),
-            ])
+            ->withActions($actions)
             ->withRequest($request);
     }
 }
