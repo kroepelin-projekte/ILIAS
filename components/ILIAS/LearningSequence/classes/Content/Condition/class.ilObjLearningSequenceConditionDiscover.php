@@ -72,27 +72,28 @@ class ilObjLearningSequenceConditionDiscover
             return $classes;
         }
 
-        foreach (scandir($path) as $folder) {
-            if ($folder === '.' || $folder === '..') {
-                continue;
-            }
+        $directory = new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS);
+        $iterator = new \RecursiveIteratorIterator($directory);
 
-            $folderPath = $path . '/' . $folder;
-            if (!is_dir($folderPath)) {
-                continue;
-            }
-
-            $filePath = $folderPath . '/' . $folder . 'Condition.php';
-            if (file_exists($filePath)) {
-                require_once $filePath;
-                $className = $baseNamespace . "\\" . $folder . "\\" . $folder . 'Condition';
-                if (!class_exists($className, false)) {
-                    if (!class_exists($className, true)) {
-                        continue;
-                    }
+        foreach ($iterator as $file) {
+            /** @var \SplFileInfo $file */
+            if ($file->isFile() && $file->getExtension() === 'php') {
+                if (str_contains($file->getFilename(), 'Interface.php')) {
+                    continue;
                 }
-                if (is_subclass_of($className, $interface)) {
-                    $classes[] = $className;
+
+                require_once $file->getPathname();
+
+                $relativePath = substr($file->getPathname(), strlen($path));
+                $classRelative = str_replace(['/', '\\', '.php'], ['\\', '\\', ''], $relativePath);
+
+                $className = $baseNamespace . '\\' . ltrim($classRelative, '\\');
+
+                if (class_exists($className) && is_subclass_of($className, $interface)) {
+                    $reflection = new \ReflectionClass($className);
+                    if (!$reflection->isAbstract()) {
+                        $classes[] = $className;
+                    }
                 }
             }
         }
