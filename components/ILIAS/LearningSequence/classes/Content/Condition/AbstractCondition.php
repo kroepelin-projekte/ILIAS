@@ -49,7 +49,6 @@ abstract class AbstractCondition
      * @return array
      */
     abstract public static function migrate(): array;
-    abstract public function getName(): ?string;
 
     /**
      * Checks if the condition is fulfilled.
