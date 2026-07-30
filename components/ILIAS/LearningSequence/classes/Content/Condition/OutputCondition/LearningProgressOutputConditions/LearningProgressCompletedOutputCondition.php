@@ -37,7 +37,7 @@ final class LearningProgressCompletedOutputCondition extends AbstractLeafConditi
         );
     }
 
-    public function migrate(): array
+    public static function migrate(): array
     {
         return [];
     }

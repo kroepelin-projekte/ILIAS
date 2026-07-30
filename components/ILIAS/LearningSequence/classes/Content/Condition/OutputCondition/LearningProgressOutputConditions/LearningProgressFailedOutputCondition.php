@@ -37,7 +37,7 @@ final class LearningProgressFailedOutputCondition extends AbstractLeafCondition
         ) === ilLPStatus::LP_STATUS_FAILED;
     }
 
-    public function migrate(): array
+    public static function migrate(): array
     {
         return [];
     }

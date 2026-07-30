@@ -37,7 +37,7 @@ final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCond
         ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED;
     }
 
-    public function migrate(): array
+    public static function migrate(): array
     {
         return [];
     }
