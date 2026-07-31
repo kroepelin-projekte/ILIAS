@@ -288,4 +288,40 @@ abstract class AbstractCondition
 
         return (int) $row['condition_id'];
     }
+
+    protected function getConditionType(): string
+    {
+        $is_input = $this instanceof \ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+        $is_output = $this instanceof \ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+
+        if ($is_input === $is_output) {
+            throw new \LogicException('Condition must implement exactly one of InputConditionInterface or OutputConditionInterface.');
+        }
+
+        return $is_input
+         ? "InputCondition"
+         : "OutputCondition";
+    }
+
+    // TODO: Prüfen, ob wir diese beiden Helper brauchen und wo wir sie hinpacken
+    protected function getLso(): \ilObjLearningSequence
+    {
+        $lso_ref_id = $this->getLsoRefId();
+        if ($lso_ref_id === null) {
+            throw new \LogicException('LSO ref id is not set.');
+        }
+
+        /** @var \ilObjLearningSequence $object */
+        $object = \ilObjectFactory::getInstanceByRefId($lso_ref_id);
+        if (!$object instanceof \ilObjLearningSequence) {
+            throw new \LogicException('Object is not an ilObjLearningSequence.');
+        }
+
+        return $object;
+    }
+
+    protected function getLsoItems(): array
+    {
+        return $this->getLso()->getLSItems();
+    }
 }
