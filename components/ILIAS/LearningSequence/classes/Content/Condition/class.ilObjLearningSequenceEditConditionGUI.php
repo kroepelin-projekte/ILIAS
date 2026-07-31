@@ -13,6 +13,11 @@ class ilObjLearningSequenceEditConditionGUI
 {
     protected int $item_ref_id;
     protected int $condition_id;
+    private ArrayBasedRequestWrapper $query;
+    /**
+     * @var \ILIAS\DI\Container|mixed
+     */
+    private mixed $dic;
 
     public function __construct(
         protected ilCtrl                          $ctrl,
@@ -26,18 +31,14 @@ class ilObjLearningSequenceEditConditionGUI
     )
     {
         global $DIC;
+        $this->dic = $DIC;
         $this->ctrl = $DIC->ctrl();
         $this->tpl = $DIC->ui()->mainTemplate();
-
-        $query = $DIC->http()->wrapper()->query();
-        $int_list = $DIC->refinery()->kindlyTo()->listOf($DIC->refinery()->kindlyTo()->int());
-        if (!$query->has('condition_id')) {
-            throw new ilException('Permission denied');
-        }
-        $this->item_ref_id = $query->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
-        $this->condition_id = current($query->retrieve('condition_id', $int_list));
+        $this->query = $DIC->http()->wrapper()->query();
+        $this->item_ref_id = $this->query->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
     }
 
+    public const string CMD_CREATE_CONDITION = "createCondition";
     public const string CMD_EDIT_CONDITION = "editCondition";
 
 
@@ -50,11 +51,22 @@ class ilObjLearningSequenceEditConditionGUI
 
         switch ($cmd) {
             case self::CMD_EDIT_CONDITION:
+            $this->initConditionId();
+            case self::CMD_CREATE_CONDITION:
                 $this->$cmd();
                 break;
             default:
                 throw new ilException("ilObjLearningSequenceConditionGUI: Command not supported: $cmd");
         }
+    }
+
+    private function initConditionId(): void
+    {
+        $int_list = $this->dic->refinery()->kindlyTo()->listOf($this->dic->refinery()->kindlyTo()->int());
+        if (!$this->query->has('condition_id')) {
+            throw new ilException('Permission denied');
+        }
+        $this->condition_id = current($this->query->retrieve('condition_id', $int_list));
     }
 
     protected function editCondition(): void

@@ -3,11 +3,10 @@
 declare(strict_types=1);
 
 use ILIAS\Data\Factory;
-use ILIAS\Data\URI;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\UI\Component\Menu\Drilldown;
 use ILIAS\UI\Component\Table\Table;
 use ILIAS\UI\URLBuilder;
@@ -67,6 +66,7 @@ class ilObjLearningSequenceConditionsGUI
             default:
                 switch ($cmd) {
                     case self::CMD_MANAGE_CONDITIONS:
+                    case self::SAVE:
                         $this->$cmd();
                         break;
                     default:
@@ -183,5 +183,11 @@ class ilObjLearningSequenceConditionsGUI
         )
             ->withActions($actions)
             ->withRequest($this->request);
+    }
+
+    private function save(): void
+    {
+        $condition = ConditionFactory::instantiateByType($this->request->getParsedBody()['condition'] ?? '');
+        $condition->create();
     }
 }
