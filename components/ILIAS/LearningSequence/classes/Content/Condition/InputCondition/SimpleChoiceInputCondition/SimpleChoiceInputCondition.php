@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SimpleChoiceInputCondition;
 
-use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
@@ -30,7 +30,7 @@ use ilLPStatus;
 /**
  * Class SimpleChoiceInputCondtion
  */
-final class SimpleChoiceInputCondition extends AbstractLeafCondition implements InputConditionInterface
+final class SimpleChoiceInputCondition extends AbstractCondition implements InputConditionInterface
 {
     final protected const NAME = "simple_choice";
     private const SETTINGS_TABLE = 'lso_c_simple_choice';
@@ -62,15 +62,6 @@ final class SimpleChoiceInputCondition extends AbstractLeafCondition implements 
             $this->getConditionTargetRefId(),
             $this->dic->user()->getId()
         );
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function setupSteps(): array
-    {
-        $this->assertContextSet();
-        return parent::setupSteps();
     }
 
     /**
