@@ -6,22 +6,16 @@ namespace ILIAS\LearningSequence\Content\Condition;
 
 class ConditionFactory
 {
-/*    public static function instantiateByType(string $type): AbstractCondition
+    public static function instantiateByName(string $condition_name, string $type): AbstractCondition
     {
-        $abstract_condition = new AbstractCondition();
-        $types =
-    }*/
+        $class_name = "ILIAS\\LearningSequence\\Content\\Condition\\{$type}\\{$condition_name}Condition";
 
-    private static function getTypes()
-    {
-/*        global $DIC;
-        $db = $DIC->database();
+        if (class_exists($class_name)) {
+            $condition = new $class_name();
+        } else {
+            throw new \InvalidArgumentException("Class {$class_name} does not exist.");
+        }
 
-        $res = $db->queryF(
-            'SELECT con FROM lso_condition_types WHERE condition_name = %s',
-            ['text'],
-            [$this->getName()]
-        );
-        $row = $this->getDatabase()->fetchAssoc($res);*/
+        return $condition;
     }
 }

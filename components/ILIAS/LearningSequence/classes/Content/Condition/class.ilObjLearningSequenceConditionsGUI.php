@@ -187,7 +187,10 @@ class ilObjLearningSequenceConditionsGUI
 
     private function save(): void
     {
-        $condition = ConditionFactory::instantiateByType($this->request->getParsedBody()['condition'] ?? '');
+        $condition = ConditionFactory::instantiateByName(
+            $this->request->getParsedBody()['condition'] ?? '',
+            $this->request->getParsedBody()['type'] ?? ''
+        );
         $condition->create();
     }
 }
