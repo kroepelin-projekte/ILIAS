@@ -25,8 +25,21 @@ abstract class AbstractLeafCondition extends AbstractCondition
     public function getStep(): \ILIAS\UI\Component\Link\Bulky
     {
         $this->dic->ctrl()->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'condition', static::NAME);
-        $this->dic->ctrl()->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', (string) $this->obj_ref_id);
-        $this->dic->ctrl()->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'ref_id', (string) $this->lso_ref_id);
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'condition_type',
+            $this->getConditionType()
+        );
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'item_ref_id',
+            (string) $this->obj_ref_id
+        );
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'ref_id',
+            (string) $this->lso_ref_id
+        );
 
         $uri = $this->buildUrl(\ilObjLearningSequenceConditionsGUI::SAVE);
         $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
