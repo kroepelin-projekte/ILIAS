@@ -81,6 +81,11 @@ final class SimpleChoiceInputCondition extends AbstractLeafCondition implements 
         return '+';
     }
 
+    protected function requiresConfiguration(): bool
+    {
+        return true;
+    }
+
     /**
      * Returns a picker to select the target ref id for the simple choice input condition.
      *

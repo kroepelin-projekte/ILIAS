@@ -29,6 +29,8 @@ use ilRepositoryGUI;
 abstract class AbstractCondition
 {
     protected const NAME = '';
+    protected const SAVE_COMMAND = 'save';
+    protected const CONFIGURE_COMMAND = 'configure';
 
     protected \ilLanguage $lang;
     protected \ILIAS\DI\Container $dic;
@@ -294,8 +296,10 @@ abstract class AbstractCondition
         $is_input = $this instanceof \ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
         $is_output = $this instanceof \ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
-        if ($is_input === $is_output) {
-            throw new \LogicException('Condition must implement exactly one of InputConditionInterface or OutputConditionInterface.');
+        if ($is_input && $is_output) {
+            throw new \LogicException(
+                'Condition must implement only one of InputConditionInterface or OutputConditionInterface.'
+            );
         }
 
         return $is_input
@@ -323,5 +327,15 @@ abstract class AbstractCondition
     protected function getLsoItems(): array
     {
         return $this->getLso()->getLSItems();
+    }
+
+    protected function getStepCommand(): string
+    {
+        return $this->requiresConfiguration() ? self::CONFIGURE_COMMAND : self::SAVE_COMMAND;
+    }
+
+    protected function requiresConfiguration(): bool
+    {
+        return false;
     }
 }
