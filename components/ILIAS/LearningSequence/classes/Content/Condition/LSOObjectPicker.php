@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Content;
+namespace ILIAS\LearningSequence\Content\Condition;
 
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Component\Input\Field\Node\Leaf;
@@ -12,16 +12,26 @@ use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Input\Field\Node\Factory as NodeFactory;
 use ILIAS\UI\Component\Symbol\Icon\Factory as IconFactory;
 
-class Multiselect
+/**
+ * Picker class for LSO objects.
+ * This class is NOT a GUI class and does NOT participate in ilCtrl flow.
+ */
+class LSOObjectPicker
 {
+    protected UIFactory $ui_factory;
+
     public function __construct(
-        protected UIFactory $ui_factory,
-        protected \ilLanguage $lng
+        protected int $lso_ref_id
     ) {
+        global $DIC;
+        $this->ui_factory = $DIC->ui()->factory();
     }
 
-    public function getPicker(string $label, bool $multi, array $lso_items): FormInput
+    public function getPicker(string $label, bool $multi): FormInput
     {
+        $lso = \ilObjLearningSequence::getInstanceByRefId($this->lso_ref_id);
+        $lso_items = $lso->getLSItems();
+
         $retrieval = new class ($lso_items) implements NodeRetrieval {
             protected array $items;
 
