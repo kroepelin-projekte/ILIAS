@@ -41,7 +41,7 @@ abstract class AbstractLeafCondition extends AbstractCondition
             (string) $this->lso_ref_id
         );
 
-        $uri = $this->buildUrl(\ilObjLearningSequenceConditionsGUI::SAVE);
+        $uri = $this->buildUrl($this->getStepCommand());
         $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
 
         return $this->ui_factory->link()->bulky(
