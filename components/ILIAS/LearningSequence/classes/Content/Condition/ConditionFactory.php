@@ -6,15 +6,15 @@ namespace ILIAS\LearningSequence\Content\Condition;
 
 class ConditionFactory
 {
-    public static function instantiateByType(string $type): AbstractCondition
+/*    public static function instantiateByType(string $type): AbstractCondition
     {
         $abstract_condition = new AbstractCondition();
         $types =
-    }
+    }*/
 
     private static function getTypes()
     {
-        global $DIC;
+/*        global $DIC;
         $db = $DIC->database();
 
         $res = $db->queryF(
@@ -22,6 +22,6 @@ class ConditionFactory
             ['text'],
             [$this->getName()]
         );
-        $row = $this->getDatabase()->fetchAssoc($res);
+        $row = $this->getDatabase()->fetchAssoc($res);*/
     }
 }
