@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\LearningSequence\Content\Multiselect;
 use ILIAS\Refinery\Factory;
 use ILIAS\UI\Component\Input\Container\Filter\Standard;
 
@@ -385,17 +383,6 @@ class ilObjLearningSequenceContentGUI
         );
 
         $html = $table->render();
-
-        // SELECT
-        $picker_factory = new Multiselect($this->ui_factory, $this->lng);
-        $items = $this->parent_gui->getObject()->getLSItems();
-        $multi_picker = $picker_factory->getPicker("LSO Objekt Auswahl (Multi)", true, $items);
-        $single_picker = $picker_factory->getPicker("LSO Objekt Auswahl (Single)", false, $items);
-
-        $html .= $this->ui_renderer->render([
-            $multi_picker,
-            $single_picker
-        ]);
 
         $this->tpl->setContent($html);
     }
