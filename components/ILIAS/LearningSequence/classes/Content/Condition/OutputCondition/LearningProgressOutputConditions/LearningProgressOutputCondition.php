@@ -21,9 +21,8 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
-final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
+final class LearningProgressOutputCondition extends AbstractCondition
 {
     protected const NAME = 'learning_progress';
 

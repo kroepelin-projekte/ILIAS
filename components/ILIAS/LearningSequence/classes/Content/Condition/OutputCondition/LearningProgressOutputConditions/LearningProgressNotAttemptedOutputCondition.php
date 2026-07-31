@@ -21,9 +21,10 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ilLPStatus;
 
-final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCondition
+final class LearningProgressNotAttemptedOutputCondition extends AbstractLeafCondition implements OutputConditionInterface
 {
     final protected const NAME = "learning_progress_not_attempted";
     /**

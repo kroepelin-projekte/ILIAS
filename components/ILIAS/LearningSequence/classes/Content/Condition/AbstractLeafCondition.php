@@ -24,11 +24,10 @@ abstract class AbstractLeafCondition extends AbstractCondition
 {
     public function getStep(): \ILIAS\UI\Component\Link\Bulky
     {
-        $this->dic->ctrl()->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'condition', static::NAME);
         $this->dic->ctrl()->setParameterByClass(
             \ilObjLearningSequenceConditionsGUI::class,
-            'condition_type',
-            $this->getConditionType()
+            'type_id',
+            $this->getTypeId()
         );
         $this->dic->ctrl()->setParameterByClass(
             \ilObjLearningSequenceConditionsGUI::class,

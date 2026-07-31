@@ -47,6 +47,10 @@ abstract class AbstractCondition
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
+    // TODO: Muss migrate() static sein?
+    // Unabhängig davon: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt,
+    // könnte man sie hier auch implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse
+    // überschreiben?
     /**
      * @return array
      */
@@ -218,8 +222,10 @@ abstract class AbstractCondition
         return $condition;
     }
 
-    // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden, wenn mit migrate()
-    // zusätzliche Tabellen angelegt werden. Diese zusätzlichen Tabellen sollen damit befüllt, bearbeitet und gelöscht werden.
+    // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden,
+    // wenn mit migrate() zusätzliche Tabellen angelegt werden. Diese zusätzlichen Tabellen
+    // sollen damit befüllt, bearbeitet und gelöscht werden.
+    // TODO: Passende Docblocks, Linter Warnungen "is declared but not used"
     protected function createConditionData(int $condition_id): void
     {
     }
@@ -242,12 +248,29 @@ abstract class AbstractCondition
         $res = $this->getDatabase()->queryF(
             'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
             ['text'],
-            [$this->getName()]
+            [$this->getIdentifier()]
         );
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
             throw new \LogicException('Condition type is not registered.');
+        }
+
+        return (int) $row['type_id'];
+    }
+
+    protected function getTypeIdByName(string $name): ?int
+    {
+        $res = $this->getDatabase()->queryF(
+            'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
+            ['text'],
+            [$name]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+
+        if ($row === null) {
+            return null;
+            // throw new \LogicException('Condition type is not registered.');
         }
 
         return (int) $row['type_id'];
@@ -291,20 +314,11 @@ abstract class AbstractCondition
         return (int) $row['condition_id'];
     }
 
-    protected function getConditionType(): string
+    protected function getIdentifier(): string
     {
-        $is_input = $this instanceof \ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
-        $is_output = $this instanceof \ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
-
-        if ($is_input && $is_output) {
-            throw new \LogicException(
-                'Condition must implement only one of InputConditionInterface or OutputConditionInterface.'
-            );
-        }
-
-        return $is_input
-         ? "InputCondition"
-         : "OutputCondition";
+        // Return the class name without the namespace and the "Condition" suffix
+        $class_name = (new \ReflectionClass($this))->getShortName();
+        return preg_replace('/Condition$/', '', $class_name);
     }
 
     // TODO: Prüfen, ob wir diese beiden Helper brauchen und wo wir sie hinpacken
