@@ -119,6 +119,7 @@ class ilObjLearningSequenceContentGUI
             $this->post_wrapper,
             $this->ui_factory,
             $this->ui_renderer,
+            $this->request,
         );
         $this->ctrl->forwardCommand($gui);
 
