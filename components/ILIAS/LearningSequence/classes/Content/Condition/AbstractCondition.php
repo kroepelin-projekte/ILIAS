@@ -239,18 +239,6 @@ abstract class AbstractCondition
     }
 
     /**
-     * Builds an icon with the given abbreviation.
-     *
-     * @param string $abbreviation
-     * @return \ILIAS\UI\Component\Symbol\Icon\Icon
-     */
-    protected function buildIcon(string $abbreviation): \ILIAS\UI\Component\Symbol\Icon\Icon
-    {
-        return $this->ui_factory->symbol()->icon()->standard('', '')
-            ->withSize('small')->withAbbreviation($abbreviation);
-    }
-
-    /**
      * Asserts that the context (lso_ref_id and obj_ref_id) is set.
      *
      * @throws \LogicException if the context is not set
@@ -424,7 +412,6 @@ abstract class AbstractCondition
         array $additional_parameters = [],
         ?string $label = null,
         ?string $command = null,
-        ?string $icon_abbreviation = null
     ): Bulky {
         $this->dic->ctrl()->setParameterByClass(
             \ilObjLearningSequenceConditionsGUI::class,
@@ -454,20 +441,10 @@ abstract class AbstractCondition
         $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
 
         return $this->ui_factory->link()->bulky(
-            $this->buildIcon($icon_abbreviation ?? $this->getStepIconAbbreviation()),
+            $this->getGlyphe(),
             $label ?? (string) $this->getName(),
             $uri
         );
-    }
-
-    /**
-     * Returns the abbreviation for the step icon.
-     *
-     * @return string
-     */
-    protected function getStepIconAbbreviation(): string
-    {
-        return '>';
     }
 
     /**
@@ -479,5 +456,16 @@ abstract class AbstractCondition
     protected function requiresConfiguration(): bool
     {
         return false;
+    }
+
+    /**
+     * Returns the glyphe for the condition.
+     * Override this method in child classes to provide a specific glyph.
+     *
+     * @return \ILIAS\UI\Component\Symbol\Glyph\Glyph
+     */
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    {
+        return $this->ui_factory->symbol()->glyph()->apply();
     }
 }

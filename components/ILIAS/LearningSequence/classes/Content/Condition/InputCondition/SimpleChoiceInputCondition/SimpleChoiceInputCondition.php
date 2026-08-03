@@ -67,14 +67,6 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
     /**
      * @inheritDoc
      */
-    protected function getStepIconAbbreviation(): string
-    {
-        return '+';
-    }
-
-    /**
-     * @inheritDoc
-     */
     protected function requiresConfiguration(): bool
     {
         return true;
@@ -171,5 +163,13 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             ['integer'],
             [$condition_id]
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    {
+        return $this->ui_factory->symbol()->glyph()->settings();
     }
 }
