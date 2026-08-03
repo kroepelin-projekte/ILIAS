@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\AlwaysOutputCondition;
 
-use ILIAS\LearningSequence\Content\Condition\AbstractLeafCondition;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
 /**
@@ -28,7 +28,7 @@ use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInte
  *
  * Bei Always Condition beachten, dass es keine Option gibt eine andere OutputCondition zu wählen. ALWAYS!!!
  */
-final class AlwaysOutputCondition extends AbstractLeafCondition implements OutputConditionInterface
+final class AlwaysOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
     protected const string NAME = "always";
 
@@ -46,15 +46,6 @@ final class AlwaysOutputCondition extends AbstractLeafCondition implements Outpu
     public function check(): bool
     {
         return true;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function setupSteps(): array
-    {
-        $this->assertContextSet();
-        return parent::setupSteps();
     }
 
     /**
