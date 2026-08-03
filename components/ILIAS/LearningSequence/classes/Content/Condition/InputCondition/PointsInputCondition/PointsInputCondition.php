@@ -21,11 +21,12 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 
-final class PointsInputCondition extends AbstractCondition
+final class PointsInputCondition extends AbstractCondition implements InputConditionInterface
 {
     protected const NAME = 'points_input';
     private const SETTINGS_TABLE = 'lso_c_points_input';
