@@ -1,5 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Adaptive;
+
+use ilDBInterface;
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -16,9 +22,7 @@
  *
  *********************************************************************/
 
-declare(strict_types=1);
-
-class ilObjLearningSequenceContentBoundaries
+class LSOAdaptiveBoundaries
 {
     public const string TABLE_NAME = 'lso_item_boundaries';
 
