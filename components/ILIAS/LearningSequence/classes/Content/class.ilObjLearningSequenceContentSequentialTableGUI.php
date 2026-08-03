@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-class ilObjLearningSequenceContentTableGUI extends ilTable2GUI
+class ilObjLearningSequenceContentSequentialTableGUI extends ilTable2GUI
 {
     protected bool $lp_globally_enabled;
 
