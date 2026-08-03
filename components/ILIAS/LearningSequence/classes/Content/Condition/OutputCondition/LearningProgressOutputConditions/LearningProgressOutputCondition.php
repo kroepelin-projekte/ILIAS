@@ -21,10 +21,19 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\TableDefinition;
+use ilLPStatus;
 
-final class LearningProgressOutputCondition extends AbstractCondition
+final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
     protected const NAME = 'learning_progress';
+    private const SETTINGS_TABLE = 'lso_c_learning_progress_output';
+    private const SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
+    private const SUBTYPE_IN_PROGRESS = 'in_progress';
+    private const SUBTYPE_COMPLETED = 'completed';
+    private const SUBTYPE_FAILED = 'failed';
+    private ?string $subtype = null;
 
     /**
      * @inheritDoc
@@ -35,22 +44,204 @@ final class LearningProgressOutputCondition extends AbstractCondition
 
         return [
             $this->ui_factory->menu()->sub($this->getName(), [
-                $this->withCurrentContext(new LearningProgressNotAttemptedOutputCondition())->setupSteps()[0],
-                $this->withCurrentContext(new LearningProgressInProgressOutputCondition())->setupSteps()[0],
-                $this->withCurrentContext(new LearningProgressCompletedOutputCondition())->setupSteps()[0],
-                $this->withCurrentContext(new LearningProgressFailedOutputCondition())->setupSteps()[0]
+                $this->buildSubtypeStep(self::SUBTYPE_NOT_ATTEMPTED),
+                $this->buildSubtypeStep(self::SUBTYPE_IN_PROGRESS),
+                $this->buildSubtypeStep(self::SUBTYPE_COMPLETED),
+                $this->buildSubtypeStep(self::SUBTYPE_FAILED)
             ])
         ];
     }
 
     public function check(): bool
     {
-        return false;
+        return match ($this->getSubtype()) {
+            self::SUBTYPE_NOT_ATTEMPTED => $this->isNotAttempted(),
+            self::SUBTYPE_IN_PROGRESS => $this->isInProgress(),
+            self::SUBTYPE_COMPLETED => $this->isCompleted(),
+            self::SUBTYPE_FAILED => $this->isFailed(),
+            default => throw new \LogicException('Unknown learning progress subtype.')
+        };
     }
 
     public static function migrate(): array
     {
-        return [];
+        return [
+            new TableDefinition(
+                tableName: self::SETTINGS_TABLE,
+                fields: [
+                    'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
+                ],
+                primaryKeys: ['condition_id']
+            )
+        ];
     }
 
+    public function getName(): ?string
+    {
+        return $this->condition_id !== null || $this->subtype !== null
+            ? $this->getSubtypeLabel($this->getSubtype())
+            : parent::getName();
+    }
+
+    public function setSubtype(string $subtype): void
+    {
+        if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
+            throw new \LogicException('Unsupported learning progress subtype.');
+        }
+
+        $this->subtype = $subtype;
+    }
+
+    public function getSubtype(): string
+    {
+        if ($this->subtype !== null) {
+            return $this->subtype;
+        }
+
+        if ($this->condition_id === null) {
+            throw new \LogicException('Learning progress subtype is not set.');
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT subtype FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+
+        if ($row === null || !is_string($row['subtype'])) {
+            throw new \LogicException('Learning progress subtype is not stored.');
+        }
+
+        $this->setSubtype($row['subtype']);
+        return (string) $this->subtype;
+    }
+
+    protected function createConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->insert(self::SETTINGS_TABLE, [
+            'condition_id' => ['integer', $condition_id],
+            'subtype' => ['text', $this->requireSubtype()]
+        ]);
+    }
+
+    protected function editConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->update(
+            self::SETTINGS_TABLE,
+            [
+                'subtype' => ['text', $this->requireSubtype()]
+            ],
+            [
+                'condition_id' => ['integer', $condition_id]
+            ]
+        );
+    }
+
+    protected function deleteConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+    }
+
+    protected function findConditionIdByContextAndType(int $type_id): ?int
+    {
+        $res = $this->getDatabase()->queryF(
+            'SELECT c.condition_id
+                FROM lso_conditions c
+                INNER JOIN ' . self::SETTINGS_TABLE . ' s ON s.condition_id = c.condition_id
+                WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND c.type_id = %s AND s.subtype = %s',
+            ['integer', 'integer', 'integer', 'text'],
+            [$this->lso_ref_id, $this->obj_ref_id, $type_id, $this->requireSubtype()]
+        );
+
+        $row = $this->getDatabase()->fetchAssoc($res);
+        if ($row === null) {
+            return null;
+        }
+
+        if ($this->getDatabase()->fetchAssoc($res) !== null) {
+            throw new \LogicException('Learning progress condition lookup is ambiguous.');
+        }
+
+        return (int) $row['condition_id'];
+    }
+
+    private function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
+    {
+        return $this->buildStep(
+            ['subtype' => $subtype],
+            $this->getSubtypeLabel($subtype),
+            self::SAVE_COMMAND
+        );
+    }
+
+    private function getSubtypeLabel(string $subtype): string
+    {
+        return match ($subtype) {
+            self::SUBTYPE_NOT_ATTEMPTED => 'learning_progress_not_attempted',
+            self::SUBTYPE_IN_PROGRESS => 'learning_progress_in_progress',
+            self::SUBTYPE_COMPLETED => 'learning_progress_completed',
+            self::SUBTYPE_FAILED => 'learning_progress_failed',
+            default => throw new \LogicException('Unknown learning progress subtype.')
+        };
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getSupportedSubtypes(): array
+    {
+        return [
+            self::SUBTYPE_NOT_ATTEMPTED,
+            self::SUBTYPE_IN_PROGRESS,
+            self::SUBTYPE_COMPLETED,
+            self::SUBTYPE_FAILED
+        ];
+    }
+
+    private function requireSubtype(): string
+    {
+        if ($this->subtype === null) {
+            throw new \LogicException('Learning progress subtype is not set.');
+        }
+
+        return $this->subtype;
+    }
+
+    private function isNotAttempted(): bool
+    {
+        return ilLPStatus::_lookupStatus(
+            $this->obj_ref_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED;
+    }
+
+    private function isInProgress(): bool
+    {
+        return ilLPStatus::_lookupStatus(
+            $this->obj_ref_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_IN_PROGRESS;
+    }
+
+    private function isCompleted(): bool
+    {
+        return ilLPStatus::_hasUserCompleted(
+            $this->obj_ref_id,
+            $this->dic->user()->getId()
+        );
+    }
+
+    private function isFailed(): bool
+    {
+        return ilLPStatus::_lookupStatus(
+            $this->obj_ref_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_FAILED;
+    }
 }

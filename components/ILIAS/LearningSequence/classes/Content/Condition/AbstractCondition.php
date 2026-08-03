@@ -22,6 +22,7 @@ namespace ILIAS\LearningSequence\Content\Condition;
 
 use ilDBInterface;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Link\Bulky;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
@@ -47,10 +48,8 @@ abstract class AbstractCondition
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
-    // TODO: Muss migrate() static sein?
-    // Unabhängig davon: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt,
-    // könnte man sie hier auch implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse
-    // überschreiben?
+    // TODO: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt, sollte man sie hier
+    // implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse überschreiben?
     /**
      * @return array
      */
@@ -80,6 +79,12 @@ abstract class AbstractCondition
     public function getName(): ?string
     {
         return static::NAME;
+    }
+
+    public function setupSteps(): array
+    {
+        $this->assertContextSet();
+        return [$this->buildStep()];
     }
 
     /**
@@ -214,14 +219,6 @@ abstract class AbstractCondition
         }
     }
 
-    protected function withCurrentContext(AbstractCondition $condition): AbstractCondition
-    {
-        $this->assertContextSet();
-        $condition->setLsoRefId($this->lso_ref_id);
-        $condition->setObjRefId($this->obj_ref_id);
-        return $condition;
-    }
-
     // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden,
     // wenn mit migrate() zusätzliche Tabellen angelegt werden. Diese zusätzlichen Tabellen
     // sollen damit befüllt, bearbeitet und gelöscht werden.
@@ -254,23 +251,6 @@ abstract class AbstractCondition
 
         if ($row === null) {
             throw new \LogicException('Condition type is not registered.');
-        }
-
-        return (int) $row['type_id'];
-    }
-
-    protected function getTypeIdByName(string $name): ?int
-    {
-        $res = $this->getDatabase()->queryF(
-            'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
-            ['text'],
-            [$name]
-        );
-        $row = $this->getDatabase()->fetchAssoc($res);
-
-        if ($row === null) {
-            return null;
-            // throw new \LogicException('Condition type is not registered.');
         }
 
         return (int) $row['type_id'];
@@ -346,6 +326,51 @@ abstract class AbstractCondition
     protected function getStepCommand(): string
     {
         return $this->requiresConfiguration() ? self::CONFIGURE_COMMAND : self::SAVE_COMMAND;
+    }
+
+    protected function buildStep(
+        array $additional_parameters = [],
+        ?string $label = null,
+        ?string $command = null,
+        ?string $icon_abbreviation = null
+    ): Bulky {
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'type_id',
+            $this->getTypeId()
+        );
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'item_ref_id',
+            (string) $this->obj_ref_id
+        );
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'ref_id',
+            (string) $this->lso_ref_id
+        );
+
+        foreach ($additional_parameters as $name => $value) {
+            $this->dic->ctrl()->setParameterByClass(
+                \ilObjLearningSequenceConditionsGUI::class,
+                (string) $name,
+                (string) $value
+            );
+        }
+
+        $uri = $this->buildUrl($command ?? $this->getStepCommand());
+        $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
+
+        return $this->ui_factory->link()->bulky(
+            $this->buildIcon($icon_abbreviation ?? $this->getStepIconAbbreviation()),
+            $label ?? (string) $this->getName(),
+            $uri
+        );
+    }
+
+    protected function getStepIconAbbreviation(): string
+    {
+        return '>';
     }
 
     protected function requiresConfiguration(): bool
