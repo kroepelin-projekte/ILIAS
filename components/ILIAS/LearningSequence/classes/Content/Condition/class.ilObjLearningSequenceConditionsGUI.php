@@ -3,10 +3,14 @@
 declare(strict_types=1);
 
 use ILIAS\Data\Factory;
-use ILIAS\Data\URI;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\UI\Component\Menu\Drilldown;
 use ILIAS\UI\Component\Table\Table;
 use ILIAS\UI\URLBuilder;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * @ilCtrl_isCalledBy ilObjLearningSequenceConditionsGUI: ilObjLearningSequenceContentGUI
@@ -16,17 +20,29 @@ class ilObjLearningSequenceConditionsGUI
     public const string CMD_MANAGE_CONDITIONS = "manageConditions";
     public const string SAVE = "save";
 
+    protected int $lso_ref_id;
+    /** @var int LSO content object */
+    protected int $item_ref_id;
+    private ilObjLearningSequenceConditionDiscover $discoverer;
+
     public function __construct(
         protected ilObjLearningSequenceContentGUI $content_gui,
-        protected ilObjLearningSequenceGUI $parent_gui,
-        protected ilCtrl $ctrl,
-        protected ilGlobalTemplateInterface $tpl,
-        protected ilLanguage $lng,
-        protected ilAccess $access,
-        protected ArrayBasedRequestWrapper $post_wrapper,
-        protected ILIAS\UI\Factory $ui_factory,
-        protected ILIAS\UI\Renderer $ui_renderer
-    ) {
+        protected ilObjLearningSequenceGUI        $parent_gui,
+        protected ilCtrl                          $ctrl,
+        protected ilGlobalTemplateInterface       $tpl,
+        protected ilLanguage                      $lng,
+        protected ilAccess                        $access,
+        protected ArrayBasedRequestWrapper        $post_wrapper,
+        protected ILIAS\UI\Factory                $ui_factory,
+        protected ILIAS\UI\Renderer               $ui_renderer,
+        protected ServerRequestInterface          $request,
+    )
+    {
+        global $DIC;
+        $this->lso_ref_id = $DIC->http()->wrapper()->query()->retrieve('ref_id', $DIC->refinery()->kindlyTo()->int());
+        $this->item_ref_id = $DIC->http()->wrapper()->query()->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
+        $DIC->ctrl()->setParameter($this, 'item_ref_id', $this->item_ref_id);
+        $this->discoverer = new ilObjLearningSequenceConditionDiscover();
     }
 
     public function executeCommand(): void
@@ -36,11 +52,21 @@ class ilObjLearningSequenceConditionsGUI
 
         switch ($next_class) {
             case strtolower(ilObjLearningSequenceEditConditionGUI::class):
-                $this->ctrl->forwardCommand(new $next_class());
+                $this->ctrl->forwardCommand(new $next_class(
+                    $this->ctrl,
+                    $this->tpl,
+                    $this->lng,
+                    $this->access,
+                    $this->post_wrapper,
+                    $this->ui_factory,
+                    $this->ui_renderer,
+                    $this->request,
+                ));
                 break;
             default:
                 switch ($cmd) {
                     case self::CMD_MANAGE_CONDITIONS:
+                    case self::SAVE:
                         $this->$cmd();
                         break;
                     default:
@@ -49,7 +75,6 @@ class ilObjLearningSequenceConditionsGUI
                 break;
         }
     }
-
 
 
     protected function manageConditions(): void
@@ -80,55 +105,33 @@ class ilObjLearningSequenceConditionsGUI
         );
     }
 
-    protected function getDrilldown()
+    protected function getDrilldown(): Drilldown
     {
-        $conditions = []; // interface reader
+        $input_conditions_steps = array_map(
+            function(string $class): array {
+                $condition = new $class();
+                $condition->setObjRefId($this->item_ref_id);
+                $condition->setLsoRefId($this->lso_ref_id);
+                return $condition->setupSteps();
+            },
+            $this->discoverer->getAllInputConditions()
+        );
 
-        $input_conditions = [];
-        $output_conditions = [];
-        /*        foreach ($conditions as $condition) {
-                    if ($condition instanceof InputConditionInterface) {
-                        $input_conditions = $condition->getMenuButtons();
-                    } elseif ($condition instanceof OutputConditionInterface) {
-                        $output_conditions = $condition->getMenuButtons();
-                    }
-                }*/
-
-        $icon = $this->ui_factory->symbol()->icon()->custom('', '');
-        $input_conditions = [
-            $this->ui_factory->menu()->sub(
-                'Always',
-                [
-                    $this->ui_factory->link()->bulky(
-                        $icon,
-                        'Add Condition',
-                        new URI(ILIAS_HTTP_PATH)
-                    )
-                ]
-            ),
-            $this->ui_factory->menu()->sub(
-                'Points',
-                [
-                    $this->ui_factory->link()->bulky(
-                        $icon,
-                        'Add Condition',
-                        new URI(ILIAS_HTTP_PATH)
-                    )
-                ]
-            )
-        ];
+        $output_conditions_steps = array_map(
+            function(string $class): array {
+                $condition = new $class();
+                $condition->setObjRefId($this->item_ref_id);
+                $condition->setLsoRefId($this->lso_ref_id);
+                return $condition->setupSteps();
+            },
+            $this->discoverer->getAllOutputConditions()
+        );
 
         return $this->ui_factory->menu()->drilldown(
             'Manage Conditions',
             [
-                $this->ui_factory->menu()->sub(
-                    'Input Conditions',
-                    $input_conditions
-                ),
-                $this->ui_factory->menu()->sub(
-                    'Output Conditions',
-                    $output_conditions
-                )
+                $this->ui_factory->menu()->sub('Input Conditions', array_merge(...$input_conditions_steps)),
+                $this->ui_factory->menu()->sub('Output Conditions', array_merge(...$output_conditions_steps))
             ]
         );
     }
@@ -139,7 +142,6 @@ class ilObjLearningSequenceConditionsGUI
     private function buildConditionsTable(): Table
     {
         global $DIC;
-        $request = $DIC->http()->request();
         $df = new Factory();
 
         // single action - edit
@@ -171,7 +173,7 @@ class ilObjLearningSequenceConditionsGUI
         );
 
         return $this->ui_factory->table()->data(
-            new ilLearningSequenceConditionsRetrieval(),
+            new ilLearningSequenceConditionsRetrieval($this->lso_ref_id, $this->item_ref_id),
             'Conditions',
             [
                 'id' => $this->ui_factory->table()->column()->text('ID'),
@@ -180,6 +182,12 @@ class ilObjLearningSequenceConditionsGUI
             ]
         )
             ->withActions($actions)
-            ->withRequest($request);
+            ->withRequest($this->request);
+    }
+
+    private function save(): void
+    {
+        $condition = ConditionFactory::instantiateByType($this->request->getParsedBody()['condition'] ?? '');
+        $condition->create();
     }
 }

@@ -22,7 +22,9 @@ namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SimpleChoiceIn
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
+use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ilLPStatus;
 
 /**
@@ -65,11 +67,31 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
     /**
      * @inheritDoc
      */
-    public function setupSteps(): array
+    protected function getStepIconAbbreviation(): string
     {
-        // TODO: We need some Tree > Expandable to select the condition_target_ref_id
-        // Need to check how to use $this->getAdditionalForm() to add a modal with the picker.
-        return [];
+        return '+';
+    }
+
+    protected function requiresConfiguration(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Returns a picker to select the target ref id for the simple choice input condition.
+     *
+     * @return FormStandard
+     */
+    public function getAdditionalForm(): ?FormStandard
+    {
+        $input = (new LSOObjectPicker($this->lso_ref_id))->getPicker(
+            $this->lang->txt('lso_condition_simple_choice_target'),
+            false,
+        );
+        return $this->ui_factory->input()->container()->form()->standard(
+            'some_url',
+            [ $input ]
+        );
     }
 
     public function getConditionTargetRefId(): int

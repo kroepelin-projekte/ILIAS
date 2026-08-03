@@ -2,18 +2,12 @@
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ReflectionClass;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 
 class ilObjLearningSequenceConditionDiscover
 {
     private const string BASE_PATH = __DIR__;
-
-    public function __construct()
-    {
-    }
 
     /**
      * @return string[]
