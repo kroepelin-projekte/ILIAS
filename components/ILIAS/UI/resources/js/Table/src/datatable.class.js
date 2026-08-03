@@ -165,7 +165,7 @@ export default class DataTable {
    */
   #disableRowSelection(flag) {
     const rows = this.#table.getElementsByClassName('c-table-data__row-selector');
-    Array.from(rows).forEach(
+    rows.forEach(
       (chk) => {
         chk.disabled = (flag === true && !chk.checked);
       },
@@ -209,7 +209,7 @@ export default class DataTable {
     const rows = this.#table.getElementsByClassName('c-table-data__row-selector');
     const ret = [];
 
-    Array.from(rows).forEach(
+    rows.forEach(
       (chk) => {
         if (chk.checked) {
           ret.push(chk.value);
