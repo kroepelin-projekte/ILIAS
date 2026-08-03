@@ -120,7 +120,7 @@ class LSOSequentialTable implements OrderingRetrieval
     private function getSortedItems(): array
     {
         $items = $this->getFilteredItems();
-        usort($items, fn ($a, $b) => $a->getOrderNumber() <=> $b->getOrderNumber());
+        usort($items, fn($a, $b) => $a->getOrderNumber() <=> $b->getOrderNumber());
         return $items;
     }
 
