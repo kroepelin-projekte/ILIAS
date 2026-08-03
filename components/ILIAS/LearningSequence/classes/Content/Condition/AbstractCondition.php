@@ -48,10 +48,8 @@ abstract class AbstractCondition
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
-    // TODO: Muss migrate() static sein?
-    // Unabhängig davon: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt,
-    // könnte man sie hier auch implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse
-    // überschreiben?
+    // TODO: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt, sollte man sie hier
+    // implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse überschreiben?
     /**
      * @return array
      */
@@ -219,14 +217,6 @@ abstract class AbstractCondition
         if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
             throw new \LogicException('Condition context is incomplete.');
         }
-    }
-
-    protected function withCurrentContext(AbstractCondition $condition): AbstractCondition
-    {
-        $this->assertContextSet();
-        $condition->setLsoRefId($this->lso_ref_id);
-        $condition->setObjRefId($this->obj_ref_id);
-        return $condition;
     }
 
     // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden,

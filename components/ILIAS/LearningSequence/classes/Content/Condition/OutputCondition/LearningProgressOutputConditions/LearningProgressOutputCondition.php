@@ -115,7 +115,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         }
 
         $this->setSubtype($row['subtype']);
-        return $this->subtype;
+        return (string) $this->subtype;
     }
 
     protected function createConditionData(int $condition_id): void
