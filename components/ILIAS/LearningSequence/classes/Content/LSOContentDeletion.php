@@ -110,7 +110,7 @@ trait LSOContentDeletion
             }
         }
 
-        return array_values(array_filter($ref_ids, static fn (int $ref_id): bool => $ref_id > 0));
+        return array_values(array_filter($ref_ids, static fn(int $ref_id): bool => $ref_id > 0));
     }
 
     /**
