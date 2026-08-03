@@ -30,6 +30,7 @@ class ilObjLearningSequenceSettingsGUI
     public const PROP_AVAIL_FROM = 'start';
     public const PROP_AVAIL_TO = 'end';
     public const PROP_GALLERY = 'gallery';
+    public const PROP_LSO_MODE = 'lso_mode';
 
     public const CMD_EDIT = "settings";
     public const CMD_SAVE = "update";
@@ -147,6 +148,16 @@ class ilObjLearningSequenceSettingsGUI
             $txt('lso_settings_availability')
         );
 
+        // LSO Mode
+        $lso_mode = $if->field()->radio("Betriebsmodus", "Wählen Sie aus, wie die Lernsequenz gesteuert werden soll.") // #ToDo Sprachvariable hinzufügen
+            ->withOption((string) ilLearningSequenceSettings::MODE_LINEAR, "Linearer Modus (Sequential Mode)", "Inhalte werden in einer festen, vorgegebenen Reihenfolge nacheinander bearbeitet.") // #ToDo Sprachvariable hinzufügen
+            ->withOption((string) ilLearningSequenceSettings::MODE_ADAPTIVE, "Adaptiver Modus (Adaptive Mode)", "Der Lernpfad passt sich dynamisch an den Fortschritt oder das Vorwissen an.") // #ToDo Sprachvariable hinzufügen
+            ->withByline("Bestimmt, ob die Inhalte starr nacheinander oder dynamisch basierend auf Nutzerinteraktionen (Adaptivität) angeboten werden.") // #ToDo Sprachvariable hinzufügen
+            ->withValue((string) $settings->getLSOMod())
+            ->withAdditionalTransformation(
+                $this->refinery->kindlyTo()->int()
+            );
+
         // Member gallery
         $gallery = $if->field()->checkbox($txt("members_gallery"), $txt('lso_show_members_info'))
             ->withValue($settings->getMembersGallery())
@@ -156,6 +167,7 @@ class ilObjLearningSequenceSettingsGUI
                     $this->refinery->always(false)
                 ])
             );
+
         // Metadata
         $custom_md = $if->field()->checkbox($this->lng->txt('obj_tool_setting_custom_metadata'))
             ->withValue((bool) ilContainer::_lookupContainerSetting(
@@ -185,6 +197,7 @@ class ilObjLearningSequenceSettingsGUI
 
         $section_additional = $if->field()->section(
             [
+                self::PROP_LSO_MODE => $lso_mode,
                 self::PROP_GALLERY => $gallery,
                 ilObjectServiceSettingsGUI::CUSTOM_METADATA => $custom_md,
                 ilObjectServiceSettingsGUI::TAXONOMIES => $taxonomies
@@ -277,7 +290,8 @@ class ilObjLearningSequenceSettingsGUI
         }
 
         $settings = $lso->getLSSettings()
-            ->withMembersGallery($data['additional'][self::PROP_GALLERY] ?? false);
+            ->withMembersGallery($data['additional'][self::PROP_GALLERY] ?? false)
+            ->withLSOMod((int) ($data['additional'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR));
         $lso->updateSettings($settings);
 
         $obj_props->storePropertyTitleAndIconVisibility($data['common']['icon']);

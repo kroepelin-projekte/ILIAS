@@ -80,6 +80,9 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
                 new \LSODropActivationDBUpdateSteps()
             ),
             new \ilDatabaseUpdateStepsExecutedObjective(
+                new \LSOAddModeDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
                 new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()
             ),
             new \ilDatabaseUpdateStepsExecutedObjective(
@@ -107,6 +110,7 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
             false,
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRegisterNotificationType()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \LSOAddModeDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilObjLearningSequenceContentBoundariesUpdateSteps()),
             new ilLearningSequenceConditionsSyncedObjective()

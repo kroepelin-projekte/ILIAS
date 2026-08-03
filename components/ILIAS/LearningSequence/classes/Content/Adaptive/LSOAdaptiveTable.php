@@ -1,5 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Adaptive;
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -16,15 +20,22 @@
  *
  *********************************************************************/
 
-declare(strict_types=1);
-
-readonly class ilObjLearningSequenceContentTable
+readonly class LSOAdaptiveTable
 {
     public function __construct(
         private \ILIAS\UI\Factory $ui_factory,
         private \ILIAS\UI\Renderer $ui_renderer,
         private array $objects,
-        private ?\ILIAS\UI\Component\Input\Container\Filter\Standard $filter = null
+        private ?\ILIAS\UI\Component\Input\Container\Filter\Standard $filter = null,
+        private int $start_ref_id = 0,
+        private int $end_ref_id = 0,
+        private ?\ilObjLearningSequenceContentGUI $parent_gui = null,
+        private int $ref_id = 0,
+        private int $obj_id = 0,
+        private ?\ilLanguage $lng = null,
+        private ?\ilCtrl $ctrl = null,
+        private ?\Psr\Http\Message\ServerRequestInterface $request = null,
+        private ?\ilGlobalTemplateInterface $tpl = null
     ) {
     }
 
@@ -37,7 +48,8 @@ readonly class ilObjLearningSequenceContentTable
             $view_controls[] = $this->filter;
         }
 
-        $environment = $this->buildEnvironment();
+        $modals = [];
+        $environment = $this->buildEnvironment($modals);
 
         $mapping = function (
             $row,
@@ -70,10 +82,19 @@ readonly class ilObjLearningSequenceContentTable
             ->withEnvironment($environment)
             ->withData($data);
 
-        return $this->ui_renderer->render($table);
+        $html = $this->ui_renderer->render($table);
+
+        if ($modals !== []) {
+            $html .= $this->ui_renderer->render($modals);
+        }
+
+        return $html;
     }
 
-    private function buildEnvironment(): array
+    /**
+     * @param array<int, \ILIAS\UI\Component\Modal\Interruptive> $modals
+     */
+    private function buildEnvironment(array &$modals): array
     {
         $headline = function (\ilObjLearningSequenceContentData $record): string {
             $link_html = $this->ui_renderer->render(
@@ -97,15 +118,55 @@ readonly class ilObjLearningSequenceContentTable
             return $link_html . $badges_html;
         };
 
-        $actions = function (\ilObjLearningSequenceContentData $record) {
+        $actions = function (\ilObjLearningSequenceContentData $record) use (&$modals) {
             $dropdown_items = [];
-            foreach ($record->actions as $action) {
+            $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+            $ref_id = $lso->getRefId();
+            $obj_id = $lso->getId();
+
+            $specific_actions = (new LSOAdaptiveContent(
+                $this->parent_gui,
+                $this->ui_factory,
+                $this->ui_renderer,
+                $this->lng,
+                $this->ctrl,
+                $this->request,
+                $this->tpl,
+                $ref_id,
+                $obj_id
+            ))->getSpecificActions(
+                $record->ref_id,
+                $this->start_ref_id,
+                $this->end_ref_id
+            );
+            $action_data = $this->parent_gui->getTableActionHandler()->collectActions(
+                $record->ref_id,
+                $specific_actions,
+                $record->is_online
+            );
+
+            foreach ($action_data as $id => $action) {
                 if ($action->is_divider) {
                     $dropdown_items[] = $this->ui_factory->divider()->horizontal();
                     continue;
                 }
-                $dropdown_items[] = $this->ui_factory->button()->shy($action->label, $action->link);
+
+                $label = $action->label;
+                $link = $action->link;
+                if (strpos($link, 'http') !== 0 && strpos($link, 'ilias.php') === false) {
+                    $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', $record->ref_id);
+                    $link = $this->ctrl->getLinkTarget($this->parent_gui, $link);
+                }
+
+                $dropdown_items[] = $this->ui_factory->button()->shy($label, $link);
             }
+
+            $delete_modal = $this->buildDeleteModal($record->ref_id, $record->title);
+            $modals[$record->ref_id] = $delete_modal;
+            $dropdown_items[] = $this->ui_factory->button()->shy(
+                $this->lng->txt('delete'),
+                ''
+            )->withOnClick($delete_modal->getShowSignal());
 
             return $this->ui_factory->dropdown()->standard($dropdown_items)->withLabel('');
         };
@@ -138,6 +199,29 @@ readonly class ilObjLearningSequenceContentTable
             'actions' => $actions,
             'content' => $content,
         ];
+    }
+
+    private function buildDeleteModal(int $ref_id, string $title): \ILIAS\UI\Component\Modal\Interruptive
+    {
+        $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', '');
+        $form_action = $this->ctrl->getFormAction(
+            $this->parent_gui,
+            \ilObjLearningSequenceContentGUI::CMD_DELETE
+        );
+
+        $item = $this->ui_factory->modal()->interruptiveItem()->keyValue(
+            (string) $ref_id,
+            $this->lng->txt('title'),
+            $title
+        );
+
+        return $this->ui_factory->modal()->interruptive(
+            $this->lng->txt('delete'),
+            $this->lng->txt('info_delete_sure'),
+            $form_action
+        )
+            ->withAffectedItems([$item])
+            ->withActionButtonLabel($this->lng->txt('delete'));
     }
 
     private function renderKeyValueList(array $conditions): string

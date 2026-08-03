@@ -22,6 +22,7 @@ use ILIAS\Data;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\User\Profile\Profile;
 use ILIAS\User\Profile\Data as ProfileData;
+use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 
 /**
  * Class ilObjLearningSequenceGUI
@@ -80,6 +81,7 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
     public const CMD_LINK = "link";
     public const CMD_CANCEL_LINK = "cancelMoveLink";
     public const CMD_CUT = "cut";
+    public const CMD_COPY = "copy";
     public const CMD_CANCEL_CUT = "cancelCut";
     public const CMD_CUT_SHOWTREE = "showPasteTree";
     public const CMD_CUT_CLIPBOARD = "keepObjectsInClipboard";
@@ -462,6 +464,9 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
                     case self::CMD_CUT:
                         $this->cutObject();
                         break;
+                    case self::CMD_COPY:
+                        $this->copyObject();
+                        break;
                     case self::CMD_CUT_SHOWTREE:
                         $this->showPasteTreeObject();
                         break;
@@ -660,6 +665,31 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
         return $form;
     }
 
+    protected function initCreateForm(string $new_type): StandardForm|ilPropertyFormGUI|array
+    {
+        $form = parent::initCreateForm($new_type);
+
+        if ($form instanceof StandardForm) {
+            global $DIC;
+            $if = $DIC->ui()->factory()->input();
+            $lso_mode = $if->field()->radio("Betriebsmodus", "Wählen Sie aus, wie die Lernsequenz gesteuert werden soll.") // #ToDo Sprachvariable hinzufügen
+                ->withOption((string) ilLearningSequenceSettings::MODE_LINEAR, "Linearer Modus (Sequential Mode)", "Inhalte werden in einer festen, vorgegebenen Reihenfolge nacheinander bearbeitet.") // #ToDo Sprachvariable hinzufügen
+                ->withOption((string) ilLearningSequenceSettings::MODE_ADAPTIVE, "Adaptiver Modus (Adaptive Mode)", "Der Lernpfad passt sich dynamisch an den Fortschritt oder das Vorwissen an.") // #ToDo Sprachvariable hinzufügen
+                ->withByline("Bestimmt, ob die Inhalte starr nacheinander oder dynamisch basierend auf Nutzerinteraktionen (Adaptivität) angeboten werden.") // #ToDo Sprachvariable hinzufügen
+                ->withValue((string) ilLearningSequenceSettings::MODE_LINEAR);
+
+            $inputs = $form->getInputs();
+            $inputs[ilObjLearningSequenceSettingsGUI::PROP_LSO_MODE] = $lso_mode;
+
+            return $DIC->ui()->factory()->input()->container()->form()->standard(
+                $form->getPostURL(),
+                $inputs
+            );
+        }
+
+        return $form;
+    }
+
     protected function create(): void
     {
         parent::createObject();
@@ -672,6 +702,17 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
 
     protected function afterSave(ilObject $new_object): void
     {
+        global $DIC;
+        $form = $this->initCreateForm('lso')->withRequest($DIC->http()->request());
+        $data = $form->getData();
+
+        if (isset($data[ilObjLearningSequenceSettingsGUI::PROP_LSO_MODE])) {
+            $lso = ilObjLearningSequence::getInstanceByRefId($new_object->getRefId());
+            $settings = $lso->getLSSettings();
+            $settings = $settings->withLSOMod((int) $data[ilObjLearningSequenceSettingsGUI::PROP_LSO_MODE]);
+            $lso->updateSettings($settings);
+        }
+
         $participant = new ilLearningSequenceParticipants(
             $new_object->getId(),
             $this->log,

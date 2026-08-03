@@ -21,6 +21,7 @@ declare(strict_types=1);
 final readonly class ilObjLearningSequenceContentData
 {
     public function __construct(
+        public int $ref_id,
         public int $obj_id,
         public string $title,
         public string $description,

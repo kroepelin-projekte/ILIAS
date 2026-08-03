@@ -1,5 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Adaptive;
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -16,20 +20,20 @@
  *
  *********************************************************************/
 
-declare(strict_types=1);
+use ilObjLearningSequenceContentGUI;
 
-class ilObjLearningSequenceContentFilter
+class LSOAdaptiveFilter
 {
     private \ILIAS\UI\Factory $ui_factory;
     private \ilLanguage $lng;
     private \ilCtrl $ctrl;
-    private \ilObjectGUI $parent_gui;
+    private ilObjLearningSequenceContentGUI $parent_gui;
 
     public function __construct(
         \ILIAS\UI\Factory $ui_factory,
         \ilLanguage $lng,
         \ilCtrl $ctrl,
-        \ilObjectGUI $parent_gui
+        ilObjLearningSequenceContentGUI $parent_gui
     ) {
         $this->ui_factory = $ui_factory;
         $this->lng = $lng;
@@ -39,6 +43,12 @@ class ilObjLearningSequenceContentFilter
 
     public function getFilter(string $action, array $input_options, array $output_options): \ILIAS\UI\Component\Input\Container\Filter\Standard
     {
+        // The filter needs fully qualified URLs (toggle_on/off, expand,
+        // collapse, apply and the form action). Passing the bare command name
+        // ("manageContent") made the browser submit to a relative URL like
+        // "/manageContent", which does not exist. Build a proper link target.
+        $action_url = $this->ctrl->getLinkTarget($this->parent_gui, $action);
+
         $fields = [
             'name' => $this->ui_factory->input()->field()->text($this->lng->txt('name')),
             'input_conditions' => $this->ui_factory->input()->field()->multiselect(
@@ -49,17 +59,31 @@ class ilObjLearningSequenceContentFilter
                 $this->lng->txt('output_conditions'),
                 $output_options
             ),
+            'online_status' => $this->ui_factory->input()->field()->select(
+                $this->lng->txt('status'),
+                [
+                    'online' => $this->lng->txt('online'),
+                    'offline' => $this->lng->txt('offline'),
+                ]
+            ),
+            'position' => $this->ui_factory->input()->field()->multiselect(
+                $this->lng->txt('position'),
+                [
+                    'start' => 'Start', // #ToDo Sprachvariable
+                    'end' => 'End', // #ToDo Sprachvariable
+                ]
+            ),
         ];
 
         return $this->ui_factory->input()->container()->filter()->standard(
-            $action, // toggle_on
-            $action, // toggle_off
-            $action, // expand
-            $action, // collapse
-            $action, // apply
-            $this->ctrl->getLinkTarget($this->parent_gui, 'manageContent'),
+            $action_url, // toggle_on
+            $action_url, // toggle_off
+            $action_url, // expand
+            $action_url, // collapse
+            $action_url, // apply
+            $action_url,  // form action
             $fields,
-            [true, true, true],
+            [true, true, true, true, true],
             true,
             true
         );
