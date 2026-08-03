@@ -468,4 +468,37 @@ abstract class AbstractCondition
     {
         return $this->ui_factory->symbol()->glyph()->apply();
     }
+
+    // TODO: Prüfen, wohin wir diese beiden Helper auslagern können
+    /**
+     * Returns the learning sequence object associated with this condition.
+     *
+     * @return \ilObjLearningSequence
+     * @throws \LogicException if the LSO ref id is not set or the object is not an ilObjLearningSequence
+     */
+    protected function getLso(): \ilObjLearningSequence
+    {
+        $lso_ref_id = $this->getLsoRefId();
+        if ($lso_ref_id === null) {
+            throw new \LogicException('LSO ref id is not set.');
+        }
+
+        /** @var \ilObjLearningSequence $object */
+        $object = \ilObjectFactory::getInstanceByRefId($lso_ref_id);
+        if (!$object instanceof \ilObjLearningSequence) {
+            throw new \LogicException('Object is not an ilObjLearningSequence.');
+        }
+
+        return $object;
+    }
+
+    /**
+     * Returns the items of the learning sequence associated with this condition.
+     *
+     * @return array
+     */
+    protected function getLsoItems(): array
+    {
+        return $this->getLso()->getLSItems();
+    }
 }
