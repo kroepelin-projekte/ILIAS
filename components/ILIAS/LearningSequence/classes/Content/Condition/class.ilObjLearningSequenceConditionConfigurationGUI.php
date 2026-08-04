@@ -33,6 +33,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
     protected int $item_ref_id;
     protected int|null $condition_id = null;
     private int|null $type_id = null;
+    private bool $create = true;
     private ArrayBasedRequestWrapper $query;
     private Container $dic;
     private ilObjLearningSequenceConditionDiscover $discoverer;
@@ -108,16 +109,27 @@ class ilObjLearningSequenceConditionConfigurationGUI
         if ($this->query->has('item_ref_id')) {
             $this->item_ref_id = $this->query->retrieve('item_ref_id', $int);
         }
+        if ($this->query->has('type_id')) {
+            $this->type_id = $this->query->retrieve('type_id', $int);
+        }
         if ($this->query->has('condition_id')) {
+            $this->create = false;
+
             $condition_id = $this->query->retrieve('condition_id', $int_list);
             if (is_array($condition_id)) {
                 $this->condition_id = current($condition_id);
             } else {
                 $this->condition_id = $condition_id;
             }
-        }
-        if ($this->query->has('type_id')) {
-            $this->type_id = $this->query->retrieve('type_id', $int);
+
+            $query = $this->dic->database()->queryF(
+                'SELECT * FROM lso_conditions WHERE condition_id = %s',
+                ['integer'],
+                [$this->condition_id],
+            );
+            if ($record = $this->dic->database()->fetchAssoc($query)) {
+                $this->type_id = $record['type_id'];
+            }
         }
     }
 
@@ -128,7 +140,8 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function configure(): void
     {
-        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id);
+        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id, null, '');
+        $condition->setConditionId($this->condition_id);
 
         $this->tpl->setContent(
             $this->ui_renderer->render(

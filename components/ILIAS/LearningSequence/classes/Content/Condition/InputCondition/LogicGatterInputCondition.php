@@ -161,10 +161,10 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     {
         $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
-            false,
+            true,
         );
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CONFIGURE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
             [ $input ]
         );
     }

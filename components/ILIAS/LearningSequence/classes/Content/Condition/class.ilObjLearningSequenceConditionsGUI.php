@@ -188,7 +188,7 @@ class ilObjLearningSequenceConditionsGUI
         );
         $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
         [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
-            ['edit'],
+            ['condition'],
             'edit',
             'id'
         );
