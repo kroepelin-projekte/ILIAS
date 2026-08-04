@@ -180,7 +180,7 @@ abstract class AbstractCondition
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('editConditionData');
 
-        $condition_id = $this->resolveConditionId();
+        $condition_id = $this->condition_id ?? $this->resolveConditionId();
         $type_id = $this->getTypeId();
 
         $this->getDatabase()->update(
@@ -205,7 +205,7 @@ abstract class AbstractCondition
     public function delete(): void
     {
         $this->assertConditionDataHookImplemented('deleteConditionData');
-        $condition_id = $this->resolveConditionId();
+        $condition_id = $this->condition_id ?? $this->resolveConditionId();
 
         $this->deleteConditionData($condition_id);
 
@@ -316,7 +316,7 @@ abstract class AbstractCondition
         $res = $this->getDatabase()->queryF(
             'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
             ['text'],
-            [$this->getIdentifier()]
+            [$this->getIdentifierForClass(static::class)]
         );
         $row = $this->getDatabase()->fetchAssoc($res);
 
@@ -379,14 +379,16 @@ abstract class AbstractCondition
     }
 
     /**
-     * Returns the identifier for this condition, which is the class name without the namespace and "Condition" suffix.
+     * Extracts the identifier for the condition type from the class name.
      *
+     * @param string $class
      * @return string
      */
-    protected function getIdentifier(): string
+    protected function getIdentifierForClass(string $class): string
     {
-        $class_name = (new \ReflectionClass($this))->getShortName();
-        return preg_replace('/Condition$/', '', $class_name);
+        $parts = explode('\\', $class);
+        $short_name = end($parts);
+        return preg_replace('/Condition$/', '', $short_name);
     }
 
     /**

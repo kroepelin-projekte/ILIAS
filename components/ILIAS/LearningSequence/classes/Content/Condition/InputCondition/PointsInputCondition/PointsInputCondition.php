@@ -182,19 +182,13 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
     {
         $items = $this->getLsoItems();
         $points = 0;
-        $found_current_item = false;
 
         foreach ($items as $item) {
             if ($item->getRefId() === $this->obj_ref_id) {
-                $found_current_item = true;
-                break;
+                continue;
             }
 
-            $points += $this->getPointsFromPreviousItem((int) $item->getRefId());
-        }
-
-        if (!$found_current_item) {
-            throw new \LogicException('Current item is not part of the Learning Sequence.');
+            $points += $this->getPointsFromItem((int) $item->getRefId());
         }
 
         return $points;
@@ -206,7 +200,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
      * @param int $ref_id
      * @return int
      */
-    private function getPointsFromPreviousItem(int $ref_id): int
+    private function getPointsFromItem(int $ref_id): int
     {
         $condition_id = $this->getOutputConditionIdForItem($ref_id);
         if ($condition_id === null) {
@@ -233,7 +227,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
      */
     private function getOutputConditionIdForItem(int $ref_id): ?int
     {
-        $condition_name = $this->getConditionNameFromClass(PointsOutputCondition::class);
+        $condition_name = $this->getIdentifierForClass(PointsOutputCondition::class);
         $res = $this->getDatabase()->queryF(
             'SELECT c.condition_id
                 FROM lso_conditions c
@@ -248,18 +242,6 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
         }
 
         return (int) $row['condition_id'];
-    }
-
-    /**
-     * Returns the condition name from a class name.
-     *
-     * @param string $class
-     * @return string
-     */
-    private function getConditionNameFromClass(string $class): string
-    {
-        $short_name = (new \ReflectionClass($class))->getShortName();
-        return preg_replace('/Condition$/', '', $short_name);
     }
 
     /**
