@@ -84,7 +84,7 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             false,
         );
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CONFIGURE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
             [ $input ]
         );
     }

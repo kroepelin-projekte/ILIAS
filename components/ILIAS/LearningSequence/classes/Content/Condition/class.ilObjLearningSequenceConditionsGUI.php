@@ -174,10 +174,12 @@ class ilObjLearningSequenceConditionsGUI
 
     /**
      * @throws ilCtrlException
+     * @throws ilException
      */
     private function buildConditionsTable(): Table
     {
         $df = new Factory();
+        $af = new \ILIAS\UI\Implementation\Component\Table\Action\Factory();
 
         // single action - edit
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionConfigurationGUI::class, 'ref_id', $this->lso_ref_id);
@@ -190,15 +192,23 @@ class ilObjLearningSequenceConditionsGUI
         [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
             ['condition'],
             'edit',
-            'id'
-        );
-        $actions['edit'] = $this->ui_factory->table()->action()->standard(
-            $this->lng->txt('edit'),
-            $url_builder,
-            $row_id_token,
+            'ids'
         );
 
-        // delete condition
+        $actions = [];
+        foreach ($this->discoverer->getAllConditionIdsForItem($this->item_ref_id) as $condition_id) {
+            $condition = $this->discoverer->getConditionInstanceById($condition_id);
+            if ($condition->getAdditionalForm() === null) {
+                continue;
+            }
+            $actions[$condition_id] = $af->single(
+                $this->lng->txt('edit'),
+                $url_builder->withParameter(),
+                $row_id_token
+            );
+        }
+
+        // standard action: delete condition
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);
         $url = $this->ctrl->getLinkTarget($this, self::CMD_CONFIRM_DELETE_CONDITION);
         $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
