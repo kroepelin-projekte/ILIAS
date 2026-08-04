@@ -226,7 +226,6 @@ class LSOSequentialTable implements OrderingRetrieval
         $obj_id = $lso->getId();
 
         $table_actions = [];
-        $actions = $this->parent_gui->getTableActionHandler()->collectActions(0, []);
         $specific = (new LSOSequentialContent(
             $this->parent_gui,
             $this->ui_factory,
@@ -238,9 +237,7 @@ class LSOSequentialTable implements OrderingRetrieval
             $ref_id,
             $obj_id
         ))->getSpecificActions(0, "");
-        foreach ($specific as $id => $action) {
-            $actions[$id] = $action;
-        }
+        $actions = $this->parent_gui->getTableActionHandler()->collectActions(0, $specific);
 
         foreach ($actions as $id => $action) {
             if ($action->is_divider) {

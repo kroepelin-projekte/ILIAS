@@ -27,12 +27,12 @@ use ilLPStatus;
 
 final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
-    protected const NAME = 'learning_progress';
-    private const SETTINGS_TABLE = 'lso_c_learning_progress_output';
-    private const SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
-    private const SUBTYPE_IN_PROGRESS = 'in_progress';
-    private const SUBTYPE_COMPLETED = 'completed';
-    private const SUBTYPE_FAILED = 'failed';
+    protected const string NAME = 'learning_progress';
+    private const string SETTINGS_TABLE = 'lso_c_learning_progress_output';
+    private const string SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
+    private const string SUBTYPE_IN_PROGRESS = 'in_progress';
+    private const string SUBTYPE_COMPLETED = 'completed';
+    private const string SUBTYPE_FAILED = 'failed';
     private ?string $subtype = null;
 
     /**
@@ -214,7 +214,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return $this->buildStep(
             ['subtype' => $subtype],
             $this->getSubtypeLabel($subtype),
-            self::SAVE_COMMAND
+            self::CREATE_COMMAND
         );
     }
 

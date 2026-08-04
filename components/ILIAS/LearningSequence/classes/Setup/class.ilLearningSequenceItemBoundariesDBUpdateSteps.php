@@ -16,7 +16,7 @@
  *
  *********************************************************************/
 
-class ilObjLearningSequenceContentBoundariesUpdateSteps implements \ilDatabaseUpdateSteps
+class ilLearningSequenceItemBoundariesDBUpdateSteps implements \ilDatabaseUpdateSteps
 {
     private const TABLE_NAME = "lso_item_boundaries";
 

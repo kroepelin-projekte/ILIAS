@@ -30,8 +30,8 @@ use ilRepositoryGUI;
 abstract class AbstractCondition
 {
     protected const NAME = '';
-    protected const SAVE_COMMAND = 'save';
-    protected const CONFIGURE_COMMAND = 'configure';
+    protected const string CREATE_COMMAND = 'createCondition';
+    protected const string CONFIGURE_COMMAND = 'configure';
 
     protected \ilLanguage $lang;
     protected \ILIAS\DI\Container $dic;
@@ -398,7 +398,7 @@ abstract class AbstractCondition
      */
     protected function getStepCommand(): string
     {
-        return $this->requiresConfiguration() ? self::CONFIGURE_COMMAND : self::SAVE_COMMAND;
+        return $this->requiresConfiguration() ? self::CONFIGURE_COMMAND : self::CREATE_COMMAND;
     }
 
     /**
