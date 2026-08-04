@@ -40,14 +40,19 @@ abstract class AbstractCondition
     protected ?int $obj_ref_id = null;
     protected ?int $lso_ref_id = null;
     protected ?int $condition_id = null;
+    protected ?int $type_id = null;
     protected \ILIAS\UI\Factory $ui_factory;
 
-    public function __construct()
+    public function __construct(?int $condition_id = null)
     {
         global $DIC;
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
         $this->ui_factory = $this->dic->ui()->factory();
+        if ($condition_id) {
+            $this->setConditionId($condition_id);
+            $this->read();
+        }
     }
 
     /**
@@ -145,6 +150,22 @@ abstract class AbstractCondition
     public function setConditionId(?int $condition_id): void
     {
         $this->condition_id = $condition_id;
+    }
+
+    /**
+     * @param int|null $type_id
+     */
+    public function setTypeId(?int $type_id): void
+    {
+        $this->type_id = $type_id;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getTypeId(): ?int
+    {
+        return $this->type_id ? $this->type_id : $this->getTypeIdFromDb();
     }
 
     /**
@@ -320,7 +341,7 @@ abstract class AbstractCondition
      * @return int
      * @throws \LogicException if the condition type is not registered
      */
-    protected function getTypeId(): int
+    protected function getTypeIdFromDb(): int
     {
         $res = $this->getDatabase()->queryF(
             'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
@@ -510,5 +531,27 @@ abstract class AbstractCondition
     protected function getLsoItems(): array
     {
         return $this->getLso()->getLSItems();
+    }
+
+    protected function read(): void
+    {
+        if ($this->condition_id === null) {
+            throw new \LogicException('Condition id is not set.');
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT condition_id, lso_ref_id, obj_ref_id, type_id FROM lso_conditions WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+
+        if ($row === null) {
+            throw new \LogicException('Condition does not exist.');
+        }
+
+        $this->setLsoRefId((int) $row['lso_ref_id']);
+        $this->setObjRefId((int) $row['obj_ref_id']);
+        $this->setTypeId((int) $row['type_id']);
     }
 }

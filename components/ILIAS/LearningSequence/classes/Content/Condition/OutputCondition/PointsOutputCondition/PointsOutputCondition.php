@@ -74,7 +74,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         )->withRequired(true)->withValue($this->getPoints());
 
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CONFIGURE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
             [ $input ]
         );
     }
