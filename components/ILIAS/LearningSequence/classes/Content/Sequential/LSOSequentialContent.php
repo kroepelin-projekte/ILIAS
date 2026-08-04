@@ -99,6 +99,10 @@ class LSOSequentialContent implements LSOContentController
 
     public function manageContent(): void
     {
+        // Restore the "add new object" drilldown in the toolbar so that new
+        // objects can be created directly from the content management view.
+        $this->parent_gui->showPossibleSubObjects();
+
         $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
         $target_url = $this->ctrl->getFormAction($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_REORDER);
 

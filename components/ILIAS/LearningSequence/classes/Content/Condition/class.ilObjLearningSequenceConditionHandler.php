@@ -54,6 +54,65 @@ class ConditionHandler
     }
 
     /**
+     * Deletes all conditions attached to an object that is being removed from
+     * the Learning Sequence, regardless of the current operation mode.
+     *
+     * For every condition found for the deleted object it delegates to the
+     * concrete condition instance's public delete() method, which removes both
+     * the condition-specific payload (deleteConditionData()) and the generic
+     * entry in lso_conditions. If the concrete condition can no longer be
+     * resolved, the generic lso_conditions entry is removed as a fallback.
+     *
+     * @param int $lso_ref_id     ref_id of the Learning Sequence object
+     * @param int $obj_ref_id     ref_id of the deleted object
+     */
+    public function deleteConditionsByRefId(int $lso_ref_id, int $obj_ref_id): void
+    {
+        if ($this->db === null) {
+            return;
+        }
+
+        $res = $this->db->queryF(
+            "SELECT condition_id, type_id FROM lso_conditions WHERE lso_ref_id = %s AND obj_ref_id = %s",
+            ['integer', 'integer'],
+            [$lso_ref_id, $obj_ref_id]
+        );
+
+        while ($row = $this->db->fetchAssoc($res)) {
+            $condition_id = (int) $row['condition_id'];
+            $type_id = (int) $row['type_id'];
+
+            try {
+                $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $lso_ref_id, $obj_ref_id);
+                $condition->setConditionId($condition_id);
+                $condition->delete();
+            } catch (\Throwable $e) {
+                // If the concrete condition can no longer be resolved we still
+                // remove the generic lso_conditions entry as a fallback.
+                $this->deleteCondition($condition_id);
+            }
+        }
+    }
+
+    /**
+     * Deletes a single condition entry from lso_conditions by its condition id.
+     *
+     * @param int $condition_id id of the condition to delete
+     */
+    public function deleteCondition(int $condition_id): void
+    {
+        if ($this->db === null) {
+            return;
+        }
+
+        $this->db->manipulateF(
+            'DELETE FROM lso_conditions WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+    }
+
+    /**
      * @param array[] $db_conditions
      * @return array[]
      */

@@ -66,7 +66,47 @@ trait LSOContentDeletion
             $this->ctrl->redirect($this->parent_gui, \ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
         }
 
+        // Before the objects themselves are removed, clean up any conditions
+        // (generic lso_conditions entry + condition specific payload tables)
+        // attached to them, regardless of the current operation mode.
+        $condition_handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler();
+        foreach ($ref_ids as $ref_id) {
+            $condition_handler->deleteConditionsByRefId($this->ref_id, $ref_id);
+        }
+
         \ilRepUtil::deleteObjects($this->ref_id, $ref_ids);
+
+        // When the learning sequence runs in adaptive mode, a deleted object
+        // may still be referenced as the start and/or end object in
+        // lso_item_boundaries. Remove those dangling references (only the
+        // affected field, not the whole row). If such a reference was actually
+        // removed, the learning sequence can no longer be presented and is
+        // therefore switched offline together with an info message.
+        $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+        if ($lso->getLSSettings()->getMode() === \ilLearningSequenceSettings::MODE_ADAPTIVE) {
+            global $DIC;
+            $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+
+            $boundaries_changed = false;
+            foreach ($ref_ids as $ref_id) {
+                if ($boundaries->removeRefIdFromBoundaries($lso->getId(), $ref_id)) {
+                    $boundaries_changed = true;
+                }
+            }
+
+            if ($boundaries_changed) {
+                $online = $lso->getObjectProperties()->getPropertyIsOnline();
+                if ($online->getIsOnline()) {
+                    $lso->getObjectProperties()->storePropertyIsOnline($online->withOffline());
+                }
+                $this->tpl->setOnScreenMessage(
+                    'info',
+                    'Weil es kein Start/End Objekt mehr gibt, wurde die Lernsequence offline geschaltet.',
+                    true
+                );
+            }
+        }
+
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_removed'), true);
         $this->ctrl->redirect($this->parent_gui, \ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }

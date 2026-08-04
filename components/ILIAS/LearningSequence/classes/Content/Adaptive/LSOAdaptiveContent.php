@@ -67,6 +67,10 @@ class LSOAdaptiveContent implements LSOContentController
 
     public function manageContent(): void
     {
+        // Restore the "add new object" drilldown in the toolbar so that new
+        // objects can be created directly from the content management view.
+        $this->parent_gui->showPossibleSubObjects();
+
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
         $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
