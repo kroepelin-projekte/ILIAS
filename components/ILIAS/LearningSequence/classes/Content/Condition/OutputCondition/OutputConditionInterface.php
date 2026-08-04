@@ -20,10 +20,12 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition;
 
+/**
+ * Marker interface for discoverable output conditions in the Learning Sequence condition system.
+ *
+ * It is used to classify and discover condition classes as "output conditions".
+ * Runtime behavior (persistence, setup steps, checks) is defined by AbstractCondition.
+ */
 interface OutputConditionInterface
 {
-    /**
-     * @return array
-     */
-    public function setupSteps(): array;
 }

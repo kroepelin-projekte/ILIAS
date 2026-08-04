@@ -48,13 +48,6 @@ abstract class AbstractCondition
         $this->ui_factory = $this->dic->ui()->factory();
     }
 
-    // TODO: Da sie manchmal in der Kindklasse auch ein leeres Array zurückgibt, sollte man sie hier
-    // implementieren, ein leeres Array zurückgeben lassen und ggf. in der Kindklasse überschreiben?
-    /**
-     * @return array
-     */
-    abstract public static function migrate(): array;
-
     /**
      * Checks if the condition is fulfilled.
      *
@@ -63,8 +56,19 @@ abstract class AbstractCondition
     abstract public function check(): bool;
 
     /**
+     * Returns an array of table definitions for the condition.
+     * It has to be implemented in the concrete condition class if additional tables are needed for the condition.
+     *
+     * @return TableDefinition[]
+     */
+    public static function migrate(): array
+    {
+        return [];
+    }
+
+    /**
      * Returns the additional form for the condition.
-     * Has to be implemented by the child class if additional form is needed.
+     * Has to be implemented by the child class if an additional form is needed.
      *
      * @return FormStandard
      */
@@ -81,6 +85,12 @@ abstract class AbstractCondition
         return static::NAME;
     }
 
+    /**
+     * Returns an array of steps to configure the condition.
+     * Has to be implemented by the child class if additional steps are needed.
+     *
+     * @return Bulky[]
+     */
     public function setupSteps(): array
     {
         $this->assertContextSet();
@@ -103,21 +113,33 @@ abstract class AbstractCondition
         $this->obj_ref_id = $obj_ref_id;
     }
 
+    /**
+     * @return int|null
+     */
     public function getLsoRefId(): ?int
     {
         return $this->lso_ref_id;
     }
 
+    /**
+     * @param int|null $lso_ref_id
+     */
     public function setLsoRefId(?int $lso_ref_id): void
     {
         $this->lso_ref_id = $lso_ref_id;
     }
 
+    /**
+     * @return int|null
+     */
     public function getConditionId(): ?int
     {
         return $this->condition_id;
     }
 
+    /**
+     * @param int|null $condition_id
+     */
     public function setConditionId(?int $condition_id): void
     {
         $this->condition_id = $condition_id;
@@ -129,6 +151,7 @@ abstract class AbstractCondition
     public function create(): void
     {
         $this->assertContextSet();
+        $this->assertConditionDataHookImplemented('createConditionData');
 
         $type_id = $this->getTypeId();
         $existing_id = $this->findConditionIdByContextAndType($type_id);
@@ -155,8 +178,9 @@ abstract class AbstractCondition
     public function edit(): void
     {
         $this->assertContextSet();
+        $this->assertConditionDataHookImplemented('editConditionData');
 
-        $condition_id = $this->resolveConditionId();
+        $condition_id = $this->condition_id ?? $this->resolveConditionId();
         $type_id = $this->getTypeId();
 
         $this->getDatabase()->update(
@@ -180,7 +204,8 @@ abstract class AbstractCondition
      */
     public function delete(): void
     {
-        $condition_id = $this->resolveConditionId();
+        $this->assertConditionDataHookImplemented('deleteConditionData');
+        $condition_id = $this->condition_id ?? $this->resolveConditionId();
 
         $this->deleteConditionData($condition_id);
 
@@ -193,6 +218,12 @@ abstract class AbstractCondition
         $this->condition_id = null;
     }
 
+    /**
+     * Builds a URL for the given command.
+     *
+     * @param string $command
+     * @return \ILIAS\Data\URI
+     */
     protected function buildUrl(string $command): \ILIAS\Data\URI
     {
         $url = $this->dic->ctrl()->getLinkTargetByClass(
@@ -207,11 +238,11 @@ abstract class AbstractCondition
         return new \ILIAS\Data\URI(ILIAS_HTTP_PATH . '/' . $url);
     }
 
-    protected function buildIcon(string $abbreviation): \ILIAS\UI\Component\Symbol\Icon\Icon
-    {
-        return $this->ui_factory->symbol()->icon()->custom('', '');
-    }
-
+    /**
+     * Asserts that the context (lso_ref_id and obj_ref_id) is set.
+     *
+     * @throws \LogicException if the context is not set
+     */
     protected function assertContextSet(): void
     {
         if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
@@ -219,33 +250,73 @@ abstract class AbstractCondition
         }
     }
 
-    // NOTE: Die drei folgenden Methoden müssen in den Coditionsklassen implementiert werden,
-    // wenn mit migrate() zusätzliche Tabellen angelegt werden. Diese zusätzlichen Tabellen
-    // sollen damit befüllt, bearbeitet und gelöscht werden.
-    // TODO: Passende Docblocks, Linter Warnungen "is declared but not used"
+    /**
+     * Hook for condition-specific payload persistence during create().
+     * Override this method if migrate() contributes additional table definitions.
+     */
     protected function createConditionData(int $condition_id): void
     {
     }
 
+    /**
+     * Hook for condition-specific payload persistence during edit().
+     * Override this method if migrate() contributes additional table definitions.
+     */
     protected function editConditionData(int $condition_id): void
     {
     }
 
+    /**
+     * Hook for condition-specific payload cleanup during delete().
+     * Override this method if migrate() contributes additional table definitions.
+     */
     protected function deleteConditionData(int $condition_id): void
     {
     }
 
+    /**
+     * Ensures condition-specific payload hooks are implemented if migrate() defines extra tables.
+     */
+    protected function assertConditionDataHookImplemented(string $hook_method): void
+    {
+        if (count(static::migrate()) === 0) {
+            return;
+        }
+
+        $method = new \ReflectionMethod(static::class, $hook_method);
+        if ($method->getDeclaringClass()->getName() === self::class) {
+            throw new \LogicException(
+                sprintf(
+                    '%s defines additional migration tables but does not override %s().',
+                    static::class,
+                    $hook_method
+                )
+            );
+        }
+    }
+
+    /**
+     * Returns the database interface.
+     *
+     * @return ilDBInterface
+     */
     protected function getDatabase(): ilDBInterface
     {
         return $this->dic->database();
     }
 
+    /**
+     * Returns the type ID for this condition.
+     *
+     * @return int
+     * @throws \LogicException if the condition type is not registered
+     */
     protected function getTypeId(): int
     {
         $res = $this->getDatabase()->queryF(
             'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
             ['text'],
-            [$this->getIdentifier()]
+            [$this->getIdentifierForClass(static::class)]
         );
         $row = $this->getDatabase()->fetchAssoc($res);
 
@@ -256,6 +327,12 @@ abstract class AbstractCondition
         return (int) $row['type_id'];
     }
 
+    /**
+     * Resolves the condition ID for this condition based on the context and type.
+     *
+     * @return int
+     * @throws \LogicException if the condition does not exist or is ambiguous
+     */
     protected function resolveConditionId(): int
     {
         if ($this->condition_id !== null) {
@@ -274,6 +351,13 @@ abstract class AbstractCondition
         return $condition_id;
     }
 
+    /**
+     * Finds the condition ID based on the context (lso_ref_id, obj_ref_id) and type.
+     *
+     * @param int $type_id
+     * @return int|null
+     * @throws \LogicException if the lookup is ambiguous
+     */
     protected function findConditionIdByContextAndType(int $type_id): ?int
     {
         $res = $this->getDatabase()->queryF(
@@ -294,45 +378,41 @@ abstract class AbstractCondition
         return (int) $row['condition_id'];
     }
 
-    protected function getIdentifier(): string
+    /**
+     * Extracts the identifier for the condition type from the class name.
+     *
+     * @param string $class
+     * @return string
+     */
+    protected function getIdentifierForClass(string $class): string
     {
-        // Return the class name without the namespace and the "Condition" suffix
-        $class_name = (new \ReflectionClass($this))->getShortName();
-        return preg_replace('/Condition$/', '', $class_name);
+        $parts = explode('\\', $class);
+        $short_name = end($parts);
+        return preg_replace('/Condition$/', '', $short_name);
     }
 
-    // TODO: Prüfen, ob wir diese beiden Helper brauchen und wo wir sie hinpacken
-    protected function getLso(): \ilObjLearningSequence
-    {
-        $lso_ref_id = $this->getLsoRefId();
-        if ($lso_ref_id === null) {
-            throw new \LogicException('LSO ref id is not set.');
-        }
-
-        /** @var \ilObjLearningSequence $object */
-        $object = \ilObjectFactory::getInstanceByRefId($lso_ref_id);
-        if (!$object instanceof \ilObjLearningSequence) {
-            throw new \LogicException('Object is not an ilObjLearningSequence.');
-        }
-
-        return $object;
-    }
-
-    protected function getLsoItems(): array
-    {
-        return $this->getLso()->getLSItems();
-    }
-
+    /**
+     * Determines the command to use for the next step based on whether configuration is required.
+     *
+     * @return string
+     */
     protected function getStepCommand(): string
     {
         return $this->requiresConfiguration() ? self::CONFIGURE_COMMAND : self::CREATE_COMMAND;
     }
 
+    /**
+     * Builds a bulky link for the next step in the condition setup.
+     *
+     * @param array $additional_parameters, e.g. subtypes
+     * @param string|null $label
+     * @param string|null $command, e.g. 'save' or 'configure'
+     * @return Bulky
+     */
     protected function buildStep(
         array $additional_parameters = [],
         ?string $label = null,
         ?string $command = null,
-        ?string $icon_abbreviation = null
     ): Bulky {
         $this->dic->ctrl()->setParameterByClass(
             \ilObjLearningSequenceConditionsGUI::class,
@@ -362,19 +442,64 @@ abstract class AbstractCondition
         $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
 
         return $this->ui_factory->link()->bulky(
-            $this->buildIcon($icon_abbreviation ?? $this->getStepIconAbbreviation()),
+            $this->getGlyphe(),
             $label ?? (string) $this->getName(),
             $uri
         );
     }
 
-    protected function getStepIconAbbreviation(): string
-    {
-        return '>';
-    }
-
+    /**
+     * Determines whether the condition requires additional configuration.
+     * Override this method in child classes if configuration is needed.
+     *
+     * @return bool
+     */
     protected function requiresConfiguration(): bool
     {
         return false;
+    }
+
+    /**
+     * Returns the glyphe for the condition.
+     * Override this method in child classes to provide a specific glyph.
+     *
+     * @return \ILIAS\UI\Component\Symbol\Glyph\Glyph
+     */
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    {
+        return $this->ui_factory->symbol()->glyph()->apply();
+    }
+
+    // TODO: Prüfen, wohin wir diese beiden Helper auslagern können
+    /**
+     * Returns the learning sequence object associated with this condition.
+     *
+     * @return \ilObjLearningSequence
+     * @throws \LogicException if the LSO ref id is not set or the object is not an ilObjLearningSequence
+     */
+    protected function getLso(): \ilObjLearningSequence
+    {
+        $lso_ref_id = $this->getLsoRefId();
+        if ($lso_ref_id === null) {
+            throw new \LogicException('LSO ref id is not set.');
+        }
+
+        /** @var \ilObjLearningSequence $object */
+        $object = \ilObjectFactory::getInstanceByRefId($lso_ref_id);
+        if (!$object instanceof \ilObjLearningSequence) {
+            throw new \LogicException('Object is not an ilObjLearningSequence.');
+        }
+
+        return $object;
+    }
+
+    /**
+     * Returns the items of the learning sequence associated with this condition.
+     *
+     * @return array
+     */
+    protected function getLsoItems(): array
+    {
+        return $this->getLso()->getLSItems();
     }
 }

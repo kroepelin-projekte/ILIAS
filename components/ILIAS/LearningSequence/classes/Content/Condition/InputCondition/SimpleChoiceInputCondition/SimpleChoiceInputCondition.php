@@ -67,11 +67,6 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
     /**
      * @inheritDoc
      */
-    protected function getStepIconAbbreviation(): string
-    {
-        return '+';
-    }
-
     protected function requiresConfiguration(): bool
     {
         return true;
@@ -82,18 +77,23 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
      *
      * @return FormStandard
      */
-    public function getAdditionalForm(): ?FormStandard
+    public function getAdditionalForm(): FormStandard
     {
-        $input = (new LSOObjectPicker($this->lso_ref_id))->getPicker(
+        $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
             false,
         );
         return $this->ui_factory->input()->container()->form()->standard(
-            'some_url',
+            $this->buildUrl(self::SAVE_COMMAND)->__toString(),
             [ $input ]
         );
     }
 
+    /**
+     * Returns the target ref id for the simple choice input condition.
+     *
+     * @return int
+     */
     public function getConditionTargetRefId(): int
     {
         if ($this->condition_target_ref_id !== null) {
@@ -105,6 +105,7 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             ['integer'],
             [$this->resolveConditionId()]
         );
+        /** @var string[]|null $row */
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
@@ -115,11 +116,19 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
         return $this->condition_target_ref_id;
     }
 
+    /**
+     * Sets the target ref id for the simple choice input condition.
+     *
+     * @param int $condition_target_ref_id
+     */
     public function setConditionTargetRefId(int $condition_target_ref_id): void
     {
         $this->condition_target_ref_id = $condition_target_ref_id;
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function createConditionData(int $condition_id): void
     {
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
@@ -128,6 +137,9 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
         ]);
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function editConditionData(int $condition_id): void
     {
         $this->getDatabase()->update(
@@ -141,6 +153,9 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
         );
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function deleteConditionData(int $condition_id): void
     {
         $this->getDatabase()->manipulateF(
@@ -148,5 +163,13 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             ['integer'],
             [$condition_id]
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    {
+        return $this->ui_factory->symbol()->glyph()->settings();
     }
 }

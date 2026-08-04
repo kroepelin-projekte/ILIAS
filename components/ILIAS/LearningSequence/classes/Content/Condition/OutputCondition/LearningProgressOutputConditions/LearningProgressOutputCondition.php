@@ -52,6 +52,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ];
     }
 
+    /**
+     * @inheritDoc
+     */
     public function check(): bool
     {
         return match ($this->getSubtype()) {
@@ -63,6 +66,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         };
     }
 
+    /**
+     * @inheritDoc
+     */
     public static function migrate(): array
     {
         return [
@@ -77,6 +83,11 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ];
     }
 
+    /**
+     * Return the name of the subtype if the condition is already created, otherwise return the name of the condition.
+     *
+     * @return string|null
+     */
     public function getName(): ?string
     {
         return $this->condition_id !== null || $this->subtype !== null
@@ -84,6 +95,12 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
             : parent::getName();
     }
 
+    /**
+     * Set the subtype of the learning progress condition.
+     *
+     * @param string $subtype
+     * @throws \LogicException if the subtype is not supported
+     */
     public function setSubtype(string $subtype): void
     {
         if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
@@ -93,6 +110,12 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         $this->subtype = $subtype;
     }
 
+    /**
+     * Get the subtype of the learning progress condition.
+     *
+     * @return string
+     * @throws \LogicException if the subtype is not set or not stored
+     */
     public function getSubtype(): string
     {
         if ($this->subtype !== null) {
@@ -118,6 +141,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return (string) $this->subtype;
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function createConditionData(int $condition_id): void
     {
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
@@ -126,6 +152,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ]);
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function editConditionData(int $condition_id): void
     {
         $this->getDatabase()->update(
@@ -139,6 +168,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         );
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function deleteConditionData(int $condition_id): void
     {
         $this->getDatabase()->manipulateF(
@@ -148,6 +180,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         );
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function findConditionIdByContextAndType(int $type_id): ?int
     {
         $res = $this->getDatabase()->queryF(
@@ -171,6 +206,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return (int) $row['condition_id'];
     }
 
+    /**
+     * @inheritDoc
+     */
     private function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
     {
         return $this->buildStep(
@@ -180,6 +218,13 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         );
     }
 
+    /**
+     * Get the label for a given subtype.
+     *
+     * @param string $subtype
+     * @return string
+     * @throws \LogicException if the subtype is unknown
+     */
     private function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
@@ -204,6 +249,12 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ];
     }
 
+    /**
+     * Require the subtype to be set, otherwise throw an exception.
+     *
+     * @return string
+     * @throws \LogicException if the subtype is not set
+     */
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
@@ -213,6 +264,11 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return $this->subtype;
     }
 
+    /**
+     * Check if the learning progress status is "not attempted" for the current user and object.
+     *
+     * @return bool
+     */
     private function isNotAttempted(): bool
     {
         return ilLPStatus::_lookupStatus(
@@ -221,6 +277,11 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED;
     }
 
+    /**
+     * Check if the learning progress status is "in progress" for the current user and object.
+     *
+     * @return bool
+     */
     private function isInProgress(): bool
     {
         return ilLPStatus::_lookupStatus(
@@ -229,6 +290,11 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         ) === ilLPStatus::LP_STATUS_IN_PROGRESS;
     }
 
+    /**
+     * Check if the learning progress status is "completed" for the current user and object.
+     *
+     * @return bool
+     */
     private function isCompleted(): bool
     {
         return ilLPStatus::_hasUserCompleted(
@@ -237,6 +303,11 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         );
     }
 
+    /**
+     * Check if the learning progress status is "failed" for the current user and object.
+     *
+     * @return bool
+     */
     private function isFailed(): bool
     {
         return ilLPStatus::_lookupStatus(
