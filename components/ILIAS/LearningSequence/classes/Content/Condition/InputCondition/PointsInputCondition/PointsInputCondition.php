@@ -67,7 +67,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
         $input = $this->ui_factory->input()->field()->numeric(
             'Required points',
             'How many points are required to enter this step?'
-        )->withRequired(true)->withValue($this->getPoints());
+        );
 
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND)->__toString(),

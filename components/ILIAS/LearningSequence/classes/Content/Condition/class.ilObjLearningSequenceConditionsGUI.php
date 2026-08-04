@@ -190,8 +190,8 @@ class ilObjLearningSequenceConditionsGUI
         $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
         [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
             ['condition'],
-            'edit',
-            'ids'
+            'cmd',
+            'id'
         );
 
         $actions = [];
@@ -200,9 +200,14 @@ class ilObjLearningSequenceConditionsGUI
             if ($condition->getAdditionalForm() === null) {
                 continue;
             }
-            $actions[$condition_id] = $af->single(
+            if (method_exists($condition, 'getSubtype')) {
+                $subtype = $condition->getSubtype();
+                $url_builder = $url_builder->withParameter($action_parameter_token, 'subtype=' . $subtype);
+            }
+
+            $actions['condition_' . $condition_id] = $af->single(
                 $this->lng->txt('edit'),
-                $url_builder->withParameter(),
+                $url_builder,
                 $row_id_token
             );
         }
@@ -244,9 +249,10 @@ class ilObjLearningSequenceConditionsGUI
     private function createCondition(): void
     {
         $type_id = (int) $this->request->getQueryParams()['type_id'] ?? '';
+        $subtype = $this->request->getQueryParams()['subtype'] ?? null;
 
         try {
-            $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, null);
+            $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, $subtype);
             $condition->create();
         } catch (LogicException $e) {
 

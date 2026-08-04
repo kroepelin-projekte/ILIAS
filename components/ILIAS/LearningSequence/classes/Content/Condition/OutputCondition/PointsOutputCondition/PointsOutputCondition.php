@@ -71,12 +71,12 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         $input = $this->ui_factory->input()->field()->numeric(
             'Awarded points',
             'How many points should the user receive when this step is fulfilled?'
-        )->withRequired(true)->withValue($this->getPoints());
+        )->withRequired(true);
 
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND)->__toString(),
             [ $input ]
-        )->withRequest($this->dic->http()->request());
+        );
     }
 
     /**

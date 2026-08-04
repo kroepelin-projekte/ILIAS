@@ -103,15 +103,6 @@ class ilObjLearningSequenceConditionConfigurationGUI
         $int_list = $this->dic->refinery()->kindlyTo()->listOf($this->dic->refinery()->kindlyTo()->int());
         $int = $this->dic->refinery()->kindlyTo()->int();
 
-        if ($this->query->has('ref_id')) {
-            $this->lso_ref_id = $this->query->retrieve('ref_id', $int);
-        }
-        if ($this->query->has('item_ref_id')) {
-            $this->item_ref_id = $this->query->retrieve('item_ref_id', $int);
-        }
-        if ($this->query->has('type_id')) {
-            $this->type_id = $this->query->retrieve('type_id', $int);
-        }
         if ($this->query->has('condition_id')) {
             $this->create = false;
 
@@ -130,6 +121,16 @@ class ilObjLearningSequenceConditionConfigurationGUI
             if ($record = $this->dic->database()->fetchAssoc($query)) {
                 $this->type_id = $record['type_id'];
             }
+        }
+
+        if ($this->query->has('ref_id')) {
+            $this->lso_ref_id = $this->query->retrieve('ref_id', $int);
+        }
+        if ($this->query->has('item_ref_id')) {
+            $this->item_ref_id = $this->query->retrieve('item_ref_id', $int);
+        }
+        if (is_null($this->type_id) && $this->query->has('type_id')) {
+            $this->type_id = $this->query->retrieve('type_id', $int);
         }
     }
 
