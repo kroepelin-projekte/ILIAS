@@ -115,7 +115,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Logic gatter subtype is not set.');
+            throw new \LogicException('Logic gatter condition_id is not set.');
         }
 
         $res = $this->getDatabase()->queryF(

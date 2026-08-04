@@ -140,7 +140,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function configure(): void
     {
-        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id, null, '');
+        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id, null, null);
         $condition->setConditionId($this->condition_id);
 
         $this->tpl->setContent(
@@ -148,35 +148,5 @@ class ilObjLearningSequenceConditionConfigurationGUI
                 $condition->getAdditionalForm()
             )
         );
-    }
-
-    /**
-     * @throws ilCtrlException
-     */
-    private function initConditionForm(): Standard
-    {
-        // todo get form from condition
-
-        $form = $this->ui_factory->input()->container()->form()->standard(
-            $this->ctrl->getFormAction($this),
-            [
-
-            ]
-        );
-
-        if ($this->request->getMethod() === 'POST') {
-            $form = $form->withRequest($this->request);
-        }
-
-        return $form;
-    }
-
-    private function saveConditionForm(): void
-    {
-/*        $form = $this->initConditionForm()->withRequest($this->request);
-        $form_data = $form->getData();
-        if ($form->getError()) {
-            $this->editCondition();
-        }*/
     }
 }

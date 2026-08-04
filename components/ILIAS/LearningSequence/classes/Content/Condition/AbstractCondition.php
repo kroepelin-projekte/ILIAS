@@ -23,8 +23,10 @@ namespace ILIAS\LearningSequence\Content\Condition;
 use ilCtrlException;
 use ilDBInterface;
 use ILIAS\Data\URI;
+use ILIAS\DI\Container;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
+use ILIAS\UI\Factory;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
@@ -36,12 +38,12 @@ abstract class AbstractCondition
     protected const string CONFIGURE_COMMAND = 'configure';
 
     protected \ilLanguage $lang;
-    protected \ILIAS\DI\Container $dic;
+    protected Container $dic;
     protected ?int $obj_ref_id = null;
     protected ?int $lso_ref_id = null;
     protected ?int $condition_id = null;
     protected ?int $type_id = null;
-    protected \ILIAS\UI\Factory $ui_factory;
+    protected Factory $ui_factory;
 
     public function __construct(?int $condition_id = null)
     {
@@ -250,6 +252,12 @@ abstract class AbstractCondition
      */
     protected function buildUrl(string $command): URI
     {
+        $this->dic->ctrl()->setParameterByClass(
+            \ilObjLearningSequenceConditionsGUI::class,
+            'type_id',
+            $this->getTypeId()
+        );
+
         $route = [
             ilRepositoryGUI::class,
             ilObjLearningSequenceGUI::class,
@@ -434,10 +442,11 @@ abstract class AbstractCondition
     /**
      * Builds a bulky link for the next step in the condition setup.
      *
-     * @param array $additional_parameters, e.g. subtypes
+     * @param array $additional_parameters , e.g. subtypes
      * @param string|null $label
-     * @param string|null $command, e.g. 'save' or 'configure'
+     * @param string|null $command , e.g. 'save' or 'configure'
      * @return Bulky
+     * @throws ilCtrlException
      */
     protected function buildStep(
         array $additional_parameters = [],

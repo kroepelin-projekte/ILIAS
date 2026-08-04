@@ -76,7 +76,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND)->__toString(),
             [ $input ]
-        );
+        )->withRequest($this->dic->http()->request());
     }
 
     /**

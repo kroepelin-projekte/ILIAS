@@ -56,8 +56,7 @@ class ilObjLearningSequenceConditionsGUI
         protected ILIAS\UI\Factory                $ui_factory,
         protected ILIAS\UI\Renderer               $ui_renderer,
         protected ServerRequestInterface          $request,
-    )
-    {
+    ) {
         global $DIC;
         $this->lso_ref_id = $DIC->http()->wrapper()->query()->retrieve('ref_id', $DIC->refinery()->kindlyTo()->int());
         $this->item_ref_id = $DIC->http()->wrapper()->query()->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
@@ -240,18 +239,22 @@ class ilObjLearningSequenceConditionsGUI
      * Creates a new condition.
      *
      * @return void
-     * @throws ilCtrlException
+     * @throws ilCtrlException|ilException
      */
     private function createCondition(): void
     {
         $type_id = (int) $this->request->getQueryParams()['type_id'] ?? '';
-        $subtype = $this->request->getQueryParams()['subtype'] ?? null;
 
         try {
-            $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, $subtype);
+            $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, null);
             $condition->create();
-        } catch (ilException $e) {
-            $this->tpl->setOnScreenMessage('failure', 'Condition not found', true);
+        } catch (LogicException $e) {
+
+            // todo lang
+
+            $this->tpl->setOnScreenMessage('failure', 'Condition already exists', true);
+            $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
+            $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
             $this->ctrl->redirectByClass(
                 [
                     ilRepositoryGUI::class,
