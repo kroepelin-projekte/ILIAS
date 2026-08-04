@@ -70,7 +70,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
         )->withRequired(true)->withValue($this->getPoints());
 
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::SAVE_COMMAND)->__toString(),
+            $this->buildUrl(self::CONFIGURE_COMMAND)->__toString(),
             [ $input ]
         );
     }

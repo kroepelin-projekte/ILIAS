@@ -20,7 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
+use ilCtrlException;
 use ilDBInterface;
+use ILIAS\Data\URI;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
 use ilObjLearningSequenceContentGUI;
@@ -222,20 +224,27 @@ abstract class AbstractCondition
      * Builds a URL for the given command.
      *
      * @param string $command
-     * @return \ILIAS\Data\URI
+     * @return URI
+     * @throws ilCtrlException
      */
-    protected function buildUrl(string $command): \ILIAS\Data\URI
+    protected function buildUrl(string $command): URI
     {
+        $route = [
+            ilRepositoryGUI::class,
+            ilObjLearningSequenceGUI::class,
+            ilObjLearningSequenceContentGUI::class,
+            \ilObjLearningSequenceConditionsGUI::class
+        ];
+
+        if ($command === self::CONFIGURE_COMMAND) {
+            $route[] = \ilObjLearningSequenceConditionConfigurationGUI::class;
+        }
+
         $url = $this->dic->ctrl()->getLinkTargetByClass(
-            [
-                ilRepositoryGUI::class,
-                ilObjLearningSequenceGUI::class,
-                ilObjLearningSequenceContentGUI::class,
-                \ilObjLearningSequenceConditionsGUI::class
-            ],
+            $route,
             $command
         );
-        return new \ILIAS\Data\URI(ILIAS_HTTP_PATH . '/' . $url);
+        return new URI(ILIAS_HTTP_PATH . '/' . $url);
     }
 
     /**

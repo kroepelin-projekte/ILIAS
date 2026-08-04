@@ -76,7 +76,8 @@ class ilObjLearningSequenceConditionsGUI
         $next_class = $this->ctrl->getNextClass();
 
         switch ($next_class) {
-            case strtolower(ilObjLearningSequenceEditConditionGUI::class):
+            case strtolower(ilObjLearningSequenceConditionConfigurationGUI::class):
+                $this->ctrl->setReturn($this, self::CMD_MANAGE_CONDITIONS);
                 $this->ctrl->forwardCommand(new $next_class(
                     $this->ctrl,
                     $this->tpl,
@@ -179,7 +180,12 @@ class ilObjLearningSequenceConditionsGUI
         $df = new Factory();
 
         // single action - edit
-        $url = ilObjLearningSequenceEditConditionGUI::getUrl(3);
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionConfigurationGUI::class, 'ref_id', $this->lso_ref_id);
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionConfigurationGUI::class, 'item_ref_id', $this->item_ref_id);
+        $url = $this->ctrl->getLinkTargetByClass(
+            ilObjLearningSequenceConditionConfigurationGUI::class,
+            ilObjLearningSequenceConditionConfigurationGUI::CMD_CONFIGURE_COMMAND
+        );
         $url_builder = new URLBuilder($df->uri(ILIAS_HTTP_PATH . '/' . $url));
         [$url_builder, $action_parameter_token, $row_id_token] = $url_builder->acquireParameters(
             ['edit'],
@@ -233,6 +239,7 @@ class ilObjLearningSequenceConditionsGUI
 
         try {
             $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, $subtype);
+            $condition->create();
         } catch (ilException $e) {
             $this->tpl->setOnScreenMessage('failure', 'Condition not found', true);
             $this->ctrl->redirectByClass(
@@ -245,8 +252,6 @@ class ilObjLearningSequenceConditionsGUI
                 ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
             );
         }
-
-        $condition->create();
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'), true);
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);

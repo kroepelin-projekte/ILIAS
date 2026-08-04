@@ -33,7 +33,7 @@ use ilLPStatus;
 final class SimpleChoiceInputCondition extends AbstractCondition implements InputConditionInterface
 {
     final protected const NAME = "simple_choice";
-    private const SETTINGS_TABLE = 'lso_c_simple_choice';
+    private const string SETTINGS_TABLE = 'lso_c_simple_choice';
     private ?int $condition_target_ref_id = null;
 
     /**
@@ -84,7 +84,7 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             false,
         );
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::SAVE_COMMAND)->__toString(),
+            $this->buildUrl(self::CONFIGURE_COMMAND)->__toString(),
             [ $input ]
         );
     }

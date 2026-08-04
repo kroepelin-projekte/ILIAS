@@ -98,7 +98,7 @@ class ilObjLearningSequenceConditionDiscover
         if (empty($record)) {
             throw new ilException('Condition not found');
         }
-        return $this->getConditionInstanceByName($record['condition_name'], (int) $record['lso_ref_id'], (int) $record['obj_ref_id']);
+        return $this->getConditionInstanceByName($record['condition_name'], (int) $record['lso_ref_id'], (int) $record['obj_ref_id'], null, $condition_id);
     }
 
     /**
@@ -126,7 +126,7 @@ class ilObjLearningSequenceConditionDiscover
     /**
      * @throws ilException
      */
-    public function getConditionInstanceByName(string $condition_name, int $lso_ref_id, int $item_ref_id, ?string $subtype = null): AbstractCondition
+    public function getConditionInstanceByName(string $condition_name, int $lso_ref_id, int $item_ref_id, ?string $subtype = null, ?int $condition_id = null): AbstractCondition
     {
         foreach ($this->getAllConditions() as $class) {
             if (str_contains($class, $condition_name)) {
@@ -136,6 +136,9 @@ class ilObjLearningSequenceConditionDiscover
                 $condition->setObjRefId($item_ref_id);
                 if (!is_null($subtype)) {
                     $condition->setSubtype($subtype);
+                }
+                if (!is_null($condition_id)) {
+                    $condition->setConditionId($condition_id);
                 }
                 return $condition;
             }

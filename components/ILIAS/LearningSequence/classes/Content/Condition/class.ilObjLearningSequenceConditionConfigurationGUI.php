@@ -18,22 +18,24 @@
 
 declare(strict_types=1);
 
+use ILIAS\DI\Container;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\UI\Component\Input\Container\Form\Standard;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * @ilCtrl_isCalledBy ilObjLearningSequenceEditConditionGUI: ilObjLearningSequenceConditionsGUI
+ * @ilCtrl_isCalledBy ilObjLearningSequenceConditionConfigurationGUI: ilObjLearningSequenceConditionsGUI
  */
-class ilObjLearningSequenceEditConditionGUI
+class ilObjLearningSequenceConditionConfigurationGUI
 {
+    private mixed $lso_ref_id;
     protected int $item_ref_id;
-    protected int $condition_id;
+    protected int|null $condition_id = null;
+    private int|null $type_id = null;
     private ArrayBasedRequestWrapper $query;
-    /**
-     * @var \ILIAS\DI\Container|mixed
-     */
-    private mixed $dic;
+    private Container $dic;
+    private ilObjLearningSequenceConditionDiscover $discoverer;
 
     public function __construct(
         protected ilCtrl                          $ctrl,
@@ -51,23 +53,26 @@ class ilObjLearningSequenceEditConditionGUI
         $this->ctrl = $DIC->ctrl();
         $this->tpl = $DIC->ui()->mainTemplate();
         $this->query = $DIC->http()->wrapper()->query();
-        $this->item_ref_id = $this->query->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
+        $this->discoverer = new ilObjLearningSequenceConditionDiscover();
     }
 
     public const string CMD_CREATE_CONDITION = "createCondition";
-    public const string CMD_EDIT_CONDITION = "editCondition";
+    public const string CMD_CONFIGURE_COMMAND = "configure";
 
-
+    /**
+     * @return void
+     * @throws ilCtrlException
+     * @throws ilException
+     */
     public function executeCommand(): void
     {
-        global $DIC;
-        $DIC->tabs()->setBack2Target('Back', $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS));
+        $this->initCondition();
+        $this->initBackTab();
 
         $cmd = $this->ctrl->getCmd();
 
         switch ($cmd) {
-            case self::CMD_EDIT_CONDITION:
-            $this->initConditionId();
+            case self::CMD_CONFIGURE_COMMAND:
             case self::CMD_CREATE_CONDITION:
                 $this->$cmd();
                 break;
@@ -76,20 +81,59 @@ class ilObjLearningSequenceEditConditionGUI
         }
     }
 
-    private function initConditionId(): void
+    /**
+     * @throws ilCtrlException
+     */
+    private function initBackTab(): void
     {
-        $int_list = $this->dic->refinery()->kindlyTo()->listOf($this->dic->refinery()->kindlyTo()->int());
-        if (!$this->query->has('condition_id')) {
-            throw new ilException('Permission denied');
-        }
-        $this->condition_id = current($this->query->retrieve('condition_id', $int_list));
+        global $DIC;
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
+        $DIC->tabs()->setBack2Target(
+            $this->lng->txt('back'),
+            $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS)
+        );
     }
 
-    protected function editCondition(): void
+    /**
+     * @return void
+     */
+    private function initCondition(): void
     {
+        $int_list = $this->dic->refinery()->kindlyTo()->listOf($this->dic->refinery()->kindlyTo()->int());
+        $int = $this->dic->refinery()->kindlyTo()->int();
+
+        if ($this->query->has('ref_id')) {
+            $this->lso_ref_id = $this->query->retrieve('ref_id', $int);
+        }
+        if ($this->query->has('item_ref_id')) {
+            $this->item_ref_id = $this->query->retrieve('item_ref_id', $int);
+        }
+        if ($this->query->has('condition_id')) {
+            $condition_id = $this->query->retrieve('condition_id', $int_list);
+            if (is_array($condition_id)) {
+                $this->condition_id = current($condition_id);
+            } else {
+                $this->condition_id = $condition_id;
+            }
+        }
+        if ($this->query->has('type_id')) {
+            $this->type_id = $this->query->retrieve('type_id', $int);
+        }
+    }
+
+    /**
+     * @return void
+     * @throws ilCtrlException
+     * @throws ilException
+     */
+    protected function configure(): void
+    {
+        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id);
+
         $this->tpl->setContent(
-            'Condition: ' . $this->condition_id
-            . $this->ui_renderer->render($this->initConditionForm())
+            $this->ui_renderer->render(
+                $condition->getAdditionalForm()
+            )
         );
     }
 
@@ -116,23 +160,10 @@ class ilObjLearningSequenceEditConditionGUI
 
     private function saveConditionForm(): void
     {
-        $form = $this->initConditionForm()->withRequest($this->request);
+/*        $form = $this->initConditionForm()->withRequest($this->request);
         $form_data = $form->getData();
         if ($form->getError()) {
             $this->editCondition();
-        }
-    }
-
-    /**
-     * @throws ilCtrlException
-     */
-    public static function getUrl(int $condition_id): string
-    {
-        global $DIC;
-        $url = $DIC->ctrl()->getLinkTargetByClass(
-            ilObjLearningSequenceEditConditionGUI::class,
-            ilObjLearningSequenceEditConditionGUI::CMD_EDIT_CONDITION
-        );
-        return $url;
+        }*/
     }
 }
