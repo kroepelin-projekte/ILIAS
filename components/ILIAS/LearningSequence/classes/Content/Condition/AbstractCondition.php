@@ -407,7 +407,6 @@ abstract class AbstractCondition
      * @param array $additional_parameters, e.g. subtypes
      * @param string|null $label
      * @param string|null $command, e.g. 'save' or 'configure'
-     * @param string|null $icon_abbreviation
      * @return Bulky
      */
     protected function buildStep(
