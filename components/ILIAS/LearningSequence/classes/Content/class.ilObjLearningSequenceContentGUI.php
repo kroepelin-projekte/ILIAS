@@ -76,6 +76,16 @@ class ilObjLearningSequenceContentGUI
         $this->tpl->setContent($html);
     }
 
+    /**
+     * Renders the "add new object" drilldown (AddNewItemGUI) into the toolbar
+     * of the content management view. Delegates to the parent object gui which
+     * knows the creatable sub object types.
+     */
+    public function showPossibleSubObjects(): void
+    {
+        $this->parent_gui->showPossibleSubObjects();
+    }
+
     public function executeCommand(): void
     {
         $this->assertReadAccess();

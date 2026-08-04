@@ -103,6 +103,41 @@ class LSOAdaptiveBoundaries
         $this->cleanupIfEmpty($lso_obj_id);
     }
 
+    /**
+     * Removes a given ref_id from the boundaries of an LSO if it is currently
+     * stored as the start and/or end object.
+     *
+     * Only the affected field(s) are cleared - not the whole row (unless it
+     * becomes empty, in which case {@see self::cleanupIfEmpty()} removes it).
+     * This is used when an object is deleted from the learning sequence so that
+     * a dangling start/end reference does not remain in the database.
+     *
+     * @param int $lso_obj_id obj_id of the learning sequence
+     * @param int $ref_id     ref_id of the deleted object
+     * @return bool           true if a boundary field was actually changed
+     */
+    public function removeRefIdFromBoundaries(int $lso_obj_id, int $ref_id): bool
+    {
+        if ($ref_id <= 0) {
+            return false;
+        }
+
+        $boundaries = $this->getBoundariesFor($lso_obj_id);
+        $changed = false;
+
+        if ($boundaries['start_ref_id'] === $ref_id) {
+            $this->unsetStartRefId($lso_obj_id);
+            $changed = true;
+        }
+
+        if ($boundaries['end_ref_id'] === $ref_id) {
+            $this->unsetEndRefId($lso_obj_id);
+            $changed = true;
+        }
+
+        return $changed;
+    }
+
     protected function cleanupIfEmpty(int $lso_obj_id): void
     {
         $boundaries = $this->getBoundariesFor($lso_obj_id);

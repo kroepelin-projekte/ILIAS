@@ -257,6 +257,57 @@ class ilObjLearningSequenceSettingsGUI
         $obj_props = $lso->getObjectProperties();
         $ref_props = $lso->getObjectReferenceProperties();
 
+        // --- Adaptive mode start/end object guards -----------------------
+        // An adaptive learning sequence requires a start AND an end object.
+        // Missing either one has consequences for the online state.
+        $old_mode = $lso->getLSSettings()->getMode();
+        $new_mode = (int) ($data['additional'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR);
+
+        $online_property = $data['online']['online'] ?? $obj_props->getPropertyIsOnline()->withOffline();
+        $was_online = $obj_props->getPropertyIsOnline()->getIsOnline();
+        $wants_online = $online_property->getIsOnline();
+
+        $has_start_and_end = true;
+        if ($new_mode === ilLearningSequenceSettings::MODE_ADAPTIVE) {
+            global $DIC;
+            $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+            $b = $boundaries->getBoundariesFor($lso->getId());
+            $has_start_and_end = ((int) $b['start_ref_id'] > 0 && (int) $b['end_ref_id'] > 0);
+        }
+
+        // Invariant for adaptive mode: the learning sequence may only be online
+        // if it has BOTH a start AND an end object. Missing either one (or both)
+        // forces it offline.
+        //
+        // When the user actively tries to switch the object online without a
+        // start and/or end object, abort the whole save with an error message.
+        if ($new_mode === ilLearningSequenceSettings::MODE_ADAPTIVE
+            && $wants_online
+            && !$was_online
+            && !$has_start_and_end
+        ) {
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                'Da kein Start oder End Objekt ausgewählt wurde, kann das Objekt nicht online geschaltet werden',
+                true
+            );
+            $this->ctrl->redirect($this);
+            return null;
+        }
+
+        // In every other case where the object would (stay) online in adaptive
+        // mode without a start and/or end object, force it offline and inform
+        // the user (e.g. when switching the mode TO adaptive, or when it was
+        // already online but a boundary is missing).
+        $forced_offline = false;
+        if ($new_mode === ilLearningSequenceSettings::MODE_ADAPTIVE
+            && $wants_online
+            && !$has_start_and_end
+        ) {
+            $online_property = $online_property->withOffline();
+            $forced_offline = true;
+        }
+
         $title_and_description = $data['object'] ?? null;
         if ($title_and_description instanceof TitleAndDescription) {
             $obj_props->storePropertyTitleAndDescription($title_and_description);
@@ -273,9 +324,15 @@ class ilObjLearningSequenceSettingsGUI
             ($data['additional'][ilObjectServiceSettingsGUI::TAXONOMIES] ?? false) ? '1' : '0'
         );
 
-        $obj_props->storePropertyIsOnline(
-            $data['online']['online'] ?? $obj_props->getPropertyIsOnline()->withOffline()
-        );
+        $obj_props->storePropertyIsOnline($online_property);
+
+        if ($forced_offline) {
+            $this->tpl->setOnScreenMessage(
+                'info',
+                'Weil kein Start/End Objekt ausgewählt ist, wurde die Lernsequence offline geschaltet.',
+                true
+            );
+        }
 
         $availability_period = $data['online']['availability_period'] ?? null;
         if ($availability_period instanceof AvailabilityPeriod) {
