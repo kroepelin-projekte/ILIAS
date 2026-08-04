@@ -84,9 +84,9 @@ class LSOObjectPicker
 
         if ($multi) {
             return $this->ui_factory->input()->field()->treeMultiSelect($retrieval, $label)
-                ->withSelectChildNodes(false);
+                ->withSelectChildNodes(false)->withRequired(true);
         }
 
-        return $this->ui_factory->input()->field()->treeSelect($retrieval, $label);
+        return $this->ui_factory->input()->field()->treeSelect($retrieval, $label)->withRequired(true);
     }
 }
