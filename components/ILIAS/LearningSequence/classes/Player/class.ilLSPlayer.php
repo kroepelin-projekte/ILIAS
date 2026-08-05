@@ -25,6 +25,9 @@ use ILIAS\UI\Factory;
 use ILIAS\Refinery;
 use ILIAS\UI\Component\Component;
 use ILIAS\HTTP\Wrapper\RequestWrapper;
+use ILIAS\LearningSequence\Player\LSNavigator;
+use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
+use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 
 /**
  * Implementation of KioskMode Player
@@ -38,8 +41,11 @@ class ilLSPlayer
     public const LSO_CMD_GOTO = 'lsogoto'; //with param ref_id
     public const LSO_CMD_SUSPEND = 'lsosuspend';
     public const LSO_CMD_FINISH = 'lsofinish';
+    public const LSO_CMD_CHOICE = 'lsochoice'; //show the branch/dead-end interstitial page
+    public const LSO_CMD_STAY = 'lsostay'; //return from interstitial page back to the object
 
     public const GS_DATA_LS_KIOSK_MODE = 'ls_kiosk_mode';
+    public const GS_DATA_LS_TITLE = 'ls_title';
     public const GS_DATA_LS_CONTENT = 'ls_content';
     public const GS_DATA_LS_MAINBARCONTROLS = 'ls_mainbar_controls';
     public const GS_DATA_LS_METABARCONTROLS = 'ls_metabar_controls';
@@ -53,19 +59,33 @@ class ilLSPlayer
         protected ilKioskPageRenderer $page_renderer,
         protected Factory $ui_factory,
         protected ScreenContext $current_context,
-        protected Refinery\Factory $refinery
+        protected Refinery\Factory $refinery,
+        protected ?LSNavigator $navigator = null,
+        protected int $mode = ilLearningSequenceSettings::MODE_LINEAR,
+        protected ?LSOItemPath $item_path = null,
+        protected ?LSOAdaptiveBoundaries $boundaries = null,
+        protected int $lso_obj_id = 0,
+        protected int $usr_id = 0
     ) {
     }
 
     public function play(RequestWrapper $get): ?string
     {
+        $ls_ref_id = $this->ls_items->getLearningSequenceRefId();
+        $ls_obj_id = ilObject::_lookupObjId($ls_ref_id);
+        $ls_title = ilObject::_lookupTitle($ls_obj_id);
+
         $items = $this->ls_items->getItems();
 
         if (count($items) === 0) {
             return null;
         }
 
-        $current_item = $this->getNextAvailableItem($items, $this->getCurrentItem($items));
+        if ($this->isAdaptive()) {
+            $current_item = $this->getAdaptiveCurrentItem($items);
+        } else {
+            $current_item = $this->getNextAvailableItem($items, $this->getCurrentItem($items));
+        }
         if ($current_item === null) {
             return null;
         }
@@ -87,19 +107,35 @@ class ilLSPlayer
             $param = $get->retrieve(self::PARAM_LSO_PARAMETER, $this->refinery->kindlyTo()->int());
         }
 
+        // When set, the branch selection / dead-end notice is rendered on its
+        // own interstitial page instead of being appended below the object.
+        $show_choice = ($command === self::LSO_CMD_CHOICE) && $this->isAdaptive();
+
         switch ($command) {
             case self::LSO_CMD_SUSPEND:
             case self::LSO_CMD_FINISH:
                 $this->ls_items->storeState($state, $current_item_ref_id, $current_item_ref_id);
                 return 'EXIT::' . $command;
             case self::LSO_CMD_NEXT:
+                if ($this->isAdaptive()) {
+                    $next_item = $this->getAdaptiveNextItem($items, $current_item, $param);
+                    break;
+                }
                 $next_item = $this->getNextItem($items, $current_item, $param);
                 if ($next_item->getAvailability() !== Step::AVAILABLE) {
                     $next_item = $current_item;
                 }
                 break;
             case self::LSO_CMD_GOTO:
+                if ($this->isAdaptive()) {
+                    $next_item = $this->gotoAdaptive($items, $current_item, $param);
+                    break;
+                }
                 list(, $next_item) = $this->findItemByRefId($items, $param);
+                break;
+            case self::LSO_CMD_CHOICE: //stay on the object but show the interstitial page
+            case self::LSO_CMD_STAY:   //return from the interstitial back to the object
+                $next_item = $current_item;
                 break;
             default: //view-internal / unknown command
                 $next_item = $current_item;
@@ -115,6 +151,7 @@ class ilLSPlayer
 
         //content
         $obj_title = $next_item->getTitle();
+        $obj_description = $next_item->getDescription();
         $icon = $this->ui_factory->symbol()->icon()->standard(
             $next_item->getType(),
             $next_item->getType(),
@@ -134,18 +171,135 @@ class ilLSPlayer
         //get position
         list($item_position, $item) = $this->findItemByRefId($items, $next_item->getRefId());
 
+        if ($this->isAdaptive() && !$show_choice) {
+            $content = $this->amendAdaptiveContent($content, $items, $item);
+        }
+        if ($this->isAdaptive() && $show_choice) {
+            $situation = $this->getAdaptiveSituation($items, $item);
+            if ($situation === 'branch') {
+                $obj_title = 'Wie möchten Sie fortfahren?';
+                $obj_description = 'Bitte wählen Sie, wie es weitergehen soll.';
+                $content = [$this->buildAdaptiveChoicePanel($items, $item)];
+            } elseif ($situation === 'deadend') {
+                $obj_title = 'Pfad zu Ende';
+                $obj_description = '';
+                $content = [$this->ui_factory->messageBox()->info(
+                    'Hey, hier ist der Pfad zu Ende. Schaue in die Map, um deinen Weg fortzusetzen.'
+                )];
+            } else {
+                // The situation is no longer branch/dead-end (e.g. the condition
+                // was fulfilled in the meantime): fall back to the normal view.
+                $show_choice = false;
+                $content = $this->amendAdaptiveContent($content, $items, $item);
+            }
+        }
+
         //have the view build controls
         $control_builder = $this->control_builder;
         $view->buildControls($state, $control_builder);
 
         //amend controls not set by the view
-        $control_builder = $this->buildDefaultControls($control_builder, $item, $item_position, $items);
+        if ($this->isAdaptive() && $show_choice) {
+            $control_builder = $this->buildAdaptiveChoiceControls($control_builder);
+        } elseif ($this->isAdaptive()) {
+            $control_builder = $this->buildAdaptiveControls($control_builder, $item, $items);
+        } else {
+            $control_builder = $this->buildDefaultControls($control_builder, $item, $item_position, $items);
+        }
+
+        // Keep a stable header layout: reserve the rating slot even if rating is not available.
+        // Otherwise the navigation/buttons would shift vertically.
+        $obj_rating_html = '&nbsp;';
+        $obj_id = ilObject::_lookupObjId($next_item->getRefId());
+        if ($obj_id > 0 && !$show_choice) {
+            $obj_type = ilObject::_lookupType($obj_id);
+            ilRating::preloadListGUIData([$obj_id]);
+            if ($obj_type !== '' && ilRating::hasRatingInListGUI($obj_id, $obj_type)) {
+                global $DIC;
+                $lng = $DIC->language();
+
+                $parent_ref_id = (int) $ls_ref_id;
+                $rating_container_id = 'lg_div_' . $next_item->getRefId() . '_pref_' . $parent_ref_id;
+
+                $ajax_hash = ilCommonActionDispatcherGUI::buildAjaxHash(
+                    ilCommonActionDispatcherGUI::TYPE_REPOSITORY,
+                    $next_item->getRefId(),
+                    $obj_type,
+                    $obj_id
+                );
+
+                $rating_gui = new ilRatingGUI();
+                $rating_gui->setObject($obj_id, $obj_type);
+                $rating_gui->setCtrlPath([
+                    ilCommonActionDispatcherGUI::class,
+                    ilRatingGUI::class
+                ]);
+                $rating_gui->setYourRatingText($lng->txt('rating_your_rating'));
+
+                $rating_content = $rating_gui->getListGUIProperty(
+                    $next_item->getRefId(),
+                    true,
+                    $ajax_hash,
+                    $parent_ref_id
+                );
+
+                $tpl = new ilTemplate(
+                    'tpl.lso_kiosk_rating_container.html',
+                    true,
+                    true,
+                    'components/ILIAS/LearningSequence'
+                );
+                $tpl->setVariable('CONTAINER_ID', $rating_container_id);
+                $tpl->setVariable('CHILD_REF_ID', (string) $next_item->getRefId());
+                $tpl->setVariable('AJAX_HASH', htmlspecialchars($ajax_hash, ENT_QUOTES));
+                $tpl->setVariable('RATING_CONTENT', $rating_content);
+                $obj_rating_html = $tpl->get();
+
+                $ilCtrl = $DIC->ctrl();
+                $redraw_url = $ilCtrl->getLinkTargetByClass(
+                    ilObjLearningSequenceLearnerGUI::class,
+                    ilObjLearningSequenceLearnerGUI::CMD_REDRAW_LIST_ITEM,
+                    '',
+                    true,
+                    false
+                );
+
+                $rating_url = $ilCtrl->getLinkTargetByClass(
+                    [
+                        ilCommonActionDispatcherGUI::class,
+                        ilRatingGUI::class
+                    ],
+                    'saveRating',
+                    '',
+                    true,
+                    false
+                );
+
+                $this->page_renderer->addOnLoadCode(
+                    "if (window.il && window.il.Object) {" .
+                    " if (typeof window.il.Object.setRedrawListItemUrl === 'function') { window.il.Object.setRedrawListItemUrl(" . json_encode($redraw_url, JSON_THROW_ON_ERROR) . "); }" .
+                    " if (typeof window.il.Object.setRatingUrl === 'function') { window.il.Object.setRatingUrl(" . json_encode($rating_url, JSON_THROW_ON_ERROR) . "); }" .
+                    "}"
+                );
+
+                $this->page_renderer->addJs(
+                    'assets/js/lso_kiosk_rating.js',
+                    true
+                );
+                $this->page_renderer->addOnLoadCode(
+                    "if (window.il && window.il.LSO && window.il.LSO.KioskRating && " .
+                    "typeof window.il.LSO.KioskRating.init === 'function') { window.il.LSO.KioskRating.init(); }"
+                );
+            }
+        }
 
         $rendered_body = $this->page_renderer->render(
             $control_builder,
             $obj_title,
+            $obj_description,
             $icon,
-            $content
+            $content,
+            $obj_rating_html
         );
 
         $metabar_controls = [
@@ -154,7 +308,7 @@ class ilLSPlayer
 
         $curriculum_slate = $this->page_renderer->buildCurriculumSlate(
             $this->curriculum_builder
-                ->getLearnerCurriculum(true)
+                ->getLearnerCurriculum(true, $ls_title)
                 ->withActive($item_position)
         );
         $mainbar_controls = [
@@ -169,6 +323,7 @@ class ilLSPlayer
 
         $cc = $this->current_context;
         $cc->addAdditionalData(self::GS_DATA_LS_KIOSK_MODE, true);
+        $cc->addAdditionalData(self::GS_DATA_LS_TITLE, $ls_title);
         $cc->addAdditionalData(self::GS_DATA_LS_METABARCONTROLS, $metabar_controls);
         $cc->addAdditionalData(self::GS_DATA_LS_MAINBARCONTROLS, $mainbar_controls);
         $cc->addAdditionalData(self::GS_DATA_LS_CONTENT, $rendered_body);
@@ -299,7 +454,12 @@ class ilLSPlayer
         if (!$control_builder->getNextControl()) {
             $direction_next = 1;
             $cmd = '';
-            if (!$is_last) {
+            $param = $direction_next;
+
+            if ($is_last) {
+                $cmd = self::LSO_CMD_FINISH;
+                $param = null;
+            } else {
                 $available = $this->getNextItem($items, $item, $direction_next)
                     ->getAvailability() === Step::AVAILABLE;
 
@@ -309,7 +469,7 @@ class ilLSPlayer
             }
 
             $control_builder = $control_builder
-                ->next($cmd, $direction_next);
+                ->next($cmd, $param);
         }
 
         return $control_builder;
@@ -323,6 +483,240 @@ class ilLSPlayer
             $this->url_builder,
             []
         );
+    }
+
+    /**
+     * Whether the player runs in adaptive mode with the required collaborators
+     * (navigator, path repository and boundaries) available.
+     */
+    protected function isAdaptive(): bool
+    {
+        return $this->mode === ilLearningSequenceSettings::MODE_ADAPTIVE
+            && $this->navigator instanceof LSNavigator
+            && $this->item_path !== null
+            && $this->boundaries !== null;
+    }
+
+    protected function getAdaptiveStartRefId(): int
+    {
+        $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
+        return (int) ($boundaries['start_ref_id'] ?? 0);
+    }
+
+    protected function getAdaptiveEndRefId(): int
+    {
+        $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
+        return (int) ($boundaries['end_ref_id'] ?? 0);
+    }
+
+    /**
+     * Determines the current object in adaptive mode from the walked path.
+     * On the first visit the start object is pushed onto the path. Path
+     * entries pointing to no longer existing objects are dropped.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function getAdaptiveCurrentItem(array $items): ?LSLearnerItem
+    {
+        if (count($items) === 0) {
+            return null;
+        }
+        $valid_ref_ids = array_map(fn($i) => $i->getRefId(), array_values($items));
+
+        $current_ref_id = $this->item_path->getCurrent($this->usr_id, $this->lso_obj_id);
+        while ($current_ref_id !== null && !in_array($current_ref_id, $valid_ref_ids, true)) {
+            $this->item_path->pop($this->usr_id, $this->lso_obj_id);
+            $current_ref_id = $this->item_path->getCurrent($this->usr_id, $this->lso_obj_id);
+        }
+
+        if ($current_ref_id === null) {
+            $start_ref_id = $this->getAdaptiveStartRefId();
+            if ($start_ref_id === 0 || !in_array($start_ref_id, $valid_ref_ids, true)) {
+                $start_ref_id = $items[0]->getRefId();
+            }
+            $this->item_path->push($this->usr_id, $this->lso_obj_id, $start_ref_id);
+            $current_ref_id = $start_ref_id;
+        }
+
+        list(, $item) = $this->findItemByRefId($items, $current_ref_id);
+        return $item;
+    }
+
+    /**
+     * Handles "next"/"back" in adaptive mode. A negative direction pops the
+     * path (back); a positive direction advances if there is exactly one
+     * allowed successor and the current object may be left.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function getAdaptiveNextItem(array $items, LSLearnerItem $current_item, ?int $direction): LSLearnerItem
+    {
+        if ($direction !== null && $direction < 0) {
+            if (count($this->item_path->getPath($this->usr_id, $this->lso_obj_id)) > 1) {
+                $this->item_path->pop($this->usr_id, $this->lso_obj_id);
+            }
+            return $this->getAdaptiveCurrentItem($items);
+        }
+
+        if (!$this->navigator->canLeave($current_item)) {
+            return $current_item;
+        }
+        $successors = $this->navigator->getSuccessors($items, $current_item);
+        if (count($successors) === 1) {
+            $successor = array_values($successors)[0];
+            $this->item_path->push($this->usr_id, $this->lso_obj_id, $successor->getRefId());
+            return $successor;
+        }
+        return $current_item;
+    }
+
+    /**
+     * Handles the choice on a branch in adaptive mode: only allowed successors
+     * may be selected; the selection is pushed onto the path.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function gotoAdaptive(array $items, LSLearnerItem $current_item, ?int $param): LSLearnerItem
+    {
+        if ($param === null || !$this->navigator->canLeave($current_item)) {
+            return $current_item;
+        }
+        foreach ($this->navigator->getSuccessors($items, $current_item) as $successor) {
+            if ($successor->getRefId() === $param) {
+                $this->item_path->push($this->usr_id, $this->lso_obj_id, $param);
+                return $successor;
+            }
+        }
+        return $current_item;
+    }
+
+    /**
+     * Classifies the situation of the given object in adaptive mode:
+     * 'end', 'blocked', 'deadend', 'branch' or 'straight'.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function getAdaptiveSituation(array $items, LSLearnerItem $item): string
+    {
+        if ($this->getAdaptiveEndRefId() !== 0 && $item->getRefId() === $this->getAdaptiveEndRefId()) {
+            return 'end';
+        }
+        if (!$this->navigator->canLeave($item)) {
+            return 'blocked';
+        }
+        $count = count($this->navigator->getSuccessors($items, $item));
+        if ($count === 0) {
+            return 'deadend';
+        }
+        if ($count === 1) {
+            return 'straight';
+        }
+        return 'branch';
+    }
+
+    /**
+     * Amends the rendered content with adaptive hints or a choice panel.
+     *
+     * @param Component[] $content
+     * @param LSLearnerItem[] $items
+     * @return Component[]
+     */
+    protected function amendAdaptiveContent(array $content, array $items, LSLearnerItem $item): array
+    {
+        switch ($this->getAdaptiveSituation($items, $item)) {
+            case 'blocked':
+                $content[] = $this->ui_factory->messageBox()->info(
+                    'Um das nächste Objekt zu beginnen, muss eine Bedingung erfüllt sein.'
+                );
+                break;
+            default:
+                // Branch selection and dead-end notice are no longer appended
+                // here; they are rendered on their own interstitial page
+                // (see LSO_CMD_CHOICE handling in play()).
+                break;
+        }
+        return $content;
+    }
+
+    /**
+     * Builds a panel with one button per allowed successor (branch selection).
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function buildAdaptiveChoicePanel(array $items, LSLearnerItem $item): Component
+    {
+        $buttons = [];
+        foreach ($this->navigator->getSuccessors($items, $item) as $successor) {
+            $buttons[] = $this->ui_factory->button()->standard(
+                $successor->getTitle(),
+                $this->url_builder->getHref(self::LSO_CMD_GOTO, $successor->getRefId())
+            );
+        }
+        return $this->ui_factory->panel()->standard('Womit möchten Sie fortfahren?', $buttons);
+    }
+
+    /**
+     * Builds the navigation controls for adaptive mode based on the situation
+     * and the length of the walked path.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function buildAdaptiveControls(
+        LSControlBuilder $control_builder,
+        LSLearnerItem $item,
+        array $items
+    ): ControlBuilder {
+        $situation = $this->getAdaptiveSituation($items, $item);
+        $path_length = count($this->item_path->getPath($this->usr_id, $this->lso_obj_id));
+
+        if (!$control_builder->getExitControl()) {
+            $cmd = ($situation === 'end') ? self::LSO_CMD_FINISH : self::LSO_CMD_SUSPEND;
+            $control_builder = $control_builder->exit($cmd);
+        }
+
+        if (!$control_builder->getPreviousControl()) {
+            $cmd = ($path_length > 1) ? self::LSO_CMD_NEXT : '';
+            $control_builder = $control_builder->previous($cmd, -1);
+        }
+
+        if (!$control_builder->getNextControl()) {
+            $cmd = '';
+            $param = 1;
+            if ($situation === 'end') {
+                $cmd = self::LSO_CMD_FINISH;
+                $param = null;
+            } elseif ($situation === 'straight') {
+                $cmd = self::LSO_CMD_NEXT;
+            } elseif ($situation === 'branch' || $situation === 'deadend') {
+                // "Weiter" leads to the dedicated interstitial page (choice or
+                // dead-end notice) instead of advancing directly.
+                $cmd = self::LSO_CMD_CHOICE;
+                $param = null;
+            }
+            $control_builder = $control_builder->next($cmd, $param);
+        }
+
+        return $control_builder;
+    }
+
+    /**
+     * Builds the navigation controls for the adaptive interstitial page (branch
+     * selection / dead-end notice): only a way back to the object is offered;
+     * advancing happens via the choice buttons in the content.
+     */
+    protected function buildAdaptiveChoiceControls(
+        LSControlBuilder $control_builder
+    ): ControlBuilder {
+        if (!$control_builder->getExitControl()) {
+            $control_builder = $control_builder->exit(self::LSO_CMD_SUSPEND);
+        }
+        if (!$control_builder->getPreviousControl()) {
+            $control_builder = $control_builder->previous(self::LSO_CMD_STAY, null);
+        }
+        if (!$control_builder->getNextControl()) {
+            $control_builder = $control_builder->next('', null);
+        }
+        return $control_builder;
     }
 
     public function getCurrentItemLearningProgress(): int

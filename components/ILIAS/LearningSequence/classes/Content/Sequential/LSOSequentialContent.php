@@ -1,0 +1,189 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Sequential;
+
+use ilObjLearningSequenceContentGUI;
+use ILIAS\UI\Factory as UIFactory;
+use ILIAS\UI\Renderer as UIRenderer;
+use ilLanguage;
+use ilCtrl;
+use ilLearningSequenceSettings;
+use ilObjLearningSequence;
+use ilLSPostCondition;
+use ILIAS\LearningSequence\Content\LSOContentController;
+use ILIAS\LearningSequence\Content\LSOContentDeletion;
+
+/**
+ * Class LSOSequentialContent
+ */
+class LSOSequentialContent implements LSOContentController
+{
+    use LSOContentDeletion;
+    protected ilObjLearningSequenceContentGUI $parent_gui;
+    protected \ILIAS\UI\Factory $ui_factory;
+    protected \ILIAS\UI\Renderer $ui_renderer;
+    protected \ilLanguage $lng;
+    protected \ilCtrl $ctrl;
+    protected \Psr\Http\Message\ServerRequestInterface $request;
+    protected \ilGlobalTemplateInterface $tpl;
+
+    protected int $ref_id;
+    protected int $obj_id;
+
+    public function __construct(
+        ilObjLearningSequenceContentGUI $parent_gui,
+        \ILIAS\UI\Factory $ui_factory,
+        \ILIAS\UI\Renderer $ui_renderer,
+        \ilLanguage $lng,
+        \ilCtrl $ctrl,
+        \Psr\Http\Message\ServerRequestInterface $request,
+        \ilGlobalTemplateInterface $tpl,
+        int $ref_id,
+        int $obj_id
+    ) {
+        $this->parent_gui = $parent_gui;
+        $this->ui_factory = $ui_factory;
+        $this->ui_renderer = $ui_renderer;
+        $this->lng = $lng;
+        $this->ctrl = $ctrl;
+        $this->request = $request;
+        $this->tpl = $tpl;
+        $this->ref_id = $ref_id;
+        $this->obj_id = $obj_id;
+    }
+
+    public function getSupportedCommands(): array
+    {
+        return [
+            ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT,
+            ilObjLearningSequenceContentGUI::CMD_REORDER,
+            ilObjLearningSequenceContentGUI::CMD_CONFIRM_DELETE,
+            ilObjLearningSequenceContentGUI::CMD_DELETE,
+        ];
+    }
+
+    /**
+     * Renders a classic confirmation page for deleting the selected content
+     * item(s) of the ordering table.
+     *
+     * The ordering table's delete action is a regular (non async) action, so
+     * the selected row ids arrive as query parameters. They are listed on a
+     * dedicated confirmation page whose confirm button submits them to the
+     * delete command. This works for a single item as well as for a bulk
+     * selection.
+     */
+    public function confirmDelete(): void
+    {
+        $ref_ids = $this->readSelectedRefIds();
+
+        if ($ref_ids === []) {
+            $this->tpl->setOnScreenMessage('info', $this->lng->txt('no_checkbox_selected'), true);
+            $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
+        }
+
+        $confirmation = new \ilConfirmationGUI();
+        $confirmation->setFormAction($this->ctrl->getFormAction($this->parent_gui));
+        $confirmation->setHeaderText($this->lng->txt('info_delete_sure'));
+        $confirmation->setConfirm($this->lng->txt('confirm'), ilObjLearningSequenceContentGUI::CMD_DELETE);
+        $confirmation->setCancel($this->lng->txt('cancel'), ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
+
+        foreach ($ref_ids as $ref_id) {
+            $title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($ref_id));
+            $confirmation->addItem('id[]', (string) $ref_id, $title);
+        }
+
+        $this->parent_gui->setContent($confirmation->getHTML());
+    }
+
+    public function manageContent(): void
+    {
+        // Restore the "add new object" drilldown in the toolbar so that new
+        // objects can be created directly from the content management view.
+        $this->parent_gui->showPossibleSubObjects();
+
+        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $target_url = $this->ctrl->getFormAction($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_REORDER);
+
+        $filter_gui = new LSOSequentialFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
+        $filter = $filter_gui->getFilter(ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT)
+            ->withRequest($this->request);
+        $filter_data = $filter->getData();
+
+        $table = new LSOSequentialTable(
+            $this->parent_gui,
+            $this->ui_factory,
+            $this->ui_renderer,
+            $this->lng,
+            $this->ctrl,
+            $items,
+            $target_url,
+            $this->lng->txt('content'),
+            $this->request,
+            $this->tpl,
+            $this->ref_id,
+            $this->obj_id,
+            $filter_data
+        );
+
+        $this->parent_gui->setContent(
+            $this->ui_renderer->render($filter) . $table->render()
+        );
+    }
+
+    public function reorder(): void
+    {
+        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $target_url = $this->ctrl->getFormAction($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_REORDER);
+
+        $table = new LSOSequentialTable(
+            $this->parent_gui,
+            $this->ui_factory,
+            $this->ui_renderer,
+            $this->lng,
+            $this->ctrl,
+            $items,
+            $target_url,
+            $this->lng->txt('content'),
+            $this->request,
+            $this->tpl,
+            $this->ref_id,
+            $this->obj_id
+        );
+
+        $ordered_ref_ids = $table->getOrderedRefIds();
+        if ($ordered_ref_ids !== []) {
+            $new_positions = array_flip($ordered_ref_ids);
+
+            $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+            $updated = [];
+            foreach ($lso->getLSItems() as $it) {
+                if (isset($new_positions[$it->getRefId()])) {
+                    $it = $it->withOrderNumber($new_positions[$it->getRefId()]);
+                }
+                $updated[] = $it;
+            }
+            $lso->storeLSItems($updated);
+
+            $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
+        }
+
+        $this->parent_gui->setContent($table->render());
+    }
+
+    public function getSpecificActions(int $ref_id, string $current_op): array
+    {
+        $specific_actions = [];
+        // We add both actions here but they will be disabled/filtered in the table class
+        $specific_actions['condition_always'] = new \ilObjLearningSequenceActionData(
+            label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('condition_always'),
+            link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_ALWAYS
+        );
+        $specific_actions['condition_lp'] = new \ilObjLearningSequenceActionData(
+            label: $this->lng->txt('table_may_proceed') . ': ' . 'Gemäß Lernfortschritt', // #ToDo Sprachvariable
+            link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_LP
+        );
+        return $specific_actions;
+    }
+}
