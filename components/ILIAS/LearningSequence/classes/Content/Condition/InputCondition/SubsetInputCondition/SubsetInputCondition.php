@@ -38,7 +38,7 @@ use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
  */
 class SubsetInputCondition extends AbstractCondition implements InputConditionInterface
 {
-    protected const NAME = 'Subset';
+    protected const string NAME = 'subset';
     private const SETTINGS_TABLE = 'lso_c_subset';
     /**
      * Provides the database table definitions required by this condition.
