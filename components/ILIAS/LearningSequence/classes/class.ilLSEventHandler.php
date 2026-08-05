@@ -82,6 +82,10 @@ class ilLSEventHandler
             $parent_lso_ref_id,
             $obj_ref_id
         );
+
+        // remove orphaned adaptive path entries pointing to the deleted object
+        $lso_obj_id = (int) \ilObject::_lookupObjId($parent_lso_ref_id);
+        $this->getItemPathRepo()->deleteForItemRefId($lso_obj_id, $obj_ref_id);
     }
 
     public function handleParticipantDeletion(int $obj_id, int $usr_id): void
@@ -89,6 +93,15 @@ class ilLSEventHandler
         $lso = $this->getInstanceByObjId($obj_id);
         $db = $lso->getStateDB();
         $db->deleteFor($lso->getRefId(), [$usr_id]);
+
+        // reset the adaptive path of the removed participant
+        $this->getItemPathRepo()->reset($usr_id, $obj_id);
+    }
+
+    protected function getItemPathRepo(): \ILIAS\LearningSequence\Content\Adaptive\LSOItemPath
+    {
+        global $DIC;
+        return new \ILIAS\LearningSequence\Content\Adaptive\LSOItemPath($DIC->database());
     }
 
     public function handleClonedObject(ilObject $new_obj, ilObject $origin_obj): void
@@ -97,7 +110,7 @@ class ilLSEventHandler
             && $this->getParentLSOInfo($origin_obj->getRefId())
         ) {
             $new_lso = $this->getInstanceByRefId(
-                (int)$this->getParentLSOInfo($new_obj->getRefId())['ref_id']
+                (int) $this->getParentLSOInfo($new_obj->getRefId())['ref_id']
             );
             $post_condition_db = $new_lso->getDI()['db.postconditions'];
             $post_condition = current($post_condition_db->select([$origin_obj->getRefId()]))
@@ -111,7 +124,7 @@ class ilLSEventHandler
      */
     protected function getParentLSOInfo(int $child_ref_id): ?array
     {
-        if($child_ref_id === 0) {
+        if ($child_ref_id === 0) {
             return null;
         }
 
