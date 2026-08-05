@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Data\Order;
 use ILIAS\Data\Range;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\UI\Component\Table\DataRetrieval;
@@ -27,29 +28,40 @@ use ILIAS\UI\Component\Table\DataRowBuilder;
 
 class ilLearningSequenceConditionsRetrieval implements DataRetrieval
 {
-    private ilObjLearningSequenceConditionDiscover $discoverer;
-    private array $conditions;
+    private array $conditions = [];
+    private ConditionFactory $condition_factory;
 
     public function __construct(
         protected int $lso_ref_id,
         protected int $item_ref_id
     ) {
-        $this->discoverer = new ilObjLearningSequenceConditionDiscover();
-        $this->conditions = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
+        global $DIC;
+        $discover = new ilObjLearningSequenceConditionDiscover();
+        $this->conditions = $discover->getAllConditionIdsForItem($this->item_ref_id);
+        $this->condition_factory = new ConditionFactory($discover, $DIC->database());
     }
 
     /**
      * @throws ilException
+     * @throws ReflectionException
      */
-    public function getRows(DataRowBuilder $row_builder, array $visible_column_ids, Range $range, Order $order, mixed $additional_viewcontrol_data, mixed $filter_data, mixed $additional_parameters): Generator
+    public function getRows(
+        DataRowBuilder $row_builder,
+        array $visible_column_ids,
+        Range $range,
+        Order $order,
+        mixed $additional_viewcontrol_data,
+        mixed $filter_data,
+        mixed $additional_parameters
+    ): Generator
     {
         foreach ($this->conditions as $condition_id) {
-            $condition = $this->discoverer->getConditionInstanceById($condition_id);
+            $condition = $this->condition_factory->getConditionInstanceById($condition_id);
 
             if ($condition instanceof InputConditionInterface) {
-                $type = 'InputCondition';
+                $type = 'InputCondition'; // todo lang
             } else {
-                $type = 'OutputCondition';
+                $type = 'OutputCondition'; // todo lang
             }
 
             yield $row_builder->buildDataRow(
@@ -57,7 +69,8 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
                 [
                     'id' => (string) $condition_id,
                     'type' => $type,
-                    'name' => $condition->getName()
+                    'name' => $condition->getName(), // todo lang
+                    'subtype' => $condition->getSubtype(),
                 ]
             );
         }

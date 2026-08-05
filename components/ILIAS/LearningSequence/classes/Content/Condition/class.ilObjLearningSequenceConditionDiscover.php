@@ -20,9 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition;
 
-use ilException;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use ReflectionClass;
 
 class ilObjLearningSequenceConditionDiscover
 {
@@ -82,72 +82,6 @@ class ilObjLearningSequenceConditionDiscover
     }
 
     /**
-     * @throws ilException
-     */
-    public function getConditionInstanceById(int $condition_id): AbstractCondition
-    {
-        global $DIC;
-        $db = $DIC->database();
-
-        $query = $db->queryF(
-            'SELECT * FROM lso_conditions AS c JOIN lso_condition_types AS t ON c.type_id = t.type_id WHERE condition_id = %s',
-            ['integer'],
-            [$condition_id],
-        );
-        $record = $db->fetchAssoc($query);
-        if (empty($record)) {
-            throw new ilException('Condition not found');
-        }
-        return $this->getConditionInstanceByName($record['condition_name'], (int) $record['lso_ref_id'], (int) $record['obj_ref_id'], null, $condition_id);
-    }
-
-    /**
-     * @throws ilException
-     */
-    public function getConditionInstanceByTypeId(int $type_id, int $lso_ref_id, int $item_ref_id, ?string $subtype = null): AbstractCondition
-    {
-        global $DIC;
-        $db = $DIC->database();
-
-        $query = $db->queryF(
-            'SELECT condition_name FROM lso_condition_types WHERE type_id = %s',
-            ['integer'],
-            [$type_id],
-        );
-        $record = $db->fetchAssoc($query);
-        if (empty($record)) {
-            throw new ilException('Condition not found');
-        }
-        $condition_name = $record['condition_name'];
-        return $this->getConditionInstanceByName($condition_name, $lso_ref_id, $item_ref_id, $subtype);
-
-    }
-
-    /**
-     * @throws ilException
-     */
-    public function getConditionInstanceByName(string $condition_name, int $lso_ref_id, int $item_ref_id, ?string $subtype = null, ?int $condition_id = null): AbstractCondition
-    {
-        foreach ($this->getAllConditions() as $class) {
-            if (str_contains($class, $condition_name)) {
-                /** @var AbstractCondition $condition */
-                $condition = new $class();
-                $condition->setLsoRefId($lso_ref_id);
-                $condition->setObjRefId($item_ref_id);
-                if (!is_null($subtype)) {
-                    $condition->setSubtype($subtype);
-                }
-                if (!is_null($condition_id)) {
-                    $condition->setConditionId($condition_id);
-                }
-                return $condition;
-            }
-        }
-
-        throw new ilException('Condition not found');
-    }
-
-    /**
      * @param int $item_ref_id
      * @return array
      */
@@ -164,7 +98,7 @@ class ilObjLearningSequenceConditionDiscover
 
         $conditions = [];
         while ($record = $db->fetchAssoc($query)) {
-            $conditions[] = (int) $record['condition_id'];
+            $conditions[] = (int)$record['condition_id'];
         }
         return $conditions;
 
@@ -201,7 +135,7 @@ class ilObjLearningSequenceConditionDiscover
                     if (!class_exists($fullClass, true)) {
                         continue;
                     }
-                    $reflection = new \ReflectionClass($fullClass);
+                    $reflection = new ReflectionClass($fullClass);
                     if ($reflection->isInstantiable() &&
                         $reflection->isSubclassOf($baseClassOrInterface)
                     ) {

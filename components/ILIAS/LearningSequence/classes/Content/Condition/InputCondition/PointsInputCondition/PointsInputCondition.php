@@ -28,9 +28,9 @@ use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 
 final class PointsInputCondition extends AbstractCondition implements InputConditionInterface
 {
-    protected const NAME = 'points_input';
-    private const SETTINGS_TABLE = 'lso_c_points_input';
-    private const POINTS_FIELD = 'points';
+    protected const string NAME = 'points_input';
+    private const string SETTINGS_TABLE = 'lso_c_points_input';
+    private const string POINTS_FIELD = 'points';
 
     private ?int $points = null;
 

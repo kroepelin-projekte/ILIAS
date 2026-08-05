@@ -1,14 +1,30 @@
 <?php
 
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
 declare(strict_types=1);
 
-use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
-use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\LearningSequence\Content\Sequential\LSOSequentialContent;
+use ILIAS\HTTP\Wrapper\RequestWrapper;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveContent;
 use ILIAS\LearningSequence\Content\LSOContentController;
+use ILIAS\LearningSequence\Content\Sequential\LSOSequentialContent;
 use ILIAS\Refinery\Factory;
-use ILIAS\UI\Component\Input\Container\Filter\Standard;
+use ILIAS\UI\Renderer;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Class ilObjLearningSequenceContentGUI
@@ -56,19 +72,21 @@ class ilObjLearningSequenceContentGUI
     public const string FIELD_POSTCONDITION_TYPE = 'f_pct';
 
     public function __construct(
-        protected \ilObjLearningSequenceGUI $parent_gui,
-        protected \ilCtrl $ctrl,
-        protected \ilGlobalTemplateInterface $tpl,
-        protected \ilLanguage $lng,
-        protected \ilAccessHandler $access,
-        protected \ilConfirmationGUI $confirmation_gui,
-        protected \LSItemOnlineStatus $ls_item_online_status,
-        protected \ILIAS\HTTP\Wrapper\RequestWrapper $post_wrapper,
-        protected \ILIAS\Refinery\Factory $refinery,
-        protected \ILIAS\UI\Factory $ui_factory,
-        protected \ILIAS\UI\Renderer $ui_renderer,
-        protected \Psr\Http\Message\ServerRequestInterface $request
-    ) {
+        protected \ilObjLearningSequenceGUI|ilObjLearningSequenceContentGUI $parent_gui,
+        protected \ilCtrl                                                   $ctrl,
+        protected \ilGlobalTemplateInterface                                $tpl,
+        protected \ilLanguage                                               $lng,
+        protected \ilAccessHandler                                          $access,
+        protected \ilConfirmationGUI                                        $confirmation_gui,
+        protected \LSItemOnlineStatus                                       $ls_item_online_status,
+        protected RequestWrapper                                            $query_wrapper,
+        protected RequestWrapper                                            $post_wrapper,
+        protected Factory                                                   $refinery,
+        protected \ILIAS\UI\Factory                                         $ui_factory,
+        protected Renderer                                                  $ui_renderer,
+        protected ServerRequestInterface                                    $request
+    )
+    {
     }
 
     public function setContent(string $html): void
@@ -112,6 +130,7 @@ class ilObjLearningSequenceContentGUI
     /**
      * Forwards to the conditions gui when it is the next class in the control
      * flow. Returns true when the command was handled here.
+     * @throws ilCtrlException
      */
     private function forwardToConditionsGUI(): bool
     {
@@ -121,15 +140,16 @@ class ilObjLearningSequenceContentGUI
 
         $gui = new ilObjLearningSequenceConditionsGUI(
             $this,
-            $this->parent_gui,
             $this->ctrl,
             $this->tpl,
             $this->lng,
             $this->access,
+            $this->query_wrapper,
             $this->post_wrapper,
             $this->ui_factory,
             $this->ui_renderer,
             $this->request,
+            $this->refinery,
         );
         $this->ctrl->forwardCommand($gui);
 
@@ -309,7 +329,7 @@ class ilObjLearningSequenceContentGUI
         foreach ($list_gui->getCommands() as $cmd) {
             $key = ($cmd['lang_var'] !== '') ? $cmd['lang_var'] : $cmd['cmd'];
             if ($key === 'settings') {
-                return (string) $cmd['link'];
+                return (string)$cmd['link'];
             }
         }
 
@@ -362,16 +382,16 @@ class ilObjLearningSequenceContentGUI
         // Check for namespaced parameters first (from Ordering Table)
         if (isset($query_params['lso_content_seq_item_ref_id'])) {
             if (is_array($query_params['lso_content_seq_item_ref_id'])) {
-                $item_ref_id = (int) ($query_params['lso_content_seq_item_ref_id'][0] ?? 0);
+                $item_ref_id = (int)($query_params['lso_content_seq_item_ref_id'][0] ?? 0);
             } else {
-                $item_ref_id = (int) $query_params['lso_content_seq_item_ref_id'];
+                $item_ref_id = (int)$query_params['lso_content_seq_item_ref_id'];
             }
         }
         if ($item_ref_id === 0 && isset($query_params['item_ref_id'])) {
             if (is_array($query_params['item_ref_id'])) {
-                $item_ref_id = (int) ($query_params['item_ref_id'][0] ?? 0);
+                $item_ref_id = (int)($query_params['item_ref_id'][0] ?? 0);
             } else {
-                $item_ref_id = (int) $query_params['item_ref_id'];
+                $item_ref_id = (int)$query_params['item_ref_id'];
             }
         }
 

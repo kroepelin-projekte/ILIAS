@@ -26,18 +26,27 @@ use ILIAS\Data\URI;
 use ILIAS\DI\Container;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Factory;
+use ilLanguage;
+use ilObjectFactory;
+use ilObjLearningSequence;
+use ilObjLearningSequenceConditionConfigurationGUI;
+use ilObjLearningSequenceConditionsGUI;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
+use LogicException;
+use ReflectionMethod;
 
 abstract class AbstractCondition
 {
     protected const NAME = '';
     protected const string CREATE_COMMAND = 'createCondition';
     protected const string CONFIGURE_COMMAND = 'configure';
+    private bool $has_subtypes = false;
 
-    protected \ilLanguage $lang;
+    protected ilLanguage $lang;
     protected Container $dic;
     protected ?int $obj_ref_id = null;
     protected ?int $lso_ref_id = null;
@@ -79,7 +88,7 @@ abstract class AbstractCondition
      * Returns the additional form for the condition.
      * Has to be implemented by the child class if an additional form is needed.
      *
-     * @return FormStandard
+     * @return FormStandard|null
      */
     public function getAdditionalForm(): ?FormStandard
     {
@@ -104,10 +113,36 @@ abstract class AbstractCondition
     }
 
     /**
+     * @param bool $has_subtypes
+     * @return void
+     */
+    public function setHasSubTypes(bool $has_subtypes): void
+    {
+        $this->has_subtypes = $has_subtypes;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasSubTypes(): bool
+    {
+        return $this->has_subtypes;
+    }
+
+    /**
+     * @return string
+     */
+    public function getSubtype(): string
+    {
+        return '';
+    }
+
+    /**
      * Returns an array of steps to configure the condition.
      * Has to be implemented by the child class if additional steps are needed.
      *
      * @return Bulky[]
+     * @throws ilCtrlException
      */
     public function setupSteps(): array
     {
@@ -190,7 +225,7 @@ abstract class AbstractCondition
         $type_id = $this->getTypeId();
         $existing_id = $this->findConditionIdByContextAndType($type_id);
         if ($existing_id !== null) {
-            throw new \LogicException('Condition already exists for this item and type.');
+            throw new LogicException('Condition already exists for this item and type.');
         }
 
         $db = $this->getDatabase();
@@ -262,7 +297,7 @@ abstract class AbstractCondition
     protected function buildUrl(string $command, bool $with_configuration_gui = false): URI
     {
         $this->dic->ctrl()->setParameterByClass(
-            \ilObjLearningSequenceConditionsGUI::class,
+            ilObjLearningSequenceConditionsGUI::class,
             'type_id',
             $this->getTypeId()
         );
@@ -271,7 +306,7 @@ abstract class AbstractCondition
             ilRepositoryGUI::class,
             ilObjLearningSequenceGUI::class,
             ilObjLearningSequenceContentGUI::class,
-            \ilObjLearningSequenceConditionsGUI::class
+            ilObjLearningSequenceConditionsGUI::class
         ];
 
         if ($command === self::CONFIGURE_COMMAND || $with_configuration_gui) {
@@ -295,12 +330,12 @@ abstract class AbstractCondition
     /**
      * Asserts that the context (lso_ref_id and obj_ref_id) is set.
      *
-     * @throws \LogicException if the context is not set
+     * @throws LogicException if the context is not set
      */
     protected function assertContextSet(): void
     {
         if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
-            throw new \LogicException('Condition context is incomplete.');
+            throw new LogicException('Condition context is incomplete.');
         }
     }
 
@@ -337,9 +372,9 @@ abstract class AbstractCondition
             return;
         }
 
-        $method = new \ReflectionMethod(static::class, $hook_method);
+        $method = new ReflectionMethod(static::class, $hook_method);
         if ($method->getDeclaringClass()->getName() === self::class) {
-            throw new \LogicException(
+            throw new LogicException(
                 sprintf(
                     '%s defines additional migration tables but does not override %s().',
                     static::class,
@@ -363,7 +398,7 @@ abstract class AbstractCondition
      * Returns the type ID for this condition.
      *
      * @return int
-     * @throws \LogicException if the condition type is not registered
+     * @throws LogicException if the condition type is not registered
      */
     protected function getTypeIdFromDb(): int
     {
@@ -375,7 +410,7 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new \LogicException('Condition type is not registered.');
+            throw new LogicException('Condition type is not registered.');
         }
 
         return (int) $row['type_id'];
@@ -385,7 +420,7 @@ abstract class AbstractCondition
      * Resolves the condition ID for this condition based on the context and type.
      *
      * @return int
-     * @throws \LogicException if the condition does not exist or is ambiguous
+     * @throws LogicException if the condition does not exist or is ambiguous
      */
     protected function resolveConditionId(): int
     {
@@ -398,7 +433,7 @@ abstract class AbstractCondition
         $condition_id = $this->findConditionIdByContextAndType($type_id);
 
         if ($condition_id === null) {
-            throw new \LogicException('Condition does not exist.');
+            throw new LogicException('Condition does not exist.');
         }
 
         $this->condition_id = $condition_id;
@@ -410,7 +445,7 @@ abstract class AbstractCondition
      *
      * @param int $type_id
      * @return int|null
-     * @throws \LogicException if the lookup is ambiguous
+     * @throws LogicException if the lookup is ambiguous
      */
     protected function findConditionIdByContextAndType(int $type_id): ?int
     {
@@ -426,7 +461,7 @@ abstract class AbstractCondition
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new \LogicException('Condition lookup is ambiguous.');
+            throw new LogicException('Condition lookup is ambiguous.');
         }
 
         return (int) $row['condition_id'];
@@ -465,40 +500,41 @@ abstract class AbstractCondition
      * @throws ilCtrlException
      */
     protected function buildStep(
-        array $additional_parameters = [],
+        array   $additional_parameters = [],
         ?string $label = null,
         ?string $command = null,
-    ): Bulky {
+    ): Bulky
+    {
         $this->dic->ctrl()->setParameterByClass(
-            \ilObjLearningSequenceConditionsGUI::class,
+            ilObjLearningSequenceConditionsGUI::class,
             'type_id',
             $this->getTypeId()
         );
         $this->dic->ctrl()->setParameterByClass(
-            \ilObjLearningSequenceConditionsGUI::class,
+            ilObjLearningSequenceConditionsGUI::class,
             'item_ref_id',
             (string) $this->obj_ref_id
         );
         $this->dic->ctrl()->setParameterByClass(
-            \ilObjLearningSequenceConditionsGUI::class,
+            ilObjLearningSequenceConditionsGUI::class,
             'ref_id',
             (string) $this->lso_ref_id
         );
 
         foreach ($additional_parameters as $name => $value) {
             $this->dic->ctrl()->setParameterByClass(
-                \ilObjLearningSequenceConditionsGUI::class,
+                ilObjLearningSequenceConditionsGUI::class,
                 (string) $name,
                 (string) $value
             );
         }
 
         $uri = $this->buildUrl($command ?? $this->getStepCommand());
-        $this->dic->ctrl()->clearParametersByClass(\ilObjLearningSequenceConditionsGUI::class);
+        $this->dic->ctrl()->clearParametersByClass(ilObjLearningSequenceConditionsGUI::class);
 
         return $this->ui_factory->link()->bulky(
             $this->getGlyphe(),
-            $label ?? (string) $this->getName(),
+            $label ?? (string)$this->getName(),
             $uri
         );
     }
@@ -518,31 +554,32 @@ abstract class AbstractCondition
      * Returns the glyphe for the condition.
      * Override this method in child classes to provide a specific glyph.
      *
-     * @return \ILIAS\UI\Component\Symbol\Glyph\Glyph
+     * @return Glyph
      */
-    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    protected function getGlyphe(): Glyph
     {
         return $this->ui_factory->symbol()->glyph()->apply();
     }
 
     // TODO: Prüfen, wohin wir diese beiden Helper auslagern können
+
     /**
      * Returns the learning sequence object associated with this condition.
      *
-     * @return \ilObjLearningSequence
-     * @throws \LogicException if the LSO ref id is not set or the object is not an ilObjLearningSequence
+     * @return ilObjLearningSequence
+     * @throws LogicException if the LSO ref id is not set or the object is not an ilObjLearningSequence
      */
-    protected function getLso(): \ilObjLearningSequence
+    protected function getLso(): ilObjLearningSequence
     {
         $lso_ref_id = $this->getLsoRefId();
         if ($lso_ref_id === null) {
-            throw new \LogicException('LSO ref id is not set.');
+            throw new LogicException('LSO ref id is not set.');
         }
 
-        /** @var \ilObjLearningSequence $object */
-        $object = \ilObjectFactory::getInstanceByRefId($lso_ref_id);
-        if (!$object instanceof \ilObjLearningSequence) {
-            throw new \LogicException('Object is not an ilObjLearningSequence.');
+        /** @var ilObjLearningSequence $object */
+        $object = ilObjectFactory::getInstanceByRefId($lso_ref_id);
+        if (!$object instanceof ilObjLearningSequence) {
+            throw new LogicException('Object is not an ilObjLearningSequence.');
         }
 
         return $object;
@@ -566,7 +603,7 @@ abstract class AbstractCondition
     protected function read(): void
     {
         if ($this->condition_id === null) {
-            throw new \LogicException('Condition id is not set.');
+            throw new LogicException('Condition id is not set.');
         }
 
         $res = $this->getDatabase()->queryF(
@@ -577,11 +614,30 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new \LogicException('Condition does not exist.');
+            throw new LogicException('Condition does not exist.');
         }
 
-        $this->setLsoRefId((int) $row['lso_ref_id']);
-        $this->setObjRefId((int) $row['obj_ref_id']);
-        $this->setTypeId((int) $row['type_id']);
+        $this->setLsoRefId((int)$row['lso_ref_id']);
+        $this->setObjRefId((int)$row['obj_ref_id']);
+        $this->setTypeId((int)$row['type_id']);
+        if ($this->hasSubTypes() && method_exists($this, 'setSubtype')) {
+
+            $db = $this->dic->database();
+            $table_name = "lsp_c_{$this->getName()}";
+
+            if ($db->tableExists($table_name)
+                && $db->tableColumnExists($table_name, 'condition_id')
+                && $db->tableColumnExists($table_name, 'subtype')
+            ) {
+                $query = $this->dic->database()->queryF(
+                    'SELECT * FROM %s WHERE condition_id = %s',
+                    ['text', 'integer'],
+                    [$table_name, $this->condition_id]
+                );
+                if ($record = $db->fetchObject($query)) {
+                    $this->setSubtype($record->subtype);
+                }
+            }
+        }
     }
 }

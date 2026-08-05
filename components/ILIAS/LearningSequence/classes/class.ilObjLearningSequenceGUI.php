@@ -123,6 +123,7 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
     protected ILIAS\UI\Renderer $ui_renderer;
     protected Data\Factory $data_factory;
     protected ILIAS\HTTP\Wrapper\RequestWrapper $request_wrapper;
+    protected ArrayBasedRequestWrapper $query_wrapper;
     protected ArrayBasedRequestWrapper $post_wrapper;
     protected ILIAS\Refinery\Factory $refinery;
     protected Psr\Http\Message\ServerRequestInterface $request;
@@ -605,23 +606,30 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
             $this->access,
             new ilConfirmationGUI(),
             new LSItemOnlineStatus(),
+            $this->request_wrapper,
             $this->post_wrapper,
             $this->refinery,
             $this->ui_factory,
             $this->ui_renderer,
-            $this->request
+            $this->request,
+            $this->refinery,
         );
     }
 
-    protected function getGUIConditions(): \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI
+    protected function getGUIConditions(): ilObjLearningSequenceConditionsGUI
     {
-        return new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionsGUI(
+        return new ilObjLearningSequenceConditionsGUI(
             $this,
             $this->ctrl,
             $this->tpl,
             $this->lng,
             $this->access,
-            $GLOBALS['DIC']->database()
+            $this->request_wrapper,
+            $this->post_wrapper,
+            $this->ui_factory,
+            $this->ui_renderer,
+            $this->request,
+            $this->refinery,
         );
     }
 

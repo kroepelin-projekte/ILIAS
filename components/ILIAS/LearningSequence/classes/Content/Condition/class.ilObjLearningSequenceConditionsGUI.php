@@ -19,7 +19,8 @@
 declare(strict_types=1);
 
 use ILIAS\Data\Factory;
-use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\HTTP\Wrapper\RequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\UI\Component\Menu\Drilldown;
 use ILIAS\UI\Component\Modal\Roundtrip;
@@ -42,27 +43,27 @@ class ilObjLearningSequenceConditionsGUI
     /** @var int LSO content object */
     protected int $item_ref_id;
     private ilObjLearningSequenceConditionDiscover $discoverer;
-    private ArrayBasedRequestWrapper $query;
-    private \ILIAS\Refinery\Factory $refinery;
+    private ConditionFactory $condition_factory;
 
     public function __construct(
-        protected ilObjLearningSequenceContentGUI $content_gui,
-        protected ilObjLearningSequenceGUI        $parent_gui,
-        protected ilCtrl                          $ctrl,
-        protected ilGlobalTemplateInterface       $tpl,
-        protected ilLanguage                      $lng,
-        protected ilAccess                        $access,
-        protected ArrayBasedRequestWrapper        $post_wrapper,
-        protected ILIAS\UI\Factory                $ui_factory,
-        protected ILIAS\UI\Renderer               $ui_renderer,
-        protected ServerRequestInterface          $request,
-    ) {
+        protected ilObjLearningSequenceGUI|ilObjLearningSequenceContentGUI $parent_gui,
+        protected ilCtrl                                                   $ctrl,
+        protected ilGlobalTemplateInterface                                $tpl,
+        protected ilLanguage                                               $lng,
+        protected ilAccess                                                 $access,
+        protected RequestWrapper                                           $query_wrapper,
+        protected RequestWrapper                                           $post_wrapper,
+        protected ILIAS\UI\Factory                                         $ui_factory,
+        protected ILIAS\UI\Renderer                                        $ui_renderer,
+        protected ServerRequestInterface                                   $request,
+        protected \ILIAS\Refinery\Factory                                  $refinery,
+    )
+    {
         global $DIC;
-        $this->lso_ref_id = $DIC->http()->wrapper()->query()->retrieve('ref_id', $DIC->refinery()->kindlyTo()->int());
-        $this->item_ref_id = $DIC->http()->wrapper()->query()->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
+        $this->lso_ref_id = $this->query_wrapper->retrieve('ref_id', $DIC->refinery()->kindlyTo()->int());
+        $this->item_ref_id = $this->query_wrapper->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
         $this->discoverer = new ilObjLearningSequenceConditionDiscover();
-        $this->query = $DIC->http()->wrapper()->query();
-        $this->refinery = $DIC->refinery();
+        $this->condition_factory = new ConditionFactory($this->discoverer, $DIC->database());
     }
 
     /**
@@ -105,12 +106,12 @@ class ilObjLearningSequenceConditionsGUI
 
     /**
      * @return void
-     * @throws ilCtrlException
+     * @throws ilCtrlException|ilException
      */
     protected function manageConditions(): void
     {
         global $DIC;
-        $DIC->tabs()->setBack2Target('Back', $this->ctrl->getLinkTarget($this->content_gui, $this->content_gui::CMD_MANAGE_CONTENT));
+        $DIC->tabs()->setBack2Target('Back', $this->ctrl->getLinkTarget($this->parent_gui));
 
         $modal = $this->buildAddConditionModal();
         $button = $this->ui_factory->button()->standard('Add condition', '#')->withOnClick($modal->getShowSignal());
@@ -193,24 +194,11 @@ class ilObjLearningSequenceConditionsGUI
             'cmd',
             'id'
         );
-
-        $actions = [];
-        foreach ($this->discoverer->getAllConditionIdsForItem($this->item_ref_id) as $condition_id) {
-            $condition = $this->discoverer->getConditionInstanceById($condition_id);
-            if ($condition->getAdditionalForm() === null) {
-                continue;
-            }
-            if (method_exists($condition, 'getSubtype')) {
-                $subtype = $condition->getSubtype();
-                $url_builder = $url_builder->withParameter($action_parameter_token, 'subtype=' . $subtype);
-            }
-
-            $actions['condition_' . $condition_id] = $af->single(
-                $this->lng->txt('edit'),
-                $url_builder,
-                $row_id_token
-            );
-        }
+        $actions['edit'] = $af->single(
+            $this->lng->txt('edit'),
+            $url_builder,
+            $row_id_token
+        );
 
         // standard action: delete condition
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);
@@ -234,6 +222,7 @@ class ilObjLearningSequenceConditionsGUI
                 'id' => $this->ui_factory->table()->column()->text('ID'),
                 'type' => $this->ui_factory->table()->column()->text('Type'),
                 'name' => $this->ui_factory->table()->column()->text('Name'),
+                'subtype' => $this->ui_factory->table()->column()->text('Subtype'),
             ]
         )
             ->withActions($actions)
@@ -244,15 +233,20 @@ class ilObjLearningSequenceConditionsGUI
      * Creates a new condition.
      *
      * @return void
-     * @throws ilCtrlException|ilException
+     * @throws ilCtrlException|ilException|ReflectionException
      */
     private function createCondition(): void
     {
-        $type_id = (int) $this->request->getQueryParams()['type_id'] ?? '';
+        $type_id = (int)$this->request->getQueryParams()['type_id'] ?? '';
         $subtype = $this->request->getQueryParams()['subtype'] ?? null;
 
         try {
-            $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $this->lso_ref_id, $this->item_ref_id, $subtype);
+            $condition = $this->condition_factory->getNewConditionInstance(
+                $this->lso_ref_id,
+                $this->item_ref_id,
+                $type_id,
+                $subtype,
+            );
             $condition->create();
         } catch (LogicException $e) {
 
@@ -288,16 +282,15 @@ class ilObjLearningSequenceConditionsGUI
     /**
      * @throws ilCtrlException
      * @throws ilException
+     * @throws ReflectionException
      */
     #[NoReturn]
     private function confirmDeleteCondition(): void
     {
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);
 
-        $string_list = $this->refinery->kindlyTo()->listOf($this->refinery->kindlyTo()->string());
-
         // todo lang
-        if (!$this->query->has('delete_ids')) {
+        if (!$this->query_wrapper->has('delete_ids')) {
             $modal = $this->ui_factory->modal()->interruptive(
                 $this->lng->txt('delete'),
                 'Bitte wählen Sie Bedingungen, die gelöscht werden sollen.',
@@ -306,36 +299,22 @@ class ilObjLearningSequenceConditionsGUI
             exit($this->ui_renderer->render($modal));
         }
 
-        $condition_ids = $this->query->retrieve('delete_ids', $string_list);
+        $string_list = $this->refinery->kindlyTo()->listOf($this->refinery->kindlyTo()->string());
+        $condition_ids = $this->query_wrapper->retrieve('delete_ids', $string_list);
 
-        $to_delete = $condition_ids[0] ?? null;
-
-        $conditions_to_delete = [];
-
-        // all items
-        if ($to_delete === 'ALL_OBJECTS') {
-            $conditions = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
-            foreach ($conditions as $condition_id) {
-                $conditions_to_delete[] = $condition_id;
-            }
-        } elseif (is_numeric($to_delete)) {
-            // single item
-            $conditions_to_delete[] = (int) $to_delete;
+        if (in_array('ALL_OBJECTS', $condition_ids, true)) {
+            $conditions_to_delete = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
         } else {
-            // selected items
-            foreach ($to_delete as $id) {
-                $conditions_to_delete[] = (int) $id;
-            }
+            $conditions_to_delete = array_map('intval', $condition_ids);
         }
 
         $affected_items = [];
         foreach ($conditions_to_delete as $condition_id) {
             $affected_items[] = $this->ui_factory->modal()->interruptiveItem()->standard(
                 'condition_' . $condition_id,
-                $this->discoverer->getConditionInstanceById($condition_id)->getName(),
+                $this->condition_factory->getConditionInstanceById($condition_id)->getName(),
             );
         }
-
 
         // todo lang
         $modal = $this->ui_factory->modal()->interruptive(
@@ -352,6 +331,7 @@ class ilObjLearningSequenceConditionsGUI
      *
      * @return void
      * @throws ilException
+     * @throws ReflectionException
      */
     private function deleteCondition(): void
     {
@@ -363,9 +343,9 @@ class ilObjLearningSequenceConditionsGUI
         $condition_to_delete = $this->post_wrapper->retrieve('interruptive_items', $list);
 
         foreach ($condition_to_delete as $condition) {
-            $condition_id = (int) str_replace('condition_', '', $condition);
-            $instance = $this->discoverer->getConditionInstanceById($condition_id);
-            $instance->delete();
+            $condition_id = (int)str_replace('condition_', '', $condition);
+            $condition = $this->condition_factory->getConditionInstanceById($condition_id);
+            $condition->delete();
         }
 
         // todo lang

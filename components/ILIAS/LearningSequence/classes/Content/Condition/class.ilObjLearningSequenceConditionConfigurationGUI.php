@@ -20,9 +20,9 @@ declare(strict_types=1);
 
 use ILIAS\DI\Container;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\UI\Component\Input\Container\Form\Standard;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -30,15 +30,16 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class ilObjLearningSequenceConditionConfigurationGUI
 {
-    private mixed $lso_ref_id;
+    protected int $lso_ref_id;
     protected int $item_ref_id;
-    protected int|null $condition_id = null;
-    private int|null $type_id = null;
-    private ?string $subtype = null;
-    private bool $create = true;
+    protected ?int $condition_id = null;
+    protected ?int $type_id = null;
+    protected ?string $subtype = null;
+    protected bool $create = true;
     private ArrayBasedRequestWrapper $query;
     private Container $dic;
     private ilObjLearningSequenceConditionDiscover $discoverer;
+    private ConditionFactory $condition_factory;
 
     public function __construct(
         protected ilCtrl                          $ctrl,
@@ -57,6 +58,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
         $this->tpl = $DIC->ui()->mainTemplate();
         $this->query = $DIC->http()->wrapper()->query();
         $this->discoverer = new ilObjLearningSequenceConditionDiscover();
+        $this->condition_factory = new ConditionFactory($this->discoverer, $DIC->database());
     }
 
     public const string CMD_CREATE_CONDITION = "createCondition";
@@ -143,10 +145,12 @@ class ilObjLearningSequenceConditionConfigurationGUI
      * @return void
      * @throws ilCtrlException
      * @throws ilException
+     * @throws ReflectionException
      */
     protected function configure(): void
     {
-        $condition = $this->buildCondition();
+        $condition = $this->condition_factory->getNewConditionInstance($this->lso_ref_id, $this->item_ref_id, $this->type_id);
+        $condition->setConditionId($this->condition_id);
 
         $this->tpl->setContent(
             $this->ui_renderer->render(
@@ -201,13 +205,14 @@ class ilObjLearningSequenceConditionConfigurationGUI
 
     /**
      * @throws ilException
+     * @throws ReflectionException
      */
     private function buildCondition(): AbstractCondition
     {
-        $condition = $this->discoverer->getConditionInstanceByTypeId(
-            $this->type_id,
+        $condition = $this->condition_factory->getNewConditionInstance(
             $this->lso_ref_id,
             $this->item_ref_id,
+            $this->type_id,
             $this->subtype
         );
         $condition->setConditionId($this->condition_id);

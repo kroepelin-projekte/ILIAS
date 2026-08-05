@@ -28,9 +28,9 @@ use ilLPStatus;
 
 final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
-    protected const NAME = 'points_output';
-    private const SETTINGS_TABLE = 'lso_c_points_output';
-    private const POINTS_FIELD = 'points';
+    protected const string NAME = 'points_output';
+    private const string SETTINGS_TABLE = 'lso_c_points_output';
+    private const string POINTS_FIELD = 'points';
 
     private ?int $points = null;
 
