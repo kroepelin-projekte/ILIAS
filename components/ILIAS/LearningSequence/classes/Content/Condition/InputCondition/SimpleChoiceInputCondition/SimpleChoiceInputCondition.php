@@ -93,6 +93,11 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
                     'Simple choice target ref id is invalid.'
                 )
             );
+
+        if ($this->condition_id !== null) {
+            $input = $input->withValue((string) $this->getConditionTargetRefId());
+        }
+
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]

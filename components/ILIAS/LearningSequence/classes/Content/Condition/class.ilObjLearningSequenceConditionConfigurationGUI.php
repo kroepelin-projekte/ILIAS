@@ -149,8 +149,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function configure(): void
     {
-        $condition = $this->condition_factory->getNewConditionInstance($this->lso_ref_id, $this->item_ref_id, $this->type_id);
-        $condition->setConditionId($this->condition_id);
+        $condition = $this->buildCondition();
 
         $this->tpl->setContent(
             $this->ui_renderer->render(
@@ -166,12 +165,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function createCondition(): void
     {
-        $condition = $this->condition_factory->getNewConditionInstance(
-            $this->lso_ref_id,
-            $this->item_ref_id,
-            $this->type_id,
-            $this->subtype,
-        );
+        $condition = $this->buildCondition();
 
         $form = $condition->getAdditionalForm();
 
@@ -207,6 +201,28 @@ class ilObjLearningSequenceConditionConfigurationGUI
         $this->ctrl->redirectByClass(
             ilObjLearningSequenceConditionsGUI::class,
             ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
+        );
+    }
+
+    /**
+     * @throws ilException
+     * @throws ReflectionException
+     */
+    private function buildCondition(): AbstractCondition
+    {
+        if (!$this->create) {
+            if ($this->condition_id === null) {
+                throw new ilException('Condition id is missing for edit.');
+            }
+
+            return $this->condition_factory->getConditionInstanceById($this->condition_id);
+        }
+
+        return $this->condition_factory->getNewConditionInstance(
+            $this->lso_ref_id,
+            $this->item_ref_id,
+            $this->type_id,
+            $this->subtype,
         );
     }
 }
