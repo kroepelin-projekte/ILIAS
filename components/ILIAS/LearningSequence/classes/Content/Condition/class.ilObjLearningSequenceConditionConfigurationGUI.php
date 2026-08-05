@@ -162,10 +162,17 @@ class ilObjLearningSequenceConditionConfigurationGUI
     /**
      * @throws ilCtrlException
      * @throws ilException
+     * @throws ReflectionException
      */
     protected function createCondition(): void
     {
-        $condition = $this->buildCondition();
+        $condition = $this->condition_factory->getNewConditionInstance(
+            $this->lso_ref_id,
+            $this->item_ref_id,
+            $this->type_id,
+            $this->subtype,
+        );
+
         $form = $condition->getAdditionalForm();
 
         if ($form === null) {
@@ -201,22 +208,5 @@ class ilObjLearningSequenceConditionConfigurationGUI
             ilObjLearningSequenceConditionsGUI::class,
             ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
         );
-    }
-
-    /**
-     * @throws ilException
-     * @throws ReflectionException
-     */
-    private function buildCondition(): AbstractCondition
-    {
-        $condition = $this->condition_factory->getNewConditionInstance(
-            $this->lso_ref_id,
-            $this->item_ref_id,
-            $this->type_id,
-            $this->subtype
-        );
-        $condition->setConditionId($this->condition_id);
-
-        return $condition;
     }
 }

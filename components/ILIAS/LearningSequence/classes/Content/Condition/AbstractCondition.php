@@ -31,17 +31,17 @@ use ILIAS\UI\Factory;
 use ilLanguage;
 use ilObjectFactory;
 use ilObjLearningSequence;
-use ilObjLearningSequenceConditionConfigurationGUI;
 use ilObjLearningSequenceConditionsGUI;
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceGUI;
 use ilRepositoryGUI;
 use LogicException;
+use ReflectionException;
 use ReflectionMethod;
 
 abstract class AbstractCondition
 {
-    protected const NAME = '';
+    protected const string NAME = '';
     protected const string CREATE_COMMAND = 'createCondition';
     protected const string CONFIGURE_COMMAND = 'configure';
     private bool $has_subtypes = false;
@@ -291,6 +291,7 @@ abstract class AbstractCondition
      * Builds a URL for the given command.
      *
      * @param string $command
+     * @param bool $with_configuration_gui
      * @return URI
      * @throws ilCtrlException
      */
@@ -365,6 +366,7 @@ abstract class AbstractCondition
 
     /**
      * Ensures condition-specific payload hooks are implemented if migrate() defines extra tables.
+     * @throws ReflectionException
      */
     protected function assertConditionDataHookImplemented(string $hook_method): void
     {
@@ -598,9 +600,9 @@ abstract class AbstractCondition
     /**
      * Reads the condition data from the database and populates the properties.
      *
-     * @throws \LogicException if the condition id is not set or the condition does not exist
+     * @throws LogicException if the condition id is not set or the condition does not exist
      */
-    protected function read(): void
+    public function read(): void
     {
         if ($this->condition_id === null) {
             throw new LogicException('Condition id is not set.');
