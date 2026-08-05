@@ -58,8 +58,13 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
      */
     public function check(): bool
     {
+        $target_obj_id = \ilObject::_lookupObjId($this->getConditionTargetRefId());
+        if ($target_obj_id === 0) {
+            return false;
+        }
+
         return ilLPStatus::_hasUserCompleted(
-            $this->getConditionTargetRefId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         );
     }
@@ -93,6 +98,11 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
                     'Simple choice target ref id is invalid.'
                 )
             );
+
+        if ($this->condition_id !== null) {
+            $input = $input->withValue((string) $this->getConditionTargetRefId());
+        }
+
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]

@@ -34,7 +34,6 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     private const string SUBTYPE_AND = 'AND';
     private const string SUBTYPE_OR = 'OR';
     private const string SUBTYPE_NOT = 'NOT';
-    private ?string $subtype = null;
 
     /**
      * @return TableDefinition[]
@@ -96,7 +95,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     /**
      * @return string[]
      */
-    private function getSupportedSubtypes(): array
+    protected function getSupportedSubtypes(): array
     {
         return [
             self::SUBTYPE_AND,
@@ -131,19 +130,6 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
 
         $this->setSubtype($row['subtype']);
         return (string) $this->subtype;
-    }
-
-    /**
-     * @param string $subtype
-     * @return void
-     */
-    public function setSubtype(string $subtype): void
-    {
-        if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
-            throw new \LogicException('Unsupported learning progress subtype.');
-        }
-
-        $this->subtype = $subtype;
     }
 
     /**
