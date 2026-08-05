@@ -21,6 +21,10 @@ declare(strict_types=1);
 use Pimple\Container;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Player\LinearNavigator;
+use ILIAS\LearningSequence\Player\AdaptiveNavigator;
+use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
+use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 
 /**
  * @author   Nils Haagen <nils.haagen@concepts-and-training.de>
@@ -229,6 +233,11 @@ class ilLSLocalDI extends Container
         };
 
         $this["player"] = function ($c) use ($dic, $lsdic): ilLSPlayer {
+            $mode = $lsdic["db.settings"]->getSettingsFor($c["obj.obj_id"])->getMode();
+            $navigator = ($mode === ilLearningSequenceSettings::MODE_ADAPTIVE)
+                ? new AdaptiveNavigator()
+                : new LinearNavigator();
+
             return new ilLSPlayer(
                 $c["learneritems"],
                 $c["player.controlbuilder"],
@@ -238,7 +247,13 @@ class ilLSLocalDI extends Container
                 $c["player.kioskrenderer"],
                 $dic["ui.factory"],
                 $lsdic["gs.current_context"],
-                $dic["refinery"]
+                $dic["refinery"],
+                $navigator,
+                $mode,
+                new LSOItemPath($dic["ilDB"]),
+                new LSOAdaptiveBoundaries($dic["ilDB"]),
+                $c["obj.obj_id"],
+                $c["usr.id"]
             );
         };
 

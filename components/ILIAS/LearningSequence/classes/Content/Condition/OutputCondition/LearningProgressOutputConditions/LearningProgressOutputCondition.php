@@ -256,9 +256,18 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     private function isNotAttempted(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->obj_ref_id,
+            $this->resolveObjId(),
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED;
+    }
+
+    /**
+     * Resolves the obj_id for the condition's object. The condition stores a
+     * ref_id in obj_ref_id, but ilLPStatus expects an obj_id.
+     */
+    private function resolveObjId(): int
+    {
+        return \ilObject::_lookupObjId((int) $this->obj_ref_id);
     }
 
     /**
@@ -269,7 +278,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     private function isInProgress(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->obj_ref_id,
+            $this->resolveObjId(),
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_IN_PROGRESS;
     }
@@ -282,7 +291,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     private function isCompleted(): bool
     {
         return ilLPStatus::_hasUserCompleted(
-            $this->obj_ref_id,
+            $this->resolveObjId(),
             $this->dic->user()->getId()
         );
     }
@@ -295,7 +304,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     private function isFailed(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->obj_ref_id,
+            $this->resolveObjId(),
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_FAILED;
     }

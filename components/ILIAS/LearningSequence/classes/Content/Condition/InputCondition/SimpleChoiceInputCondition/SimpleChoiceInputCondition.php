@@ -58,8 +58,13 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
      */
     public function check(): bool
     {
+        $target_obj_id = \ilObject::_lookupObjId($this->getConditionTargetRefId());
+        if ($target_obj_id === 0) {
+            return false;
+        }
+
         return ilLPStatus::_hasUserCompleted(
-            $this->getConditionTargetRefId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         );
     }
