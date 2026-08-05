@@ -83,7 +83,7 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
             $this->lang->txt('lso_condition_simple_choice_target'),
             false,
         )
-            ->withRequired(true)
+            ->withRequired(false)
             ->withAdditionalTransformation(
                 $this->dic->refinery()->custom()->constraint(
                     static fn($value): bool => is_array($value)
