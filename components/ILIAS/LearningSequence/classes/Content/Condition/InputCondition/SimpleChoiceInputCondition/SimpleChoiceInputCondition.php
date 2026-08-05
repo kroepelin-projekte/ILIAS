@@ -82,11 +82,39 @@ final class SimpleChoiceInputCondition extends AbstractCondition implements Inpu
         $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
             false,
-        );
+        )
+            ->withRequired(true)
+            ->withAdditionalTransformation(
+                $this->dic->refinery()->custom()->constraint(
+                    static fn($value): bool => is_array($value)
+                        && count($value) === 1
+                        && isset($value[0])
+                        && $value[0] !== '',
+                    'Simple choice target ref id is invalid.'
+                )
+            );
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]
         );
+    }
+
+    /**
+     * @param array<mixed> $data
+     */
+    public function applyAdditionalFormData(array $data): void
+    {
+        $target_ref_ids = array_shift($data);
+        if (
+            !is_array($target_ref_ids)
+            || count($target_ref_ids) !== 1
+            || !isset($target_ref_ids[0])
+            || $target_ref_ids[0] === ''
+        ) {
+            throw new \LogicException('Simple choice target ref id is invalid.');
+        }
+
+        $this->setConditionTargetRefId((int) $target_ref_ids[0]);
     }
 
     /**

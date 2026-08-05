@@ -164,7 +164,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
             true,
         );
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]
         );
     }
