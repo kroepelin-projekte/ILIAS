@@ -44,7 +44,6 @@ abstract class AbstractCondition
     protected const string NAME = '';
     protected const string CREATE_COMMAND = 'createCondition';
     protected const string CONFIGURE_COMMAND = 'configure';
-    private bool $has_subtypes = false;
 
     protected ilLanguage $lang;
     protected Container $dic;
@@ -52,6 +51,7 @@ abstract class AbstractCondition
     protected ?int $lso_ref_id = null;
     protected ?int $condition_id = null;
     protected ?int $type_id = null;
+    protected ?string $subtype = null;
     protected Factory $ui_factory;
 
     public function __construct(?int $condition_id = null)
@@ -102,6 +102,18 @@ abstract class AbstractCondition
      */
     public function applyAdditionalFormData(array $data): void
     {
+        // If a condition exposes an additional form it MUST implement this hook
+        if ($this->getAdditionalForm() !== null) {
+            $method = new \ReflectionMethod(static::class, 'applyAdditionalFormData');
+            if ($method->getDeclaringClass()->getName() === self::class) {
+                throw new \LogicException(
+                    sprintf(
+                        '%s defines an additional configuration form but does not override applyAdditionalFormData().',
+                        static::class
+                    )
+                );
+            }
+        }
     }
 
     /**
@@ -113,28 +125,44 @@ abstract class AbstractCondition
     }
 
     /**
-     * @param bool $has_subtypes
-     * @return void
-     */
-    public function setHasSubTypes(bool $has_subtypes): void
-    {
-        $this->has_subtypes = $has_subtypes;
-    }
-
-    /**
      * @return bool
      */
     public function hasSubTypes(): bool
     {
-        return $this->has_subtypes;
+        $method = new ReflectionMethod(static::class, 'getSupportedSubtypes');
+        return $method->getDeclaringClass()->getName() !== self::class;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getSubtype(): string
+    public function getSubtype(): ?string
     {
-        return '';
+        return $this->subtype;
+    }
+
+    /**
+     * @param string $subtype
+     */
+    public function setSubtype(string $subtype): void
+    {
+        if (!$this->hasSubTypes()) {
+            throw new LogicException(sprintf('%s does not support subtypes.', static::class));
+        }
+
+        if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
+            throw new LogicException(sprintf('Unsupported subtype "%s".', $subtype));
+        }
+
+        $this->subtype = $subtype;
+    }
+
+    /**
+     * @return string[]
+     */
+    protected function getSupportedSubtypes(): array
+    {
+        return [];
     }
 
     /**
@@ -502,11 +530,10 @@ abstract class AbstractCondition
      * @throws ilCtrlException
      */
     protected function buildStep(
-        array   $additional_parameters = [],
+        array $additional_parameters = [],
         ?string $label = null,
         ?string $command = null,
-    ): Bulky
-    {
+    ): Bulky {
         $this->dic->ctrl()->setParameterByClass(
             ilObjLearningSequenceConditionsGUI::class,
             'type_id',
@@ -536,7 +563,7 @@ abstract class AbstractCondition
 
         return $this->ui_factory->link()->bulky(
             $this->getGlyphe(),
-            $label ?? (string)$this->getName(),
+            $label ?? (string) $this->getName(),
             $uri
         );
     }
@@ -619,15 +646,15 @@ abstract class AbstractCondition
             throw new LogicException('Condition does not exist.');
         }
 
-        $this->setLsoRefId((int)$row['lso_ref_id']);
-        $this->setObjRefId((int)$row['obj_ref_id']);
-        $this->setTypeId((int)$row['type_id']);
+        $this->setLsoRefId((int) $row['lso_ref_id']);
+        $this->setObjRefId((int) $row['obj_ref_id']);
+        $this->setTypeId((int) $row['type_id']);
         if ($this->hasSubTypes() && method_exists($this, 'setSubtype')) {
-
             $db = $this->dic->database();
             $table_name = "lsp_c_{$this->getName()}";
 
-            if ($db->tableExists($table_name)
+            if (
+                $db->tableExists($table_name)
                 && $db->tableColumnExists($table_name, 'condition_id')
                 && $db->tableColumnExists($table_name, 'subtype')
             ) {

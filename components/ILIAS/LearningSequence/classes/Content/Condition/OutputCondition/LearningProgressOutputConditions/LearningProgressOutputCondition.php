@@ -33,7 +33,6 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     private const string SUBTYPE_IN_PROGRESS = 'in_progress';
     private const string SUBTYPE_COMPLETED = 'completed';
     private const string SUBTYPE_FAILED = 'failed';
-    private ?string $subtype = null;
 
     /**
      * @inheritDoc
@@ -93,21 +92,6 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return $this->condition_id !== null || $this->subtype !== null
             ? $this->getSubtypeLabel($this->getSubtype())
             : parent::getName();
-    }
-
-    /**
-     * Set the subtype of the learning progress condition.
-     *
-     * @param string $subtype
-     * @throws \LogicException if the subtype is not supported
-     */
-    public function setSubtype(string $subtype): void
-    {
-        if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
-            throw new \LogicException('Unsupported learning progress subtype.');
-        }
-
-        $this->subtype = $subtype;
     }
 
     /**
@@ -239,7 +223,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     /**
      * @return string[]
      */
-    private function getSupportedSubtypes(): array
+    protected function getSupportedSubtypes(): array
     {
         return [
             self::SUBTYPE_NOT_ATTEMPTED,
