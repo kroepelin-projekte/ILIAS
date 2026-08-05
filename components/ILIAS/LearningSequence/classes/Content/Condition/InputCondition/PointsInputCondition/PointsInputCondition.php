@@ -62,7 +62,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
     /**
      * @inheritDoc
      */
-    public function getAdditionalForm(): ?FormStandard
+    public function getAdditionalForm(): FormStandard
     {
         $input = $this->ui_factory->input()->field()->numeric(
             'Required points',

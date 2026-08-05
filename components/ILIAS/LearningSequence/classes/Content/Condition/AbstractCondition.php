@@ -558,6 +558,11 @@ abstract class AbstractCondition
         return $this->getLso()->getLSItems();
     }
 
+    /**
+     * Reads the condition data from the database and populates the properties.
+     *
+     * @throws \LogicException if the condition id is not set or the condition does not exist
+     */
     protected function read(): void
     {
         if ($this->condition_id === null) {

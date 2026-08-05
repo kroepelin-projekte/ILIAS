@@ -65,7 +65,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     /**
      * @inheritDoc
      */
-    public function getAdditionalForm(): ?FormStandard
+    public function getAdditionalForm(): FormStandard
     {
         // TODO: Langvars auflösen (auch an anderer Stelle)
         $input = $this->ui_factory->input()->field()->numeric(
