@@ -87,6 +87,15 @@ abstract class AbstractCondition
     }
 
     /**
+     * Applies validated additional form data to the condition before create()/edit().
+     *
+     * @param array<mixed> $data
+     */
+    public function applyAdditionalFormData(array $data): void
+    {
+    }
+
+    /**
      * @return string|null
      */
     public function getName(): ?string
@@ -250,7 +259,7 @@ abstract class AbstractCondition
      * @return URI
      * @throws ilCtrlException
      */
-    protected function buildUrl(string $command): URI
+    protected function buildUrl(string $command, bool $with_configuration_gui = false): URI
     {
         $this->dic->ctrl()->setParameterByClass(
             \ilObjLearningSequenceConditionsGUI::class,
@@ -265,7 +274,14 @@ abstract class AbstractCondition
             \ilObjLearningSequenceConditionsGUI::class
         ];
 
-        if ($command === self::CONFIGURE_COMMAND) {
+        if ($command === self::CONFIGURE_COMMAND || $with_configuration_gui) {
+            if ($this->condition_id !== null) {
+                $this->dic->ctrl()->setParameterByClass(
+                    \ilObjLearningSequenceConditionConfigurationGUI::class,
+                    'condition_id',
+                    (string) $this->condition_id
+                );
+            }
             $route[] = \ilObjLearningSequenceConditionConfigurationGUI::class;
         }
 
@@ -542,6 +558,11 @@ abstract class AbstractCondition
         return $this->getLso()->getLSItems();
     }
 
+    /**
+     * Reads the condition data from the database and populates the properties.
+     *
+     * @throws \LogicException if the condition id is not set or the condition does not exist
+     */
     protected function read(): void
     {
         if ($this->condition_id === null) {

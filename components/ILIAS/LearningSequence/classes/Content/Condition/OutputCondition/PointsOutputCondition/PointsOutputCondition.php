@@ -65,7 +65,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     /**
      * @inheritDoc
      */
-    public function getAdditionalForm(): ?FormStandard
+    public function getAdditionalForm(): FormStandard
     {
         // TODO: Langvars auflösen (auch an anderer Stelle)
         $input = $this->ui_factory->input()->field()->numeric(
@@ -74,9 +74,22 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         )->withRequired(true);
 
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]
         );
+    }
+
+    /**
+     * @param array<mixed> $data
+     */
+    public function applyAdditionalFormData(array $data): void
+    {
+        $points = array_shift($data);
+        if (is_array($points) || !is_numeric($points)) {
+            throw new \LogicException('Points are invalid.');
+        }
+
+        $this->setPoints((int) $points);
     }
 
     /**

@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\DI\Container;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\UI\Component\Input\Container\Form\Standard;
 use Psr\Http\Message\ServerRequestInterface;
@@ -33,6 +34,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
     protected int $item_ref_id;
     protected int|null $condition_id = null;
     private int|null $type_id = null;
+    private ?string $subtype = null;
     private bool $create = true;
     private ArrayBasedRequestWrapper $query;
     private Container $dic;
@@ -132,6 +134,9 @@ class ilObjLearningSequenceConditionConfigurationGUI
         if (is_null($this->type_id) && $this->query->has('type_id')) {
             $this->type_id = $this->query->retrieve('type_id', $int);
         }
+        if ($this->query->has('subtype')) {
+            $this->subtype = $this->query->retrieve('subtype', $this->dic->refinery()->kindlyTo()->string());
+        }
     }
 
     /**
@@ -141,13 +146,72 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function configure(): void
     {
-        $condition = $this->discoverer->getConditionInstanceByTypeId($this->type_id, $this->lso_ref_id, $this->item_ref_id, null, null);
-        $condition->setConditionId($this->condition_id);
+        $condition = $this->buildCondition();
 
         $this->tpl->setContent(
             $this->ui_renderer->render(
                 $condition->getAdditionalForm()
             )
         );
+    }
+
+    /**
+     * @throws ilCtrlException
+     * @throws ilException
+     */
+    protected function createCondition(): void
+    {
+        $condition = $this->buildCondition();
+        $form = $condition->getAdditionalForm();
+
+        if ($form === null) {
+            throw new ilException('Condition does not provide a configuration form.');
+        }
+
+        $form = $form->withRequest($this->request);
+        $data = $form->getData();
+
+        if (!$data) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('err_check_input'), false);
+            $this->tpl->setContent($this->ui_renderer->render($form));
+            return;
+        }
+
+        try {
+            $condition->applyAdditionalFormData($data);
+            if ($this->create) {
+                $condition->create();
+            } else {
+                $condition->edit();
+            }
+        } catch (\LogicException $e) {
+            $this->tpl->setOnScreenMessage('failure', $e->getMessage(), false);
+            $this->tpl->setContent($this->ui_renderer->render($form));
+            return;
+        }
+
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'), true);
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
+        $this->ctrl->redirectByClass(
+            ilObjLearningSequenceConditionsGUI::class,
+            ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
+        );
+    }
+
+    /**
+     * @throws ilException
+     */
+    private function buildCondition(): AbstractCondition
+    {
+        $condition = $this->discoverer->getConditionInstanceByTypeId(
+            $this->type_id,
+            $this->lso_ref_id,
+            $this->item_ref_id,
+            $this->subtype
+        );
+        $condition->setConditionId($this->condition_id);
+
+        return $condition;
     }
 }

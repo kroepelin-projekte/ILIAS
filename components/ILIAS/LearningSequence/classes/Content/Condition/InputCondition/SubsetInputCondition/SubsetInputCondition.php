@@ -140,7 +140,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         )->withRequired(true);
 
         return $this->ui_factory->input()->container()->form()->standard(
-            $this->buildUrl(self::CREATE_COMMAND)->__toString(),
+            $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [
                 $multi_select,
                 $required_amount,
