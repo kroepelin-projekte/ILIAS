@@ -28,10 +28,13 @@ use ILIAS\LearningSequence\Player\AdaptiveNavigator;
  * (LSMap / LSMapNode[]) for a given learner.
  *
  * It builds a directed graph by a breadth-first traversal starting at the LSO's
- * start object, following the allowed successors. A visited-set guards against
- * cycles ("Ehrenrunden", e.g. jumping back to an earlier object after failing a
- * test), so the traversal always terminates and every object becomes exactly
- * one node (with possibly several incoming edges).
+ * start object, following the structural successors. After that it attaches any
+ * remaining disconnected or misconfigured items as additional components, so
+ * the map still exposes ALL objects of the LSO even if the configured path is
+ * incomplete. A visited-set guards against cycles ("Ehrenrunden", e.g.
+ * jumping back to an earlier object after failing a test), so the traversal
+ * always terminates and every object becomes exactly one node (with possibly
+ * several incoming edges).
  *
  * The builder does NOT render anything and does NOT compute a layout; it only
  * fills the DTOs. The waterfall layout is up to the (JS) map UI.
@@ -87,7 +90,7 @@ class LSMapDataBuilder
             return new LSMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, []);
         }
         // the effective start obj_id (may fall back to the first item)
-        $start_obj_id = \ilObject::_lookupObjId($start_item->getRefId());
+        $start_obj_id = $this->resolveObjId($start_item);
 
         $nodes = $this->traverse($position, $items, $start_item, $start_obj_id, $end_obj_id, $current_obj_id, $walked_obj_ids);
         $nodes = $this->applyViewMode($nodes, $mode);
@@ -96,9 +99,10 @@ class LSMapDataBuilder
     }
 
     /**
-     * Breadth-first traversal from the start object over the allowed
-     * successors. Uses a visited-set (keyed by obj_id) so cycles/back-jumps
-     * terminate; every object becomes exactly one node.
+     * Breadth-first traversal from the start object over the structural
+     * successors. Afterwards, every remaining item that is disconnected from
+     * the start component is traversed as an additional component so the map
+     * still includes broken or incomplete path configurations.
      *
      * @param \LSLearnerItem[] $items
      * @param int[] $walked_obj_ids
@@ -118,13 +122,61 @@ class LSMapDataBuilder
         $queue = [[$start_item, $start_obj_id]];
         $visited = [$start_obj_id => true];
 
+        $this->traverseQueue($position, $items, $queue, $visited, $depth, $nodes, $start_obj_id, $end_obj_id, $current_obj_id, $walked_obj_ids);
+
+        foreach ($this->sortItemsForDisconnectedTraversal($items) as $item) {
+            $obj_id = $this->resolveObjId($item);
+            if (isset($visited[$obj_id])) {
+                continue;
+            }
+
+            $visited[$obj_id] = true;
+            $depth[$obj_id] = $this->determineDisconnectedDepth($items, $item, $depth);
+            $queue = [[$item, $obj_id]];
+            $this->traverseQueue(
+                $position,
+                $items,
+                $queue,
+                $visited,
+                $depth,
+                $nodes,
+                $start_obj_id,
+                $end_obj_id,
+                $current_obj_id,
+                $walked_obj_ids
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param \LSLearnerItem[] $items
+     * @param array<int, array{0: \LSLearnerItem, 1: int}> $queue
+     * @param array<int, bool> $visited
+     * @param array<int, int> $depth
+     * @param array<int, LSMapNode> $nodes
+     * @param int[] $walked_obj_ids
+     */
+    protected function traverseQueue(
+        LSAdaptivePosition $position,
+        array $items,
+        array &$queue,
+        array &$visited,
+        array &$depth,
+        array &$nodes,
+        int $start_obj_id,
+        int $end_obj_id,
+        int $current_obj_id,
+        array $walked_obj_ids
+    ): void {
         while ($queue !== []) {
             [$item, $obj_id] = array_shift($queue);
 
             $successor_items = $this->navigator->getGraphSuccessors($items, $item);
             $successor_obj_ids = [];
             foreach ($successor_items as $successor) {
-                $successor_obj_id = \ilObject::_lookupObjId($successor->getRefId());
+                $successor_obj_id = $this->resolveObjId($successor);
                 $successor_obj_ids[] = $successor_obj_id;
                 if (!isset($visited[$successor_obj_id])) {
                     $visited[$successor_obj_id] = true;
@@ -146,8 +198,52 @@ class LSMapDataBuilder
                 $depth[$obj_id] ?? 0
             );
         }
+    }
 
-        return $nodes;
+    /**
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    protected function sortItemsForDisconnectedTraversal(array $items): array
+    {
+        usort(
+            $items,
+            static function (\LSLearnerItem $left, \LSLearnerItem $right): int {
+                $order_compare = $left->getOrderNumber() <=> $right->getOrderNumber();
+                if ($order_compare !== 0) {
+                    return $order_compare;
+                }
+
+                return $left->getRefId() <=> $right->getRefId();
+            }
+        );
+
+        return $items;
+    }
+
+    /**
+     * @param \LSLearnerItem[] $items
+     * @param array<int, int> $depth
+     */
+    protected function determineDisconnectedDepth(array $items, \LSLearnerItem $item, array $depth): int
+    {
+        $predecessor_depths = [];
+        foreach ($this->navigator->getPredecessors($items, $item) as $predecessor) {
+            $predecessor_obj_id = $this->resolveObjId($predecessor);
+            if (isset($depth[$predecessor_obj_id])) {
+                $predecessor_depths[] = $depth[$predecessor_obj_id];
+            }
+        }
+
+        if ($predecessor_depths !== []) {
+            return max($predecessor_depths) + 1;
+        }
+
+        if ($depth === []) {
+            return 0;
+        }
+
+        return max($depth) + 1;
     }
 
     /**
@@ -293,11 +389,16 @@ class LSMapDataBuilder
         }
         if ($start_obj_id !== 0) {
             foreach ($items as $item) {
-                if (\ilObject::_lookupObjId($item->getRefId()) === $start_obj_id) {
+                if ($this->resolveObjId($item) === $start_obj_id) {
                     return $item;
                 }
             }
         }
         return array_values($items)[0];
+    }
+
+    protected function resolveObjId(\LSLearnerItem $item): int
+    {
+        return \ilObject::_lookupObjId($item->getRefId());
     }
 }
