@@ -10,6 +10,7 @@ use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Renderer as UIRenderer;
 use Generator;
 use ilObjLearningSequenceContentGUI;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Class LSOSequentialTable
@@ -25,7 +26,7 @@ class LSOSequentialTable implements OrderingRetrieval
         protected array $items,
         protected string $target_url,
         protected string $title,
-        protected \Psr\Http\Message\ServerRequestInterface $request,
+        protected ServerRequestInterface $request,
         protected \ilGlobalTemplateInterface $tpl,
         protected int $ref_id,
         protected int $obj_id,
@@ -57,7 +58,7 @@ class LSOSequentialTable implements OrderingRetrieval
 
             $actions = $this->parent_gui->getTableActionHandler()->collectActions(
                 $ref_id,
-                (new LSOSequentialContent(
+                new LSOSequentialContent(
                     $this->parent_gui,
                     $this->ui_factory,
                     $this->ui_renderer,
@@ -67,7 +68,7 @@ class LSOSequentialTable implements OrderingRetrieval
                     $this->tpl,
                     $ref_id_lso,
                     $obj_id_lso
-                ))->getSpecificActions($ref_id, $current_op)
+                )->getSpecificActions($ref_id, $current_op)
             );
 
             $record = [
@@ -226,7 +227,7 @@ class LSOSequentialTable implements OrderingRetrieval
         $obj_id = $lso->getId();
 
         $table_actions = [];
-        $specific = (new LSOSequentialContent(
+        $specific = new LSOSequentialContent(
             $this->parent_gui,
             $this->ui_factory,
             $this->ui_renderer,
@@ -236,7 +237,7 @@ class LSOSequentialTable implements OrderingRetrieval
             $this->tpl,
             $ref_id,
             $obj_id
-        ))->getSpecificActions(0, "");
+        )->getSpecificActions(0, "");
         $actions = $this->parent_gui->getTableActionHandler()->collectActions(0, $specific);
 
         foreach ($actions as $id => $action) {

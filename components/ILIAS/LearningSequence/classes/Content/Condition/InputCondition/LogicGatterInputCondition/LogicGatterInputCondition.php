@@ -267,4 +267,16 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
             'condition_id' => ['integer', $condition_id],
         ]);
     }
+
+    /**
+     * @inheritDoc
+     */
+    protected function deleteConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+    }
 }
