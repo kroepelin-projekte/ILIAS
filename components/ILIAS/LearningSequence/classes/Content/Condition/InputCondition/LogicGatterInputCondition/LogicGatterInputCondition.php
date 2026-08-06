@@ -21,12 +21,16 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition;
 
 use ilCtrlException;
+use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
-use ilObjLearningSequenceConditionConfigurationGUI;
+use ReflectionException;
 
 class LogicGatterInputCondition extends AbstractCondition implements InputConditionInterface
 {
@@ -36,8 +40,24 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     private const string SUBTYPE_AND = 'AND';
     private const string SUBTYPE_OR = 'OR';
     private const string SUBTYPE_NOT = 'NOT';
-    private string $objects = '';
+    private string $items = '';
+    private ilObjLearningSequenceConditionDiscover $discover;
+    private ConditionFactory $condition_factory;
 
+    public function __construct(?int $condition_id = null)
+    {
+        parent::__construct($condition_id);
+
+        $this->discover = new ilObjLearningSequenceConditionDiscover();
+        $this->condition_factory = new ConditionFactory(
+            $this->discover,
+            $this->dic->database(),
+        );
+    }
+
+    /**
+     * @return void
+     */
     public function read(): void
     {
         parent::read();
@@ -47,18 +67,33 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
             "SELECT objects FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
         );
         if ($row = $db->fetchAssoc($query)) {
-            $this->objects = $row['objects'];
+            $this->items = $row['items'];
         }
     }
 
-    public function getObjects(): string
+    /**
+     * @return string
+     */
+    public function getItems(): string
     {
-        return $this->objects;
+        return $this->items;
     }
 
-    public function setObjects(string $objects): void
+    /**
+     * @param string $items
+     * @return void
+     */
+    public function setItems(string $items): void
     {
-        $this->objects = $objects;
+        $this->items = $items;
+    }
+
+    /**
+     * @return array
+     */
+    private function getItemsAsArray(): array
+    {
+        return array_filter(explode(', ', $this->items));
     }
 
     /**
@@ -72,7 +107,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
-                    'objects' => ['type' => 'text', 'length' => 4000, 'notnull' => true],
+                    'items' => ['type' => 'text', 'length' => 4000, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
             )
@@ -110,27 +145,71 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     }
 
     /**
+     * Check if at least one output condition of the item is fulfilled.
+     *
+     * @throws ReflectionException
+     * @throws ilException
+     */
+    private function isItemCompleted(int $item_ref_id): bool
+    {
+        $conditions_of_item = $this->discover->getAllConditionIdsForItem($item_ref_id);
+
+        $conditions = array_map(
+            fn ($condition_id) => $this->condition_factory->getConditionInstanceById($condition_id),
+            $conditions_of_item
+        );
+
+        $output_conditions = array_filter(
+            $conditions,
+            fn ($condition) => $condition instanceof OutputConditionInterface
+        );
+
+        return array_any(
+            $output_conditions,
+            fn ($condition) => $condition->check()
+        );
+    }
+
+    /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function areAllItemsCompleted(): bool
     {
-        return array_all($this->getLsoItems(), fn($lsoItem) => $lsoItem->isCompleted());
+        $items = $this->getItemsAsArray();
+
+        if (empty($items)) {
+            return true;
+        }
+
+        return array_all(
+            $items,
+            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+        );
     }
 
     /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function isAnyItemCompleted(): bool
     {
-        return array_any($this->getLsoItems(), fn($lsoItem) => $lsoItem->isCompleted());
+        return array_any(
+            $this->getItemsAsArray(),
+            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+        );
     }
 
     /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function areNoItemsCompleted(): bool
     {
-        return array_all($this->getLsoItems(), fn($lsoItem) => !$lsoItem->isCompleted());
+        return !$this->isAnyItemCompleted();
     }
 
     /**
@@ -206,12 +285,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         );
 
         if ($this->condition_id !== null) {
-
-            $objects_array = array_filter(
-                explode(', ', $this->getObjects())
-            );
-
-            $input = $input->withValue($objects_array);
+            $input = $input->withValue($this->getItemsAsArray());
         }
 
         return $this->ui_factory->input()->container()->form()->standard(
@@ -237,8 +311,8 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
      */
     public function applyAdditionalFormData(array $data): void
     {
-        $objects_string = implode(', ', array_filter($data[0] ?? []));
-        $this->setObjects($objects_string);
+        $items_string = implode(', ', array_filter($data[0] ?? []));
+        $this->setItems($items_string);
     }
 
     /**
@@ -250,7 +324,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
             'subtype' => ['text', $this->getSubtype()],
-            'objects' => ['text', $this->getObjects()],
+            'items' => ['text', $this->getItems()],
         ]);
     }
 
@@ -262,7 +336,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     {
         $this->getDatabase()->update(self::SETTINGS_TABLE, [
             'subtype' => ['text', $this->getSubtype()],
-            'objects' => ['text', $this->getObjects()],
+            'items' => ['text', $this->getItems()],
         ], [
             'condition_id' => ['integer', $condition_id],
         ]);
