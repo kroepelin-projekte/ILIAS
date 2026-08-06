@@ -25,14 +25,14 @@ use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDisco
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
-use ILIAS\LearningSequence\Content\Condition\InputCondition\SimpleChoiceInputCondition\SimpleChoiceInputCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\SingleChoiceInputCondition\SingleChoiceInputCondition;
 
 /**
  * Adaptive navigation: successors and predecessors are not derived from the
  * fixed list order but from the input-/output-conditions of the objects.
  *
- * The graph edges are encoded by the SimpleChoiceInputCondition: an object X
- * carrying a SimpleChoiceInputCondition with target_ref_id = Y expresses the
+ * The graph edges are encoded by the SingleChoiceInputCondition: an object X
+ * carrying a SingleChoiceInputCondition with target_ref_id = Y expresses the
  * edge Y -> X (i.e. X is a successor of Y and Y is a predecessor of X).
  *
  * The conditions are re-evaluated on every request: an object may only be left
@@ -156,7 +156,7 @@ class AdaptiveNavigator implements LSNavigator
 
     /**
      * Evaluates a single condition defensively. Some condition checks rely on
-     * the learning-progress subsystem (e.g. SimpleChoiceInputCondition ->
+     * the learning-progress subsystem (e.g. SingleChoiceInputCondition ->
      * ilLPStatus::_hasUserCompleted), which can throw when the referenced
      * object has no valid LP mode configured (LP_MODE_UNDEFINED). In that case
      * the condition is treated as NOT fulfilled instead of letting the
@@ -173,7 +173,7 @@ class AdaptiveNavigator implements LSNavigator
 
     /**
      * Whether there is a graph edge $from_ref_id -> $to_ref_id, i.e. the target
-     * object carries a SimpleChoiceInputCondition pointing back to the source.
+     * object carries a SingleChoiceInputCondition pointing back to the source.
      */
     protected function isEdge(int $from_ref_id, int $to_ref_id): bool
     {
@@ -182,7 +182,7 @@ class AdaptiveNavigator implements LSNavigator
 
     /**
      * Returns the ref_ids the given object points to via its
-     * SimpleChoiceInputConditions (its graph predecessors).
+     * SingleChoiceInputConditions (its graph predecessors).
      *
      * @return int[]
      */
@@ -190,7 +190,7 @@ class AdaptiveNavigator implements LSNavigator
     {
         $targets = [];
         foreach ($this->getConditionsFor($item_ref_id) as $condition) {
-            if ($condition instanceof SimpleChoiceInputCondition) {
+            if ($condition instanceof SingleChoiceInputCondition) {
                 try {
                     $targets[] = $condition->getConditionTargetRefId();
                 } catch (\Throwable $t) {

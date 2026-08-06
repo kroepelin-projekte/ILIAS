@@ -101,6 +101,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
 
     /**
      * @return void
+     * @throws ilCtrlException
      */
     private function initCondition(): void
     {
@@ -138,6 +139,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
         }
         if ($this->query->has('subtype')) {
             $this->subtype = $this->query->retrieve('subtype', $this->dic->refinery()->kindlyTo()->string());
+            $this->ctrl->setParameter($this, 'subtype', $this->subtype);
         }
     }
 

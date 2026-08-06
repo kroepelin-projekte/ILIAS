@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SimpleChoiceInputCondition;
+namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SingleChoiceInputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
@@ -28,9 +28,9 @@ use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ilLPStatus;
 
 /**
- * Class SimpleChoiceInputCondtion
+ * Class SingleChoiceInputCondtion
  */
-final class SimpleChoiceInputCondition extends AbstractCondition implements InputConditionInterface
+final class SingleChoiceInputCondition extends AbstractCondition implements InputConditionInterface
 {
     final protected const string NAME = "simple_choice";
     private const string SETTINGS_TABLE = 'lso_c_simple_choice';
