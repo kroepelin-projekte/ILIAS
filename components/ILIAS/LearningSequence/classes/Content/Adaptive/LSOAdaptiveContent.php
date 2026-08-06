@@ -79,8 +79,6 @@ class LSOAdaptiveContent implements LSOContentController
         $this->parent_gui->showPossibleSubObjects();
 
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
-        $this->tpl->addCss("assets/css/alp_learning_sequence_map.css");
-        $this->tpl->addJavaScript("assets/js/alp_learning_sequence_map.js");
 
         $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
         $items = $lso->getLSItems();

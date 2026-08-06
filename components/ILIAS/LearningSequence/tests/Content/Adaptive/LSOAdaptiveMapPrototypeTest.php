@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 
 class LSOAdaptiveMapPrototypeTest extends TestCase
 {
-    public function testRenderShowsStartEndCurrentAndConditions(): void
+    public function testRenderShowsTableStylePathVisualization(): void
     {
         $condition = $this->createMock(AbstractCondition::class);
         $condition->method('getName')->willReturn('Learning Progress');
@@ -104,10 +104,11 @@ class LSOAdaptiveMapPrototypeTest extends TestCase
         $html = (new LSOAdaptiveMapPrototype($map, $factory))->render();
 
         $this->assertStringContainsString('Pfadkarte (Prototyp)', $html);
-        $this->assertStringContainsString('Visualisierung aller LSO-Objekte', $html);
-        $this->assertStringContainsString('data-obj-id="20"', $html);
-        $this->assertStringContainsString('alp-ls-map-node--current', $html);
-        $this->assertStringContainsString('alp-ls-map-node--blocked', $html);
+        $this->assertStringContainsString('alp-ls-path-table', $html);
+        $this->assertStringContainsString('alp-ls-path-table__connector-cell--horizontal', $html);
+        $this->assertStringContainsString('alp-ls-path-table__connector-cell--vertical', $html);
+        $this->assertStringContainsString('alp-ls-path-table__node--current', $html);
+        $this->assertStringContainsString('alp-ls-path-table__node--blocked', $html);
         $this->assertStringContainsString('Learning Progress', $html);
         $this->assertStringContainsString('Start', $html);
         $this->assertStringContainsString('Ende', $html);
