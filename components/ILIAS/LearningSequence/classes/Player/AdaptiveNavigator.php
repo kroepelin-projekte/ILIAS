@@ -113,6 +113,48 @@ class AdaptiveNavigator implements LSNavigator
     }
 
     /**
+     * The condition-ids of ALL input-conditions of the given object (not only
+     * the SimpleChoiceInputCondition that forms the graph edges). Used by the
+     * map data layer to expose which conditions must be met to enter an object.
+     *
+     * @return int[]
+     */
+    public function getInputConditionIds(\LSLearnerItem $item): array
+    {
+        $ids = [];
+        foreach ($this->getConditionsFor($item->getRefId()) as $condition) {
+            if ($condition instanceof InputConditionInterface) {
+                $id = $condition->getConditionId();
+                if ($id !== null) {
+                    $ids[] = $id;
+                }
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * The condition-ids of ALL output-conditions of the given object. Used by
+     * the map data layer to expose which conditions must be met to leave an
+     * object.
+     *
+     * @return int[]
+     */
+    public function getOutputConditionIds(\LSLearnerItem $item): array
+    {
+        $ids = [];
+        foreach ($this->getConditionsFor($item->getRefId()) as $condition) {
+            if ($condition instanceof OutputConditionInterface) {
+                $id = $condition->getConditionId();
+                if ($id !== null) {
+                    $ids[] = $id;
+                }
+            }
+        }
+        return $ids;
+    }
+
+    /**
      * Evaluates a single condition defensively. Some condition checks rely on
      * the learning-progress subsystem (e.g. SimpleChoiceInputCondition ->
      * ilLPStatus::_hasUserCompleted), which can throw when the referenced

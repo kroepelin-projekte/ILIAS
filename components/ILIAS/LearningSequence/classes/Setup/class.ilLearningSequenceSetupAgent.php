@@ -91,6 +91,9 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
             new \ilDatabaseUpdateStepsExecutedObjective(
                 new \ilLearningSequenceItemPathDBUpdateSteps()
             ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceItemVisitsDBUpdateSteps()
+            ),
             new ilLearningSequenceConditionsSyncedObjective()
         );
     }
@@ -117,6 +120,7 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemBoundariesDBUpdateSteps()),
             new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemPathDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemVisitsDBUpdateSteps()),
             new ilLearningSequenceConditionsSyncedObjective()
         );
     }

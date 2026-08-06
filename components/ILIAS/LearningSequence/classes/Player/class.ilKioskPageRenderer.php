@@ -118,10 +118,10 @@ class ilKioskPageRenderer
 
         $this->tpl->setVariable(
             "PLAYER_NAVIGATION",
-            $this->ui_renderer->render([
+            $this->ui_renderer->render(array_values(array_filter([
                 $control_builder->getPreviousControl(),
                 $control_builder->getNextControl()
-            ])
+            ])))
         );
 
         $controls = $control_builder->getControls();

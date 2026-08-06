@@ -23,6 +23,9 @@ use ILIAS\Data\Factory as DataFactory;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\LearningSequence\Player\LinearNavigator;
 use ILIAS\LearningSequence\Player\AdaptiveNavigator;
+use ILIAS\LearningSequence\Player\Map\LSAdaptivePosition;
+use ILIAS\LearningSequence\Player\Map\LSMapDataBuilder;
+use ILIAS\LearningSequence\Player\LSChoicePageBuilder;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 
@@ -238,6 +241,26 @@ class ilLSLocalDI extends Container
                 ? new AdaptiveNavigator()
                 : new LinearNavigator();
 
+            $item_path = new LSOItemPath($dic["ilDB"]);
+            $boundaries = new LSOAdaptiveBoundaries($dic["ilDB"]);
+
+            // Position ("where is the learner in the LSO") and the reusable
+            // choice-page template are injected so that both can be reused
+            // (e.g. by the upcoming map view) independently of the player.
+            $position = new LSAdaptivePosition(
+                $navigator,
+                $item_path,
+                $boundaries,
+                $c["obj.obj_id"],
+                $c["usr.id"],
+                $dic["ilDB"]
+            );
+            $choice_page_builder = new LSChoicePageBuilder(
+                $dic["ui.factory"],
+                $c["player.urlbuilder"],
+                ilLSPlayer::LSO_CMD_GOTO
+            );
+
             return new ilLSPlayer(
                 $c["learneritems"],
                 $c["player.controlbuilder"],
@@ -250,10 +273,56 @@ class ilLSLocalDI extends Container
                 $dic["refinery"],
                 $navigator,
                 $mode,
-                new LSOItemPath($dic["ilDB"]),
-                new LSOAdaptiveBoundaries($dic["ilDB"]),
+                $item_path,
+                $boundaries,
                 $c["obj.obj_id"],
-                $c["usr.id"]
+                $c["usr.id"],
+                $position,
+                $choice_page_builder
+            );
+        };
+
+        // Map data layer: assembles the object graph plus per-learner state
+        // (LSMap/LSMapNode) reusing the adaptive position/navigator. The map is
+        // only meaningful for the adaptive mode, so it always uses an
+        // AdaptiveNavigator (and its own LSAdaptivePosition on top of it).
+        $this["map.data_builder"] = function ($c) use ($dic): LSMapDataBuilder {
+            $navigator = new AdaptiveNavigator();
+            $item_path = new LSOItemPath($dic["ilDB"]);
+            $boundaries = new LSOAdaptiveBoundaries($dic["ilDB"]);
+
+            $lso_obj_id = $c["obj.obj_id"];
+            $ref_id = $c["obj.ref_id"];
+            $db = $dic["ilDB"];
+            $progress_db = $c["db.progress"];
+
+            // Position and learner items are user-specific, so we hand the
+            // builder two factories keyed by user_id instead of ready-made
+            // objects. This way build($mode, $usr_id) can produce the map of any
+            // learner (e.g. a future tutor view over all participants), while
+            // the default (current) user stays $c["usr.id"].
+            $position_factory = static function (int $usr_id) use ($navigator, $item_path, $boundaries, $lso_obj_id, $db): LSAdaptivePosition {
+                return new LSAdaptivePosition(
+                    $navigator,
+                    $item_path,
+                    $boundaries,
+                    $lso_obj_id,
+                    $usr_id,
+                    $db
+                );
+            };
+            $items_factory = static function (int $usr_id) use ($progress_db, $ref_id): array {
+                return $progress_db->getLearnerItems($usr_id, $ref_id);
+            };
+
+            return new LSMapDataBuilder(
+                $navigator,
+                $c["player.urlbuilder"],
+                ilLSPlayer::LSO_CMD_GOTO,
+                $lso_obj_id,
+                $c["usr.id"],
+                $position_factory,
+                $items_factory
             );
         };
 
