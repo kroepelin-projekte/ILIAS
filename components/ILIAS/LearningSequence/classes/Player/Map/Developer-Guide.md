@@ -29,7 +29,7 @@ PHP (Server)                                  JS (Client)
 LSAdaptivePosition  ─┐
                      ├─►  LSMapDataBuilder ─► LSMap ─► toArray() ─► json_encode ─► JS-Lib
 AdaptiveNavigator   ─┘         (BFS)        │
-LSLearnerItem[]     ─┘                      └─ LSMapNode[] (die Knoten)
+LSLearnerItem[]     ─┘                      └─► LSMapNode[] (die Knoten)
 ```
 
 - **`LSAdaptivePosition`** kennt die Position des Users im Objekt-Graphen

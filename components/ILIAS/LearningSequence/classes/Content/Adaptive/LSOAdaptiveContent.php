@@ -113,7 +113,21 @@ class LSOAdaptiveContent implements LSOContentController
             $this->tpl
         );
 
-        $this->parent_gui->setContent($table->render());
+        $this->parent_gui->setContent(
+            $table->render()
+            . $this->renderMapPrototype()
+        );
+    }
+
+    /**
+     * TEMP: renders the prototype of the adaptive map below the table.
+     * #ToDo remove/replace once the map is a real component.
+     */
+    protected function renderMapPrototype(): string
+    {
+        require_once __DIR__ . '/temp/LSOAdaptiveMapPrototype.php';
+        $map = new LSOAdaptiveMapPrototype($this->ui_factory, $this->ui_renderer);
+        return $map->render();
     }
 
     protected function getTableData(array $items, ?array $filter_data): array
