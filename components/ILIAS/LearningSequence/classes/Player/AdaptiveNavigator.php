@@ -77,6 +77,30 @@ class AdaptiveNavigator implements LSNavigator
     }
 
     /**
+     * Returns the structural graph successors of the current object regardless
+     * of whether the learner may already enter them. This is used for map
+     * visualizations that need the full route including currently blocked
+     * branches.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    public function getGraphSuccessors(array $items, \LSLearnerItem $current): array
+    {
+        $successors = [];
+        foreach ($items as $item) {
+            if ($item->getRefId() === $current->getRefId()) {
+                continue;
+            }
+            if (!$this->isEdge($current->getRefId(), $item->getRefId())) {
+                continue;
+            }
+            $successors[] = $item;
+        }
+        return $successors;
+    }
+
+    /**
      * @param \LSLearnerItem[] $items
      * @return \LSLearnerItem[]
      */

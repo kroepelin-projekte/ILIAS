@@ -121,7 +121,7 @@ class LSMapDataBuilder
         while ($queue !== []) {
             [$item, $obj_id] = array_shift($queue);
 
-            $successor_items = $position->getSuccessors($items, $item);
+            $successor_items = $this->navigator->getGraphSuccessors($items, $item);
             $successor_obj_ids = [];
             foreach ($successor_items as $successor) {
                 $successor_obj_id = \ilObject::_lookupObjId($successor->getRefId());
