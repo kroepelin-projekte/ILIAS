@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Adaptive;
 
+require_once __DIR__ . '/LSOAdaptiveMapPrototype.php';
+
 use ilObjLearningSequenceContentGUI;
 use ilObjLearningSequenceContentData;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveTable;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveFilter;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
+use ILIAS\LearningSequence\Player\Map\LSMapViewMode;
 
 /**
  * Class LSOAdaptiveContent
@@ -67,12 +72,18 @@ class LSOAdaptiveContent implements LSOContentController
 
     public function manageContent(): void
     {
+        global $DIC;
+
         // Restore the "add new object" drilldown in the toolbar so that new
         // objects can be created directly from the content management view.
         $this->parent_gui->showPossibleSubObjects();
 
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
-        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $this->tpl->addCss("assets/css/alp_learning_sequence_map.css");
+        $this->tpl->addJavaScript("assets/js/alp_learning_sequence_map.js");
+
+        $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+        $items = $lso->getLSItems();
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
         $filter = $filter_gui->getFilter(
             'manageContent',
@@ -113,7 +124,13 @@ class LSOAdaptiveContent implements LSOContentController
             $this->tpl
         );
 
-        $this->parent_gui->setContent($table->render());
+        $map_builder = $lso->getLocalDI()['map.data_builder'];
+        $discoverer = new ilObjLearningSequenceConditionDiscover();
+        $condition_factory = new ConditionFactory($discoverer, $DIC->database());
+        $map = $map_builder->build(LSMapViewMode::MODE_FULL_ROUTE);
+        $prototype = new LSOAdaptiveMapPrototype($map, $condition_factory);
+
+        $this->parent_gui->setContent($table->render() . $prototype->render());
     }
 
     protected function getTableData(array $items, ?array $filter_data): array
