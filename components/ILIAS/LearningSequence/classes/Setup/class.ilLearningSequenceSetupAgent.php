@@ -132,6 +132,7 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
     {
         return [
             new InitLOMForLearningSequenceMigration(),
+            new LSOMigrateCurriculumToLearningMap(),
         ];
     }
 }

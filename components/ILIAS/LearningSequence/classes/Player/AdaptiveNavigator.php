@@ -44,6 +44,30 @@ class AdaptiveNavigator implements LSNavigator
     protected ilObjLearningSequenceConditionDiscover $discoverer;
     protected ConditionFactory $condition_factory;
 
+    /**
+     * Request-caches. The conditions of an object and their evaluation do not
+     * change while a single request is being processed, but they are asked for
+     * over and over again while the graph is traversed.
+     *
+     * @var array<int, AbstractCondition[]>
+     */
+    protected array $conditions_cache = [];
+
+    /**
+     * @var array<int, int[]> the graph predecessors per ref_id
+     */
+    protected array $edge_targets_cache = [];
+
+    /**
+     * @var array<int, bool>
+     */
+    protected array $can_leave_cache = [];
+
+    /**
+     * @var array<int, bool>
+     */
+    protected array $can_enter_ignoring_edges_cache = [];
+
     public function __construct(
         ?ilObjLearningSequenceConditionDiscover $discoverer = null,
         ?ConditionFactory $condition_factory = null
@@ -52,6 +76,44 @@ class AdaptiveNavigator implements LSNavigator
         $this->discoverer = $discoverer ?? new ilObjLearningSequenceConditionDiscover();
         $this->condition_factory = $condition_factory
             ?? new ConditionFactory($this->discoverer, $DIC->database());
+    }
+
+    /**
+     * Loads the condition-ids of all given items with one single query instead
+     * of one query per item and fills the condition cache. Calling this before
+     * traversing the graph turns the repeated lookups of the traversal into
+     * pure array lookups.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function preload(array $items): void
+    {
+        $ref_ids = [];
+        foreach ($items as $item) {
+            $ref_ids[] = $item->getRefId();
+        }
+        $ref_ids = array_values(array_filter(
+            array_unique($ref_ids),
+            fn(int $ref_id): bool => !isset($this->conditions_cache[$ref_id])
+        ));
+
+        if ($ref_ids === []) {
+            return;
+        }
+
+        $ids_per_item = $this->discoverer->preloadConditionIdsForItems($ref_ids);
+
+        foreach ($ids_per_item as $ref_id => $ids) {
+            $conditions = [];
+            foreach ($ids as $id) {
+                try {
+                    $conditions[] = $this->condition_factory->getConditionInstanceById($id);
+                } catch (\Throwable $t) {
+                    continue;
+                }
+            }
+            $this->conditions_cache[$ref_id] = $conditions;
+        }
     }
 
     /**
@@ -113,12 +175,21 @@ class AdaptiveNavigator implements LSNavigator
 
     public function canLeave(\LSLearnerItem $current): bool
     {
-        foreach ($this->getConditionsFor($current->getRefId()) as $condition) {
+        $ref_id = $current->getRefId();
+        if (isset($this->can_leave_cache[$ref_id])) {
+            return $this->can_leave_cache[$ref_id];
+        }
+
+        $can_leave = true;
+        foreach ($this->getConditionsFor($ref_id) as $condition) {
             if ($condition instanceof OutputConditionInterface && !$this->checkCondition($condition)) {
-                return false;
+                $can_leave = false;
+                break;
             }
         }
-        return true;
+
+        $this->can_leave_cache[$ref_id] = $can_leave;
+        return $can_leave;
     }
 
     public function canEnter(\LSLearnerItem $target): bool
@@ -139,15 +210,24 @@ class AdaptiveNavigator implements LSNavigator
      */
     public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
     {
-        foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
+        $ref_id = $target->getRefId();
+        if (isset($this->can_enter_ignoring_edges_cache[$ref_id])) {
+            return $this->can_enter_ignoring_edges_cache[$ref_id];
+        }
+
+        $can_enter = true;
+        foreach ($this->getConditionsFor($ref_id) as $condition) {
             if ($condition instanceof LearningProgressInputCondition) {
                 continue;
             }
             if ($condition instanceof InputConditionInterface && !$this->checkCondition($condition)) {
-                return false;
+                $can_enter = false;
+                break;
             }
         }
-        return true;
+
+        $this->can_enter_ignoring_edges_cache[$ref_id] = $can_enter;
+        return $can_enter;
     }
 
     /**
@@ -257,6 +337,10 @@ class AdaptiveNavigator implements LSNavigator
      */
     protected function getEdgeTargetsFor(int $item_ref_id): array
     {
+        if (isset($this->edge_targets_cache[$item_ref_id])) {
+            return $this->edge_targets_cache[$item_ref_id];
+        }
+
         $targets = [];
         foreach ($this->getConditionsFor($item_ref_id) as $condition) {
             if ($condition instanceof LearningProgressInputCondition) {
@@ -267,6 +351,8 @@ class AdaptiveNavigator implements LSNavigator
                 }
             }
         }
+
+        $this->edge_targets_cache[$item_ref_id] = $targets;
         return $targets;
     }
 
@@ -275,6 +361,10 @@ class AdaptiveNavigator implements LSNavigator
      */
     protected function getConditionsFor(int $item_ref_id): array
     {
+        if (isset($this->conditions_cache[$item_ref_id])) {
+            return $this->conditions_cache[$item_ref_id];
+        }
+
         $conditions = [];
         foreach ($this->discoverer->getAllConditionIdsForItem($item_ref_id) as $condition_id) {
             try {
@@ -283,6 +373,8 @@ class AdaptiveNavigator implements LSNavigator
                 continue;
             }
         }
+
+        $this->conditions_cache[$item_ref_id] = $conditions;
         return $conditions;
     }
 }

@@ -26,7 +26,7 @@ use ILIAS\Refinery;
 use ILIAS\UI\Component\Component;
 use ILIAS\HTTP\Wrapper\RequestWrapper;
 use ILIAS\LearningSequence\Player\LSNavigator;
-use ILIAS\LearningSequence\Player\Map\LSAdaptivePosition;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapPosition;
 use ILIAS\LearningSequence\Player\LSChoicePageBuilder;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
@@ -41,6 +41,7 @@ class ilLSPlayer
 
     public const LSO_CMD_NEXT = 'lsonext'; //with param directions
     public const LSO_CMD_GOTO = 'lsogoto'; //with param ref_id
+    public const LSO_CMD_JUMP = 'lsojump'; //jump right to an object, with param obj_id (adaptive) resp. ref_id
     public const LSO_CMD_SUSPEND = 'lsosuspend';
     public const LSO_CMD_FINISH = 'lsofinish';
     public const LSO_CMD_CHOICE = 'lsochoice'; //show the branch/dead-end interstitial page
@@ -56,7 +57,6 @@ class ilLSPlayer
         protected ilLSLearnerItemsQueries $ls_items,
         protected LSControlBuilder $control_builder,
         protected LSUrlBuilder $url_builder,
-        protected ilLSCurriculumBuilder $curriculum_builder,
         protected ilLSViewFactory $view_factory,
         protected ilKioskPageRenderer $page_renderer,
         protected Factory $ui_factory,
@@ -68,7 +68,7 @@ class ilLSPlayer
         protected ?LSOAdaptiveBoundaries $boundaries = null,
         protected int $lso_obj_id = 0,
         protected int $usr_id = 0,
-        protected ?LSAdaptivePosition $position = null,
+        protected ?LSOLearningMapPosition $position = null,
         protected ?LSChoicePageBuilder $choice_page_builder = null
     ) {
     }
@@ -133,6 +133,17 @@ class ilLSPlayer
             case self::LSO_CMD_GOTO:
                 if ($this->isAdaptive()) {
                     $next_item = $this->gotoAdaptive($items, $current_item, $param);
+                    break;
+                }
+                list(, $next_item) = $this->findItemByRefId($items, $param);
+                break;
+            case self::LSO_CMD_JUMP:
+                // Coming from the learning map: the learner picked one specific
+                // object, which is not necessarily a successor of the object
+                // worked on last. Without this the player would silently stay
+                // where it was.
+                if ($this->isAdaptive()) {
+                    $next_item = $this->jumpAdaptive($items, $current_item, $param);
                     break;
                 }
                 list(, $next_item) = $this->findItemByRefId($items, $param);
@@ -309,6 +320,18 @@ class ilLSPlayer
             }
         }
 
+        $mainbar_controls = [];
+
+        // The learning map lives in the main bar and opens in a modal; the
+        // modal itself has to be part of the page, so it is appended to the
+        // content before the body is rendered.
+        $map_html = $this->getLearningMapHtml($ls_ref_id);
+        if ($map_html !== '') {
+            list($map_button, $map_modal) = $this->page_renderer->buildLearningMapEntry($map_html);
+            $mainbar_controls['learning_map'] = $map_button;
+            $content[] = $map_modal;
+        }
+
         $rendered_body = $this->page_renderer->render(
             $control_builder,
             $obj_title,
@@ -320,15 +343,6 @@ class ilLSPlayer
 
         $metabar_controls = [
             'exit' => $control_builder->getExitControl()
-        ];
-
-        $curriculum_slate = $this->page_renderer->buildCurriculumSlate(
-            $this->curriculum_builder
-                ->getLearnerCurriculum(true, $ls_title)
-                ->withActive($item_position)
-        );
-        $mainbar_controls = [
-            'curriculum' => $curriculum_slate
         ];
 
         $toc = $control_builder->getToc();
@@ -346,6 +360,25 @@ class ilLSPlayer
 
         return null;
     }
+
+    /**
+     * The learning map of the current user, without the panel around it - it
+     * is shown inside the modal of the main bar entry. Which map is built
+     * (adaptive graph or sequential chain) is decided by the operation mode.
+     */
+    protected function getLearningMapHtml(int $ls_ref_id): string
+    {
+        $lso = ilObjectFactory::getInstanceByRefId($ls_ref_id, false);
+        if (!$lso instanceof ilObjLearningSequence) {
+            return '';
+        }
+
+        $this->page_renderer->addCss(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::CSS);
+        $this->page_renderer->addJs(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::JS, true);
+
+        return $lso->getCurrentUserLearningMap(false);
+    }
+
 
     /**
      * @param array LSLearnerItem[]
@@ -545,8 +578,16 @@ class ilLSPlayer
     }
 
     /**
-     * Handles the choice on a branch in adaptive mode.
+     * Jumps right to the chosen object in adaptive mode (learning map).
      *
+     * @param LSLearnerItem[] $items
+     */
+    protected function jumpAdaptive(array $items, LSLearnerItem $current_item, ?int $param): LSLearnerItem
+    {
+        return $this->position->jumpTo($items, $current_item, $param);
+    }
+
+    /**
      * @param LSLearnerItem[] $items
      */
     protected function gotoAdaptive(array $items, LSLearnerItem $current_item, ?int $param): LSLearnerItem

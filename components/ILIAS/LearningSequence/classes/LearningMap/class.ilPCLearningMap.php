@@ -19,13 +19,22 @@
 declare(strict_types=1);
 
 /**
- * Curriculum for PageEditor
+ * The learning map as a page content element.
+ *
+ * It may only be placed on the intro-/extro-page of a learning sequence (see
+ * ilLearningSequencePageObjectGUI::getPageConfig()), so the parent object of
+ * the page always is the learning sequence the map is drawn for. Which map is
+ * drawn - the condition graph of the adaptive mode or the plain chain of the
+ * sequential one - is decided by the operation mode of that learning sequence.
+ *
+ * The element carries no settings at all: it is inserted and renders the map of
+ * the current user.
  */
-class ilPCCurriculum extends ilPageContent
+class ilPCLearningMap extends ilPageContent
 {
-    public const PCTYPE = 'lsocurriculum';
-    public const PCELEMENT = 'Curriculum';
-    public const PLACEHOLDER = '[[[CURRICULUM]]]';
+    public const PCTYPE = 'lsolearningmap';
+    public const PCELEMENT = 'LearningMap';
+    public const PLACEHOLDER = '[[[LEARNINGMAP]]]';
     public const PROVIDING_TYPES = ['lso'];
 
     public function init(): void
@@ -40,8 +49,8 @@ class ilPCCurriculum extends ilPageContent
     ): void {
         $this->createPageContentNode();
         $a_pg_obj->insertContent($this, $a_hier_id, IL_INSERT_AFTER, $a_pc_id);
-        $cach_node = $this->dom_doc->createElement(self::PCELEMENT);
-        $this->getDomNode()->appendChild($cach_node);
+        $map_node = $this->dom_doc->createElement(self::PCELEMENT);
+        $this->getDomNode()->appendChild($map_node);
     }
 
     /**
@@ -57,23 +66,23 @@ class ilPCCurriculum extends ilPageContent
         }
 
         $parent_obj_id = (int) $this->getPage()->getParentId();
-        if ($this->supportsCurriculum($parent_obj_id)) {
-            $a_output = $this->replaceWithRenderedCurriculum($parent_obj_id, $a_output);
+        if ($this->supportsLearningMap($parent_obj_id)) {
+            $a_output = $this->replaceWithRenderedLearningMap($parent_obj_id, $a_output);
         }
 
         return $a_output;
     }
 
-    protected function supportsCurriculum(int $parent_obj_id): bool
+    protected function supportsLearningMap(int $parent_obj_id): bool
     {
         $parent_obj_type = \ilObject::_lookupType($parent_obj_id);
         return in_array($parent_obj_type, self::PROVIDING_TYPES);
     }
 
-    protected function replaceWithRenderedCurriculum(int $obj_id, string $html): string
+    protected function replaceWithRenderedLearningMap(int $obj_id, string $html): string
     {
         $lso = \ilObjectFactory::getInstanceByObjId($obj_id);
-        $rendered_curriculum = $lso->getCurrentUserCurriculum();
-        return str_replace(self::PLACEHOLDER, $rendered_curriculum, $html);
+        $rendered_map = $lso->getCurrentUserLearningMap();
+        return str_replace(self::PLACEHOLDER, $rendered_map, $html);
     }
 }

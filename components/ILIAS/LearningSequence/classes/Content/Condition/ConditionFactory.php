@@ -27,10 +27,20 @@ use ReflectionException;
 
 class ConditionFactory
 {
+    /**
+     * Maps the short class name of a condition to its fully qualified name.
+     * Building this map requires reflection over all discovered condition
+     * classes, which never change within a request.
+     *
+     * @var array<string, string>|null
+     */
+    private static ?array $class_map = null;
+
     public function __construct(
         private ilObjLearningSequenceConditionDiscover $discover,
         private ilDBInterface $db
-    ) {}
+    ) {
+    }
 
     /**
      * @throws ilException|ReflectionException
@@ -95,16 +105,34 @@ class ConditionFactory
     public function getConditionInstanceByName(string $condition_name): AbstractCondition
     {
         $condition_name .= 'Condition';
+        $class_map = $this->getClassMap();
 
-        foreach ($this->discover->getAllConditions() as $class) {
-            $class_short_name = new ReflectionClass($class)->getShortName();
-
-            if ($class_short_name === $condition_name || $class === $condition_name) {
-                /** @var AbstractCondition $condition */
-                return new $class();
-            }
+        if (isset($class_map[$condition_name])) {
+            $class = $class_map[$condition_name];
+            /** @var AbstractCondition $condition */
+            return new $class();
         }
 
         throw new ilException("Condition class for '{$condition_name}' not found.");
+    }
+
+    /**
+     * @return array<string, string>
+     * @throws ReflectionException
+     */
+    private function getClassMap(): array
+    {
+        if (self::$class_map !== null) {
+            return self::$class_map;
+        }
+
+        $map = [];
+        foreach ($this->discover->getAllConditions() as $class) {
+            $map[new ReflectionClass($class)->getShortName()] = $class;
+            $map[$class] = $class;
+        }
+
+        self::$class_map = $map;
+        return $map;
     }
 }

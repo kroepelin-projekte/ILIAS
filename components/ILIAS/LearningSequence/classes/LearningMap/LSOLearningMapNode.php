@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Player\Map;
+namespace ILIAS\LearningSequence\LearningMap;
 
 /**
  * Immutable data-transfer object describing exactly one object within the LSO
@@ -30,7 +30,7 @@ namespace ILIAS\LearningSequence\Player\Map;
  * outgoing edges (successors). Layout is deliberately NOT part of this DTO; the
  * $depth field is only an unbinding hint.
  */
-final class LSMapNode
+final class LSOLearningMapNode
 {
     /**
      * @param int    $obj_id               unique address of the object within the LSO

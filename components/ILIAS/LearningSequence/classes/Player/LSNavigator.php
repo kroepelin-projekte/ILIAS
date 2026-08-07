@@ -74,4 +74,29 @@ interface LSNavigator
      * edges are alternative paths and must not be AND-combined.
      */
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool;
+
+    /**
+     * Loads everything the navigator needs for the given items up front, so
+     * walking the graph does not hit the database once per item. Navigators
+     * without any state to load may implement this as a no-op.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function preload(array $items): void;
+
+    /**
+     * The ids of all conditions that must be met to enter the given object.
+     * Used by the map data layer; empty for navigators without conditions.
+     *
+     * @return int[]
+     */
+    public function getInputConditionIds(\LSLearnerItem $item): array;
+
+    /**
+     * The ids of all conditions that must be met to leave the given object.
+     * Used by the map data layer; empty for navigators without conditions.
+     *
+     * @return int[]
+     */
+    public function getOutputConditionIds(\LSLearnerItem $item): array;
 }

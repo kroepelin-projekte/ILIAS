@@ -23,8 +23,10 @@ use ILIAS\Data\Factory as DataFactory;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\LearningSequence\Player\LinearNavigator;
 use ILIAS\LearningSequence\Player\AdaptiveNavigator;
-use ILIAS\LearningSequence\Player\Map\LSAdaptivePosition;
-use ILIAS\LearningSequence\Player\Map\LSMapDataBuilder;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapPosition;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapDataBuilder;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapSequentialNavigator;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapSequentialPosition;
 use ILIAS\LearningSequence\Player\LSChoicePageBuilder;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
@@ -111,7 +113,6 @@ class ilLSLocalDI extends Container
                 $dic["ui.renderer"],
                 $c["roles"],
                 $lsdic["db.settings"]->getSettingsFor($c["obj.obj_id"]),
-                $c["player.curriculumbuilder"],
                 $c["player.launchlinksbuilder"],
                 $c["player"],
                 $intro,
@@ -209,15 +210,6 @@ class ilLSLocalDI extends Container
             );
         };
 
-        $this["player.curriculumbuilder"] = function ($c) use ($dic): ilLSCurriculumBuilder {
-            return new ilLSCurriculumBuilder(
-                $c["learneritems"],
-                $dic["ui.factory"],
-                $dic["lng"],
-                ilLSPlayer::LSO_CMD_GOTO,
-                $c["player.urlbuilder"]
-            );
-        };
 
         $this["player.launchlinksbuilder"] = function ($c) use ($dic): ilLSLaunchlinksBuilder {
             $first_access = $c["learneritems"]->getFirstAccess();
@@ -247,7 +239,7 @@ class ilLSLocalDI extends Container
             // Position ("where is the learner in the LSO") and the reusable
             // choice-page template are injected so that both can be reused
             // (e.g. by the upcoming map view) independently of the player.
-            $position = new LSAdaptivePosition(
+            $position = new LSOLearningMapPosition(
                 $navigator,
                 $item_path,
                 $boundaries,
@@ -265,7 +257,6 @@ class ilLSLocalDI extends Container
                 $c["learneritems"],
                 $c["player.controlbuilder"],
                 $c["player.urlbuilder"],
-                $c["player.curriculumbuilder"],
                 $c["player.viewfactory"],
                 $c["player.kioskrenderer"],
                 $dic["ui.factory"],
@@ -282,12 +273,17 @@ class ilLSLocalDI extends Container
             );
         };
 
-        // Map data layer: assembles the object graph plus per-learner state
-        // (LSMap/LSMapNode) reusing the adaptive position/navigator. The map is
-        // only meaningful for the adaptive mode, so it always uses an
-        // AdaptiveNavigator (and its own LSAdaptivePosition on top of it).
-        $this["map.data_builder"] = function ($c) use ($dic): LSMapDataBuilder {
-            $navigator = new AdaptiveNavigator();
+        // Learning map data layer: assembles the object graph plus per-learner state
+        // (LSOLearningMap/LSOLearningMapNode) reusing the position/navigator of the
+        // respective operation mode. Adaptive: condition graph (AdaptiveNavigator plus
+        // LSOLearningMapPosition with the configured start/end object). Sequential: the
+        // plain chain in the configured order (LSOLearningMapSequentialNavigator plus
+        // LSOLearningMapSequentialPosition, where first/last item are start/end).
+        $this["learning_map.data_builder"] = function ($c) use ($dic, $lsdic): LSOLearningMapDataBuilder {
+            $is_adaptive = $lsdic["db.settings"]->getSettingsFor($c["obj.obj_id"])->getMode()
+                === ilLearningSequenceSettings::MODE_ADAPTIVE;
+
+            $navigator = $is_adaptive ? new AdaptiveNavigator() : new LSOLearningMapSequentialNavigator();
             $item_path = new LSOItemPath($dic["ilDB"]);
             $boundaries = new LSOAdaptiveBoundaries($dic["ilDB"]);
 
@@ -301,8 +297,20 @@ class ilLSLocalDI extends Container
             // objects. This way build($mode, $usr_id) can produce the map of any
             // learner (e.g. a future tutor view over all participants), while
             // the default (current) user stays $c["usr.id"].
-            $position_factory = static function (int $usr_id) use ($navigator, $item_path, $boundaries, $lso_obj_id, $db): LSAdaptivePosition {
-                return new LSAdaptivePosition(
+            $position_factory = static function (int $usr_id) use ($is_adaptive, $navigator, $item_path, $boundaries, $lso_obj_id, $db): LSOLearningMapPosition {
+                // The sequential mode has neither a visit log nor a walked path,
+                // so no database is handed over; start and end are derived from
+                // the order of the items instead.
+                if (!$is_adaptive) {
+                    return new LSOLearningMapSequentialPosition(
+                        $navigator,
+                        $item_path,
+                        $boundaries,
+                        $lso_obj_id,
+                        $usr_id
+                    );
+                }
+                return new LSOLearningMapPosition(
                     $navigator,
                     $item_path,
                     $boundaries,
@@ -311,18 +319,31 @@ class ilLSLocalDI extends Container
                     $db
                 );
             };
-            $items_factory = static function (int $usr_id) use ($progress_db, $ref_id): array {
-                return $progress_db->getLearnerItems($usr_id, $ref_id);
+            // In the sequential mode the map is the chain of the objects in their
+            // configured order, so the items are sorted by their order number.
+            $items_factory = static function (int $usr_id) use ($is_adaptive, $progress_db, $ref_id): array {
+                $items = $progress_db->getLearnerItems($usr_id, $ref_id);
+                if (!$is_adaptive) {
+                    usort(
+                        $items,
+                        static fn(LSLearnerItem $a, LSLearnerItem $b): int
+                            => $a->getOrderNumber() <=> $b->getOrderNumber()
+                    );
+                }
+                return $items;
             };
 
-            return new LSMapDataBuilder(
+            return new LSOLearningMapDataBuilder(
                 $navigator,
                 $c["player.urlbuilder"],
-                ilLSPlayer::LSO_CMD_GOTO,
+                // the map addresses one specific object, which is not
+                // necessarily a successor of the object worked on last
+                ilLSPlayer::LSO_CMD_JUMP,
                 $lso_obj_id,
                 $c["usr.id"],
                 $position_factory,
-                $items_factory
+                $items_factory,
+                !$is_adaptive
             );
         };
 

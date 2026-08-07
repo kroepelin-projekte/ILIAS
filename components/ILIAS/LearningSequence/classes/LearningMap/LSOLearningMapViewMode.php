@@ -18,16 +18,16 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Player\Map;
+namespace ILIAS\LearningSequence\LearningMap;
 
 /**
  * The view modes that control how much of the map is exposed to the UI.
  *
  * The mode only filters the *view*, never the permissions: whether a node's
- * player link is clickable is always governed by LSMapNode::$can_access,
+ * player link is clickable is always governed by LSOLearningMapNode::$can_access,
  * regardless of the selected mode.
  */
-final class LSMapViewMode
+final class LSOLearningMapViewMode
 {
     /**
      * The complete route including all branches (dead ends and abandoned

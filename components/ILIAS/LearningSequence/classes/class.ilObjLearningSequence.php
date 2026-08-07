@@ -22,6 +22,8 @@ use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\CachedRepository as R
 use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\ObjectReferenceProperties;
 use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\AvailabilityPeriod\AvailabilityPeriod;
 use ILIAS\ILIASObject\LocalDIC;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapViewMode;
 
 class ilObjLearningSequence extends ilContainer
 {
@@ -525,11 +527,32 @@ class ilObjLearningSequence extends ilContainer
         $act_db->setEffectiveOnlineStatus($this->getRefId(), $status);
     }
 
-    public function getCurrentUserCurriculum(): string
+    /**
+     * The learning map of the current user, rendered as html. Used by the page
+     * content element ilPCLearningMap on the intro-/extro-page. Which map is
+     * built - the condition graph of the adaptive mode or the plain chain of
+     * the sequential one - is decided in the local DI by the operation mode.
+     */
+    public function getCurrentUserLearningMap(bool $with_panel = true): string
     {
+        global $DIC;
         $dic = $this->getLocalDI();
-        $curriculum = $dic["player.curriculumbuilder"]->getLearnerCurriculum(false);
-        return $dic['ui.renderer']->render($curriculum);
+        $sequential = $this->getLSSettings()->getMode() !== ilLearningSequenceSettings::MODE_ADAPTIVE;
+        $renderer = new LSOLearningMapRenderer(
+            $DIC['ui.factory'],
+            $DIC['ui.renderer'],
+            $DIC['tpl'],
+            $sequential
+        );
+        $map_data = $dic['learning_map.data_builder']
+            ->build(LSOLearningMapViewMode::MODE_FULL_ROUTE)
+            ->toArray();
+        $graph = $renderer->fromMapData($map_data);
+
+        if (!$with_panel) {
+            return $renderer->renderWithoutPanel($graph);
+        }
+        return $renderer->render($graph);
     }
 
     public function getCurrentUserLaunchButtons(): string

@@ -18,14 +18,19 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Player\Map;
+namespace ILIAS\LearningSequence\LearningMap;
 
-use ILIAS\LearningSequence\Player\AdaptiveNavigator;
+use ILIAS\LearningSequence\Player\LSNavigator;
 
 /**
  * Aggregator/assembler that turns the existing adaptive-navigation state
- * (LSAdaptivePosition + AdaptiveNavigator) into the pure map data structure
- * (LSMap / LSMapNode[]) for a given learner.
+ * (LSOLearningMapPosition + LSNavigator) into the pure map data structure
+ * (LSOLearningMap / LSOLearningMapNode[]) for a given learner.
+ *
+ * It works for both operation modes of the LSO: the adaptive one (graph of
+ * conditions, AdaptiveNavigator) as well as the sequential one (plain chain in
+ * the configured order, LSOLearningMapSequentialNavigator). Which navigator and
+ * position are used is decided in the DI container.
  *
  * It builds a directed graph by a breadth-first traversal starting at the LSO's
  * start object, following the allowed successors. A visited-set guards against
@@ -36,8 +41,17 @@ use ILIAS\LearningSequence\Player\AdaptiveNavigator;
  * The builder does NOT render anything and does NOT compute a layout; it only
  * fills the DTOs. The waterfall layout is up to the (JS) map UI.
  */
-class LSMapDataBuilder
+class LSOLearningMapDataBuilder
 {
+    /**
+     * ref_id => obj_id of the items of the learning sequence. Building the map
+     * translates the very same ref_ids over and over again, so the mapping is
+     * built once per build().
+     *
+     * @var array<int, int>
+     */
+    protected array $obj_id_by_ref_id = [];
+
     /**
      * The position (visit log, walked path, completion) and the learner items
      * are both user-specific, so they are NOT injected ready-made but created
@@ -46,19 +60,23 @@ class LSMapDataBuilder
      * tutor view that inspects the maps of all participants - instead of being
      * locked to the current user.
      *
-     * @param \Closure(int): LSAdaptivePosition $position_factory
-     *        fn(int $usr_id): LSAdaptivePosition
+     * @param \Closure(int): LSOLearningMapPosition $position_factory
+     *        fn(int $usr_id): LSOLearningMapPosition
      * @param \Closure(int): \LSLearnerItem[]   $items_factory
      *        fn(int $usr_id): \LSLearnerItem[]
+     * @param bool $link_by_ref_id the player addresses the object to jump to by
+     *        its obj_id in the adaptive mode, but by its ref_id in the
+     *        sequential one (see ilLSPlayer::LSO_CMD_GOTO).
      */
     public function __construct(
-        protected AdaptiveNavigator $navigator,
+        protected LSNavigator $navigator,
         protected \LSUrlBuilder $url_builder,
         protected string $goto_command,
         protected int $lso_obj_id,
         protected int $default_usr_id,
         protected \Closure $position_factory,
-        protected \Closure $items_factory
+        protected \Closure $items_factory,
+        protected bool $link_by_ref_id = false
     ) {
     }
 
@@ -67,15 +85,17 @@ class LSMapDataBuilder
      * learner. If $usr_id is null the current user (default_usr_id) is used;
      * pass an explicit user_id to build the map of another learner (tutor view).
      */
-    public function build(int $mode, ?int $usr_id = null): LSMap
+    public function build(int $mode, ?int $usr_id = null): LSOLearningMap
     {
-        if (!LSMapViewMode::isValid($mode)) {
-            $mode = LSMapViewMode::MODE_FULL_ROUTE;
+        if (!LSOLearningMapViewMode::isValid($mode)) {
+            $mode = LSOLearningMapViewMode::MODE_FULL_ROUTE;
         }
 
         $usr_id = $usr_id ?? $this->default_usr_id;
         $position = ($this->position_factory)($usr_id);
         $items = ($this->items_factory)($usr_id);
+
+        $this->prepareCaches($position, $items);
 
         $start_obj_id = $position->getStartObjId();
         $end_obj_id = $position->getEndObjId();
@@ -84,15 +104,44 @@ class LSMapDataBuilder
 
         $start_item = $this->resolveStartItem($items, $start_obj_id);
         if ($start_item === null) {
-            return new LSMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, []);
+            return new LSOLearningMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, []);
         }
         // the effective start obj_id (may fall back to the first item)
-        $start_obj_id = \ilObject::_lookupObjId($start_item->getRefId());
+        $start_obj_id = $this->lookupObjId($start_item->getRefId());
 
         $nodes = $this->traverse($position, $items, $start_item, $start_obj_id, $end_obj_id, $current_obj_id, $walked_obj_ids);
         $nodes = $this->applyViewMode($nodes, $mode);
 
-        return new LSMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, $nodes);
+        return new LSOLearningMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, $nodes);
+    }
+
+    /**
+     * Loads everything the traversal needs up front, so the graph can be walked
+     * without hitting the database again: the ref_id => obj_id mapping of the
+     * items and all conditions of the learning sequence. The position is handed
+     * the items as well, because in the sequential mode start and end are
+     * derived from their order.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    protected function prepareCaches(LSOLearningMapPosition $position, array $items): void
+    {
+        $this->obj_id_by_ref_id = [];
+        foreach ($items as $item) {
+            $ref_id = $item->getRefId();
+            $this->obj_id_by_ref_id[$ref_id] = \ilObject::_lookupObjId($ref_id);
+        }
+
+        $position->prepareForItems($items);
+        $this->navigator->preload($items);
+    }
+
+    /**
+     * Resolves a ref_id to its obj_id from the pre-built mapping.
+     */
+    protected function lookupObjId(int $ref_id): int
+    {
+        return $this->obj_id_by_ref_id[$ref_id] ??= \ilObject::_lookupObjId($ref_id);
     }
 
     /**
@@ -102,10 +151,10 @@ class LSMapDataBuilder
      *
      * @param \LSLearnerItem[] $items
      * @param int[] $walked_obj_ids
-     * @return LSMapNode[] indexed by obj_id
+     * @return LSOLearningMapNode[] indexed by obj_id
      */
     protected function traverse(
-        LSAdaptivePosition $position,
+        LSOLearningMapPosition $position,
         array $items,
         \LSLearnerItem $start_item,
         int $start_obj_id,
@@ -140,7 +189,7 @@ class LSMapDataBuilder
             $passable_successor_obj_ids = [];
             $can_leave = $this->navigator->canLeave($item);
             foreach ($successor_items as $successor) {
-                $successor_obj_id = \ilObject::_lookupObjId($successor->getRefId());
+                $successor_obj_id = $this->lookupObjId($successor->getRefId());
                 $successor_obj_ids[] = $successor_obj_id;
                 if ($can_leave && $this->navigator->canEnterFrom($item, $successor)) {
                     $passable_successor_obj_ids[] = $successor_obj_id;
@@ -183,7 +232,7 @@ class LSMapDataBuilder
     {
         $roots = [];
         foreach ($items as $item) {
-            $obj_id = \ilObject::_lookupObjId($item->getRefId());
+            $obj_id = $this->lookupObjId($item->getRefId());
             if (isset($visited[$obj_id])) {
                 continue;
             }
@@ -199,7 +248,7 @@ class LSMapDataBuilder
      * @param int[] $walked_obj_ids
      */
     protected function buildNode(
-        LSAdaptivePosition $position,
+        LSOLearningMapPosition $position,
         array $items,
         \LSLearnerItem $item,
         int $obj_id,
@@ -210,7 +259,7 @@ class LSMapDataBuilder
         int $current_obj_id,
         array $walked_obj_ids,
         int $depth
-    ): LSMapNode {
+    ): LSOLearningMapNode {
         $can_access = $this->canAccess($items, $item, $obj_id, $start_obj_id);
         if (!$can_access) {
             // an object the learner may not even enter cannot be left either,
@@ -218,13 +267,16 @@ class LSMapDataBuilder
             $passable_successor_obj_ids = [];
         }
 
-        return new LSMapNode(
+        return new LSOLearningMapNode(
             obj_id: $obj_id,
             title: $item->getTitle(),
             description: $item->getDescription(),
             icon: $item->getIconPath(),
             player_link: $can_access
-                ? $this->url_builder->getHref($this->goto_command, $obj_id)
+                ? $this->url_builder->getHref(
+                    $this->goto_command,
+                    $this->link_by_ref_id ? $item->getRefId() : $obj_id
+                )
                 : null,
             can_access: $can_access,
             has_visited: $position->hasVisited($obj_id),
@@ -285,12 +337,12 @@ class LSMapDataBuilder
      * Edges pointing at removed nodes are pruned so the returned graph stays
      * consistent.
      *
-     * @param LSMapNode[] $nodes
-     * @return LSMapNode[]
+     * @param LSOLearningMapNode[] $nodes
+     * @return LSOLearningMapNode[]
      */
     protected function applyViewMode(array $nodes, int $mode): array
     {
-        if ($mode !== LSMapViewMode::MODE_REACHABLE_ONLY) {
+        if ($mode !== LSOLearningMapViewMode::MODE_REACHABLE_ONLY) {
             // FULL_ROUTE and PROGRESS keep every node (PROGRESS is a highlight
             // hint for the UI, not a filter).
             return $nodes;
@@ -312,8 +364,8 @@ class LSMapDataBuilder
      * Removes successor edges that point at nodes which are no longer part of
      * the (filtered) node set.
      *
-     * @param LSMapNode[] $nodes
-     * @return LSMapNode[]
+     * @param LSOLearningMapNode[] $nodes
+     * @return LSOLearningMapNode[]
      */
     protected function pruneDanglingEdges(array $nodes): array
     {
@@ -327,7 +379,7 @@ class LSMapDataBuilder
                 $node->passable_successors,
                 static fn(int $successor_obj_id): bool => isset($nodes[$successor_obj_id])
             ));
-            $pruned[$obj_id] = new LSMapNode(
+            $pruned[$obj_id] = new LSOLearningMapNode(
                 obj_id: $node->obj_id,
                 title: $node->title,
                 description: $node->description,
@@ -355,7 +407,7 @@ class LSMapDataBuilder
     /**
      * Resolves the item the traversal starts from: the configured start object
      * if available, otherwise the first item as a fallback (mirrors
-     * LSAdaptivePosition::getCurrentItem).
+     * LSOLearningMapPosition::getCurrentItem).
      */
     protected function resolveStartItem(array $items, int $start_obj_id): ?\LSLearnerItem
     {
@@ -364,7 +416,7 @@ class LSMapDataBuilder
         }
         if ($start_obj_id !== 0) {
             foreach ($items as $item) {
-                if (\ilObject::_lookupObjId($item->getRefId()) === $start_obj_id) {
+                if ($this->lookupObjId($item->getRefId()) === $start_obj_id) {
                     return $item;
                 }
             }

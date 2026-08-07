@@ -53,7 +53,6 @@ class ilObjLearningSequenceLearnerGUI
         protected ILIAS\UI\Renderer $renderer,
         protected ilLearningSequenceRoles $roles,
         protected ilLearningSequenceSettings $settings,
-        protected ilLSCurriculumBuilder $curriculum_builder,
         protected ilLSLaunchlinksBuilder $launchlinks_builder,
         protected ilLSPlayer $player,
         protected string $intro,
@@ -228,14 +227,6 @@ class ilObjLearningSequenceLearnerGUI
         $element = '<' . ilPCLauncher::PCELEMENT . '>';
         if (!str_contains($content, $element)) {
             $this->initToolbar($cmd, $modal);
-        }
-
-        $element = '<' . ilPCCurriculum::PCELEMENT . '>';
-        if (!str_contains($content, $element)) {
-            $curriculum = $this->curriculum_builder->getLearnerCurriculum();
-            $this->tpl->setRightContent(
-                $this->getWrappedHTML([$curriculum])
-            );
         }
     }
 

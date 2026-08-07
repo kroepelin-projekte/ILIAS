@@ -87,9 +87,38 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
+     * Nothing to preload: the linear navigation is purely index based.
+     *
      * @param \LSLearnerItem[] $items
      */
-    private function findPosition(array $items, \LSLearnerItem $item): int
+    public function preload(array $items): void
+    {
+    }
+
+    /**
+     * There are no conditions in the linear mode.
+     *
+     * @return int[]
+     */
+    public function getInputConditionIds(\LSLearnerItem $item): array
+    {
+        return [];
+    }
+
+    /**
+     * There are no conditions in the linear mode.
+     *
+     * @return int[]
+     */
+    public function getOutputConditionIds(\LSLearnerItem $item): array
+    {
+        return [];
+    }
+
+    /**
+     * @param \LSLearnerItem[] $items
+     */
+    protected function findPosition(array $items, \LSLearnerItem $item): int
     {
         foreach ($items as $index => $candidate) {
             if ($candidate->getRefId() === $item->getRefId()) {

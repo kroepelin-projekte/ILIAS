@@ -5,13 +5,6 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Sequential;
 
 use ilObjLearningSequenceContentGUI;
-use ILIAS\UI\Factory as UIFactory;
-use ILIAS\UI\Renderer as UIRenderer;
-use ilLanguage;
-use ilCtrl;
-use ilLearningSequenceSettings;
-use ilObjLearningSequence;
-use ilLSPostCondition;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
 
@@ -128,7 +121,8 @@ class LSOSequentialContent implements LSOContentController
         );
 
         $this->parent_gui->setContent(
-            $this->ui_renderer->render($filter) . $table->render()
+            $this->ui_renderer->render($filter)
+            . $table->render()
         );
     }
 
