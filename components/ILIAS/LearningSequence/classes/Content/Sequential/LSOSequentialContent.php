@@ -1,48 +1,66 @@
 <?php
 
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
 declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Sequential;
 
-use ilObjLearningSequenceContentGUI;
-use ILIAS\UI\Factory as UIFactory;
-use ILIAS\UI\Renderer as UIRenderer;
-use ilLanguage;
+use ilConfirmationGUI;
 use ilCtrl;
-use ilLearningSequenceSettings;
-use ilObjLearningSequence;
-use ilLSPostCondition;
+use ilGlobalTemplateInterface;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
+use ILIAS\UI\Factory;
+use ILIAS\UI\Renderer;
+use ilLanguage;
+use ilObject;
+use ilObjLearningSequence;
+use ilObjLearningSequenceActionData;
+use ilObjLearningSequenceContentGUI;
+use Psr\Http\Message\ServerRequestInterface;
 
-/**
- * Class LSOSequentialContent
- */
 class LSOSequentialContent implements LSOContentController
 {
     use LSOContentDeletion;
+
     protected ilObjLearningSequenceContentGUI $parent_gui;
-    protected \ILIAS\UI\Factory $ui_factory;
-    protected \ILIAS\UI\Renderer $ui_renderer;
-    protected \ilLanguage $lng;
-    protected \ilCtrl $ctrl;
-    protected \Psr\Http\Message\ServerRequestInterface $request;
-    protected \ilGlobalTemplateInterface $tpl;
+    protected Factory $ui_factory;
+    protected Renderer $ui_renderer;
+    protected ilLanguage $lng;
+    protected ilCtrl $ctrl;
+    protected ServerRequestInterface $request;
+    protected ilGlobalTemplateInterface $tpl;
 
     protected int $ref_id;
     protected int $obj_id;
 
     public function __construct(
-        ilObjLearningSequenceContentGUI $parent_gui,
-        \ILIAS\UI\Factory $ui_factory,
-        \ILIAS\UI\Renderer $ui_renderer,
-        \ilLanguage $lng,
-        \ilCtrl $ctrl,
-        \Psr\Http\Message\ServerRequestInterface $request,
-        \ilGlobalTemplateInterface $tpl,
-        int $ref_id,
-        int $obj_id
-    ) {
+        ilObjLearningSequenceContentGUI          $parent_gui,
+        Factory                        $ui_factory,
+        Renderer                       $ui_renderer,
+        ilLanguage                              $lng,
+        ilCtrl                                  $ctrl,
+        ServerRequestInterface $request,
+        ilGlobalTemplateInterface               $tpl,
+        int                                      $ref_id,
+        int                                      $obj_id
+    )
+    {
         $this->parent_gui = $parent_gui;
         $this->ui_factory = $ui_factory;
         $this->ui_renderer = $ui_renderer;
@@ -83,15 +101,15 @@ class LSOSequentialContent implements LSOContentController
             $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
         }
 
-        $confirmation = new \ilConfirmationGUI();
+        $confirmation = new ilConfirmationGUI();
         $confirmation->setFormAction($this->ctrl->getFormAction($this->parent_gui));
         $confirmation->setHeaderText($this->lng->txt('info_delete_sure'));
         $confirmation->setConfirm($this->lng->txt('confirm'), ilObjLearningSequenceContentGUI::CMD_DELETE);
         $confirmation->setCancel($this->lng->txt('cancel'), ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
 
         foreach ($ref_ids as $ref_id) {
-            $title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($ref_id));
-            $confirmation->addItem('id[]', (string) $ref_id, $title);
+            $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
+            $confirmation->addItem('id[]', (string)$ref_id, $title);
         }
 
         $this->parent_gui->setContent($confirmation->getHTML());
@@ -103,7 +121,7 @@ class LSOSequentialContent implements LSOContentController
         // objects can be created directly from the content management view.
         $this->parent_gui->showPossibleSubObjects();
 
-        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
         $target_url = $this->ctrl->getFormAction($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_REORDER);
 
         $filter_gui = new LSOSequentialFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
@@ -134,7 +152,7 @@ class LSOSequentialContent implements LSOContentController
 
     public function reorder(): void
     {
-        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
         $target_url = $this->ctrl->getFormAction($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_REORDER);
 
         $table = new LSOSequentialTable(
@@ -156,7 +174,7 @@ class LSOSequentialContent implements LSOContentController
         if ($ordered_ref_ids !== []) {
             $new_positions = array_flip($ordered_ref_ids);
 
-            $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+            $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
             $updated = [];
             foreach ($lso->getLSItems() as $it) {
                 if (isset($new_positions[$it->getRefId()])) {
@@ -176,11 +194,11 @@ class LSOSequentialContent implements LSOContentController
     {
         $specific_actions = [];
         // We add both actions here but they will be disabled/filtered in the table class
-        $specific_actions['condition_always'] = new \ilObjLearningSequenceActionData(
+        $specific_actions['condition_always'] = new ilObjLearningSequenceActionData(
             label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('condition_always'),
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_ALWAYS
         );
-        $specific_actions['condition_lp'] = new \ilObjLearningSequenceActionData(
+        $specific_actions['condition_lp'] = new ilObjLearningSequenceActionData(
             label: $this->lng->txt('table_may_proceed') . ': ' . 'Gemäß Lernfortschritt', // #ToDo Sprachvariable
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_LP
         );

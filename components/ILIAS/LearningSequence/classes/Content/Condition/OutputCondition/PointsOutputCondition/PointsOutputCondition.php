@@ -67,10 +67,9 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
      */
     public function getAdditionalForm(): FormStandard
     {
-        // TODO: Langvars auflösen (auch an anderer Stelle)
         $input = $this->ui_factory->input()->field()->numeric(
-            'Awarded points',
-            'How many points should the user receive when this step is fulfilled?'
+            $this->lang->txt('points_output'),
+            $this->lang->txt('points_output_byline')
         )->withRequired(true);
 
         if ($this->condition_id !== null) {

@@ -82,7 +82,7 @@ class ConditionFactory
         $condition->setLsoRefId($lso_ref_id);
         $condition->setObjRefId($item_ref_id);
 
-        if ($subtype !== null) {
+        if ($subtype !== null && $condition instanceof SubtypeAwareInterface) {
             $condition->setSubtype($subtype);
         }
 

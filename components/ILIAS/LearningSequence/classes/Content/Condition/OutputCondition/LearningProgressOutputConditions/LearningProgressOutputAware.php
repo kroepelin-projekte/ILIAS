@@ -21,13 +21,14 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ilLPStatus;
 
-final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
+final class LearningProgressOutputAware extends AbstractCondition implements OutputConditionInterface, SubtypeAwareInterface
 {
-    protected const string NAME = 'learning_progress';
+    protected const string NAME = 'learning_progress_output';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_output';
     private const string SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
     private const string SUBTYPE_IN_PROGRESS = 'in_progress';
@@ -42,7 +43,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         $this->assertContextSet();
 
         return [
-            $this->ui_factory->menu()->sub($this->getName(), [
+            $this->ui_factory->menu()->sub($this->lang->txt($this->getName()), [
                 $this->buildSubtypeStep(self::SUBTYPE_NOT_ATTEMPTED),
                 $this->buildSubtypeStep(self::SUBTYPE_IN_PROGRESS),
                 $this->buildSubtypeStep(self::SUBTYPE_COMPLETED),
@@ -80,18 +81,6 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
                 primaryKeys: ['condition_id']
             )
         ];
-    }
-
-    /**
-     * Return the name of the subtype if the condition is already created, otherwise return the name of the condition.
-     *
-     * @return string|null
-     */
-    public function getName(): ?string
-    {
-        return $this->condition_id !== null || $this->subtype !== null
-            ? $this->getSubtypeLabel($this->getSubtype())
-            : parent::getName();
     }
 
     /**
@@ -193,7 +182,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     /**
      * @inheritDoc
      */
-    private function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
+    public function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
     {
         return $this->buildStep(
             ['subtype' => $subtype],
@@ -209,13 +198,13 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      * @return string
      * @throws \LogicException if the subtype is unknown
      */
-    private function getSubtypeLabel(string $subtype): string
+    public function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
-            self::SUBTYPE_NOT_ATTEMPTED => 'learning_progress_not_attempted',
-            self::SUBTYPE_IN_PROGRESS => 'learning_progress_in_progress',
-            self::SUBTYPE_COMPLETED => 'learning_progress_completed',
-            self::SUBTYPE_FAILED => 'learning_progress_failed',
+            self::SUBTYPE_NOT_ATTEMPTED => $this->lang->txt('learning_progress_not_attempted'),
+            self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
+            self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
+            self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
             default => throw new \LogicException('Unknown learning progress subtype.')
         };
     }
@@ -223,7 +212,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     /**
      * @return string[]
      */
-    protected function getSupportedSubtypes(): array
+    public function getSupportedSubtypes(): array
     {
         return [
             self::SUBTYPE_NOT_ATTEMPTED,

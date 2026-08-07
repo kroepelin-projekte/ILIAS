@@ -126,28 +126,11 @@ abstract class AbstractCondition
     }
 
     /**
-     * @return bool
-     */
-    public function hasSubTypes(): bool
-    {
-        $method = new ReflectionMethod(static::class, 'getSupportedSubtypes');
-        return $method->getDeclaringClass()->getName() !== self::class;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getSubtype(): ?string
-    {
-        return $this->subtype;
-    }
-
-    /**
      * @param string $subtype
      */
     public function setSubtype(string $subtype): void
     {
-        if (!$this->hasSubTypes()) {
+        if (!$this instanceof SubtypeAwareInterface) {
             throw new LogicException(sprintf('%s does not support subtypes.', static::class));
         }
 
@@ -161,10 +144,10 @@ abstract class AbstractCondition
     /**
      * @return string[]
      */
-    protected function getSupportedSubtypes(): array
+    /*protected function getSupportedSubtypes(): array
     {
         return [];
-    }
+    }*/
 
     /**
      * Returns an array of steps to configure the condition.
@@ -564,7 +547,7 @@ abstract class AbstractCondition
 
         return $this->ui_factory->link()->bulky(
             $this->getGlyphe(),
-            $label ?? (string) $this->getName(),
+            $label ?? $this->lang->txt($this->getName()),
             $uri
         );
     }
@@ -650,7 +633,7 @@ abstract class AbstractCondition
         $this->setLsoRefId((int) $row['lso_ref_id']);
         $this->setObjRefId((int) $row['obj_ref_id']);
         $this->setTypeId((int) $row['type_id']);
-        if ($this->hasSubTypes() && method_exists($this, 'setSubtype')) {
+        if ($this instanceof SubtypeAwareInterface) {
             $db = $this->dic->database();
             $table_name = "lsp_c_{$this->getName()}";
 

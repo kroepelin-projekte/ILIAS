@@ -65,8 +65,8 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
     public function getAdditionalForm(): FormStandard
     {
         $input = $this->ui_factory->input()->field()->numeric(
-            'Required points',
-            'How many points are required to enter this step?'
+            $this->lang->txt('points_input'),
+            $this->lang->txt('points_input_byline')
         );
 
         if ($this->condition_id !== null) {

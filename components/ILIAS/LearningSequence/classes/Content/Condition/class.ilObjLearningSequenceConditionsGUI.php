@@ -111,10 +111,10 @@ class ilObjLearningSequenceConditionsGUI
     protected function manageConditions(): void
     {
         global $DIC;
-        $DIC->tabs()->setBack2Target('Back', $this->ctrl->getLinkTarget($this->parent_gui));
+        $DIC->tabs()->setBack2Target($this->lng->txt('back'), $this->ctrl->getLinkTarget($this->parent_gui));
 
         $modal = $this->buildAddConditionModal();
-        $button = $this->ui_factory->button()->standard('Add condition', '#')->withOnClick($modal->getShowSignal());
+        $button = $this->ui_factory->button()->standard($this->lng->txt('add_condition'), '#')->withOnClick($modal->getShowSignal());
         $DIC->toolbar()->addComponent($button);
 
         $this->tpl->setContent(
@@ -151,10 +151,10 @@ class ilObjLearningSequenceConditionsGUI
         );
 
         return $this->ui_factory->menu()->drilldown(
-            'Manage Conditions',
+            $this->lng->txt('conditions'),
             [
-                $this->ui_factory->menu()->sub('Input Conditions', array_merge(...$input_conditions_steps)),
-                $this->ui_factory->menu()->sub('Output Conditions', array_merge(...$output_conditions_steps))
+                $this->ui_factory->menu()->sub($this->lng->txt('input_conditions'), array_merge(...$input_conditions_steps)),
+                $this->ui_factory->menu()->sub($this->lng->txt('output_conditions'), array_merge(...$output_conditions_steps))
             ]
         );
     }
@@ -165,7 +165,7 @@ class ilObjLearningSequenceConditionsGUI
     protected function buildAddConditionModal(): Roundtrip
     {
         return $this->ui_factory->modal()->roundtrip(
-            'Add condition',
+            $this->lng->txt('add_condition'),
             [
                 'drilldown' => $this->buildDrilldown()
             ]
@@ -217,12 +217,12 @@ class ilObjLearningSequenceConditionsGUI
 
         return $this->ui_factory->table()->data(
             new ilLearningSequenceConditionsRetrieval($this->lso_ref_id, $this->item_ref_id),
-            'Conditions',
+            sprintf($this->lng->txt('manage_conditions'), ilObject::_lookupTitle(ilObject::_lookupObjectId($this->item_ref_id))),
             [
-                'id' => $this->ui_factory->table()->column()->text('ID'),
-                'type' => $this->ui_factory->table()->column()->text('Type'),
-                'name' => $this->ui_factory->table()->column()->text('Name'),
-                'subtype' => $this->ui_factory->table()->column()->text('Subtype'),
+                'id' => $this->ui_factory->table()->column()->text('ID')->withIsSortable(false),
+                'type' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_type'))->withIsSortable(false),
+                'name' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_name'))->withIsSortable(false),
+                'subtype' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_subtype'))->withIsSortable(false),
             ]
         )
             ->withActions($actions)
@@ -249,10 +249,7 @@ class ilObjLearningSequenceConditionsGUI
             );
             $condition->create();
         } catch (LogicException $e) {
-
-            // todo lang
-
-            $this->tpl->setOnScreenMessage('failure', 'Condition already exists', true);
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('condition_already_exists'), true);
             $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
             $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
             $this->ctrl->redirectByClass(
@@ -289,11 +286,10 @@ class ilObjLearningSequenceConditionsGUI
     {
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);
 
-        // todo lang
         if (!$this->query_wrapper->has('delete_ids')) {
             $modal = $this->ui_factory->modal()->interruptive(
-                $this->lng->txt('delete'),
-                'Bitte wählen Sie Bedingungen, die gelöscht werden sollen.',
+                $this->lng->txt('delete_condition'),
+                $this->lng->txt('delete_condition_no_selection'),
                 '#'
             )->withActionButtonLabel($this->lng->txt('ok'));
             exit($this->ui_renderer->render($modal));
@@ -312,14 +308,13 @@ class ilObjLearningSequenceConditionsGUI
         foreach ($conditions_to_delete as $condition_id) {
             $affected_items[] = $this->ui_factory->modal()->interruptiveItem()->standard(
                 'condition_' . $condition_id,
-                $this->condition_factory->getConditionInstanceById($condition_id)->getName(),
+                $this->lng->txt($this->condition_factory->getConditionInstanceById($condition_id)->getName()),
             );
         }
 
-        // todo lang
         $modal = $this->ui_factory->modal()->interruptive(
-            $this->lng->txt('delete'),
-            'Möchten Sie diese Bedingungen wirklich löschen?',
+            $this->lng->txt('delete_condition'),
+            $this->lng->txt('delete_condition_verify'),
             $this->ctrl->getLinkTargetByClass(self::class, self::CMD_DELETE_CONDITION)
         )->withAffectedItems($affected_items);
 
@@ -348,7 +343,6 @@ class ilObjLearningSequenceConditionsGUI
             $condition->delete();
         }
 
-        // todo lang
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('conditions_deleted'), true);
         $this->ctrl->setParameter($this, 'item_ref_id', $this->item_ref_id);
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONDITIONS);

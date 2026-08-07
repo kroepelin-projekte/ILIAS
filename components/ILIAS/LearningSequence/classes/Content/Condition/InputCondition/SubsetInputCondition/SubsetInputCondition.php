@@ -87,7 +87,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         $lso_object_id = $this->getLso()->getId();
 
         $res = $this->getDatabase()->queryF(
-            'SELECT object_ids, subset FROM ' . self::SETTINGS_TABLE
+            'SELECT object_ids, subsets FROM ' . self::SETTINGS_TABLE
             . ' WHERE condition_id = %s AND object_id = %s',
             ['integer', 'integer'],
             [$condition_id, $lso_object_id]
@@ -130,13 +130,13 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         $this->assertContextSet();
 
         $multi_select = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
-            'Objektauswahl', // TODO Sprachvariable
+            $this->lang->txt('lso_condition_simple_multi_target'),
             true
         );
 
         $required_amount = $this->ui_factory->input()->field()->numeric(
-            'Anzahl der bestehende Objekte', // TODO Sprachvariable
-            'Die Anzahl der Objekte die zu bestehen sind, damit dieses Objekt startet' // TODO Sprachvariable
+            $this->lang->txt('subset_amount'),
+            $this->lang->txt('subset_amount_byline'),
         )->withRequired(true);
 
         return $this->ui_factory->input()->container()->form()->standard(
@@ -162,12 +162,12 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     {
         $lso_object_id = $this->getLsoRefId();
         $object_ids = serialize(''); #ToDo Daten holen
-        $subset = 0;
+        $subsets = 0;
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
             'object_id' => ['integer', $lso_object_id],
             'object_ids' => ['text', $object_ids],
-            'subset' => ['integer', $subset]
+            'subsets' => ['integer', $subsets]
         ]);
     }
 
@@ -186,12 +186,12 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     {
         $lso_object_id = $this->getLsoRefId();
         $object_ids = serialize(''); #ToDo Daten holen
-        $subset = 0;
+        $subsets = 0;
         $this->getDatabase()->update(
             self::SETTINGS_TABLE,
             [
                 'object_ids' => ['text', $object_ids],
-                'subset' => ['integer', $subset]
+                'subsets' => ['integer', $subsets]
             ],
             [
                 'condition_id' => ['integer', $condition_id],

@@ -24,6 +24,7 @@ use ilCtrlException;
 use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
@@ -34,7 +35,7 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGatterInputCondition extends AbstractCondition implements InputConditionInterface
+class LogicGatterInputAware extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
     final protected const string NAME = "logic_gatter";
     private const string SETTINGS_TABLE = 'lso_c_logic_gatter_input';
@@ -66,7 +67,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
 
         $db = $this->dic->database();
         $query = $db->query(
-            "SELECT objects FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
+            "SELECT items FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
         );
         if ($row = $db->fetchAssoc($query)) {
             $this->items = $row['items'];
@@ -220,7 +221,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
      * @param string $subtype
      * @return string
      */
-    private function getSubtypeLabel(string $subtype): string
+    public function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
             self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
@@ -233,7 +234,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     /**
      * @return string[]
      */
-    protected function getSupportedSubtypes(): array
+    public function getSupportedSubtypes(): array
     {
         return [
             self::SUBTYPE_AND,
@@ -284,9 +285,9 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     public function getAdditionalForm(): ?FormStandard
     {
         $input = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
-            $this->lang->txt('lso_condition_simple_choice_target'),
+            $this->lang->txt('lso_condition_simple_multi_target'),
             true,
-        );
+        )->withByline($this->lang->txt($this->getSubtype() . '_byline'));
 
         if ($this->condition_id !== null) {
             $input = $input->withValue($this->getItemsAsArray());
@@ -301,7 +302,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     /**
      * @throws ilCtrlException
      */
-    private function buildSubtypeStep(string $subtype): Bulky
+    public function buildSubtypeStep(string $subtype): Bulky
     {
         return $this->buildStep(
             ['subtype' => $subtype],

@@ -11257,10 +11257,46 @@ lso#:#table_position#:#Position
 lso#:#table_sequence_content#:#Content Management
 lso#:#table_title#:#Title
 lso#:#unparticipate#:#Unsubscribe
+lso#:#conditions#:#Conditions
+lso#:#condition_type#:#Type
+lso#:#condition_name#:#Name
+lso#:#condition_subtype#:#Subtype
+lso#:#set_start_object#:#Set Entry Point
+lso#:#set_end_object#:#Set Destination Point
+lso#:#manage_conditions#:#Manage Conditions for %s
+lso#:#input_condition#:#Input Condition
+lso#:#output_condition#:#Output Condition
+lso#:#input_conditions#:#Input Conditions
+lso#:#output_conditions#:#Output Conditions
+lso#:#add_condition#:#Add Condition
+lso#:#delete_condition#:#Remove Condition
+lso#:#delete_condition_no_selection#:#Please choose at least one condition to delete.
+lso#:#delete_condition_verify#:#Do you really want to delete the selected conditions?
+lso#:#condition_already_exists#:#Condition already exists for this object.
+lso#:#conditions_deleted#:#Condition successfully deleted
+lso#:#lso_condition_simple_choice_target#:#Select Single Object
+lso#:#lso_condition_simple_multi_target#:#Select Multiple Objects
 lso#:#logic_gatter#:#Logic Gate
 lso#:#logic_gatter_and#:#AND
 lso#:#logic_gatter_or#:#OR
 lso#:#logic_gatter_not#:#NOT
+lso#:#AND_byline#:#All selected objects must be completed.
+lso#:#OR_byline#:#At least one of the selected objects must be completed.
+lso#:#NOT_byline#:#None of the selected objects may be completed.
+lso#:#always#:#Always
+lso#:#subset#:#Subset
+lso#:#subset_amount#:#Required Subset Amount
+lso#:#subset_amount_byline#:#Number of objects that must be completed to start this object.
+lso#:#points_input#:#Required Points
+lso#:#points_input_byline#:#Minimum number of points required for the user to start this object.
+lso#:#points_output#:#Points Earned
+lso#:#points_output_byline#:#Number of points awarded to the user upon successfully completing this object.
+lso#:#learning_progress_input#:#Learning Progress
+lso#:#learning_progress_output#:#Learning Progress
+lso#:#learning_progress_not_attempted#:#Not attempted
+lso#:#learning_progress_in_progress#:#In progress
+lso#:#learning_progress_completed#:#Completed
+lso#:#learning_progress_failed#:#Failed
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.
