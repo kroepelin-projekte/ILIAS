@@ -18,21 +18,24 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
+namespace ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
+use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ilLPStatus;
 
-final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
+final class LearningProgressInputCondition extends AbstractCondition implements InputConditionInterface
 {
     protected const string NAME = 'learning_progress';
-    private const string SETTINGS_TABLE = 'lso_c_learning_progress_output';
+    private const string SETTINGS_TABLE = 'lso_c_learning_progress_input';
     private const string SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
     private const string SUBTYPE_IN_PROGRESS = 'in_progress';
     private const string SUBTYPE_COMPLETED = 'completed';
     private const string SUBTYPE_FAILED = 'failed';
+    private ?int $condition_target_ref_id = null;
 
     /**
      * @inheritDoc
@@ -42,7 +45,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         $this->assertContextSet();
 
         return [
-            $this->ui_factory->menu()->sub($this->getName(), [
+            $this->ui_factory->menu()->sub(($this->getName() ?? ''), [
                 $this->buildSubtypeStep(self::SUBTYPE_NOT_ATTEMPTED),
                 $this->buildSubtypeStep(self::SUBTYPE_IN_PROGRESS),
                 $this->buildSubtypeStep(self::SUBTYPE_COMPLETED),
@@ -56,11 +59,16 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      */
     public function check(): bool
     {
+        $target_obj_id = \ilObject::_lookupObjId($this->getConditionTargetRefId());
+        if ($target_obj_id === 0) {
+            return false;
+        }
+
         return match ($this->getSubtype()) {
-            self::SUBTYPE_NOT_ATTEMPTED => $this->isNotAttempted(),
-            self::SUBTYPE_IN_PROGRESS => $this->isInProgress(),
-            self::SUBTYPE_COMPLETED => $this->isCompleted(),
-            self::SUBTYPE_FAILED => $this->isFailed(),
+            self::SUBTYPE_NOT_ATTEMPTED => $this->isNotAttempted($target_obj_id),
+            self::SUBTYPE_IN_PROGRESS => $this->isInProgress($target_obj_id),
+            self::SUBTYPE_COMPLETED => $this->isCompleted($target_obj_id),
+            self::SUBTYPE_FAILED => $this->isFailed($target_obj_id),
             default => throw new \LogicException('Unknown learning progress subtype.')
         };
     }
@@ -76,6 +84,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
+                    'target_ref_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
             )
@@ -92,6 +101,64 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         return $this->condition_id !== null || $this->subtype !== null
             ? $this->getSubtypeLabel($this->getSubtype())
             : parent::getName();
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected function requiresConfiguration(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Returns a picker to select the target ref id for the learning progress input condition.
+     *
+     * @return FormStandard
+     */
+    public function getAdditionalForm(): FormStandard
+    {
+        $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
+            $this->lang->txt('lso_condition_simple_choice_target'),
+            false,
+        )
+            ->withRequired(false)
+            ->withAdditionalTransformation(
+                $this->dic->refinery()->custom()->constraint(
+                    static fn($value): bool => is_array($value)
+                        && count($value) === 1
+                        && isset($value[0])
+                        && $value[0] !== '',
+                    'Learning progress target ref id is invalid.'
+                )
+            );
+
+        if ($this->condition_id !== null) {
+            $input = $input->withValue((string) $this->getConditionTargetRefId());
+        }
+
+        return $this->ui_factory->input()->container()->form()->standard(
+            $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
+            [$input]
+        );
+    }
+
+    /**
+     * @param array<mixed> $data
+     */
+    public function applyAdditionalFormData(array $data): void
+    {
+        $target_ref_ids = array_shift($data);
+        if (
+            !is_array($target_ref_ids)
+            || count($target_ref_ids) !== 1
+            || !isset($target_ref_ids[0])
+            || $target_ref_ids[0] === ''
+        ) {
+            throw new \LogicException('Learning progress target ref id is invalid.');
+        }
+
+        $this->setConditionTargetRefId((int) $target_ref_ids[0]);
     }
 
     /**
@@ -126,13 +193,56 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     }
 
     /**
+     * Get the target ref id for the learning progress condition.
+     *
+     * @return int
+     * @throws \LogicException if the target ref id is not set or not stored
+     */
+    public function getConditionTargetRefId(): int
+    {
+        if ($this->condition_target_ref_id !== null) {
+            return $this->condition_target_ref_id;
+        }
+
+        if ($this->condition_id === null) {
+            throw new \LogicException('Learning progress target ref id is not set.');
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT target_ref_id FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+        /** @var string[]|null $row */
+        $row = $this->getDatabase()->fetchAssoc($res);
+
+        if ($row === null) {
+            throw new \LogicException('Learning progress target ref id is not stored.');
+        }
+
+        $this->condition_target_ref_id = (int) $row['target_ref_id'];
+        return $this->condition_target_ref_id;
+    }
+
+    /**
+     * Set the target ref id for the learning progress condition.
+     *
+     * @param int $condition_target_ref_id
+     */
+    public function setConditionTargetRefId(int $condition_target_ref_id): void
+    {
+        $this->condition_target_ref_id = $condition_target_ref_id;
+    }
+
+    /**
      * @inheritDoc
      */
     protected function createConditionData(int $condition_id): void
     {
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
-            'subtype' => ['text', $this->requireSubtype()]
+            'subtype' => ['text', $this->requireSubtype()],
+            'target_ref_id' => ['integer', $this->getConditionTargetRefId()]
         ]);
     }
 
@@ -144,7 +254,8 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
         $this->getDatabase()->update(
             self::SETTINGS_TABLE,
             [
-                'subtype' => ['text', $this->requireSubtype()]
+                'subtype' => ['text', $this->requireSubtype()],
+                'target_ref_id' => ['integer', $this->getConditionTargetRefId()]
             ],
             [
                 'condition_id' => ['integer', $condition_id]
@@ -173,9 +284,9 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
             'SELECT c.condition_id
                 FROM lso_conditions c
                 INNER JOIN ' . self::SETTINGS_TABLE . ' s ON s.condition_id = c.condition_id
-                WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND c.type_id = %s AND s.subtype = %s',
-            ['integer', 'integer', 'integer', 'text'],
-            [$this->lso_ref_id, $this->obj_ref_id, $type_id, $this->requireSubtype()]
+                WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND c.type_id = %s AND s.subtype = %s AND s.target_ref_id = %s',
+            ['integer', 'integer', 'integer', 'text', 'integer'],
+            [$this->lso_ref_id, $this->obj_ref_id, $type_id, $this->requireSubtype(), $this->getConditionTargetRefId()]
         );
 
         $row = $this->getDatabase()->fetchAssoc($res);
@@ -197,8 +308,7 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
     {
         return $this->buildStep(
             ['subtype' => $subtype],
-            $this->getSubtypeLabel($subtype),
-            self::CREATE_COMMAND
+            $this->getSubtypeLabel($subtype)
         );
     }
 
@@ -253,10 +363,10 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      *
      * @return bool
      */
-    private function isNotAttempted(): bool
+    private function isNotAttempted(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
     }
@@ -266,10 +376,10 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      *
      * @return bool
      */
-    private function isInProgress(): bool
+    private function isInProgress(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
     }
@@ -279,10 +389,10 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      *
      * @return bool
      */
-    private function isCompleted(): bool
+    private function isCompleted(int $target_obj_id): bool
     {
         return ilLPStatus::_hasUserCompleted(
-            $this->resolveObjId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         );
     }
@@ -292,20 +402,19 @@ final class LearningProgressOutputCondition extends AbstractCondition implements
      *
      * @return bool
      */
-    private function isFailed(): bool
+    private function isFailed(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
+            $target_obj_id,
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
 
     /**
-     * Resolves the obj_id for the condition's object. The condition stores a
-     * ref_id in obj_ref_id, but ilLPStatus expects an obj_id.
+     * @inheritDoc
      */
-    private function resolveObjId(): int
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
     {
-        return \ilObject::_lookupObjId((int) $this->obj_ref_id);
+        return $this->ui_factory->symbol()->glyph()->settings();
     }
 }

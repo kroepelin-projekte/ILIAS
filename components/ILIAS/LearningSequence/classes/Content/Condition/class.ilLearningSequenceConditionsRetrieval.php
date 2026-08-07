@@ -64,7 +64,7 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
                 $type = 'OutputCondition'; // todo lang
             }
 
-            yield $row_builder->buildDataRow(
+            $row =  $row_builder->buildDataRow(
                 (string) $condition_id,
                 [
                     'id' => (string) $condition_id,
@@ -73,6 +73,12 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
                     'subtype' => $condition->getSubtype(),
                 ]
             );
+
+            if ($condition->getAdditionalForm() === null) {
+                $row = $row->withDisabledAction('edit');
+            }
+
+            yield $row;
         }
     }
 

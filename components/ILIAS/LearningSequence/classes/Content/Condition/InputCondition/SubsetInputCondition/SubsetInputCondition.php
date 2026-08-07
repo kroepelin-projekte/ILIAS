@@ -61,7 +61,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'object_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'object_ids' => ['type' => 'text', 'length' => 4000, 'notnull' => false],
-                    'subsets' => ['type' => 'integer', 'length' => 8, 'notnull' => false]
+                    'subsets' => ['type' => 'integer', 'length' => 4, 'notnull' => false]
                 ],
                 primaryKeys: ['condition_id']
             )

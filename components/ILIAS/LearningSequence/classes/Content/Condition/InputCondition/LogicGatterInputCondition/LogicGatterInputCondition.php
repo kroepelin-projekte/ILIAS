@@ -21,10 +21,18 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition;
 
 use ilCtrlException;
+use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Link\Bulky;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
+use ILIAS\UI\Component\Symbol\Symbol;
+use ReflectionException;
 
 class LogicGatterInputCondition extends AbstractCondition implements InputConditionInterface
 {
@@ -34,6 +42,61 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     private const string SUBTYPE_AND = 'AND';
     private const string SUBTYPE_OR = 'OR';
     private const string SUBTYPE_NOT = 'NOT';
+    private string $items = '';
+    private ilObjLearningSequenceConditionDiscover $discover;
+    private ConditionFactory $condition_factory;
+
+    public function __construct(?int $condition_id = null)
+    {
+        parent::__construct($condition_id);
+
+        $this->discover = new ilObjLearningSequenceConditionDiscover();
+        $this->condition_factory = new ConditionFactory(
+            $this->discover,
+            $this->dic->database(),
+        );
+    }
+
+    /**
+     * @return void
+     */
+    public function read(): void
+    {
+        parent::read();
+
+        $db = $this->dic->database();
+        $query = $db->query(
+            "SELECT objects FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
+        );
+        if ($row = $db->fetchAssoc($query)) {
+            $this->items = $row['items'];
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getItems(): string
+    {
+        return $this->items;
+    }
+
+    /**
+     * @param string $items
+     * @return void
+     */
+    public function setItems(string $items): void
+    {
+        $this->items = $items;
+    }
+
+    /**
+     * @return array
+     */
+    private function getItemsAsArray(): array
+    {
+        return array_filter(explode(', ', $this->items));
+    }
 
     /**
      * @return TableDefinition[]
@@ -46,6 +109,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
+                    'items' => ['type' => 'text', 'length' => 4000, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
             )
@@ -53,7 +117,26 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     }
 
     /**
+     * @return array|Bulky[]
+     * @throws ilCtrlException
+     */
+    public function setupSteps(): array
+    {
+        $this->assertContextSet();
+
+        return [
+            $this->ui_factory->menu()->sub($this->lang->txt($this->getName()), [
+                $this->buildSubtypeStep(self::SUBTYPE_AND),
+                $this->buildSubtypeStep(self::SUBTYPE_OR),
+                $this->buildSubtypeStep(self::SUBTYPE_NOT),
+            ])
+        ];
+    }
+
+    /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     public function check(): bool
     {
@@ -66,30 +149,85 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     }
 
     /**
+     * Check if at least one output condition of the item is fulfilled.
+     *
+     * @throws ReflectionException
+     * @throws ilException
+     */
+    private function isItemCompleted(int $item_ref_id): bool
+    {
+        $conditions_of_item = $this->discover->getAllConditionIdsForItem($item_ref_id);
+
+        $conditions = array_map(
+            fn ($condition_id) => $this->condition_factory->getConditionInstanceById($condition_id),
+            $conditions_of_item
+        );
+
+        $output_conditions = array_filter(
+            $conditions,
+            fn ($condition) => $condition instanceof OutputConditionInterface
+        );
+
+        return array_any(
+            $output_conditions,
+            fn ($condition) => $condition->check()
+        );
+    }
+
+    /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function areAllItemsCompleted(): bool
     {
-        return array_all($this->getLsoItems(), fn($lsoItem) => $lsoItem->isCompleted());
+        $items = $this->getItemsAsArray();
 
+        if (empty($items)) {
+            return true;
+        }
+
+        return array_all(
+            $items,
+            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+        );
     }
 
     /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function isAnyItemCompleted(): bool
     {
-        return array_any($this->getLsoItems(), fn($lsoItem) => $lsoItem->isCompleted());
-
+        return array_any(
+            $this->getItemsAsArray(),
+            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+        );
     }
 
     /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     private function areNoItemsCompleted(): bool
     {
-        return array_all($this->getLsoItems(), fn($lsoItem) => !$lsoItem->isCompleted());
+        return !$this->isAnyItemCompleted();
+    }
 
+    /**
+     * @param string $subtype
+     * @return string
+     */
+    private function getSubtypeLabel(string $subtype): string
+    {
+        return match ($subtype) {
+            self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
+            self::SUBTYPE_OR => $this->lang->txt('logic_gatter_or'),
+            self::SUBTYPE_NOT => $this->lang->txt('logic_gatter_not'),
+            default => throw new \LogicException('Unknown logic gatter subtype.')
+        };
     }
 
     /**
@@ -145,13 +283,86 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
      */
     public function getAdditionalForm(): ?FormStandard
     {
-        $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
+        $input = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
             true,
         );
+
+        if ($this->condition_id !== null) {
+            $input = $input->withValue($this->getItemsAsArray());
+        }
+
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]
         );
+    }
+
+    /**
+     * @throws ilCtrlException
+     */
+    private function buildSubtypeStep(string $subtype): Bulky
+    {
+        return $this->buildStep(
+            ['subtype' => $subtype],
+            $this->getSubtypeLabel($subtype),
+            self::CONFIGURE_COMMAND
+        );
+    }
+
+    /**
+     * @param array $data
+     */
+    public function applyAdditionalFormData(array $data): void
+    {
+        $items_string = implode(', ', array_filter($data[0] ?? []));
+        $this->setItems($items_string);
+    }
+
+    /**
+     * @param int $condition_id
+     * @return void
+     */
+    protected function createConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->insert(self::SETTINGS_TABLE, [
+            'condition_id' => ['integer', $condition_id],
+            'subtype' => ['text', $this->getSubtype()],
+            'items' => ['text', $this->getItems()],
+        ]);
+    }
+
+    /**
+     * @param int $condition_id
+     * @return void
+     */
+    protected function editConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->update(self::SETTINGS_TABLE, [
+            'subtype' => ['text', $this->getSubtype()],
+            'items' => ['text', $this->getItems()],
+        ], [
+            'condition_id' => ['integer', $condition_id],
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected function deleteConditionData(int $condition_id): void
+    {
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+    }
+
+    /**
+     * @return Glyph|Symbol
+     */
+    protected function getGlyphe(): Glyph|Symbol
+    {
+        return $this->ui_factory->symbol()->icon()->custom('', '');
     }
 }
