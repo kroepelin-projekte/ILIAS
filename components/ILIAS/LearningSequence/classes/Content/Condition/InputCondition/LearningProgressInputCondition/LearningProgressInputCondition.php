@@ -29,7 +29,7 @@ use ilLPStatus;
 
 final class LearningProgressInputCondition extends AbstractCondition implements InputConditionInterface
 {
-    protected const string NAME = 'learning_progress';
+    protected const string NAME = 'learning_progress_input';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_input';
     private const string SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
     private const string SUBTYPE_IN_PROGRESS = 'in_progress';

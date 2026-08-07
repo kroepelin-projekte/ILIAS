@@ -27,7 +27,7 @@ use ilLPStatus;
 
 final class LearningProgressOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
-    protected const string NAME = 'learning_progress';
+    protected const string NAME = 'learning_progress_output';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_output';
     private const string SUBTYPE_NOT_ATTEMPTED = 'not_attempted';
     private const string SUBTYPE_IN_PROGRESS = 'in_progress';
