@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Sequential;
 
-use ilObjLearningSequenceContentGUI;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
 use ILIAS\UI\Factory;
@@ -36,29 +35,28 @@ class LSOSequentialContent implements LSOContentController
 {
     use LSOContentDeletion;
 
-    protected ilObjLearningSequenceContentGUI $parent_gui;
+    protected \ilObjLearningSequenceContentGUI $parent_gui;
     protected Factory $ui_factory;
     protected Renderer $ui_renderer;
-    protected ilLanguage $lng;
-    protected ilCtrl $ctrl;
+    protected \ilLanguage $lng;
+    protected \ilCtrl $ctrl;
     protected ServerRequestInterface $request;
-    protected ilGlobalTemplateInterface $tpl;
+    protected \ilGlobalTemplateInterface $tpl;
 
     protected int $ref_id;
     protected int $obj_id;
 
     public function __construct(
-        ilObjLearningSequenceContentGUI          $parent_gui,
-        Factory                        $ui_factory,
-        Renderer                       $ui_renderer,
-        ilLanguage                              $lng,
-        ilCtrl                                  $ctrl,
+        \ilObjLearningSequenceContentGUI $parent_gui,
+        Factory $ui_factory,
+        Renderer $ui_renderer,
+        ilLanguage $lng,
+        \ilCtrl $ctrl,
         ServerRequestInterface $request,
-        ilGlobalTemplateInterface               $tpl,
-        int                                      $ref_id,
-        int                                      $obj_id
-    )
-    {
+        \ilGlobalTemplateInterface $tpl,
+        int $ref_id,
+        int $obj_id
+    ) {
         $this->parent_gui = $parent_gui;
         $this->ui_factory = $ui_factory;
         $this->ui_renderer = $ui_renderer;
@@ -107,7 +105,7 @@ class LSOSequentialContent implements LSOContentController
 
         foreach ($ref_ids as $ref_id) {
             $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
-            $confirmation->addItem('id[]', (string)$ref_id, $title);
+            $confirmation->addItem('id[]', (string) $ref_id, $title);
         }
 
         $this->parent_gui->setContent($confirmation->getHTML());
