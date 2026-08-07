@@ -409,4 +409,12 @@ final class LearningProgressInputCondition extends AbstractCondition implements 
             $this->dic->user()->getId()
         ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
+
+    /**
+     * @inheritDoc
+     */
+    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    {
+        return $this->ui_factory->symbol()->glyph()->settings();
+    }
 }
