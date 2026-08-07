@@ -199,6 +199,31 @@ class LSAdaptivePosition
     }
 
     /**
+     * Same classification as getSituation(), but based on the configured graph
+     * instead of the currently enterable successors. The map must not turn a
+     * branch into a dead end just because its successors are still blocked.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function getStructuralSituation(array $items, \LSLearnerItem $item): string
+    {
+        if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
+            return self::SIT_END;
+        }
+        if (!$this->navigator->canLeave($item)) {
+            return self::SIT_BLOCKED;
+        }
+        $count = count($this->getStructuralSuccessors($items, $item));
+        if ($count === 0) {
+            return self::SIT_DEADEND;
+        }
+        if ($count === 1) {
+            return self::SIT_STRAIGHT;
+        }
+        return self::SIT_BRANCH;
+    }
+
+    /**
      * The objects that may currently be entered from the given object.
      *
      * @param \LSLearnerItem[] $items
@@ -207,6 +232,19 @@ class LSAdaptivePosition
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getSuccessors($items, $item);
+    }
+
+    /**
+     * All objects an edge leads to, no matter whether they may currently be
+     * entered. This is the graph as it was configured and therefore the basis
+     * for the map, which has to show blocked objects, too.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    public function getStructuralSuccessors(array $items, \LSLearnerItem $item): array
+    {
+        return $this->navigator->getStructuralSuccessors($items, $item);
     }
 
     /**

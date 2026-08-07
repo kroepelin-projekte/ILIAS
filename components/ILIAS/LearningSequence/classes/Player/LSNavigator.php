@@ -36,6 +36,16 @@ interface LSNavigator
     public function getSuccessors(array $items, \LSLearnerItem $current): array;
 
     /**
+     * All objects that are connected to $current by an outgoing edge,
+     * regardless of whether they may currently be entered. Needed by views
+     * (e.g. the map) that have to show blocked objects as well.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array;
+
+    /**
      * @param \LSLearnerItem[] $items
      * @return \LSLearnerItem[] the objects one came from before $current
      */
@@ -50,4 +60,18 @@ interface LSNavigator
      * Whether the target object may be entered (input-condition).
      */
     public function canEnter(\LSLearnerItem $target): bool;
+
+    /**
+     * Whether the target object may be entered, ignoring the input-conditions
+     * that merely encode the graph edges (they describe alternative paths and
+     * must not be AND-combined).
+     */
+    public function canEnterIgnoringEdges(\LSLearnerItem $target): bool;
+
+    /**
+     * Whether the target object may be entered coming from $current, i.e. only
+     * the condition of the edge actually used is evaluated. Several incoming
+     * edges are alternative paths and must not be AND-combined.
+     */
+    public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool;
 }

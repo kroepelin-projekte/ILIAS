@@ -11,6 +11,8 @@ use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveFilter;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
+use ILIAS\LearningSequence\Player\Map\LSMapDataBuilder;
+use ILIAS\LearningSequence\Player\Map\LSMapViewMode;
 
 /**
  * Class LSOAdaptiveContent
@@ -127,7 +129,22 @@ class LSOAdaptiveContent implements LSOContentController
     {
         require_once __DIR__ . '/temp/LSOAdaptiveMapPrototype.php';
         $map = new LSOAdaptiveMapPrototype($this->ui_factory, $this->ui_renderer);
-        return $map->render();
+        return $map->render($map->fromMapData($this->getMapData()));
+    }
+
+    /**
+     * The real map data (object graph plus the state of the current user),
+     * assembled by the LSMapDataBuilder.
+     *
+     * @return array<string, mixed> LSMap::toArray()
+     */
+    protected function getMapData(): array
+    {
+        $local_di = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLocalDI();
+        /** @var LSMapDataBuilder $builder */
+        $builder = $local_di['map.data_builder'];
+
+        return $builder->build(LSMapViewMode::MODE_FULL_ROUTE)->toArray();
     }
 
     protected function getTableData(array $items, ?array $filter_data): array

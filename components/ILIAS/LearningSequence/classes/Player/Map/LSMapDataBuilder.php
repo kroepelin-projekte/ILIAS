@@ -117,15 +117,34 @@ class LSMapDataBuilder
         $depth = [$start_obj_id => 0];
         $queue = [[$start_item, $start_obj_id]];
         $visited = [$start_obj_id => true];
+        $roots = $this->collectAdditionalRoots($items, $visited);
 
-        while ($queue !== []) {
+        while ($queue !== [] || $roots !== []) {
+            if ($queue === [] && $roots !== []) {
+                // an object that is not connected to the start object at all:
+                // it is shown as its own root so nothing gets hidden
+                [$root_item, $root_obj_id] = array_shift($roots);
+                if (isset($visited[$root_obj_id])) {
+                    continue;
+                }
+                $visited[$root_obj_id] = true;
+                $depth[$root_obj_id] = 0;
+                $queue[] = [$root_item, $root_obj_id];
+            }
             [$item, $obj_id] = array_shift($queue);
 
-            $successor_items = $position->getSuccessors($items, $item);
+            $successor_items = $position->getStructuralSuccessors($items, $item);
             $successor_obj_ids = [];
+            // the edges that may be used right now: the object itself may be
+            // left AND the target may be entered coming from exactly this edge
+            $passable_successor_obj_ids = [];
+            $can_leave = $this->navigator->canLeave($item);
             foreach ($successor_items as $successor) {
                 $successor_obj_id = \ilObject::_lookupObjId($successor->getRefId());
                 $successor_obj_ids[] = $successor_obj_id;
+                if ($can_leave && $this->navigator->canEnterFrom($item, $successor)) {
+                    $passable_successor_obj_ids[] = $successor_obj_id;
+                }
                 if (!isset($visited[$successor_obj_id])) {
                     $visited[$successor_obj_id] = true;
                     $depth[$successor_obj_id] = ($depth[$obj_id] ?? 0) + 1;
@@ -139,6 +158,7 @@ class LSMapDataBuilder
                 $item,
                 $obj_id,
                 $successor_obj_ids,
+                $passable_successor_obj_ids,
                 $start_obj_id,
                 $end_obj_id,
                 $current_obj_id,
@@ -151,8 +171,31 @@ class LSMapDataBuilder
     }
 
     /**
+     * All items of the learning sequence as potential traversal roots, so that
+     * objects which are not (yet) connected to the start object still become
+     * nodes of the map instead of being dropped silently.
+     *
+     * @param \LSLearnerItem[] $items
+     * @param array<int, bool> $visited
+     * @return array<int, array{0: \LSLearnerItem, 1: int}>
+     */
+    protected function collectAdditionalRoots(array $items, array $visited): array
+    {
+        $roots = [];
+        foreach ($items as $item) {
+            $obj_id = \ilObject::_lookupObjId($item->getRefId());
+            if (isset($visited[$obj_id])) {
+                continue;
+            }
+            $roots[] = [$item, $obj_id];
+        }
+        return $roots;
+    }
+
+    /**
      * @param \LSLearnerItem[] $items
      * @param int[] $successor_obj_ids
+     * @param int[] $passable_successor_obj_ids
      * @param int[] $walked_obj_ids
      */
     protected function buildNode(
@@ -161,6 +204,7 @@ class LSMapDataBuilder
         \LSLearnerItem $item,
         int $obj_id,
         array $successor_obj_ids,
+        array $passable_successor_obj_ids,
         int $start_obj_id,
         int $end_obj_id,
         int $current_obj_id,
@@ -168,21 +212,35 @@ class LSMapDataBuilder
         int $depth
     ): LSMapNode {
         $can_access = $this->canAccess($items, $item, $obj_id, $start_obj_id);
+        if (!$can_access) {
+            // an object the learner may not even enter cannot be left either,
+            // so all of its outgoing edges are blocked as well
+            $passable_successor_obj_ids = [];
+        }
 
         return new LSMapNode(
             obj_id: $obj_id,
             title: $item->getTitle(),
             description: $item->getDescription(),
+            icon: $item->getIconPath(),
             player_link: $can_access
                 ? $this->url_builder->getHref($this->goto_command, $obj_id)
                 : null,
             can_access: $can_access,
             has_visited: $position->hasVisited($obj_id),
-            has_completed: $position->hasCompleted($items, $obj_id),
+            // an object that may not be entered cannot have been completed;
+            // without this guard objects without any output-condition on a
+            // blocked branch would show up as "done"
+            has_completed: $can_access && $position->hasCompleted($items, $obj_id),
+            // may the learner advance FROM here? Purely the object's own
+            // output-conditions (e.g. learning progress "completed"); the map
+            // draws every outgoing edge as blocked while this is false.
+            can_leave: $this->navigator->canLeave($item),
             situation: $obj_id === $start_obj_id
                 ? 'start'
-                : $position->getSituation($items, $item),
+                : $position->getStructuralSituation($items, $item),
             successors: $successor_obj_ids,
+            passable_successors: $passable_successor_obj_ids,
             input_condition_ids: $this->navigator->getInputConditionIds($item),
             output_condition_ids: $this->navigator->getOutputConditionIds($item),
             visit_count: $position->getVisitCount($obj_id),
@@ -195,25 +253,31 @@ class LSMapDataBuilder
 
     /**
      * can_access is defined via the output-conditions of the predecessors: a
-     * node is accessible only if ALL of its incoming predecessors may be left
-     * (their output-conditions are fulfilled). The start object has no
-     * predecessors and is therefore always accessible.
+     * node is accessible as soon as AT LEAST ONE of its incoming predecessors
+     * may be left (its output-conditions are fulfilled), because several
+     * incoming edges describe alternative paths (e.g. P1 or P2 lead to the
+     * goal). Additionally all input-conditions that are not edges themselves
+     * must be fulfilled. The start object has no predecessors and is therefore
+     * always accessible.
      */
     protected function canAccess(array $items, \LSLearnerItem $item, int $obj_id, int $start_obj_id): bool
     {
         if ($obj_id === $start_obj_id) {
             return true;
         }
+        if (!$this->navigator->canEnterIgnoringEdges($item)) {
+            return false;
+        }
         $predecessors = $this->navigator->getPredecessors($items, $item);
         if ($predecessors === []) {
             return true;
         }
         foreach ($predecessors as $predecessor) {
-            if (!$this->navigator->canLeave($predecessor)) {
-                return false;
+            if ($this->navigator->canLeave($predecessor)) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     /**
@@ -259,16 +323,23 @@ class LSMapDataBuilder
                 $node->successors,
                 static fn(int $successor_obj_id): bool => isset($nodes[$successor_obj_id])
             ));
+            $passable_successors = array_values(array_filter(
+                $node->passable_successors,
+                static fn(int $successor_obj_id): bool => isset($nodes[$successor_obj_id])
+            ));
             $pruned[$obj_id] = new LSMapNode(
                 obj_id: $node->obj_id,
                 title: $node->title,
                 description: $node->description,
+                icon: $node->icon,
                 player_link: $node->player_link,
                 can_access: $node->can_access,
                 has_visited: $node->has_visited,
                 has_completed: $node->has_completed,
+                can_leave: $node->can_leave,
                 situation: $node->situation,
                 successors: $successors,
+                passable_successors: $passable_successors,
                 input_condition_ids: $node->input_condition_ids,
                 output_condition_ids: $node->output_condition_ids,
                 visit_count: $node->visit_count,

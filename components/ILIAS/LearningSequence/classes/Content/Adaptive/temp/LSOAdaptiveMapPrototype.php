@@ -38,6 +38,17 @@ class LSOAdaptiveMapPrototype
     public function render(?array $graph = null): string
     {
         $graph ??= $this->getFakeDataMany();
+        if (($graph['nodes'] ?? []) === []) {
+            return $this->ui_renderer->render(
+                $this->ui_factory->panel()->standard(
+                    'Lernpfad (Prototyp)', // #ToDo Sprachvariable
+                    $this->ui_factory->messageBox()->info(
+                        'Für diese Lernsequenz können noch keine Wege dargestellt werden.'
+                        . ' Es fehlen Objekte oder ein Start-Objekt.' // #ToDo Sprachvariable
+                    )
+                )
+            );
+        }
         $id = 'lso_map_' . substr(md5((string) mt_rand()), 0, 8);
 
         $json = json_encode(
@@ -58,6 +69,7 @@ class LSOAdaptiveMapPrototype
             . '<div class="lso-map__legend">'
             . '<span class="lso-map__legend-item"><i class="lso-map__swatch lso-map__swatch--open"></i>fortfahren möglich</span>'
             . '<span class="lso-map__legend-item"><i class="lso-map__swatch lso-map__swatch--blocked"></i>gesperrt</span>'
+            . '<span class="lso-map__legend-item"><i class="lso-map__swatch lso-map__swatch--path"></i>bisheriger Pfad</span>'
             . '<span class="lso-map__legend-item"><i class="lso-map__swatch lso-map__swatch--done"></i>abgeschlossen</span>'
             . '<span class="lso-map__legend-item"><i class="lso-map__swatch lso-map__swatch--current"></i>aktuelle Position</span>'
             . '</div>'
@@ -122,11 +134,13 @@ class LSOAdaptiveMapPrototype
 .lso-map__swatch { display: inline-block; width: 22px; height: 0; border-top-width: 3px; border-top-style: solid; }
 .lso-map__swatch--open { border-top-color: #4d4d4d; }
 .lso-map__swatch--blocked { border-top-color: var(--lso-map-blocked); border-top-style: dashed; }
+.lso-map__swatch--path { border-top-color: var(--lso-map-current); border-top-width: 4px; }
 .lso-map__swatch--done { height: 12px; width: 12px; border: 2px solid var(--lso-map-done); border-radius: 2px; }
 .lso-map__swatch--current { height: 12px; width: 12px; border: 2px solid var(--lso-map-current);
     border-radius: 2px; box-shadow: 0 0 0 3px rgba(26,123,189,.25); }
 
-.lso-map__viewport { position: relative; overflow: hidden; height: 600px; resize: vertical;
+.lso-map__viewport { position: relative; overflow: hidden; resize: vertical;
+    min-height: 280px; max-height: 80vh;
     border: 1px solid #d3d3d3; background-color: #fbfbfb;
     background-image: radial-gradient(#e3e3e3 1px, transparent 1px); background-size: 22px 22px;
     cursor: grab; }
@@ -371,9 +385,16 @@ CSS;
     }
 
     /* 4. coordinates */
+    /* dummy nodes are the routing points of long edges. They reserve a real
+       slot (width DUMMY_W, full box height) in their layer, so a line passing
+       a layer keeps the regular h_gap distance to every box and never runs
+       through or right along one. */
+    var DUMMY_W = 18;
     var width = 0, height = 0;
+    /* vertical extent of the real boxes, needed for equal spacing top and bottom */
+    var content_top = 0, content_bottom = 0;
     function positions() {
-        var w = function (n) { return n.dummy ? 1 : M.node_width; };
+        var w = function (n) { return n.dummy ? DUMMY_W : M.node_width; };
         layers.forEach(function (l, r) {
             var total = 0;
             l.forEach(function (n) { total += w(n) + M.h_gap; });
@@ -420,7 +441,17 @@ CSS;
             l.forEach(function (n) { right = Math.max(right, n.x + w(n)); });
         });
         width = right + 40;
-        height = layers.length * (M.node_height + M.v_gap) + 40;
+        content_top = Infinity;
+        content_bottom = -Infinity;
+        layers.forEach(function (l) {
+            l.forEach(function (n) {
+                if (n.dummy) { return; }
+                content_top = Math.min(content_top, n.y);
+                content_bottom = Math.max(content_bottom, n.y + M.node_height);
+            });
+        });
+        if (!isFinite(content_top)) { content_top = 20; content_bottom = 20 + M.node_height; }
+        height = content_bottom + 20;
     }
 
     /* ------------------------------------------------ rendering */
@@ -502,19 +533,22 @@ CSS;
             inSegs[k].forEach(function (s, i) { s.__ii = i; s.__ic = inSegs[k].length; });
         });
         function dockX(node, count, index) {
-            if (node.dummy) { return node.x; }
+            if (node.dummy) { return node.x + DUMMY_W / 2; }
             var span = M.node_width * 0.7;
             var left = node.x + (M.node_width - span) / 2;
             return left + span * (index + 1) / (count + 1);
         }
+        /* a dummy is treated exactly like a box: the line enters at its top and
+           leaves at its bottom. That way every horizontal run stays inside the
+           v_gap between two layers and can never cross a box. */
         function exitPoint(s) {
             var node = s.from;
-            if (node.dummy) { return [node.x, node.y]; }
+            if (node.dummy) { return [dockX(node), node.y + M.node_height]; }
             return [dockX(node, s.__oc || 1, s.__oi || 0), node.y + M.node_height];
         }
         function entryPoint(s) {
             var node = s.to;
-            if (node.dummy) { return [node.x, node.y]; }
+            if (node.dummy) { return [dockX(node), node.y]; }
             return [dockX(node, s.__ic || 1, s.__ii || 0), node.y];
         }
 
@@ -621,6 +655,15 @@ CSS;
     }
     function clampZoom(z) { return Math.min(2.5, Math.max(0.2, z)); }
 
+    /* the viewport grows with the number of boxes, but stops at MAX_HEIGHT.
+       PAD_Y is the free space above the start box and below the end box. */
+    var MIN_HEIGHT = 280, MAX_HEIGHT = 780, PAD_Y = 24;
+    function contentHeight() { return content_bottom - content_top; }
+    function autoHeight() {
+        var wanted = Math.round(contentHeight()) + 2 * PAD_Y;
+        viewport.style.height = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, wanted)) + "px";
+    }
+
     var api = {
         zoomBy: function (delta) {
             var cx = viewport.clientWidth / 2, cy = viewport.clientHeight / 2;
@@ -630,13 +673,22 @@ CSS;
             zoom = nz;
             apply();
         },
-        resetZoom: function () { zoom = 1; panX = 0; panY = 0; apply(); },
+        resetZoom: function () {
+            /* 100 %: no scaling, but content centered horizontally and vertically */
+            var ch = contentHeight();
+            zoom = 1;
+            panX = (viewport.clientWidth - width) / 2;
+            panY = (viewport.clientHeight - ch) / 2 - content_top;
+            apply();
+        },
         fit: function () {
-            var sx = (viewport.clientWidth - 20) / width;
-            var sy = (viewport.clientHeight - 20) / height;
+            var ch = contentHeight();
+            var sx = (viewport.clientWidth - 2 * PAD_Y) / width;
+            var sy = (viewport.clientHeight - 2 * PAD_Y) / ch;
             zoom = clampZoom(Math.min(sx, sy));
             panX = (viewport.clientWidth - width * zoom) / 2;
-            panY = 10;
+            /* same distance from the start box to the top as from the end box to the bottom */
+            panY = (viewport.clientHeight - ch * zoom) / 2 - content_top * zoom;
             apply();
         },
         focusCurrent: function () {
@@ -697,6 +749,7 @@ CSS;
     positions();
     drawNodes();
     drawEdges();
+    autoHeight();
     apply();
     api.fit();
 
@@ -705,6 +758,84 @@ CSS;
 })();
 </script>
 JS;
+    }
+
+    /**
+     * Translates the real map data (LSMap::toArray()) into the graph structure
+     * this prototype draws. Nodes are keyed by obj_id, edges are derived from
+     * the successors of every node.
+     *
+     * @param array<string, mixed> $map LSMap::toArray()
+     * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
+     */
+    public function fromMapData(array $map): array
+    {
+        $map_nodes = $map['nodes'] ?? [];
+        $start_obj_id = (int) ($map['start_obj_id'] ?? 0);
+        $end_obj_id = (int) ($map['end_obj_id'] ?? 0);
+
+        $known = [];
+        foreach ($map_nodes as $node) {
+            $known[(int) $node['obj_id']] = $node;
+        }
+
+        $nodes = [];
+        $edges = [];
+        foreach ($map_nodes as $node) {
+            $obj_id = (int) $node['obj_id'];
+            $situation = (string) ($node['situation'] ?? '');
+            $can_access = (bool) ($node['can_access'] ?? false);
+
+            // an object one may not enter is never "done", no matter what its
+            // (possibly empty) set of output-conditions says
+            $state = 'blocked';
+            if ($can_access && !empty($node['has_completed'])) {
+                $state = 'done';
+            } elseif ($can_access) {
+                $state = 'open';
+            }
+
+            $terminal = null;
+            if ($obj_id === $start_obj_id || $situation === 'start') {
+                $terminal = 'start';
+            } elseif ($obj_id === $end_obj_id || $situation === 'end') {
+                $terminal = 'end';
+            }
+
+            $nodes[] = [
+                'id' => (string) $obj_id,
+                'title' => (string) ($node['title'] ?? ''),
+                'description' => (string) ($node['description'] ?? ''),
+                'icon' => (string) ($node['icon'] ?? ''),
+                'href' => $node['player_link'] ?? null,
+                'state' => $state,
+                'current' => (bool) ($node['is_current'] ?? false),
+                'terminal' => $terminal,
+            ];
+
+            // an edge is passable only if this very edge may be used now: the
+            // object may be left (its output-conditions, e.g. learning progress
+            // "completed", are fulfilled) AND the target may be entered coming
+            // from here. The data layer decides that per edge.
+            $passable_successors = array_map('intval', (array) ($node['passable_successors'] ?? []));
+
+            foreach ($node['successors'] ?? [] as $successor_obj_id) {
+                $successor_obj_id = (int) $successor_obj_id;
+                if (!isset($known[$successor_obj_id])) {
+                    continue;
+                }
+                $successor = $known[$successor_obj_id];
+                $edges[] = [
+                    'from' => (string) $obj_id,
+                    'to' => (string) $successor_obj_id,
+                    'passable' => in_array($successor_obj_id, $passable_successors, true),
+                    'on_path' => !empty($node['is_on_walked_path'])
+                        && !empty($successor['is_on_walked_path']),
+                ];
+            }
+        }
+
+        return ['nodes' => $nodes, 'edges' => $edges];
     }
 
     /**

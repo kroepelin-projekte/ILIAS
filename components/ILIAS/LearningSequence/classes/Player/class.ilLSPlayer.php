@@ -210,7 +210,12 @@ class ilLSPlayer
         }
 
         $control_builder = $this->control_builder;
-        $view->buildControls($state, $control_builder);
+        // On the interstitial pages (branch selection / dead-end notice) the
+        // object itself is not shown, so its view-controls (e.g. the
+        // "mark as completed"-button of a page) must not be built either.
+        if (!($this->isAdaptive() && $show_choice)) {
+            $view->buildControls($state, $control_builder);
+        }
 
         if ($this->isAdaptive() && $show_choice) {
             $control_builder = $this->buildAdaptiveChoiceControls($control_builder);

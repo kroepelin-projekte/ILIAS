@@ -47,6 +47,15 @@ class LinearNavigator implements LSNavigator
      * @param \LSLearnerItem[] $items
      * @return \LSLearnerItem[]
      */
+    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
+    {
+        return $this->getSuccessors($items, $current);
+    }
+
+    /**
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getPredecessors(array $items, \LSLearnerItem $current): array
     {
         $position = $this->findPosition($items, $current);
@@ -63,6 +72,16 @@ class LinearNavigator implements LSNavigator
     }
 
     public function canEnter(\LSLearnerItem $target): bool
+    {
+        return true;
+    }
+
+    public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
+    {
+        return true;
+    }
+
+    public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
         return true;
     }

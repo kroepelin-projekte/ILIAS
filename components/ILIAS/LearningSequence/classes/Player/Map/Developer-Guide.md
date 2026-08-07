@@ -98,7 +98,7 @@ Berechtigung (die steckt immer in `can_access` pro Knoten):
 
 | Konstante                          | Bedeutung |
 |------------------------------------|-----------|
-| `LSMapViewMode::MODE_FULL_ROUTE`   | Komplette Route inkl. aller Verzweigungen und Sackgassen. |
+| `LSMapViewMode::MODE_FULL_ROUTE`   | Komplette Route inkl. aller Verzweigungen und Sackgassen. Die Traversierung folgt dem **konfigurierten** Graphen (`getStructuralSuccessors()`), gesperrte Objekte bleiben also als Knoten mit `can_access = false` enthalten; Objekte ohne Verbindung zum Startobjekt werden als eigene Wurzel ergänzt. |
 | `LSMapViewMode::MODE_REACHABLE_ONLY` | Nur Knoten, die aktuell erreichbar sind (`can_access`), plus bereits besuchte (rückwärts erreichbare „Ehrenrunden") und der aktuelle Knoten. Kanten auf herausgefilterte Knoten werden entfernt. |
 | `LSMapViewMode::MODE_PROGRESS`     | Wie `FULL_ROUTE`; gedacht als Hinweis für die UI, den Fortschritt (`has_visited`/`has_completed`) hervorzuheben. |
 
@@ -121,6 +121,7 @@ Berechtigung (die steckt immer in `can_access` pro Knoten):
       "obj_id": 101,
       "title": "Einführung",
       "description": "Kurze Einleitung in das Thema.",
+      "icon": "assets/images/standard/icon_lm.svg",
       "player_link": "https://ilias.example/goto.php?...&lsocmd=goto&lsov=101",
       "can_access": true,
       "has_visited": true,
@@ -139,6 +140,7 @@ Berechtigung (die steckt immer in `can_access` pro Knoten):
       "obj_id": 102,
       "title": "Lernmodul A",
       "description": "",
+      "icon": "assets/images/standard/icon_lm.svg",
       "player_link": "https://ilias.example/goto.php?...&lsocmd=goto&lsov=102",
       "can_access": true,
       "has_visited": true,
@@ -157,6 +159,7 @@ Berechtigung (die steckt immer in `can_access` pro Knoten):
       "obj_id": 104,
       "title": "Abschlusstest",
       "description": "",
+      "icon": "assets/images/standard/icon_tst.svg",
       "player_link": null,
       "can_access": false,
       "has_visited": false,
@@ -207,12 +210,15 @@ Merksätze für den Aufbau:
 | `obj_id`               | `int`         | **Eindeutige ID** des Knotens innerhalb der LSO. Als Knoten-Key in der JS-Lib verwenden. |
 | `title`                | `string`      | Anzeigetitel des Objekts. |
 | `description`          | `string`      | Beschreibung (kann leer sein). |
+| `icon`                 | `string`      | Pfad zum Typ-Icon des Objekts (`LSItem::getIconPath()`), leer wenn keines vorhanden. |
 | `player_link`          | `string\|null`| Direktlink in den Player zu diesem Objekt. `null`, wenn kein Zugriff (`can_access = false`). Nur setzen/verlinken, wenn nicht `null`. |
-| `can_access`           | `bool`        | Darf der User dort hinein? Harte Regel für Klickbarkeit – **unabhängig vom Sichtmodus**. |
+| `can_access`           | `bool`        | Darf der User dort hinein? Harte Regel für Klickbarkeit – **unabhängig vom Sichtmodus**. `true`, sobald **mindestens ein** Vorgänger verlassen werden darf (mehrere eingehende Kanten sind Alternativpfade) und alle Input-Conditions erfüllt sind, die keine Kante darstellen. |
 | `has_visited`          | `bool`        | Wurde das Objekt jemals besucht (inkl. später verlassener Äste)? |
-| `has_completed`        | `bool`        | Sind die Output-Conditions erfüllt (=„abgeschlossen" im adaptiven Sinne)? |
+| `has_completed`        | `bool`        | Sind die Output-Conditions erfüllt (=„abgeschlossen" im adaptiven Sinne)? Immer `false`, wenn `can_access = false` – ein gesperrtes Objekt kann nicht abgeschlossen sein, auch wenn es (noch) keine Output-Condition hat. |
+| `can_leave`            | `bool`        | Darf der User von hier **weiter**? = alle Output-Conditions des Objekts erfüllt (z. B. Lernfortschritt „abgeschlossen"). Solange `false`, ist **keine** ausgehende Kante passierbar. |
 | `situation`            | `string`      | Einer von `start` / `end` / `branch` / `straight` / `deadend` / `blocked`. Für Icon/Form des Knotens. |
 | `successors`           | `int[]`       | **Die Kanten**: obj_ids der direkt erreichbaren Folgeknoten. Zusammenlaufende Pfade = mehrere Kanten auf denselben Knoten. |
+| `passable_successors`  | `int[]`       | Teilmenge von `successors`: die **jetzt** passierbaren Kanten – dieses Objekt darf verlassen werden (`can_leave`, und es ist selbst zugänglich) **und** das Zielobjekt darf über genau diese Kante betreten werden. Alles aus `successors`, was hier fehlt, als **gesperrten Pfeil** zeichnen. |
 | `input_condition_ids`  | `int[]`       | IDs **aller** Input-Conditions des Objekts (Bedingungen zum Hineinkommen). Nur IDs; Details bei Bedarf separat auflösen. |
 | `output_condition_ids` | `int[]`       | IDs **aller** Output-Conditions des Objekts (Bedingungen zum Verlassen). |
 | `visit_count`          | `int`         | Wie oft der User das Objekt besucht hat (relevant für „Ehrenrunden"). |
@@ -252,6 +258,11 @@ Position beantworten will (ohne die ganze Map zu bauen), kann
 - **`can_access`** eines Knotens = **alle** eingehenden Vorgänger dürfen
   verlassen werden (`AdaptiveNavigator::canLeave` für jeden Vorgänger). Der
   Startknoten hat keine Vorgänger und ist immer zugänglich.
+- **Kantenzustand**: Eine Kante ist nur passierbar (`passable_successors`), wenn der
+  Quellknoten zugänglich ist, seine Output-Conditions erfüllt sind (`can_leave`,
+  z. B. Lernfortschritt „abgeschlossen") **und** die Condition genau dieser Kante
+  zusammen mit den Nicht-Kanten-Input-Conditions des Ziels erfüllt ist
+  (`AdaptiveNavigator::canEnterFrom`). Alle übrigen Kanten sind gesperrt.
 - **Kanten** (`successors`) ergeben sich aus den adaptiven Bedingungen
   (`SimpleChoiceInputCondition`), nicht aus der reinen Listenreihenfolge.
 - **Ehrenrunden/Zyklen** sind erlaubt: Ein Rücksprung dupliziert keinen Knoten;
