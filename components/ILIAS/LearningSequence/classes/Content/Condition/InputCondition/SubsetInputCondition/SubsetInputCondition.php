@@ -25,6 +25,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterf
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 
 /**
  * Input condition that grants access to a learning sequence step once a configurable
@@ -39,7 +40,7 @@ use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 class SubsetInputCondition extends AbstractCondition implements InputConditionInterface
 {
     protected const string NAME = 'subset';
-    private const SETTINGS_TABLE = 'lso_c_subset';
+    private const string SETTINGS_TABLE = 'lso_c_subset';
     private const string OBJECT_IDS_FIELD = 'object_ids';
     private const string SUBSET_FIELD = 'subset';
 
@@ -113,7 +114,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     {
         $this->assertContextSet();
 
-        $multi_select = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
+        $multi_select = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true
         );
@@ -140,7 +141,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
-     * @param array<mixed> $data
+     * @param array $data
      */
     public function applyAdditionalFormData(array $data): void
     {
@@ -214,6 +215,9 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         $this->object_ref_ids = $object_ref_ids;
     }
 
+    /**
+     * @return int
+     */
     public function getSubset(): int
     {
         if ($this->subset !== null) {
@@ -238,6 +242,10 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         return $this->subset;
     }
 
+    /**
+     * @param int $subset
+     * @return void
+     */
     public function setSubset(int $subset): void
     {
         if ($subset < 0) {
@@ -251,6 +259,10 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         $this->subset = $subset;
     }
 
+    /**
+     * @param int $condition_id
+     * @return void
+     */
     protected function createConditionData(int $condition_id): void
     {
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
@@ -310,9 +322,9 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     /**
      * Returns the glyph used to represent this condition in the user interface.
      *
-     * @return \ILIAS\UI\Component\Symbol\Glyph\Glyph the glyph symbol for this condition
+     * @return Glyph the glyph symbol for this condition
      */
-    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    protected function getGlyphe(): Glyph
     {
         return $this->ui_factory->symbol()->glyph()->checked();
     }
@@ -329,6 +341,9 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         return $this->object_ref_ids;
     }
 
+    /**
+     * @return int
+     */
     private function requireSubset(): int
     {
         if ($this->subset === null) {

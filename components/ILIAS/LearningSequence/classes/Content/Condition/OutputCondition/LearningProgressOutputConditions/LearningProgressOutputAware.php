@@ -21,10 +21,13 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\LearningProgressOutputConditions;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
+use ILIAS\UI\Component\Link\Bulky;
 use ilLPStatus;
+use ilObject;
+use LogicException;
 
 final class LearningProgressOutputAware extends AbstractCondition implements OutputConditionInterface, SubtypeAwareInterface
 {
@@ -62,7 +65,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress(),
             self::SUBTYPE_COMPLETED => $this->isCompleted(),
             self::SUBTYPE_FAILED => $this->isFailed(),
-            default => throw new \LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -87,7 +90,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
      * Get the subtype of the learning progress condition.
      *
      * @return string
-     * @throws \LogicException if the subtype is not set or not stored
+     * @throws LogicException if the subtype is not set or not stored
      */
     public function getSubtype(): string
     {
@@ -96,7 +99,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Learning progress subtype is not set.');
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         $res = $this->getDatabase()->queryF(
@@ -107,11 +110,11 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException('Learning progress subtype is not stored.');
+            throw new LogicException('Learning progress subtype is not stored.');
         }
 
         $this->setSubtype($row['subtype']);
-        return (string) $this->subtype;
+        return (string)$this->subtype;
     }
 
     /**
@@ -173,16 +176,16 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new \LogicException('Learning progress condition lookup is ambiguous.');
+            throw new LogicException('Learning progress condition lookup is ambiguous.');
         }
 
-        return (int) $row['condition_id'];
+        return (int)$row['condition_id'];
     }
 
     /**
      * @inheritDoc
      */
-    public function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
+    public function buildSubtypeStep(string $subtype): Bulky
     {
         return $this->buildStep(
             ['subtype' => $subtype],
@@ -196,7 +199,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
      *
      * @param string $subtype
      * @return string
-     * @throws \LogicException if the subtype is unknown
+     * @throws LogicException if the subtype is unknown
      */
     public function getSubtypeLabel(string $subtype): string
     {
@@ -205,7 +208,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
             self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new \LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -226,12 +229,12 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
      * Require the subtype to be set, otherwise throw an exception.
      *
      * @return string
-     * @throws \LogicException if the subtype is not set
+     * @throws LogicException if the subtype is not set
      */
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new \LogicException('Learning progress subtype is not set.');
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         return $this->subtype;
@@ -245,9 +248,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isNotAttempted(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
+                $this->resolveObjId(),
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
     }
 
     /**
@@ -258,9 +261,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isInProgress(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
+                $this->resolveObjId(),
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
     }
 
     /**
@@ -284,9 +287,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isFailed(): bool
     {
         return ilLPStatus::_lookupStatus(
-            $this->resolveObjId(),
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_FAILED_NUM;
+                $this->resolveObjId(),
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
 
     /**
@@ -295,6 +298,6 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
      */
     private function resolveObjId(): int
     {
-        return \ilObject::_lookupObjId((int) $this->obj_ref_id);
+        return ilObject::_lookupObjId((int)$this->obj_ref_id);
     }
 }

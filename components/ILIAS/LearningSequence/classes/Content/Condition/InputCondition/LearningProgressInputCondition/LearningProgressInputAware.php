@@ -20,13 +20,18 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions;
 
+use ilCtrlException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
-use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Link\Bulky;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ilLPStatus;
+use ilObject;
+use LogicException;
 
 final class LearningProgressInputAware extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
@@ -60,7 +65,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
      */
     public function check(): bool
     {
-        $target_obj_id = \ilObject::_lookupObjId($this->getConditionTargetRefId());
+        $target_obj_id = ilObject::_lookupObjId($this->getConditionTargetRefId());
         if ($target_obj_id === 0) {
             return false;
         }
@@ -70,7 +75,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress($target_obj_id),
             self::SUBTYPE_COMPLETED => $this->isCompleted($target_obj_id),
             self::SUBTYPE_FAILED => $this->isFailed($target_obj_id),
-            default => throw new \LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -104,10 +109,11 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
      * Returns a picker to select the target ref id for the learning progress input condition.
      *
      * @return FormStandard
+     * @throws ilCtrlException
      */
     public function getAdditionalForm(): FormStandard
     {
-        $input = (new LSOObjectPicker((int) $this->lso_ref_id))->getPicker(
+        $input = new LSOObjectPicker((int)$this->lso_ref_id)->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
             false,
         )
@@ -123,7 +129,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             );
 
         if ($this->condition_id !== null) {
-            $input = $input->withValue((string) $this->getConditionTargetRefId());
+            $input = $input->withValue((string)$this->getConditionTargetRefId());
         }
 
         return $this->ui_factory->input()->container()->form()->standard(
@@ -144,17 +150,17 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             || !isset($target_ref_ids[0])
             || $target_ref_ids[0] === ''
         ) {
-            throw new \LogicException('Learning progress target ref id is invalid.');
+            throw new LogicException('Learning progress target ref id is invalid.');
         }
 
-        $this->setConditionTargetRefId((int) $target_ref_ids[0]);
+        $this->setConditionTargetRefId((int)$target_ref_ids[0]);
     }
 
     /**
      * Get the subtype of the learning progress condition.
      *
      * @return string
-     * @throws \LogicException if the subtype is not set or not stored
+     * @throws LogicException if the subtype is not set or not stored
      */
     public function getSubtype(): string
     {
@@ -163,7 +169,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Learning progress subtype is not set.');
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         $res = $this->getDatabase()->queryF(
@@ -174,18 +180,18 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException('Learning progress subtype is not stored.');
+            throw new LogicException('Learning progress subtype is not stored.');
         }
 
         $this->setSubtype($row['subtype']);
-        return (string) $this->subtype;
+        return (string)$this->subtype;
     }
 
     /**
      * Get the target ref id for the learning progress condition.
      *
      * @return int
-     * @throws \LogicException if the target ref id is not set or not stored
+     * @throws LogicException if the target ref id is not set or not stored
      */
     public function getConditionTargetRefId(): int
     {
@@ -194,7 +200,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Learning progress target ref id is not set.');
+            throw new LogicException('Learning progress target ref id is not set.');
         }
 
         $res = $this->getDatabase()->queryF(
@@ -206,10 +212,10 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new \LogicException('Learning progress target ref id is not stored.');
+            throw new LogicException('Learning progress target ref id is not stored.');
         }
 
-        $this->condition_target_ref_id = (int) $row['target_ref_id'];
+        $this->condition_target_ref_id = (int)$row['target_ref_id'];
         return $this->condition_target_ref_id;
     }
 
@@ -284,16 +290,17 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new \LogicException('Learning progress condition lookup is ambiguous.');
+            throw new LogicException('Learning progress condition lookup is ambiguous.');
         }
 
-        return (int) $row['condition_id'];
+        return (int)$row['condition_id'];
     }
 
     /**
      * @inheritDoc
+     * @throws ilCtrlException
      */
-    public function buildSubtypeStep(string $subtype): \ILIAS\UI\Component\Link\Bulky
+    public function buildSubtypeStep(string $subtype): Bulky
     {
         return $this->buildStep(
             ['subtype' => $subtype],
@@ -306,7 +313,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
      *
      * @param string $subtype
      * @return string
-     * @throws \LogicException if the subtype is unknown
+     * @throws LogicException if the subtype is unknown
      */
     public function getSubtypeLabel(string $subtype): string
     {
@@ -315,7 +322,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
             self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new \LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -336,12 +343,12 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
      * Require the subtype to be set, otherwise throw an exception.
      *
      * @return string
-     * @throws \LogicException if the subtype is not set
+     * @throws LogicException if the subtype is not set
      */
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new \LogicException('Learning progress subtype is not set.');
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         return $this->subtype;
@@ -350,32 +357,35 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     /**
      * Check if the learning progress status is "not attempted" for the current user and object.
      *
+     * @param int $target_obj_id
      * @return bool
      */
     private function isNotAttempted(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $target_obj_id,
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
+                $target_obj_id,
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
     }
 
     /**
      * Check if the learning progress status is "in progress" for the current user and object.
      *
+     * @param int $target_obj_id
      * @return bool
      */
     private function isInProgress(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $target_obj_id,
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
+                $target_obj_id,
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
     }
 
     /**
      * Check if the learning progress status is "completed" for the current user and object.
      *
+     * @param int $target_obj_id
      * @return bool
      */
     private function isCompleted(int $target_obj_id): bool
@@ -389,20 +399,21 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     /**
      * Check if the learning progress status is "failed" for the current user and object.
      *
+     * @param int $target_obj_id
      * @return bool
      */
     private function isFailed(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-            $target_obj_id,
-            $this->dic->user()->getId()
-        ) === ilLPStatus::LP_STATUS_FAILED_NUM;
+                $target_obj_id,
+                $this->dic->user()->getId()
+            ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
 
     /**
      * @inheritDoc
      */
-    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    protected function getGlyphe(): Glyph
     {
         return $this->ui_factory->symbol()->glyph()->settings();
     }

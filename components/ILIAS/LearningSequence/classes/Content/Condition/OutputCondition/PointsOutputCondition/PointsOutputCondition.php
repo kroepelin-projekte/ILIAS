@@ -22,9 +22,11 @@ namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputC
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
-use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
+use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ilLPStatus;
+use LogicException;
 
 final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface
 {
@@ -78,21 +80,21 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
 
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
-            [ $input ]
+            [$input]
         );
     }
 
     /**
-     * @param array<mixed> $data
+     * @param array $data
      */
     public function applyAdditionalFormData(array $data): void
     {
         $points = array_shift($data);
         if (is_array($points) || !is_numeric($points)) {
-            throw new \LogicException('Points are invalid.');
+            throw new LogicException('Points are invalid.');
         }
 
-        $this->setPoints((int) $points);
+        $this->setPoints((int)$points);
     }
 
     /**
@@ -117,10 +119,10 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !isset($row[self::POINTS_FIELD])) {
-            throw new \LogicException('Points are not stored.');
+            throw new LogicException('Points are not stored.');
         }
 
-        $this->points = (int) $row[self::POINTS_FIELD];
+        $this->points = (int)$row[self::POINTS_FIELD];
         return $this->points;
     }
 
@@ -128,12 +130,12 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
      * Sets the points that are awarded when this object is completed.
      *
      * @param int $points
-     * @throws \LogicException if the points are negative
+     * @throws LogicException if the points are negative
      */
     public function setPoints(int $points): void
     {
         if ($points < 0) {
-            throw new \LogicException('Points must not be negative.');
+            throw new LogicException('Points must not be negative.');
         }
 
         $this->points = $points;
@@ -181,7 +183,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     /**
      * @inheritDoc
      */
-    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    protected function getGlyphe(): Glyph
     {
         return $this->ui_factory->symbol()->glyph()->settings();
     }
@@ -198,12 +200,12 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
      * Returns the points that are required to be set.
      *
      * @return int
-     * @throws \LogicException if the points are not set
+     * @throws LogicException if the points are not set
      */
     private function requirePoints(): int
     {
         if ($this->points === null) {
-            throw new \LogicException('Points are not set.');
+            throw new LogicException('Points are not set.');
         }
 
         return $this->points;

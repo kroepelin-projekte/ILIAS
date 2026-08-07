@@ -25,6 +25,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterf
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 
 final class PointsInputCondition extends AbstractCondition implements InputConditionInterface
 {
@@ -177,7 +178,7 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
     /**
      * @inheritDoc
      */
-    protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
+    protected function getGlyphe(): Glyph
     {
         return $this->ui_factory->symbol()->glyph()->settings();
     }

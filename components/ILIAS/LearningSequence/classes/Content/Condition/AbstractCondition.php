@@ -99,7 +99,7 @@ abstract class AbstractCondition
     /**
      * Applies validated additional form data to the condition before create()/edit().
      *
-     * @param array<mixed> $data
+     * @param array $data
      */
     public function applyAdditionalFormData(array $data): void
     {
@@ -140,14 +140,6 @@ abstract class AbstractCondition
 
         $this->subtype = $subtype;
     }
-
-    /**
-     * @return string[]
-     */
-    /*protected function getSupportedSubtypes(): array
-    {
-        return [];
-    }*/
 
     /**
      * Returns an array of steps to configure the condition.
@@ -223,7 +215,7 @@ abstract class AbstractCondition
      */
     public function getTypeId(): ?int
     {
-        return $this->type_id ? $this->type_id : $this->getTypeIdFromDb();
+        return $this->type_id ?: $this->getTypeIdFromDb();
     }
 
     /**
@@ -255,6 +247,7 @@ abstract class AbstractCondition
 
     /**
      * Edits the condition.
+     * @throws ReflectionException
      */
     public function edit(): void
     {
@@ -282,6 +275,7 @@ abstract class AbstractCondition
 
     /**
      * Deletes the condition from the database.
+     * @throws ReflectionException
      */
     public function delete(): void
     {
