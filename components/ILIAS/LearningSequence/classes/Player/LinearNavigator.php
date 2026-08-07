@@ -47,6 +47,15 @@ class LinearNavigator implements LSNavigator
      * @param \LSLearnerItem[] $items
      * @return \LSLearnerItem[]
      */
+    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
+    {
+        return $this->getSuccessors($items, $current);
+    }
+
+    /**
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getPredecessors(array $items, \LSLearnerItem $current): array
     {
         $position = $this->findPosition($items, $current);
@@ -67,10 +76,49 @@ class LinearNavigator implements LSNavigator
         return true;
     }
 
+    public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
+    {
+        return true;
+    }
+
+    public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
+    {
+        return true;
+    }
+
+    /**
+     * Nothing to preload: the linear navigation is purely index based.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function preload(array $items): void
+    {
+    }
+
+    /**
+     * There are no conditions in the linear mode.
+     *
+     * @return int[]
+     */
+    public function getInputConditionIds(\LSLearnerItem $item): array
+    {
+        return [];
+    }
+
+    /**
+     * There are no conditions in the linear mode.
+     *
+     * @return int[]
+     */
+    public function getOutputConditionIds(\LSLearnerItem $item): array
+    {
+        return [];
+    }
+
     /**
      * @param \LSLearnerItem[] $items
      */
-    private function findPosition(array $items, \LSLearnerItem $item): int
+    protected function findPosition(array $items, \LSLearnerItem $item): int
     {
         foreach ($items as $index => $candidate) {
             if ($candidate->getRefId() === $item->getRefId()) {

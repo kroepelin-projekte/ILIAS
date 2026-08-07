@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Player\Map;
+namespace ILIAS\LearningSequence\LearningMap;
 
 /**
  * Immutable container describing the whole map (the object graph plus its
@@ -28,7 +28,7 @@ namespace ILIAS\LearningSequence\Player\Map;
  * (each node's $successors). Converging paths are simply multiple edges
  * pointing at the same node - no node is ever duplicated.
  */
-final class LSMap
+final class LSOLearningMap
 {
     /**
      * The start and end object are exposed as first-class fields on the map so
@@ -36,15 +36,15 @@ final class LSMap
      * list for situation = 'start'/'end'. Both are addressed by their obj_id
      * within the LSO (0 if none is configured). Internally the LSO boundaries
      * are stored as ref_id; the resolution to obj_id happens in the builder
-     * (via LSAdaptivePosition::getStartObjId()/getEndObjId()). The nodes are
-     * additionally marked via LSMapNode::$situation ('start'/'end').
+     * (via LSOLearningMapPosition::getStartObjId()/getEndObjId()). The nodes are
+     * additionally marked via LSOLearningMapNode::$situation ('start'/'end').
      *
      * @param int          $lso_obj_id   the LSO the map belongs to
      * @param int          $usr_id       the learner the map was built for
-     * @param int          $mode         the LSMapViewMode the map was built with
+     * @param int          $mode         the LSOLearningMapViewMode the map was built with
      * @param int          $start_obj_id obj_id of the start object (0 if none)
      * @param int          $end_obj_id   obj_id of the end object (0 if none)
-     * @param LSMapNode[]  $nodes        all nodes, indexed by obj_id
+     * @param LSOLearningMapNode[]  $nodes        all nodes, indexed by obj_id
      */
     public function __construct(
         public readonly int $lso_obj_id,
@@ -56,7 +56,7 @@ final class LSMap
     ) {
     }
 
-    public function getNode(int $obj_id): ?LSMapNode
+    public function getNode(int $obj_id): ?LSOLearningMapNode
     {
         return $this->nodes[$obj_id] ?? null;
     }
@@ -77,7 +77,7 @@ final class LSMap
             'start_obj_id' => $this->start_obj_id,
             'end_obj_id' => $this->end_obj_id,
             'nodes' => array_values(array_map(
-                static fn(LSMapNode $node): array => $node->toArray(),
+                static fn(LSOLearningMapNode $node): array => $node->toArray(),
                 $this->nodes
             ))
         ];

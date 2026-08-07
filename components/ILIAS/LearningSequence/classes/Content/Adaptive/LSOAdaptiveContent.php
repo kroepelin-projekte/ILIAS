@@ -127,7 +127,9 @@ class LSOAdaptiveContent implements LSOContentController
             $this->tpl
         );
 
-        $this->parent_gui->setContent($table->render());
+        $this->parent_gui->setContent(
+            $table->render()
+        );
     }
 
     protected function getTableData(array $items, ?array $filter_data): array

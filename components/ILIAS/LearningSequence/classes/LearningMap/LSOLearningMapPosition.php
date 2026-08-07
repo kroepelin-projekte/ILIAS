@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\LearningSequence\Player\Map;
+namespace ILIAS\LearningSequence\LearningMap;
 
 use ILIAS\LearningSequence\Player\LSNavigator;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
@@ -39,7 +39,7 @@ use ilDBInterface;
  * most notably by the map view, which needs to know the current position and
  * the possible next objects without driving the kiosk mode player.
  */
-class LSAdaptivePosition
+class LSOLearningMapPosition
 {
     // The five situations an object can be in for the adaptive player.
     public const SIT_END = 'end';
@@ -58,6 +58,25 @@ class LSAdaptivePosition
      */
     public const VISITS_TABLE = 'lso_item_visits';
 
+    /**
+     * Request-caches. The visit log is asked for several times per object
+     * while the map is being built (visited?, how often?, when last?), so it is
+     * read once and the derived statistics are pre-computed.
+     *
+     * @var array<int, array{ref_id: int, visited_ts: int}>|null
+     */
+    protected ?array $raw_visit_log = null;
+
+    /**
+     * @var array<int, array{count: int, last_ts: int}>|null statistics per obj_id
+     */
+    protected ?array $visit_stats = null;
+
+    /**
+     * @var array<int, int> ref_id => obj_id
+     */
+    protected array $obj_id_by_ref_id = [];
+
     public function __construct(
         protected LSNavigator $navigator,
         protected LSOItemPath $item_path,
@@ -66,6 +85,19 @@ class LSAdaptivePosition
         protected int $usr_id,
         protected ?ilDBInterface $db = null
     ) {
+    }
+
+    /**
+     * Hook for subclasses that derive their state from the item list itself
+     * (e.g. the sequential mode, where start and end are simply the first and
+     * the last object). Called once by the map data builder before the graph is
+     * walked. The adaptive default reads its boundaries from the database and
+     * therefore does nothing here.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function prepareForItems(array $items): void
+    {
     }
 
     /**
@@ -94,6 +126,19 @@ class LSAdaptivePosition
             'ref_id' => ['integer', $ref_id],
             'visited_ts' => ['integer', time()]
         ]);
+
+        $this->raw_visit_log = null;
+        $this->visit_stats = null;
+    }
+
+    /**
+     * Resolves a ref_id to its obj_id and remembers the result: the same
+     * handful of ref_ids is translated over and over again while the map is
+     * being built.
+     */
+    protected function lookupObjId(int $ref_id): int
+    {
+        return $this->obj_id_by_ref_id[$ref_id] ??= \ilObject::_lookupObjId($ref_id);
     }
 
     /**
@@ -126,7 +171,7 @@ class LSAdaptivePosition
         if ($start_ref_id === 0) {
             return 0;
         }
-        return \ilObject::_lookupObjId($start_ref_id);
+        return $this->lookupObjId($start_ref_id);
     }
 
     /**
@@ -138,7 +183,7 @@ class LSAdaptivePosition
         if ($end_ref_id === 0) {
             return 0;
         }
-        return \ilObject::_lookupObjId($end_ref_id);
+        return $this->lookupObjId($end_ref_id);
     }
 
     /**
@@ -199,6 +244,31 @@ class LSAdaptivePosition
     }
 
     /**
+     * Same classification as getSituation(), but based on the configured graph
+     * instead of the currently enterable successors. The map must not turn a
+     * branch into a dead end just because its successors are still blocked.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function getStructuralSituation(array $items, \LSLearnerItem $item): string
+    {
+        if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
+            return self::SIT_END;
+        }
+        if (!$this->navigator->canLeave($item)) {
+            return self::SIT_BLOCKED;
+        }
+        $count = count($this->getStructuralSuccessors($items, $item));
+        if ($count === 0) {
+            return self::SIT_DEADEND;
+        }
+        if ($count === 1) {
+            return self::SIT_STRAIGHT;
+        }
+        return self::SIT_BRANCH;
+    }
+
+    /**
      * The objects that may currently be entered from the given object.
      *
      * @param \LSLearnerItem[] $items
@@ -207,6 +277,19 @@ class LSAdaptivePosition
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getSuccessors($items, $item);
+    }
+
+    /**
+     * All objects an edge leads to, no matter whether they may currently be
+     * entered. This is the graph as it was configured and therefore the basis
+     * for the map, which has to show blocked objects, too.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    public function getStructuralSuccessors(array $items, \LSLearnerItem $item): array
+    {
+        return $this->navigator->getStructuralSuccessors($items, $item);
     }
 
     /**
@@ -239,6 +322,67 @@ class LSAdaptivePosition
     }
 
     /**
+     * Jumps right to the object with the given obj_id, no matter whether it is
+     * a successor of the object worked on last. This is what the learning map
+     * needs: the learner picks one box and expects to land exactly there. The
+     * object has to be accessible (see mayAccess()); the jump is pushed onto
+     * the path, so "back" keeps working.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    public function jumpTo(array $items, \LSLearnerItem $current_item, ?int $obj_id): \LSLearnerItem
+    {
+        if ($obj_id === null || $obj_id === 0) {
+            return $current_item;
+        }
+        foreach ($items as $item) {
+            if ($this->lookupObjId($item->getRefId()) !== $obj_id) {
+                continue;
+            }
+            if ($item->getRefId() === $current_item->getRefId()) {
+                return $current_item;
+            }
+            if (!$this->mayAccess($items, $item)) {
+                return $current_item;
+            }
+            $this->item_path->push($this->usr_id, $this->lso_obj_id, $item->getRefId());
+            $this->recordVisit($item->getRefId());
+            return $item;
+        }
+        return $current_item;
+    }
+
+    /**
+     * May the learner enter the given object at all? Same rule the map uses to
+     * decide whether it offers the "open"-button (see
+     * LSOLearningMapDataBuilder::canAccess()): the object's own input-conditions
+     * have to be fulfilled and at least one of its predecessors has to be
+     * leaveable, because several incoming edges are alternative paths. The start
+     * object has no predecessors and is always accessible.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    protected function mayAccess(array $items, \LSLearnerItem $item): bool
+    {
+        if ($this->getStartRefId() !== 0 && $item->getRefId() === $this->getStartRefId()) {
+            return true;
+        }
+        if (!$this->navigator->canEnterIgnoringEdges($item)) {
+            return false;
+        }
+        $predecessors = $this->navigator->getPredecessors($items, $item);
+        if ($predecessors === []) {
+            return true;
+        }
+        foreach ($predecessors as $predecessor) {
+            if ($this->navigator->canLeave($predecessor)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Handles the choice on a branch: only allowed successors may be selected;
      * the selection is addressed by the obj_id of the target object within the
      * LSO and is pushed onto the path.
@@ -251,7 +395,7 @@ class LSAdaptivePosition
             return $current_item;
         }
         foreach ($this->getSuccessors($items, $current_item) as $successor) {
-            if (\ilObject::_lookupObjId($successor->getRefId()) === $obj_id) {
+            if ($this->lookupObjId($successor->getRefId()) === $obj_id) {
                 $this->item_path->push($this->usr_id, $this->lso_obj_id, $successor->getRefId());
                 $this->recordVisit($successor->getRefId());
                 return $successor;
@@ -297,7 +441,7 @@ class LSAdaptivePosition
         if ($current_ref_id === 0) {
             return 0;
         }
-        return \ilObject::_lookupObjId($current_ref_id);
+        return $this->lookupObjId($current_ref_id);
     }
 
     /**
@@ -321,7 +465,7 @@ class LSAdaptivePosition
     public function getWalkedObjIds(): array
     {
         return array_map(
-            fn(int $ref_id): int => \ilObject::_lookupObjId($ref_id),
+            fn(int $ref_id): int => $this->lookupObjId($ref_id),
             $this->getWalkedRefIds()
         );
     }
@@ -338,7 +482,7 @@ class LSAdaptivePosition
     {
         return array_map(
             fn(array $entry): array => [
-                'obj_id' => \ilObject::_lookupObjId($entry['ref_id']),
+                'obj_id' => $this->lookupObjId($entry['ref_id']),
                 'visited_ts' => $entry['visited_ts']
             ],
             $this->getRawVisitLog()
@@ -354,8 +498,11 @@ class LSAdaptivePosition
      */
     protected function getRawVisitLog(): array
     {
+        if ($this->raw_visit_log !== null) {
+            return $this->raw_visit_log;
+        }
         if ($this->db === null) {
-            return [];
+            return $this->raw_visit_log = [];
         }
         $query = "SELECT ref_id, visited_ts FROM " . self::VISITS_TABLE
             . " WHERE usr_id = " . $this->db->quote($this->usr_id, 'integer')
@@ -370,7 +517,36 @@ class LSAdaptivePosition
                 'visited_ts' => (int) $row['visited_ts']
             ];
         }
+
+        $this->raw_visit_log = $log;
         return $log;
+    }
+
+    /**
+     * Pre-computed visit statistics per obj_id (number of visits and the
+     * timestamp of the last visit), so the map does not have to walk the whole
+     * visit log once per object and question.
+     *
+     * @return array<int, array{count: int, last_ts: int}>
+     */
+    protected function getVisitStats(): array
+    {
+        if ($this->visit_stats !== null) {
+            return $this->visit_stats;
+        }
+
+        $stats = [];
+        foreach ($this->getRawVisitLog() as $entry) {
+            $obj_id = $this->lookupObjId($entry['ref_id']);
+            if (!isset($stats[$obj_id])) {
+                $stats[$obj_id] = ['count' => 0, 'last_ts' => (int) $entry['visited_ts']];
+            }
+            $stats[$obj_id]['count']++;
+            $stats[$obj_id]['last_ts'] = (int) $entry['visited_ts'];
+        }
+
+        $this->visit_stats = $stats;
+        return $stats;
     }
 
     /**
@@ -397,13 +573,7 @@ class LSAdaptivePosition
      */
     public function getVisitCount(int $obj_id): int
     {
-        $count = 0;
-        foreach ($this->getVisitLog() as $entry) {
-            if ($entry['obj_id'] === $obj_id) {
-                $count++;
-            }
-        }
-        return $count;
+        return $this->getVisitStats()[$obj_id]['count'] ?? 0;
     }
 
     /**
@@ -414,13 +584,7 @@ class LSAdaptivePosition
      */
     public function getLastVisitTs(int $obj_id): ?int
     {
-        $last = null;
-        foreach ($this->getVisitLog() as $entry) {
-            if ($entry['obj_id'] === $obj_id) {
-                $last = $entry['visited_ts'];
-            }
-        }
-        return $last;
+        return $this->getVisitStats()[$obj_id]['last_ts'] ?? null;
     }
 
     /**
@@ -432,7 +596,7 @@ class LSAdaptivePosition
     public function getEverVisitedObjIds(): array
     {
         return array_map(
-            fn(int $ref_id): int => \ilObject::_lookupObjId($ref_id),
+            fn(int $ref_id): int => $this->lookupObjId($ref_id),
             $this->getEverVisitedRefIds()
         );
     }
@@ -445,7 +609,7 @@ class LSAdaptivePosition
      */
     public function hasVisited(int $obj_id): bool
     {
-        return in_array($obj_id, $this->getEverVisitedObjIds(), true);
+        return isset($this->getVisitStats()[$obj_id]);
     }
 
     /**
@@ -465,7 +629,7 @@ class LSAdaptivePosition
             return false;
         }
         foreach ($items as $item) {
-            if (\ilObject::_lookupObjId($item->getRefId()) === $obj_id) {
+            if ($this->lookupObjId($item->getRefId()) === $obj_id) {
                 return $this->navigator->canLeave($item);
             }
         }

@@ -114,7 +114,7 @@ class ilLSEventHandler
     {
         global $DIC;
         $db = $DIC->database();
-        $table = \ILIAS\LearningSequence\Player\Map\LSAdaptivePosition::VISITS_TABLE;
+        $table = \ILIAS\LearningSequence\LearningMap\LSOLearningMapPosition::VISITS_TABLE;
         $db->manipulate(
             "DELETE FROM " . $table
             . " WHERE usr_id = " . $db->quote($usr_id, 'integer')
@@ -126,7 +126,7 @@ class ilLSEventHandler
     {
         global $DIC;
         $db = $DIC->database();
-        $table = \ILIAS\LearningSequence\Player\Map\LSAdaptivePosition::VISITS_TABLE;
+        $table = \ILIAS\LearningSequence\LearningMap\LSOLearningMapPosition::VISITS_TABLE;
         $db->manipulate(
             "DELETE FROM " . $table
             . " WHERE lso_obj_id = " . $db->quote($lso_obj_id, 'integer')

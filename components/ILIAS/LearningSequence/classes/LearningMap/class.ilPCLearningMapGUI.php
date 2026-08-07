@@ -19,11 +19,14 @@
 declare(strict_types=1);
 
 /**
- * Curriculum for PageEditor, the GUI
+ * The learning map for the page editor, the GUI.
  *
- * @ilCtrl_isCalledBy ilPCCurriculumGUI: ilPageEditorGUI
+ * There is nothing to configure, so inserting the element immediately returns
+ * to the page editor.
+ *
+ * @ilCtrl_isCalledBy ilPCLearningMapGUI: ilPageEditorGUI
  */
-class ilPCCurriculumGUI extends ilPageContentGUI
+class ilPCLearningMapGUI extends ilPageContentGUI
 {
     public const CMD_INSERT = 'insert';
     public const CMD_EDIT = 'edit';
@@ -53,9 +56,9 @@ class ilPCCurriculumGUI extends ilPageContentGUI
         $this->ctrl->returnToParent($this, "jump" . $this->hier_id);
     }
 
-    protected function createNewPageContent(): ilPCCurriculum
+    protected function createNewPageContent(): ilPCLearningMap
     {
-        return new ilPCCurriculum(
+        return new ilPCLearningMap(
             $this->getPage()
         );
     }
