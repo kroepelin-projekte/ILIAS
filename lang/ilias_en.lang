@@ -11332,6 +11332,7 @@ lso#:#lso_exception_condition_ambiguous#:#Condition lookup is ambiguous.
 lso#:#lso_exception_lso_ref_id_not_set#:#LSO ref id is not set.
 lso#:#lso_exception_not_lso_object#:#Object is not an ilObjLearningSequence.
 lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
+lso#:#lso_exception_condition_already_exists#:#Condition already exists for this object.
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.

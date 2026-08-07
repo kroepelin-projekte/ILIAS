@@ -11360,6 +11360,7 @@ lso#:#lso_exception_condition_ambiguous#:#Bedingungssuche ist mehrdeutig.
 lso#:#lso_exception_lso_ref_id_not_set#:#LSO-Ref-ID ist nicht gesetzt.
 lso#:#lso_exception_not_lso_object#:#Objekt ist kein ilObjLearningSequence.
 lso#:#lso_exception_condition_id_not_set#:#Bedingungs-ID ist nicht gesetzt.
+lso#:#lso_exception_condition_already_exists#:#Die Bedingung existiert bereits in diesem Objekt.
 lti#:#act_lti_for_obj_type#:#LTI für diese Objekttypen aktivieren
 lti#:#activity_id#:#Activity-ID
 lti#:#activity_id_info#:#Diese Activity-ID wird vom LTI-Provider verwendet, um Statements zu identifizieren.
