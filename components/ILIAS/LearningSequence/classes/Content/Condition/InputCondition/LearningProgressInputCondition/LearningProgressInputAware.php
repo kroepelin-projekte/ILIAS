@@ -75,7 +75,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress($target_obj_id),
             self::SUBTYPE_COMPLETED => $this->isCompleted($target_obj_id),
             self::SUBTYPE_FAILED => $this->isFailed($target_obj_id),
-            default => throw new LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
         };
     }
 
@@ -150,7 +150,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             || !isset($target_ref_ids[0])
             || $target_ref_ids[0] === ''
         ) {
-            throw new LogicException('Learning progress target ref id is invalid.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_invalid'));
         }
 
         $this->setConditionTargetRefId((int)$target_ref_ids[0]);
@@ -169,7 +169,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException('Learning progress subtype is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -180,7 +180,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new LogicException('Learning progress subtype is not stored.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_stored'));
         }
 
         $this->setSubtype($row['subtype']);
@@ -200,7 +200,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException('Learning progress target ref id is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -212,7 +212,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException('Learning progress target ref id is not stored.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_stored'));
         }
 
         $this->condition_target_ref_id = (int)$row['target_ref_id'];
@@ -290,7 +290,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new LogicException('Learning progress condition lookup is ambiguous.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_condition_ambiguous'));
         }
 
         return (int)$row['condition_id'];
@@ -322,7 +322,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
             self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
         };
     }
 
@@ -348,7 +348,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new LogicException('Learning progress subtype is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
         }
 
         return $this->subtype;

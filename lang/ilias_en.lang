@@ -11297,6 +11297,41 @@ lso#:#learning_progress_not_attempted#:#Not attempted
 lso#:#learning_progress_in_progress#:#In progress
 lso#:#learning_progress_completed#:#Completed
 lso#:#learning_progress_failed#:#Failed
+lso#:#lso_exception_subset_invalid#:#Subset is invalid.
+lso#:#lso_exception_object_ids_not_stored#:#Object ids are not stored.
+lso#:#lso_exception_object_ids_invalid#:#Object ids are invalid.
+lso#:#lso_exception_at_least_one_object#:#At least one object must be selected.
+lso#:#lso_exception_subset_not_stored#:#Subset is not stored.
+lso#:#lso_exception_subset_negative#:#Subset must not be negative.
+lso#:#lso_exception_subset_exceeds_objects#:#Subset must not exceed the number of selected objects.
+lso#:#lso_exception_object_ids_not_set#:#Object ids are not set.
+lso#:#lso_exception_subset_not_set#:#Subset is not set.
+lso#:#lso_exception_unknown_logic_gatter_subtype#:#Unknown logic gatter subtype.
+lso#:#lso_exception_logic_gatter_subtype_not_stored#:#Logic gatter subtype is not stored.
+lso#:#lso_exception_logic_gatter_condition_id_not_set#:#Logic gatter condition_id is not set.
+lso#:#lso_exception_points_invalid#:#Points are invalid.
+lso#:#lso_exception_points_not_stored#:#Points are not stored.
+lso#:#lso_exception_points_negative#:#Points must not be negative.
+lso#:#lso_exception_points_not_set#:#Points are not set.
+lso#:#lso_exception_unknown_learning_progress_subtype#:#Unknown learning progress subtype.
+lso#:#lso_exception_lp_target_ref_id_invalid#:#Learning progress target ref id is invalid.
+lso#:#lso_exception_lp_subtype_not_set#:#Learning progress subtype is not set.
+lso#:#lso_exception_lp_subtype_not_stored#:#Learning progress subtype is not stored.
+lso#:#lso_exception_lp_target_ref_id_not_set#:#Learning progress target ref id is not set.
+lso#:#lso_exception_lp_target_ref_id_not_stored#:#Learning progress target ref id is not stored.
+lso#:#lso_exception_lp_condition_ambiguous#:#Learning progress condition lookup is ambiguous.
+lso#:#lso_exception_additional_form_no_override#:#%s defines an additional configuration form but does not override applyAdditionalFormData().
+lso#:#lso_exception_no_subtype_support#:#%s does not support subtypes.
+lso#:#lso_exception_unsupported_subtype#:#Unsupported subtype "%s".
+lso#:#lso_exception_condition_exists#:#Condition already exists for this item and type.
+lso#:#lso_exception_context_incomplete#:#Condition context is incomplete.
+lso#:#lso_exception_migration_no_hook_override#:#%s defines additional migration tables but does not override %s().
+lso#:#lso_exception_type_not_registered#:#Condition type is not registered.
+lso#:#lso_exception_condition_not_exists#:#Condition does not exist.
+lso#:#lso_exception_condition_ambiguous#:#Condition lookup is ambiguous.
+lso#:#lso_exception_lso_ref_id_not_set#:#LSO ref id is not set.
+lso#:#lso_exception_not_lso_object#:#Object is not an ilObjLearningSequence.
+lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.

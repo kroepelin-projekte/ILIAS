@@ -145,7 +145,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
             self::SUBTYPE_AND => $this->areAllItemsCompleted(),
             self::SUBTYPE_OR => $this->isAnyItemCompleted(),
             self::SUBTYPE_NOT => $this->areNoItemsCompleted(),
-            default => throw new \LogicException('Unknown logic gatter subtype.')
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
         };
     }
 
@@ -227,7 +227,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
             self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
             self::SUBTYPE_OR => $this->lang->txt('logic_gatter_or'),
             self::SUBTYPE_NOT => $this->lang->txt('logic_gatter_not'),
-            default => throw new \LogicException('Unknown logic gatter subtype.')
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
         };
     }
 
@@ -253,7 +253,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Logic gatter condition_id is not set.');
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_condition_id_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -264,7 +264,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException('Logic gatter subtype is not stored.');
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_subtype_not_stored'));
         }
 
         $this->setSubtype($row['subtype']);

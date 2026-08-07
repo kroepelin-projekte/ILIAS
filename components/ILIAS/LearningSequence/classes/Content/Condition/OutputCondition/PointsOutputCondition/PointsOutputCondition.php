@@ -91,7 +91,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     {
         $points = array_shift($data);
         if (is_array($points) || !is_numeric($points)) {
-            throw new LogicException('Points are invalid.');
+            throw new LogicException($this->lang->txt('lso_exception_points_invalid'));
         }
 
         $this->setPoints((int)$points);
@@ -119,7 +119,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !isset($row[self::POINTS_FIELD])) {
-            throw new LogicException('Points are not stored.');
+            throw new LogicException($this->lang->txt('lso_exception_points_not_stored'));
         }
 
         $this->points = (int)$row[self::POINTS_FIELD];
@@ -135,7 +135,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     public function setPoints(int $points): void
     {
         if ($points < 0) {
-            throw new LogicException('Points must not be negative.');
+            throw new LogicException($this->lang->txt('lso_exception_points_negative'));
         }
 
         $this->points = $points;
@@ -205,7 +205,7 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     private function requirePoints(): int
     {
         if ($this->points === null) {
-            throw new LogicException('Points are not set.');
+            throw new LogicException($this->lang->txt('lso_exception_points_not_set'));
         }
 
         return $this->points;

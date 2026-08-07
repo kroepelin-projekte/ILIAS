@@ -65,7 +65,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress(),
             self::SUBTYPE_COMPLETED => $this->isCompleted(),
             self::SUBTYPE_FAILED => $this->isFailed(),
-            default => throw new LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
         };
     }
 
@@ -99,7 +99,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException('Learning progress subtype is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -110,7 +110,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new LogicException('Learning progress subtype is not stored.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_stored'));
         }
 
         $this->setSubtype($row['subtype']);
@@ -176,7 +176,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new LogicException('Learning progress condition lookup is ambiguous.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_condition_ambiguous'));
         }
 
         return (int)$row['condition_id'];
@@ -208,7 +208,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
             self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new LogicException('Unknown learning progress subtype.')
+            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
         };
     }
 
@@ -234,7 +234,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new LogicException('Learning progress subtype is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
         }
 
         return $this->subtype;

@@ -155,7 +155,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
 
         $subset = $data[1] ?? null;
         if (is_array($subset) || !is_numeric($subset)) {
-            throw new \LogicException('Subset is invalid.');
+            throw new \LogicException($this->lang->txt('lso_exception_subset_invalid'));
         }
 
         $this->setObjectRefIds($object_ref_ids);
@@ -182,12 +182,12 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !array_key_exists(self::OBJECT_IDS_FIELD, $row)) {
-            throw new \LogicException('Object ids are not stored.');
+            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_stored'));
         }
 
         $object_ref_ids = @unserialize((string) $row[self::OBJECT_IDS_FIELD]);
         if (!is_array($object_ref_ids)) {
-            throw new \LogicException('Object ids are invalid.');
+            throw new \LogicException($this->lang->txt('lso_exception_object_ids_invalid'));
         }
 
         $this->object_ref_ids = array_values(array_filter(
@@ -209,7 +209,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         ));
 
         if ($object_ref_ids === []) {
-            throw new \LogicException('At least one object must be selected.');
+            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
         }
 
         $this->object_ref_ids = $object_ref_ids;
@@ -235,7 +235,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !isset($row[self::SUBSET_FIELD])) {
-            throw new \LogicException('Subset is not stored.');
+            throw new \LogicException($this->lang->txt('lso_exception_subset_not_stored'));
         }
 
         $this->subset = (int) $row[self::SUBSET_FIELD];
@@ -249,11 +249,11 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     public function setSubset(int $subset): void
     {
         if ($subset < 0) {
-            throw new \LogicException('Subset must not be negative.');
+            throw new \LogicException($this->lang->txt('lso_exception_subset_negative'));
         }
 
         if ($this->object_ref_ids !== null && $subset > count($this->object_ref_ids)) {
-            throw new \LogicException('Subset must not exceed the number of selected objects.');
+            throw new \LogicException($this->lang->txt('lso_exception_subset_exceeds_objects'));
         }
 
         $this->subset = $subset;
@@ -335,7 +335,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     private function requireObjectRefIds(): array
     {
         if ($this->object_ref_ids === null || $this->object_ref_ids === []) {
-            throw new \LogicException('Object ids are not set.');
+            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_set'));
         }
 
         return $this->object_ref_ids;
@@ -347,7 +347,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     private function requireSubset(): int
     {
         if ($this->subset === null) {
-            throw new \LogicException('Subset is not set.');
+            throw new \LogicException($this->lang->txt('lso_exception_subset_not_set'));
         }
 
         return $this->subset;
