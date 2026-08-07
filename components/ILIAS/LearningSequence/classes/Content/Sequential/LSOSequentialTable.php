@@ -65,7 +65,7 @@ class LSOSequentialTable implements OrderingRetrieval
             if ($current_op === \ilLSPostCondition::OPERATOR_ALWAYS) {
                 $condition_label = $this->lng->txt('condition_always');
             } elseif ($current_op === \ilLSPostCondition::OPERATOR_LP) {
-                $condition_label = 'Gemäß Lernfortschritt'; // #ToDo Sprachvariable
+                $condition_label = $this->lng->txt('condition_learning_progress');
             }
 
             $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);

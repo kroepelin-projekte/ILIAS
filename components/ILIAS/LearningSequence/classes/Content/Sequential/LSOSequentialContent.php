@@ -199,7 +199,7 @@ class LSOSequentialContent implements LSOContentController
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_ALWAYS
         );
         $specific_actions['condition_lp'] = new ilObjLearningSequenceActionData(
-            label: $this->lng->txt('table_may_proceed') . ': ' . 'Gemäß Lernfortschritt', // #ToDo Sprachvariable
+            label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('condition_learning_progress'),
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_LP
         );
         return $specific_actions;

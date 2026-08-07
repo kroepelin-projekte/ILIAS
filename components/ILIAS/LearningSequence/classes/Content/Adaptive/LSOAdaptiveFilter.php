@@ -69,8 +69,8 @@ class LSOAdaptiveFilter
             'position' => $this->ui_factory->input()->field()->multiselect(
                 $this->lng->txt('position'),
                 [
-                    'start' => 'Start', // #ToDo Sprachvariable
-                    'end' => 'End', // #ToDo Sprachvariable
+                    'start' => $this->lng->txt('lso_adaptive_filter_start'),
+                    'end' => $this->lng->txt('lso_adaptive_filter_end'),
                 ]
             ),
         ];

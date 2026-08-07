@@ -11261,8 +11261,10 @@ lso#:#conditions#:#Conditions
 lso#:#condition_type#:#Type
 lso#:#condition_name#:#Name
 lso#:#condition_subtype#:#Subtype
-lso#:#set_start_object#:#Set Entry Point
-lso#:#set_end_object#:#Set Destination Point
+lso#:#set_start_object#:#Set as Start Point
+lso#:#unset_start_object#:#Remove as Start Point
+lso#:#set_end_object#:#Set as End Point
+lso#:#unset_end_object#:#Remove as End Point
 lso#:#manage_conditions#:#Manage Conditions for %s
 lso#:#input_condition#:#Input Condition
 lso#:#output_condition#:#Output Condition
@@ -11291,6 +11293,7 @@ lso#:#points_input#:#Required Points
 lso#:#points_input_byline#:#Minimum number of points required for the user to start this object.
 lso#:#points_output#:#Points Earned
 lso#:#points_output_byline#:#Number of points awarded to the user upon successfully completing this object.
+lso#:#condition_learning_progress#:#Based on Learning Progress
 lso#:#learning_progress_input#:#Learning Progress
 lso#:#learning_progress_output#:#Learning Progress
 lso#:#learning_progress_not_attempted#:#Not attempted
@@ -11333,6 +11336,12 @@ lso#:#lso_exception_lso_ref_id_not_set#:#LSO ref id is not set.
 lso#:#lso_exception_not_lso_object#:#Object is not an ilObjLearningSequence.
 lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
 lso#:#lso_exception_condition_already_exists#:#Condition already exists for this object.
+lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a start object is required.
+lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
+lso#:#lso_adaptive_start_end_not_same#:#An object cannot be the start and end object at the same time.
+lso#:#lso_adaptive_filter_start#:#Start
+lso#:#lso_adaptive_filter_end#:#End
+lso#:#no_conditions#:#(none)
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.
