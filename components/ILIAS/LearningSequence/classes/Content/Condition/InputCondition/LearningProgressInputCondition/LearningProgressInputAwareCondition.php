@@ -33,7 +33,7 @@ use ilLPStatus;
 use ilObject;
 use LogicException;
 
-final class LearningProgressInputAware extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+final class LearningProgressInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
     protected const string NAME = 'learning_progress_input';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_input';
@@ -113,7 +113,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
      */
     public function getAdditionalForm(): FormStandard
     {
-        $input = new LSOObjectPicker((int)$this->lso_ref_id)->getPicker(
+        $input = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
             $this->lang->txt('lso_condition_simple_choice_target'),
             false,
         )
@@ -129,7 +129,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             );
 
         if ($this->condition_id !== null) {
-            $input = $input->withValue((string)$this->getConditionTargetRefId());
+            $input = $input->withValue((string) $this->getConditionTargetRefId());
         }
 
         return $this->ui_factory->input()->container()->form()->standard(
@@ -153,7 +153,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_invalid'));
         }
 
-        $this->setConditionTargetRefId((int)$target_ref_ids[0]);
+        $this->setConditionTargetRefId((int) $target_ref_ids[0]);
     }
 
     /**
@@ -184,7 +184,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
         }
 
         $this->setSubtype($row['subtype']);
-        return (string)$this->subtype;
+        return (string) $this->subtype;
     }
 
     /**
@@ -215,7 +215,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_stored'));
         }
 
-        $this->condition_target_ref_id = (int)$row['target_ref_id'];
+        $this->condition_target_ref_id = (int) $row['target_ref_id'];
         return $this->condition_target_ref_id;
     }
 
@@ -293,7 +293,7 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
             throw new LogicException($this->lang->txt('lso_exception_lp_condition_ambiguous'));
         }
 
-        return (int)$row['condition_id'];
+        return (int) $row['condition_id'];
     }
 
     /**
@@ -363,9 +363,9 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     private function isNotAttempted(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-                $target_obj_id,
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
+            $target_obj_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
     }
 
     /**
@@ -377,9 +377,9 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     private function isInProgress(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-                $target_obj_id,
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
+            $target_obj_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
     }
 
     /**
@@ -405,9 +405,9 @@ final class LearningProgressInputAware extends AbstractCondition implements Inpu
     private function isFailed(int $target_obj_id): bool
     {
         return ilLPStatus::_lookupStatus(
-                $target_obj_id,
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_FAILED_NUM;
+            $target_obj_id,
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
 
     /**

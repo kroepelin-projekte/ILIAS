@@ -35,7 +35,7 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGatterInputAware extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+class LogicGatterInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
     final protected const string NAME = "logic_gatter";
     private const string SETTINGS_TABLE = 'lso_c_logic_gatter_input';
@@ -160,18 +160,18 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
         $conditions_of_item = $this->discover->getAllConditionIdsForItem($item_ref_id);
 
         $conditions = array_map(
-            fn ($condition_id) => $this->condition_factory->getConditionInstanceById($condition_id),
+            fn($condition_id) => $this->condition_factory->getConditionInstanceById($condition_id),
             $conditions_of_item
         );
 
         $output_conditions = array_filter(
             $conditions,
-            fn ($condition) => $condition instanceof OutputConditionInterface
+            fn($condition) => $condition instanceof OutputConditionInterface
         );
 
         return array_any(
             $output_conditions,
-            fn ($condition) => $condition->check()
+            fn($condition) => $condition->check()
         );
     }
 
@@ -190,7 +190,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
 
         return array_all(
             $items,
-            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+            fn($item_ref_id) => $this->isItemCompleted($item_ref_id)
         );
     }
 
@@ -203,7 +203,7 @@ class LogicGatterInputAware extends AbstractCondition implements InputConditionI
     {
         return array_any(
             $this->getItemsAsArray(),
-            fn ($item_ref_id) => $this->isItemCompleted($item_ref_id)
+            fn($item_ref_id) => $this->isItemCompleted($item_ref_id)
         );
     }
 

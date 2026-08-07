@@ -104,13 +104,14 @@ class ConditionFactory
      */
     public function getConditionInstanceByName(string $condition_name): AbstractCondition
     {
-        $condition_name .= 'Condition';
         $class_map = $this->getClassMap();
 
-        if (isset($class_map[$condition_name])) {
-            $class = $class_map[$condition_name];
-            /** @var AbstractCondition $condition */
-            return new $class();
+        foreach ([$condition_name . 'Condition', $condition_name] as $candidate) {
+            if (isset($class_map[$candidate])) {
+                $class = $class_map[$candidate];
+                /** @var AbstractCondition $condition */
+                return new $class();
+            }
         }
 
         throw new ilException("Condition class for '{$condition_name}' not found.");
