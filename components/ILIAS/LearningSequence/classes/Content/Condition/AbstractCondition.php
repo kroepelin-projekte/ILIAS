@@ -99,7 +99,7 @@ abstract class AbstractCondition
     /**
      * Applies validated additional form data to the condition before create()/edit().
      *
-     * @param array<mixed> $data
+     * @param array $data
      */
     public function applyAdditionalFormData(array $data): void
     {
@@ -109,7 +109,7 @@ abstract class AbstractCondition
             if ($method->getDeclaringClass()->getName() === self::class) {
                 throw new \LogicException(
                     sprintf(
-                        '%s defines an additional configuration form but does not override applyAdditionalFormData().',
+                        $this->lang->txt('lso_exception_additional_form_no_override'),
                         static::class
                     )
                 );
@@ -126,44 +126,19 @@ abstract class AbstractCondition
     }
 
     /**
-     * @return bool
-     */
-    public function hasSubTypes(): bool
-    {
-        $method = new ReflectionMethod(static::class, 'getSupportedSubtypes');
-        return $method->getDeclaringClass()->getName() !== self::class;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getSubtype(): ?string
-    {
-        return $this->subtype;
-    }
-
-    /**
      * @param string $subtype
      */
     public function setSubtype(string $subtype): void
     {
-        if (!$this->hasSubTypes()) {
-            throw new LogicException(sprintf('%s does not support subtypes.', static::class));
+        if (!$this instanceof SubtypeAwareInterface) {
+            throw new LogicException(sprintf($this->lang->txt('lso_exception_no_subtype_support'), static::class));
         }
 
         if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
-            throw new LogicException(sprintf('Unsupported subtype "%s".', $subtype));
+            throw new LogicException(sprintf($this->lang->txt('lso_exception_unsupported_subtype'), $subtype));
         }
 
         $this->subtype = $subtype;
-    }
-
-    /**
-     * @return string[]
-     */
-    protected function getSupportedSubtypes(): array
-    {
-        return [];
     }
 
     /**
@@ -240,7 +215,7 @@ abstract class AbstractCondition
      */
     public function getTypeId(): ?int
     {
-        return $this->type_id ? $this->type_id : $this->getTypeIdFromDb();
+        return $this->type_id ?: $this->getTypeIdFromDb();
     }
 
     /**
@@ -254,7 +229,7 @@ abstract class AbstractCondition
         $type_id = $this->getTypeId();
         $existing_id = $this->findConditionIdByContextAndType($type_id);
         if ($existing_id !== null) {
-            throw new LogicException('Condition already exists for this item and type.');
+            throw new LogicException($this->lang->txt('lso_exception_condition_exists'));
         }
 
         $db = $this->getDatabase();
@@ -272,6 +247,7 @@ abstract class AbstractCondition
 
     /**
      * Edits the condition.
+     * @throws ReflectionException
      */
     public function edit(): void
     {
@@ -299,6 +275,7 @@ abstract class AbstractCondition
 
     /**
      * Deletes the condition from the database.
+     * @throws ReflectionException
      */
     public function delete(): void
     {
@@ -365,7 +342,7 @@ abstract class AbstractCondition
     protected function assertContextSet(): void
     {
         if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
-            throw new LogicException('Condition context is incomplete.');
+            throw new LogicException($this->lang->txt('lso_exception_context_incomplete'));
         }
     }
 
@@ -407,7 +384,7 @@ abstract class AbstractCondition
         if ($method->getDeclaringClass()->getName() === self::class) {
             throw new LogicException(
                 sprintf(
-                    '%s defines additional migration tables but does not override %s().',
+                    $this->lang->txt('lso_exception_migration_no_hook_override'),
                     static::class,
                     $hook_method
                 )
@@ -441,7 +418,7 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException('Condition type is not registered.');
+            throw new LogicException($this->lang->txt('lso_exception_type_not_registered'));
         }
 
         return (int) $row['type_id'];
@@ -464,7 +441,7 @@ abstract class AbstractCondition
         $condition_id = $this->findConditionIdByContextAndType($type_id);
 
         if ($condition_id === null) {
-            throw new LogicException('Condition does not exist.');
+            throw new LogicException($this->lang->txt('lso_exception_condition_not_exists'));
         }
 
         $this->condition_id = $condition_id;
@@ -492,7 +469,7 @@ abstract class AbstractCondition
         }
 
         if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new LogicException('Condition lookup is ambiguous.');
+            throw new LogicException($this->lang->txt('lso_exception_condition_ambiguous'));
         }
 
         return (int) $row['condition_id'];
@@ -564,7 +541,7 @@ abstract class AbstractCondition
 
         return $this->ui_factory->link()->bulky(
             $this->getGlyphe(),
-            $label ?? (string) $this->getName(),
+            $label ?? $this->lang->txt($this->getName()),
             $uri
         );
     }
@@ -603,13 +580,13 @@ abstract class AbstractCondition
     {
         $lso_ref_id = $this->getLsoRefId();
         if ($lso_ref_id === null) {
-            throw new LogicException('LSO ref id is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_lso_ref_id_not_set'));
         }
 
         /** @var ilObjLearningSequence $object */
         $object = ilObjectFactory::getInstanceByRefId($lso_ref_id);
         if (!$object instanceof ilObjLearningSequence) {
-            throw new LogicException('Object is not an ilObjLearningSequence.');
+            throw new LogicException($this->lang->txt('lso_exception_not_lso_object'));
         }
 
         return $object;
@@ -633,7 +610,7 @@ abstract class AbstractCondition
     public function read(): void
     {
         if ($this->condition_id === null) {
-            throw new LogicException('Condition id is not set.');
+            throw new LogicException($this->lang->txt('lso_exception_condition_id_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -644,13 +621,13 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException('Condition does not exist.');
+            throw new LogicException($this->lang->txt('lso_exception_condition_not_exists'));
         }
 
         $this->setLsoRefId((int) $row['lso_ref_id']);
         $this->setObjRefId((int) $row['obj_ref_id']);
         $this->setTypeId((int) $row['type_id']);
-        if ($this->hasSubTypes() && method_exists($this, 'setSubtype')) {
+        if ($this instanceof SubtypeAwareInterface) {
             $db = $this->dic->database();
             $table_name = "lsp_c_{$this->getName()}";
 

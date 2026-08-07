@@ -55,7 +55,7 @@ class LSOSequentialFilter
                 $this->lng->txt('table_may_proceed'),
                 [
                     'always' => $this->lng->txt('condition_always'),
-                    'lp' => 'Gemäß Lernfortschritt', // #ToDo Sprachvariable
+                    'lp' => $this->lng->txt('condition_learning_progress'),
                 ]
             ),
             'online_status' => $this->ui_factory->input()->field()->select(

@@ -4,13 +4,25 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Adaptive;
 
-use ilObjLearningSequenceContentGUI;
-use ilObjLearningSequenceContentData;
-use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveTable;
-use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveFilter;
-use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
+use ilCtrl;
+use ilDBInterface;
+use ilGlobalTemplateInterface;
+use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
+use ILIAS\UI\Factory;
+use ILIAS\UI\Renderer;
+use ilLanguage;
+use ilLink;
+use ilObject;
+use ilObjLearningSequence;
+use ilObjLearningSequenceActionData;
+use ilObjLearningSequenceConditionData;
+use ilObjLearningSequenceConditionsGUI;
+use ilObjLearningSequenceContentData;
+use ilObjLearningSequenceContentGUI;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Class LSOAdaptiveContent
@@ -18,28 +30,30 @@ use ILIAS\LearningSequence\Content\LSOContentDeletion;
 class LSOAdaptiveContent implements LSOContentController
 {
     use LSOContentDeletion;
+
     protected ilObjLearningSequenceContentGUI $parent_gui;
-    protected \ILIAS\UI\Factory $ui_factory;
-    protected \ILIAS\UI\Renderer $ui_renderer;
-    protected \ilLanguage $lng;
-    protected \ilCtrl $ctrl;
-    protected \Psr\Http\Message\ServerRequestInterface $request;
-    protected \ilGlobalTemplateInterface $tpl;
-    protected \ilDBInterface $db;
+    protected Factory $ui_factory;
+    protected Renderer $ui_renderer;
+    protected ilLanguage $lng;
+    protected ilCtrl $ctrl;
+    protected ServerRequestInterface $request;
+    protected ilGlobalTemplateInterface $tpl;
+    protected ilDBInterface $db;
     protected int $ref_id;
     protected int $obj_id;
 
     public function __construct(
-        ilObjLearningSequenceContentGUI $parent_gui,
-        \ILIAS\UI\Factory $ui_factory,
-        \ILIAS\UI\Renderer $ui_renderer,
-        \ilLanguage $lng,
-        \ilCtrl $ctrl,
-        \Psr\Http\Message\ServerRequestInterface $request,
-        \ilGlobalTemplateInterface $tpl,
-        int $ref_id,
-        int $obj_id
-    ) {
+        ilObjLearningSequenceContentGUI          $parent_gui,
+        Factory                        $ui_factory,
+        Renderer                       $ui_renderer,
+        ilLanguage                              $lng,
+        ilCtrl                                  $ctrl,
+        ServerRequestInterface $request,
+        ilGlobalTemplateInterface               $tpl,
+        int                                      $ref_id,
+        int                                      $obj_id
+    )
+    {
         global $DIC;
         $this->parent_gui = $parent_gui;
         $this->ui_factory = $ui_factory;
@@ -72,7 +86,7 @@ class LSOAdaptiveContent implements LSOContentController
         $this->parent_gui->showPossibleSubObjects();
 
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
-        $items = \ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
         $filter = $filter_gui->getFilter(
             'manageContent',
@@ -87,11 +101,11 @@ class LSOAdaptiveContent implements LSOContentController
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
 
         $missing_hints = [];
-        if ((int) $boundary_data['start_ref_id'] === 0) {
-            $missing_hints[] = 'Um die Lernsequenz zu starten, wird ein Start Objekt benötigt.'; // #ToDo Sprachvariable
+        if ((int)$boundary_data['start_ref_id'] === 0) {
+            $missing_hints[] = $this->lng->txt('lso_adaptive_missing_start_object');
         }
-        if ((int) $boundary_data['end_ref_id'] === 0) {
-            $missing_hints[] = 'Um die Lernsequenz zu beenden, wird ein End Objekt benötigt.'; // #ToDo Sprachvariable
+        if ((int)$boundary_data['end_ref_id'] === 0) {
+            $missing_hints[] = $this->lng->txt('lso_adaptive_missing_end_object');
         }
         if ($missing_hints !== []) {
             $this->tpl->setOnScreenMessage('info', implode('<br>', $missing_hints));
@@ -102,8 +116,8 @@ class LSOAdaptiveContent implements LSOContentController
             $this->ui_renderer,
             $data,
             $filter,
-            (int) $boundary_data['start_ref_id'],
-            (int) $boundary_data['end_ref_id'],
+            (int)$boundary_data['start_ref_id'],
+            (int)$boundary_data['end_ref_id'],
             $this->parent_gui,
             $this->ref_id,
             $this->obj_id,
@@ -147,14 +161,14 @@ class LSOAdaptiveContent implements LSOContentController
             return $a->getOrderNumber() <=> $b->getOrderNumber();
         });
 
-        $condition_handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler();
+        $condition_handler = new ConditionHandler();
         $lso_ref_id = $this->ref_id;
 
         $data = [];
         foreach ($items as $index => $item) {
             $ref_id = $item->getRefId();
-            $obj_id = \ilObject::_lookupObjId($ref_id);
-            $title = \ilObject::_lookupTitle($obj_id);
+            $obj_id = ilObject::_lookupObjId($ref_id);
+            $title = ilObject::_lookupTitle($obj_id);
 
             if ($name_filter !== '' && mb_stripos($title, $name_filter) === false) {
                 continue;
@@ -186,7 +200,7 @@ class LSOAdaptiveContent implements LSOContentController
             $input_conditions = [];
             $db_input_conditions = $condition_handler->getInputConditionsByRefId($lso_ref_id, $ref_id);
             foreach ($db_input_conditions as $db_cond) {
-                $input_conditions[] = new \ilObjLearningSequenceConditionData(
+                $input_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
                     internal_name: $db_cond['internal_name']
@@ -196,7 +210,7 @@ class LSOAdaptiveContent implements LSOContentController
             $output_conditions = [];
             $db_output_conditions = $condition_handler->getOutputConditionsByRefId($lso_ref_id, $ref_id);
             foreach ($db_output_conditions as $db_cond) {
-                $output_conditions[] = new \ilObjLearningSequenceConditionData(
+                $output_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
                     internal_name: $db_cond['internal_name']
@@ -230,16 +244,16 @@ class LSOAdaptiveContent implements LSOContentController
             }
 
             // Information
-            $prev_title = "(keines)"; #Todo Sprachvariable
+            $prev_title = $this->lng->txt('no_conditions');
             if ($index > 0) {
-                $prev_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index - 1]->getRefId()));
+                $prev_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index - 1]->getRefId()));
             }
-            $next_title = "(keines)"; #Todo Sprachvariable
+            $next_title =  $this->lng->txt('no_conditions');
             if ($index < count($items) - 1) {
-                $next_title = \ilObject::_lookupTitle(\ilObject::_lookupObjId($items[$index + 1]->getRefId()));
+                $next_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index + 1]->getRefId()));
             }
 
-            $icon_path = \ilObject::_getIcon($obj_id, "small", $type);
+            $icon_path = ilObject::_getIcon($obj_id, "small", $type);
             $actions = $this->parent_gui->getTableActionHandler()->collectActions(
                 $ref_id,
                 $this->getSpecificActions(
@@ -254,10 +268,10 @@ class LSOAdaptiveContent implements LSOContentController
                 $ref_id,
                 $obj_id,
                 $title,
-                \ilObject::_lookupDescription($obj_id),
+                ilObject::_lookupDescription($obj_id),
                 $type,
                 $icon_path,
-                \ilLink::_getLink($ref_id, $type),
+                ilLink::_getLink($ref_id, $type),
                 $item->isOnline(),
                 ($ref_id === $start_ref_id) ? 'Start' : '',
                 ($ref_id === $end_ref_id) ? 'End' : '',
@@ -288,9 +302,9 @@ class LSOAdaptiveContent implements LSOContentController
         );
     }
 
-    private function getConditionDiscover(): \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover
+    private function getConditionDiscover(): ilObjLearningSequenceConditionDiscover
     {
-        return new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        return new ilObjLearningSequenceConditionDiscover();
     }
 
     /**
@@ -317,10 +331,10 @@ class LSOAdaptiveContent implements LSOContentController
         $specific_actions = [];
 
         // 1. Conditions
-        $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $ref_id);
-        $link = $this->ctrl->getLinkTargetByClass(\ilObjLearningSequenceConditionsGUI::class, 'manageConditions');
-        $specific_actions['conditions'] = new \ilObjLearningSequenceActionData(
-            label: 'Conditions', #ToDo Sprachvariable hinzufügen
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $ref_id);
+        $link = $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, 'manageConditions');
+        $specific_actions['conditions'] = new ilObjLearningSequenceActionData(
+            label: $this->lng->txt('conditions'),
             link: $link
         );
 
@@ -337,7 +351,7 @@ class LSOAdaptiveContent implements LSOContentController
             }
             $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', $ref_id);
             $link = $this->ctrl->getLinkTarget($this->parent_gui, $link);
-            $specific_actions[$id] = new \ilObjLearningSequenceActionData(label: $label, link: $link);
+            $specific_actions[$id] = new ilObjLearningSequenceActionData(label: $label, link: $link);
 
             if ($ref_id === $end_ref_id) {
                 $label = $this->lng->txt('unset_end_object');
@@ -350,29 +364,28 @@ class LSOAdaptiveContent implements LSOContentController
             }
             $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', $ref_id);
             $link = $this->ctrl->getLinkTarget($this->parent_gui, $link);
-            $specific_actions[$id] = new \ilObjLearningSequenceActionData(label: $label, link: $link);
+            $specific_actions[$id] = new ilObjLearningSequenceActionData(label: $label, link: $link);
         } else {
             // Template
-            $specific_actions['set_start'] = new \ilObjLearningSequenceActionData(
+            $specific_actions['set_start'] = new ilObjLearningSequenceActionData(
                 label: $this->lng->txt('set_start_object'),
                 link: ilObjLearningSequenceContentGUI::CMD_SET_START_OBJECT
             );
-            $specific_actions['unset_start'] = new \ilObjLearningSequenceActionData(
+            $specific_actions['unset_start'] = new ilObjLearningSequenceActionData(
                 label: $this->lng->txt('unset_start_object'),
                 link: ilObjLearningSequenceContentGUI::CMD_UNSET_START_OBJECT
             );
-            $specific_actions['set_end'] = new \ilObjLearningSequenceActionData(
+            $specific_actions['set_end'] = new ilObjLearningSequenceActionData(
                 label: $this->lng->txt('set_end_object'),
                 link: ilObjLearningSequenceContentGUI::CMD_SET_END_OBJECT
             );
-            $specific_actions['unset_end'] = new \ilObjLearningSequenceActionData(
+            $specific_actions['unset_end'] = new ilObjLearningSequenceActionData(
                 label: $this->lng->txt('unset_end_object'),
                 link: ilObjLearningSequenceContentGUI::CMD_UNSET_END_OBJECT
             );
-            #Todo sprachvariable
         }
 
-        $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', '');
+        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', '');
         return $specific_actions;
     }
 
@@ -381,13 +394,13 @@ class LSOAdaptiveContent implements LSOContentController
         global $DIC;
         $ref_id = $this->parent_gui->extractItemRefId();
         if ($ref_id > 0) {
-            $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+            $boundaries = new LSOAdaptiveBoundaries($DIC->database());
             $current = $boundaries->getBoundariesFor($this->obj_id);
-            if ((int) $current['end_ref_id'] === $ref_id) {
+            if ((int)$current['end_ref_id'] === $ref_id) {
                 // An object must never be start and end object at the same time.
                 $this->tpl->setOnScreenMessage(
                     'failure',
-                    'Ein Objekt kann nicht gleichzeitig Start- und Endobjekt sein.', // #ToDo Sprachvariable
+                    $this->lng->txt('lso_adaptive_start_end_not_same'),
                     true
                 );
                 $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
@@ -401,7 +414,7 @@ class LSOAdaptiveContent implements LSOContentController
     public function unsetStartObject(): void
     {
         global $DIC;
-        $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+        $boundaries = new LSOAdaptiveBoundaries($DIC->database());
         $boundaries->unsetStartRefId($this->obj_id);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
@@ -412,13 +425,13 @@ class LSOAdaptiveContent implements LSOContentController
         global $DIC;
         $ref_id = $this->parent_gui->extractItemRefId();
         if ($ref_id > 0) {
-            $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+            $boundaries = new LSOAdaptiveBoundaries($DIC->database());
             $current = $boundaries->getBoundariesFor($this->obj_id);
-            if ((int) $current['start_ref_id'] === $ref_id) {
+            if ((int)$current['start_ref_id'] === $ref_id) {
                 // An object must never be start and end object at the same time.
                 $this->tpl->setOnScreenMessage(
                     'failure',
-                    'Ein Objekt kann nicht gleichzeitig Start- und Endobjekt sein.', // #ToDo Sprachvariable
+                    $this->lng->txt('lso_adaptive_start_end_not_same'),
                     true
                 );
                 $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
@@ -432,7 +445,7 @@ class LSOAdaptiveContent implements LSOContentController
     public function unsetEndObject(): void
     {
         global $DIC;
-        $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+        $boundaries = new LSOAdaptiveBoundaries($DIC->database());
         $boundaries->unsetEndRefId($this->obj_id);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);

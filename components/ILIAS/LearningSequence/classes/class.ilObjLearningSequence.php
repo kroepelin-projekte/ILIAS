@@ -121,6 +121,7 @@ class ilObjLearningSequence extends ilContainer
     public function delete(): bool
     {
         $this->deleteMetaData();
+        $lso_ref_id = $this->getRefId();
 
         if (!parent::delete()) {
             return false;
@@ -128,9 +129,11 @@ class ilObjLearningSequence extends ilContainer
 
         ilLearningSequenceParticipants::_deleteAllEntries($this->getId());
         $this->getSettingsDB()->delete($this->getId());
-        $this->getStateDB()->deleteFor($this->getRefId());
+        $this->getStateDB()->deleteFor($lso_ref_id);
+        (new \ILIAS\LearningSequence\Content\Condition\ConditionHandler())->deleteConditionsByLSORefId($lso_ref_id);
 
-        ilObjTaxonomy::deleteUsagesOfObject($this->getId());
+        // FIXME: Method doesn't exits
+        // ilObjTaxonomy::deleteUsagesOfObject($this->getId());
 
         $this->raiseEvent(self::E_DELETE);
 

@@ -11285,10 +11285,91 @@ lso#:#table_position#:#Position
 lso#:#table_sequence_content#:#Inhaltsverwaltung
 lso#:#table_title#:#Titel
 lso#:#unparticipate#:#Mitgliedschaft in der Lernsequenz beenden
+lso#:#conditions#:#Bedingungen
+lso#:#condition_type#:#Typ
+lso#:#condition_name#:#Name
+lso#:#condition_subtype#:#Subtyp
+lso#:#set_start_object#:#Als Startpunkt festlegen
+lso#:#unset_start_object#:#Als Startpunkt entfernen
+lso#:#set_end_object#:#Als Zielpunkt festlegen
+lso#:#unset_end_object#:#Als Zielpunkt entfernen
+lso#:#manage_conditions#:#Bedingungen für %s bearbeiten
+lso#:#input_condition#:#Eingangsbedingung
+lso#:#output_condition#:#Ausgangsbedingung
+lso#:#input_conditions#:#Eingangsbedingungen
+lso#:#output_conditions#:#Ausgangsbedingungen
+lso#:#add_condition#:#Bedingung hinzufügen
+lso#:#delete_condition#:#Bedingung entfernen
+lso#:#delete_condition_no_selection#:#Bitte wählen Sie Bedingungen, die gelöscht werden sollen.
+lso#:#delete_condition_verify#:#Möchten Sie diese Bedingungen wirklich löschen?
+lso#:#condition_already_exists#:#Bedingung existiert bereits für dieses Objekt.
+lso#:#conditions_deleted#:#Bedingung erfolgreich gelöscht
+lso#:#lso_condition_simple_choice_target#:#Einzelnes Objekt auswählen
+lso#:#lso_condition_simple_multi_target#:#Mehrere Objekte auswählen
 lso#:#logic_gatter#:#Logik Gatter
 lso#:#logic_gatter_and#:#UND
 lso#:#logic_gatter_or#:#ODER
 lso#:#logic_gatter_not#:#NICHT
+lso#:#AND_byline#:#Alle ausgewählten Objekte müssen absolviert werden.
+lso#:#OR_byline#:#Mindestens eines der ausgewählten Objekte muss absolviert werden.
+lso#:#NOT_byline#:#Keines der ausgewählten Objekte darf absolviert sein.
+lso#:#always#:#Immer
+lso#:#subset#:#Teilmenge
+lso#:#subset_amount#:#Zu erfüllende Mindestanzahl
+lso#:#subset_amount_byline#:#Anzahl der Objekte, die erfolgreich absolviert werden müssen, um dieses Objekt zu starten.
+lso#:#points_input#:#Erforderliche Punkte
+lso#:#points_input_byline#:#Mindestanzahl an Punkten, die der Nutzer besitzen muss, um dieses Objekt starten zu können.
+lso#:#points_output#:#Erzielte Punkte
+lso#:#points_output_byline#:#Anzahl der Punkte, die dem Nutzer nach erfolgreichem Absolvieren dieses Objekts gutgeschrieben werden.
+lso#:#condition_learning_progress#:#Gemäß Lernfortschritt
+lso#:#learning_progress_input#:#Lernfortschritt
+lso#:#learning_progress_output#:#Lernfortschritt
+lso#:#learning_progress_not_attempted#:#Nicht begonnen
+lso#:#learning_progress_in_progress#:#In Bearbeitung
+lso#:#learning_progress_completed#:#Abgeschlossen
+lso#:#learning_progress_failed#:#Durchgefallen
+lso#:#lso_exception_subset_invalid#:#Anzahl der Objekte ist ungültig.
+lso#:#lso_exception_object_ids_not_stored#:#Objekt-IDs sind nicht gespeichert.
+lso#:#lso_exception_object_ids_invalid#:#Objekt-IDs sind ungültig.
+lso#:#lso_exception_at_least_one_object#:#Mindestens ein Objekt muss ausgewählt werden.
+lso#:#lso_exception_subset_not_stored#:#Anzahl der Objekte ist nicht gespeichert.
+lso#:#lso_exception_subset_negative#:#Anzahl der Objekte darf nicht negativ sein.
+lso#:#lso_exception_subset_exceeds_objects#:#Anzahl der Objekte darf die Anzahl der ausgewählten Objekte nicht überschreiten.
+lso#:#lso_exception_object_ids_not_set#:#Objekt-IDs sind nicht gesetzt.
+lso#:#lso_exception_subset_not_set#:#Anzahl der Objekte ist nicht gesetzt.
+lso#:#lso_exception_unknown_logic_gatter_subtype#:#Unbekannter Logik-Gatter-Subtyp.
+lso#:#lso_exception_logic_gatter_subtype_not_stored#:#Logik-Gatter-Subtyp ist nicht gespeichert.
+lso#:#lso_exception_logic_gatter_condition_id_not_set#:#Logik-Gatter condition_id ist nicht gesetzt.
+lso#:#lso_exception_points_invalid#:#Punkte sind ungültig.
+lso#:#lso_exception_points_not_stored#:#Punkte sind nicht gespeichert.
+lso#:#lso_exception_points_negative#:#Punkte dürfen nicht negativ sein.
+lso#:#lso_exception_points_not_set#:#Punkte sind nicht gesetzt.
+lso#:#lso_exception_unknown_learning_progress_subtype#:#Unbekannter Lernfortschritts-Subtyp.
+lso#:#lso_exception_lp_target_ref_id_invalid#:#Ziel-Ref-ID des Lernfortschritts ist ungültig.
+lso#:#lso_exception_lp_subtype_not_set#:#Lernfortschritts-Subtyp ist nicht gesetzt.
+lso#:#lso_exception_lp_subtype_not_stored#:#Lernfortschritts-Subtyp ist nicht gespeichert.
+lso#:#lso_exception_lp_target_ref_id_not_set#:#Ziel-Ref-ID des Lernfortschritts ist nicht gesetzt.
+lso#:#lso_exception_lp_target_ref_id_not_stored#:#Ziel-Ref-ID des Lernfortschritts ist nicht gespeichert.
+lso#:#lso_exception_lp_condition_ambiguous#:#Lernfortschritts-Bedingungssuche ist mehrdeutig.
+lso#:#lso_exception_additional_form_no_override#:#%s definiert ein zusätzliches Konfigurationsformular, überschreibt aber applyAdditionalFormData() nicht.
+lso#:#lso_exception_no_subtype_support#:#%s unterstützt keine Subtypen.
+lso#:#lso_exception_unsupported_subtype#:#Nicht unterstützter Subtyp "%s".
+lso#:#lso_exception_condition_exists#:#Bedingung existiert bereits für dieses Element und diesen Typ.
+lso#:#lso_exception_context_incomplete#:#Bedingungskontext ist unvollständig.
+lso#:#lso_exception_migration_no_hook_override#:#%s definiert zusätzliche Migrations-Tabellen, überschreibt aber %s() nicht.
+lso#:#lso_exception_type_not_registered#:#Bedingungstyp ist nicht registriert.
+lso#:#lso_exception_condition_not_exists#:#Bedingung existiert nicht.
+lso#:#lso_exception_condition_ambiguous#:#Bedingungssuche ist mehrdeutig.
+lso#:#lso_exception_lso_ref_id_not_set#:#LSO-Ref-ID ist nicht gesetzt.
+lso#:#lso_exception_not_lso_object#:#Objekt ist kein ilObjLearningSequence.
+lso#:#lso_exception_condition_id_not_set#:#Bedingungs-ID ist nicht gesetzt.
+lso#:#lso_exception_condition_already_exists#:#Die Bedingung existiert bereits in diesem Objekt.
+lso#:#lso_adaptive_missing_start_object#:#Um die Lernsequenz zu starten, wird ein Start Objekt benötigt.
+lso#:#lso_adaptive_missing_end_object#:#Um die Lernsequenz zu beenden, wird ein End Objekt benötigt.
+lso#:#lso_adaptive_start_end_not_same#:#Ein Objekt kann nicht gleichzeitig Start- und Endobjekt sein.
+lso#:#lso_adaptive_filter_start#:#Start
+lso#:#lso_adaptive_filter_end#:#Ende
+lso#:#no_conditions#:#(keine)
 lti#:#act_lti_for_obj_type#:#LTI für diese Objekttypen aktivieren
 lti#:#activity_id#:#Activity-ID
 lti#:#activity_id_info#:#Diese Activity-ID wird vom LTI-Provider verwendet, um Statements zu identifizieren.

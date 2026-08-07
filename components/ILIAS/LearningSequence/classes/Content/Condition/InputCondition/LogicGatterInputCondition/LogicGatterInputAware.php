@@ -24,6 +24,7 @@ use ilCtrlException;
 use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
@@ -34,7 +35,7 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGatterInputCondition extends AbstractCondition implements InputConditionInterface
+class LogicGatterInputAware extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
     final protected const string NAME = "logic_gatter";
     private const string SETTINGS_TABLE = 'lso_c_logic_gatter_input';
@@ -66,7 +67,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
 
         $db = $this->dic->database();
         $query = $db->query(
-            "SELECT objects FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
+            "SELECT items FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
         );
         if ($row = $db->fetchAssoc($query)) {
             $this->items = $row['items'];
@@ -144,7 +145,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
             self::SUBTYPE_AND => $this->areAllItemsCompleted(),
             self::SUBTYPE_OR => $this->isAnyItemCompleted(),
             self::SUBTYPE_NOT => $this->areNoItemsCompleted(),
-            default => throw new \LogicException('Unknown logic gatter subtype.')
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
         };
     }
 
@@ -220,20 +221,20 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
      * @param string $subtype
      * @return string
      */
-    private function getSubtypeLabel(string $subtype): string
+    public function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
             self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
             self::SUBTYPE_OR => $this->lang->txt('logic_gatter_or'),
             self::SUBTYPE_NOT => $this->lang->txt('logic_gatter_not'),
-            default => throw new \LogicException('Unknown logic gatter subtype.')
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
         };
     }
 
     /**
      * @return string[]
      */
-    protected function getSupportedSubtypes(): array
+    public function getSupportedSubtypes(): array
     {
         return [
             self::SUBTYPE_AND,
@@ -252,7 +253,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException('Logic gatter condition_id is not set.');
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_condition_id_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -263,7 +264,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException('Logic gatter subtype is not stored.');
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_subtype_not_stored'));
         }
 
         $this->setSubtype($row['subtype']);
@@ -284,9 +285,9 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     public function getAdditionalForm(): ?FormStandard
     {
         $input = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
-            $this->lang->txt('lso_condition_simple_choice_target'),
+            $this->lang->txt('lso_condition_simple_multi_target'),
             true,
-        );
+        )->withByline($this->lang->txt($this->getSubtype() . '_byline'));
 
         if ($this->condition_id !== null) {
             $input = $input->withValue($this->getItemsAsArray());
@@ -301,7 +302,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     /**
      * @throws ilCtrlException
      */
-    private function buildSubtypeStep(string $subtype): Bulky
+    public function buildSubtypeStep(string $subtype): Bulky
     {
         return $this->buildStep(
             ['subtype' => $subtype],

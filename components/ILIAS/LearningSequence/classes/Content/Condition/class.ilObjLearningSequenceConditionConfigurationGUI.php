@@ -153,11 +153,36 @@ class ilObjLearningSequenceConditionConfigurationGUI
     {
         $condition = $this->buildCondition();
 
+        $this->checkIfConditionExistsInItem($condition);
+
         $this->tpl->setContent(
             $this->ui_renderer->render(
                 $condition->getAdditionalForm()
             )
         );
+    }
+
+    /**
+     * @param AbstractCondition $condition
+     * @return void
+     * @throws ReflectionException
+     * @throws ilCtrlException
+     * @throws ilException
+     */
+    private function checkIfConditionExistsInItem(AbstractCondition $condition): void
+    {
+        $condition_ids = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
+        foreach ($condition_ids as $condition_id) {
+            $any_condition_of_object = $this->buildCondition($condition_id);
+
+            if ($condition->getTypeId() === $any_condition_of_object->getTypeId()) {
+                $this->tpl->setOnScreenMessage('failure', $this->lng->txt('lso_exception_condition_already_exists'), true);
+
+                $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
+                $this->ctrl->redirectByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS);
+                return;
+            }
+        }
     }
 
     /**

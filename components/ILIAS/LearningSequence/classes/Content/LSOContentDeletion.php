@@ -239,6 +239,7 @@ class LSOTableActionHandler
      * @param bool|null $is_online Current online state of the item. When given
      *                            only the opposite toggle action is offered.
      * @return array<string, \ilObjLearningSequenceActionData>
+     * @throws \ilCtrlException
      */
     public function collectActions(int $ref_id, array $specific_actions = [], ?bool $is_online = null): array
     {

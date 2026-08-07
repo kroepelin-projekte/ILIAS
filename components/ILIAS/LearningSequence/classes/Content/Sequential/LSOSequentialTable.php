@@ -1,5 +1,21 @@
 <?php
 
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
 declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Sequential;
@@ -49,7 +65,7 @@ class LSOSequentialTable implements OrderingRetrieval
             if ($current_op === \ilLSPostCondition::OPERATOR_ALWAYS) {
                 $condition_label = $this->lng->txt('condition_always');
             } elseif ($current_op === \ilLSPostCondition::OPERATOR_LP) {
-                $condition_label = 'Gemäß Lernfortschritt'; // #ToDo Sprachvariable
+                $condition_label = $this->lng->txt('condition_learning_progress');
             }
 
             $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);

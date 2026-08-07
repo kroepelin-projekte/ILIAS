@@ -18,7 +18,6 @@
 
 declare(strict_types=1);
 
-
 final readonly class ilObjLearningSequenceActionData
 {
     public function __construct(

@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Data\Order;
 use ILIAS\Data\Range;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\UI\Component\Table\DataRetrieval;
@@ -30,12 +31,14 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
 {
     private array $conditions = [];
     private ConditionFactory $condition_factory;
+    private ilLanguage $lng;
 
     public function __construct(
         protected int $lso_ref_id,
         protected int $item_ref_id
     ) {
         global $DIC;
+        $this->lng = $DIC->language();
         $discover = new ilObjLearningSequenceConditionDiscover();
         $this->conditions = $discover->getAllConditionIdsForItem($this->item_ref_id);
         $this->condition_factory = new ConditionFactory($discover, $DIC->database());
@@ -55,22 +58,46 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
         mixed $additional_parameters
     ): Generator
     {
+        $input_condition_ids = [];
+        $output_condition_ids = [];
+
         foreach ($this->conditions as $condition_id) {
             $condition = $this->condition_factory->getConditionInstanceById($condition_id);
 
             if ($condition instanceof InputConditionInterface) {
-                $type = 'InputCondition'; // todo lang
+                $input_condition_ids[] = (int) $condition_id;
             } else {
-                $type = 'OutputCondition'; // todo lang
+                $output_condition_ids[] = (int) $condition_id;
+            }
+        }
+
+        sort($input_condition_ids, SORT_NUMERIC);
+        sort($output_condition_ids, SORT_NUMERIC);
+
+        $sorted_condition_ids = array_merge($input_condition_ids, $output_condition_ids);
+
+        foreach ($sorted_condition_ids as $condition_id) {
+            $condition = $this->condition_factory->getConditionInstanceById($condition_id);
+
+            if ($condition instanceof InputConditionInterface) {
+                $type = $this->lng->txt('input_conditions');
+            } else {
+                $type = $this->lng->txt('output_conditions');
             }
 
-            $row =  $row_builder->buildDataRow(
+            if ($condition instanceof SubtypeAwareInterface) {
+                $subtype = $condition->getSubtypeLabel($condition->getSubtype());
+            } else {
+                $subtype = '';
+            }
+
+            $row = $row_builder->buildDataRow(
                 (string) $condition_id,
                 [
                     'id' => (string) $condition_id,
                     'type' => $type,
-                    'name' => $condition->getName(), // todo lang
-                    'subtype' => $condition->getSubtype(),
+                    'name' => $this->lng->txt($condition->getName()),
+                    'subtype' => $subtype,
                 ]
             );
 

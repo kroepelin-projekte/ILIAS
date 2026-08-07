@@ -11257,10 +11257,91 @@ lso#:#table_position#:#Position
 lso#:#table_sequence_content#:#Content Management
 lso#:#table_title#:#Title
 lso#:#unparticipate#:#Unsubscribe
+lso#:#conditions#:#Conditions
+lso#:#condition_type#:#Type
+lso#:#condition_name#:#Name
+lso#:#condition_subtype#:#Subtype
+lso#:#set_start_object#:#Set as Start Point
+lso#:#unset_start_object#:#Remove as Start Point
+lso#:#set_end_object#:#Set as End Point
+lso#:#unset_end_object#:#Remove as End Point
+lso#:#manage_conditions#:#Manage Conditions for %s
+lso#:#input_condition#:#Input Condition
+lso#:#output_condition#:#Output Condition
+lso#:#input_conditions#:#Input Conditions
+lso#:#output_conditions#:#Output Conditions
+lso#:#add_condition#:#Add Condition
+lso#:#delete_condition#:#Remove Condition
+lso#:#delete_condition_no_selection#:#Please choose at least one condition to delete.
+lso#:#delete_condition_verify#:#Do you really want to delete the selected conditions?
+lso#:#condition_already_exists#:#Condition already exists for this object.
+lso#:#conditions_deleted#:#Condition successfully deleted
+lso#:#lso_condition_simple_choice_target#:#Select Single Object
+lso#:#lso_condition_simple_multi_target#:#Select Multiple Objects
 lso#:#logic_gatter#:#Logic Gate
 lso#:#logic_gatter_and#:#AND
 lso#:#logic_gatter_or#:#OR
 lso#:#logic_gatter_not#:#NOT
+lso#:#AND_byline#:#All selected objects must be completed.
+lso#:#OR_byline#:#At least one of the selected objects must be completed.
+lso#:#NOT_byline#:#None of the selected objects may be completed.
+lso#:#always#:#Always
+lso#:#subset#:#Subset
+lso#:#subset_amount#:#Required Subset Amount
+lso#:#subset_amount_byline#:#Number of objects that must be completed to start this object.
+lso#:#points_input#:#Required Points
+lso#:#points_input_byline#:#Minimum number of points required for the user to start this object.
+lso#:#points_output#:#Points Earned
+lso#:#points_output_byline#:#Number of points awarded to the user upon successfully completing this object.
+lso#:#condition_learning_progress#:#Based on Learning Progress
+lso#:#learning_progress_input#:#Learning Progress
+lso#:#learning_progress_output#:#Learning Progress
+lso#:#learning_progress_not_attempted#:#Not attempted
+lso#:#learning_progress_in_progress#:#In progress
+lso#:#learning_progress_completed#:#Completed
+lso#:#learning_progress_failed#:#Failed
+lso#:#lso_exception_subset_invalid#:#Subset is invalid.
+lso#:#lso_exception_object_ids_not_stored#:#Object ids are not stored.
+lso#:#lso_exception_object_ids_invalid#:#Object ids are invalid.
+lso#:#lso_exception_at_least_one_object#:#At least one object must be selected.
+lso#:#lso_exception_subset_not_stored#:#Subset is not stored.
+lso#:#lso_exception_subset_negative#:#Subset must not be negative.
+lso#:#lso_exception_subset_exceeds_objects#:#Subset must not exceed the number of selected objects.
+lso#:#lso_exception_object_ids_not_set#:#Object ids are not set.
+lso#:#lso_exception_subset_not_set#:#Subset is not set.
+lso#:#lso_exception_unknown_logic_gatter_subtype#:#Unknown logic gatter subtype.
+lso#:#lso_exception_logic_gatter_subtype_not_stored#:#Logic gatter subtype is not stored.
+lso#:#lso_exception_logic_gatter_condition_id_not_set#:#Logic gatter condition_id is not set.
+lso#:#lso_exception_points_invalid#:#Points are invalid.
+lso#:#lso_exception_points_not_stored#:#Points are not stored.
+lso#:#lso_exception_points_negative#:#Points must not be negative.
+lso#:#lso_exception_points_not_set#:#Points are not set.
+lso#:#lso_exception_unknown_learning_progress_subtype#:#Unknown learning progress subtype.
+lso#:#lso_exception_lp_target_ref_id_invalid#:#Learning progress target ref id is invalid.
+lso#:#lso_exception_lp_subtype_not_set#:#Learning progress subtype is not set.
+lso#:#lso_exception_lp_subtype_not_stored#:#Learning progress subtype is not stored.
+lso#:#lso_exception_lp_target_ref_id_not_set#:#Learning progress target ref id is not set.
+lso#:#lso_exception_lp_target_ref_id_not_stored#:#Learning progress target ref id is not stored.
+lso#:#lso_exception_lp_condition_ambiguous#:#Learning progress condition lookup is ambiguous.
+lso#:#lso_exception_additional_form_no_override#:#%s defines an additional configuration form but does not override applyAdditionalFormData().
+lso#:#lso_exception_no_subtype_support#:#%s does not support subtypes.
+lso#:#lso_exception_unsupported_subtype#:#Unsupported subtype "%s".
+lso#:#lso_exception_condition_exists#:#Condition already exists for this item and type.
+lso#:#lso_exception_context_incomplete#:#Condition context is incomplete.
+lso#:#lso_exception_migration_no_hook_override#:#%s defines additional migration tables but does not override %s().
+lso#:#lso_exception_type_not_registered#:#Condition type is not registered.
+lso#:#lso_exception_condition_not_exists#:#Condition does not exist.
+lso#:#lso_exception_condition_ambiguous#:#Condition lookup is ambiguous.
+lso#:#lso_exception_lso_ref_id_not_set#:#LSO ref id is not set.
+lso#:#lso_exception_not_lso_object#:#Object is not an ilObjLearningSequence.
+lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
+lso#:#lso_exception_condition_already_exists#:#Condition already exists for this object.
+lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a start object is required.
+lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
+lso#:#lso_adaptive_start_end_not_same#:#An object cannot be the start and end object at the same time.
+lso#:#lso_adaptive_filter_start#:#Start
+lso#:#lso_adaptive_filter_end#:#End
+lso#:#no_conditions#:#(none)
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.
