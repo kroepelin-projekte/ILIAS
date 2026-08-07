@@ -40,14 +40,21 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
 {
     protected const string NAME = 'subset';
     private const SETTINGS_TABLE = 'lso_c_subset';
+    private const string OBJECT_IDS_FIELD = 'object_ids';
+    private const string SUBSET_FIELD = 'subset';
+
+    /**
+     * @var int[]|null
+     */
+    private ?array $object_ref_ids = null;
+    private ?int $subset = null;
     /**
      * Provides the database table definitions required by this condition.
      *
      * The condition needs its own settings table ({@see self::SETTINGS_TABLE}) that
-     * stores, per condition, the referenced learning sequence object, the serialized
-     * list of selected object references and the minimum amount of them that has to be
-     * completed. The returned definitions are created and kept up to date during the
-     * ILIAS setup/update process.
+     * stores, per condition, the serialized list of selected object references and the
+     * minimum amount of them that has to be completed. The returned definitions are
+     * created and kept up to date during the ILIAS setup/update process.
      *
      * @return TableDefinition[] the table definitions to be installed for this condition
      */
@@ -59,9 +66,8 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
                 tableName: self::SETTINGS_TABLE,
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
-                    'object_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
-                    'object_ids' => ['type' => 'text', 'length' => 4000, 'notnull' => false],
-                    'subsets' => ['type' => 'integer', 'length' => 4, 'notnull' => false]
+                    self::OBJECT_IDS_FIELD => ['type' => 'text', 'length' => 4000, 'notnull' => false],
+                    self::SUBSET_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => false]
                 ],
                 primaryKeys: ['condition_id']
             )
@@ -72,47 +78,25 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
      * Checks whether this condition is fulfilled for the current user and context.
      *
      * The configured list of objects and the required subset size are loaded from the
-     * settings table for the current condition and learning sequence object. For every
-     * configured object the learning progress of the logged in user is inspected and
-     * completed objects are counted. The condition is fulfilled as soon as the number
-     * of completed objects reaches the required subset size.
+     * settings table for the current condition. For every configured object the learning
+     * progress of the logged in user is inspected and completed objects are counted.
+     * The condition is fulfilled as soon as the number of completed objects reaches the
+     * required subset size.
      *
      * @return bool true if at least the required number of objects has been completed, false otherwise
      */
     public function check(): bool
     {
-        $this->assertContextSet();
-
-        $condition_id = $this->resolveConditionId();
-        $lso_object_id = $this->getLso()->getId();
-
-        $res = $this->getDatabase()->queryF(
-            'SELECT object_ids, subsets FROM ' . self::SETTINGS_TABLE
-            . ' WHERE condition_id = %s AND object_id = %s',
-            ['integer', 'integer'],
-            [$condition_id, $lso_object_id]
-        );
-        $row = $this->getDatabase()->fetchAssoc($res);
-
-        if ($row === null) {
-            return false;
-        }
-
-        $object_ids = @unserialize((string) $row['object_ids']);
-        if (!is_array($object_ids)) {
-            $object_ids = [];
-        }
-        $required_amount = (int) $row['subset'];
-
         $user_id = $this->dic->user()->getId();
         $completed_counter = 0;
-        foreach ($object_ids as $object_id) {
-            if (\ilLPStatus::_hasUserCompleted((int) $object_id, $user_id)) {
+        foreach ($this->getObjectRefIds() as $object_ref_id) {
+            $object_id = \ilObject::_lookupObjId($object_ref_id);
+            if ($object_id > 0 && \ilLPStatus::_hasUserCompleted($object_id, $user_id)) {
                 $completed_counter++;
             }
         }
 
-        return $completed_counter >= $required_amount;
+        return $completed_counter >= $this->getSubset();
     }
 
     /**
@@ -139,6 +123,13 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
             $this->lang->txt('subset_amount_byline'),
         )->withRequired(true);
 
+        if ($this->condition_id !== null) {
+            $multi_select = $multi_select->withValue(
+                array_map(static fn(int $ref_id): string => (string) $ref_id, $this->getObjectRefIds())
+            );
+            $required_amount = $required_amount->withValue($this->getSubset());
+        }
+
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [
@@ -149,53 +140,139 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
-     * Persists the initial configuration data for a newly created condition.
-     *
-     * A new row holding the referenced learning sequence object, the serialized list of
-     * selected objects and the required subset size is inserted into the settings table.
-     *
-     * @param int $condition_id the id of the condition the data belongs to
-     *
-     * TODO: read the actual selected object ids from the submitted form data.
+     * @param array<mixed> $data
      */
+    public function applyAdditionalFormData(array $data): void
+    {
+        $object_ref_ids = array_values(array_filter(
+            array_map(
+                static fn(mixed $value): int => (int) $value,
+                is_array($data[0] ?? null) ? $data[0] : []
+            ),
+            static fn(int $value): bool => $value > 0
+        ));
+
+        $subset = $data[1] ?? null;
+        if (is_array($subset) || !is_numeric($subset)) {
+            throw new \LogicException('Subset is invalid.');
+        }
+
+        $this->setObjectRefIds($object_ref_ids);
+        $this->setSubset((int) $subset);
+    }
+
+    /**
+     * @return int[]
+     */
+    public function getObjectRefIds(): array
+    {
+        if ($this->object_ref_ids !== null) {
+            return $this->object_ref_ids;
+        }
+
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT ' . self::OBJECT_IDS_FIELD . ' FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+        if ($row === null || !array_key_exists(self::OBJECT_IDS_FIELD, $row)) {
+            throw new \LogicException('Object ids are not stored.');
+        }
+
+        $object_ref_ids = @unserialize((string) $row[self::OBJECT_IDS_FIELD]);
+        if (!is_array($object_ref_ids)) {
+            throw new \LogicException('Object ids are invalid.');
+        }
+
+        $this->object_ref_ids = array_values(array_filter(
+            array_map(static fn(mixed $value): int => (int) $value, $object_ref_ids),
+            static fn(int $value): bool => $value > 0
+        ));
+
+        return $this->object_ref_ids;
+    }
+
+    /**
+     * @param int[] $object_ref_ids
+     */
+    public function setObjectRefIds(array $object_ref_ids): void
+    {
+        $object_ref_ids = array_values(array_filter(
+            array_map(static fn(mixed $value): int => (int) $value, $object_ref_ids),
+            static fn(int $value): bool => $value > 0
+        ));
+
+        if ($object_ref_ids === []) {
+            throw new \LogicException('At least one object must be selected.');
+        }
+
+        $this->object_ref_ids = $object_ref_ids;
+    }
+
+    public function getSubset(): int
+    {
+        if ($this->subset !== null) {
+            return $this->subset;
+        }
+
+        if ($this->condition_id === null) {
+            return 0;
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT ' . self::SUBSET_FIELD . ' FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+        $row = $this->getDatabase()->fetchAssoc($res);
+        if ($row === null || !isset($row[self::SUBSET_FIELD])) {
+            throw new \LogicException('Subset is not stored.');
+        }
+
+        $this->subset = (int) $row[self::SUBSET_FIELD];
+        return $this->subset;
+    }
+
+    public function setSubset(int $subset): void
+    {
+        if ($subset < 0) {
+            throw new \LogicException('Subset must not be negative.');
+        }
+
+        if ($this->object_ref_ids !== null && $subset > count($this->object_ref_ids)) {
+            throw new \LogicException('Subset must not exceed the number of selected objects.');
+        }
+
+        $this->subset = $subset;
+    }
+
     protected function createConditionData(int $condition_id): void
     {
-        $lso_object_id = $this->getLsoRefId();
-        $object_ids = serialize(''); #ToDo Daten holen
-        $subsets = 0;
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
-            'object_id' => ['integer', $lso_object_id],
-            'object_ids' => ['text', $object_ids],
-            'subsets' => ['integer', $subsets]
+            self::OBJECT_IDS_FIELD => ['text', serialize($this->requireObjectRefIds())],
+            self::SUBSET_FIELD => ['integer', $this->requireSubset()]
         ]);
     }
 
     /**
-     * Updates the stored configuration data of an existing condition.
-     *
-     * The serialized list of selected objects and the required subset size are updated
-     * for the row identified by the condition id and the referenced learning sequence
-     * object.
-     *
      * @param int $condition_id the id of the condition the data belongs to
-     *
-     * TODO: read the actual selected object ids from the submitted form data.
      */
     protected function editConditionData(int $condition_id): void
     {
-        $lso_object_id = $this->getLsoRefId();
-        $object_ids = serialize(''); #ToDo Daten holen
-        $subsets = 0;
         $this->getDatabase()->update(
             self::SETTINGS_TABLE,
             [
-                'object_ids' => ['text', $object_ids],
-                'subsets' => ['integer', $subsets]
+                self::OBJECT_IDS_FIELD => ['text', serialize($this->requireObjectRefIds())],
+                self::SUBSET_FIELD => ['integer', $this->requireSubset()]
             ],
             [
-                'condition_id' => ['integer', $condition_id],
-                'object_id' => ['integer', $lso_object_id]
+                'condition_id' => ['integer', $condition_id]
             ]
         );
     }
@@ -210,11 +287,10 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
      */
     protected function deleteConditionData(int $condition_id): void
     {
-        $lso_object_id = $this->getLsoRefId();
         $this->getDatabase()->manipulateF(
-            'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s AND object_id = %s',
-            ['integer', 'integer'],
-            [$condition_id, $lso_object_id]
+            'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
         );
     }
 
@@ -239,5 +315,26 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     protected function getGlyphe(): \ILIAS\UI\Component\Symbol\Glyph\Glyph
     {
         return $this->ui_factory->symbol()->glyph()->checked();
+    }
+
+    /**
+     * @return int[]
+     */
+    private function requireObjectRefIds(): array
+    {
+        if ($this->object_ref_ids === null || $this->object_ref_ids === []) {
+            throw new \LogicException('Object ids are not set.');
+        }
+
+        return $this->object_ref_ids;
+    }
+
+    private function requireSubset(): int
+    {
+        if ($this->subset === null) {
+            throw new \LogicException('Subset is not set.');
+        }
+
+        return $this->subset;
     }
 }

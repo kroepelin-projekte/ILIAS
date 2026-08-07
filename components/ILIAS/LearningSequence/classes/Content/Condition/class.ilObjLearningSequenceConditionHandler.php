@@ -95,6 +95,48 @@ class ConditionHandler
     }
 
     /**
+     * Deletes all conditions that belong to a Learning Sequence itself.
+     *
+     * Besides the generic rows in lso_conditions this also clears all
+     * condition-specific payload rows from every lso_c_* table by condition_id.
+     */
+    public function deleteConditionsByLSORefId(int $lso_ref_id): void
+    {
+        if ($this->db === null) {
+            return;
+        }
+
+        $condition_ids = [];
+        $res = $this->db->queryF(
+            'SELECT condition_id FROM lso_conditions WHERE lso_ref_id = %s',
+            ['integer'],
+            [$lso_ref_id]
+        );
+
+        while ($row = $this->db->fetchAssoc($res)) {
+            $condition_ids[] = (int) $row['condition_id'];
+        }
+
+        if ($condition_ids !== []) {
+            foreach ($this->db->listTables() as $table) {
+                if (!str_starts_with((string) $table, 'lso_c_')) {
+                    continue;
+                }
+
+                $this->db->manipulate(
+                    'DELETE FROM ' . $table . ' WHERE ' . $this->db->in('condition_id', $condition_ids, false, 'integer')
+                );
+            }
+        }
+
+        $this->db->manipulateF(
+            'DELETE FROM lso_conditions WHERE lso_ref_id = %s',
+            ['integer'],
+            [$lso_ref_id]
+        );
+    }
+
+    /**
      * Deletes a single condition entry from lso_conditions by its condition id.
      *
      * @param int $condition_id id of the condition to delete
