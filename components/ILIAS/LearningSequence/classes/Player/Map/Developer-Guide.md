@@ -264,7 +264,7 @@ Position beantworten will (ohne die ganze Map zu bauen), kann
   zusammen mit den Nicht-Kanten-Input-Conditions des Ziels erfüllt ist
   (`AdaptiveNavigator::canEnterFrom`). Alle übrigen Kanten sind gesperrt.
 - **Kanten** (`successors`) ergeben sich aus den adaptiven Bedingungen
-  (`SimpleChoiceInputCondition`), nicht aus der reinen Listenreihenfolge.
+  (`LearningProgressInputCondition`), nicht aus der reinen Listenreihenfolge.
 - **Ehrenrunden/Zyklen** sind erlaubt: Ein Rücksprung dupliziert keinen Knoten;
   Mehrfachdurchläufe zeigen sich in `visit_count`. Der BFS-Aufbau nutzt ein
   visited-Set (nach `obj_id`) und terminiert daher immer.

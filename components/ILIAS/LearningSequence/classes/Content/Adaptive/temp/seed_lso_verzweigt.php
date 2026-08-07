@@ -19,8 +19,7 @@ $db = $DIC->database();
 $tree = $DIC->repositoryTree();
 
 const LSO_REF_ID = 118;
-const TYPE_SIMPLE_CHOICE_INPUT = 27;
-const TYPE_LP_OUTPUT = 29;
+const LP_INPUT_SUBTYPE = 'completed';
 
 function findChildByTitle(int $parent_ref_id, string $title): int
 {
@@ -61,6 +60,21 @@ function setOnline(int $ref_id): void
     (new LSItemOnlineStatus())->setOnlineStatus($ref_id, true);
 }
 
+function typeId(string $condition_name): int
+{
+    global $db;
+    $res = $db->queryF(
+        'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
+        ['text'],
+        [$condition_name]
+    );
+    $row = $db->fetchAssoc($res);
+    if ($row === null) {
+        throw new RuntimeException("condition type '$condition_name' is not registered");
+    }
+    return (int) $row['type_id'];
+}
+
 function conditionExists(int $obj_ref_id, int $type_id, ?int $target_ref_id): bool
 {
     global $db;
@@ -75,7 +89,7 @@ function conditionExists(int $obj_ref_id, int $type_id, ?int $target_ref_id): bo
 
     $res = $db->queryF(
         'SELECT c.condition_id FROM lso_conditions c'
-        . ' JOIN lso_c_simple_choice s ON s.condition_id = c.condition_id'
+        . ' JOIN lso_c_learning_progress_input s ON s.condition_id = c.condition_id'
         . ' WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND c.type_id = %s AND s.target_ref_id = %s',
         ['integer', 'integer', 'integer', 'integer'],
         [LSO_REF_ID, $obj_ref_id, $type_id, $target_ref_id]
@@ -100,13 +114,14 @@ function addCondition(int $obj_ref_id, int $type_id): int
 function addEdge(int $predecessor_ref_id, int $successor_ref_id): void
 {
     global $db;
-    if (conditionExists($successor_ref_id, TYPE_SIMPLE_CHOICE_INPUT, $predecessor_ref_id)) {
+    if (conditionExists($successor_ref_id, typeId('LearningProgressInput'), $predecessor_ref_id)) {
         echo "edge exists: $predecessor_ref_id -> $successor_ref_id\n";
         return;
     }
-    $condition_id = addCondition($successor_ref_id, TYPE_SIMPLE_CHOICE_INPUT);
-    $db->insert('lso_c_simple_choice', [
+    $condition_id = addCondition($successor_ref_id, typeId('LearningProgressInput'));
+    $db->insert('lso_c_learning_progress_input', [
         'condition_id' => ['integer', $condition_id],
+        'subtype' => ['text', LP_INPUT_SUBTYPE],
         'target_ref_id' => ['integer', $predecessor_ref_id]
     ]);
     echo "edge added: $predecessor_ref_id -> $successor_ref_id (condition $condition_id)\n";
@@ -116,11 +131,11 @@ function addEdge(int $predecessor_ref_id, int $successor_ref_id): void
 function addLpOutput(int $obj_ref_id): void
 {
     global $db;
-    if (conditionExists($obj_ref_id, TYPE_LP_OUTPUT, null)) {
+    if (conditionExists($obj_ref_id, typeId('LearningProgressOutput'), null)) {
         echo "lp output exists: $obj_ref_id\n";
         return;
     }
-    $condition_id = addCondition($obj_ref_id, TYPE_LP_OUTPUT);
+    $condition_id = addCondition($obj_ref_id, typeId('LearningProgressOutput'));
     $db->insert('lso_c_learning_progress_output', [
         'condition_id' => ['integer', $condition_id],
         'subtype' => ['text', 'completed']

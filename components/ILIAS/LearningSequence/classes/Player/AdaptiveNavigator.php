@@ -133,14 +133,14 @@ class AdaptiveNavigator implements LSNavigator
 
     /**
      * Checks only the input-conditions that do NOT encode a graph edge. The
-     * edge conditions (SimpleChoiceInputCondition) must not be AND-combined,
+     * edge conditions (LearningProgressInputCondition) must not be AND-combined,
      * because several of them describe ALTERNATIVE incoming paths; whether one
      * of those paths is open is decided via the predecessors (canLeave).
      */
     public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
     {
         foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
-            if ($condition instanceof SimpleChoiceInputCondition) {
+            if ($condition instanceof LearningProgressInputCondition) {
                 continue;
             }
             if ($condition instanceof InputConditionInterface && !$this->checkCondition($condition)) {
@@ -154,7 +154,7 @@ class AdaptiveNavigator implements LSNavigator
      * Whether the target object may be entered coming from $current.
      *
      * Only the edge condition of the edge actually used is evaluated; all other
-     * SimpleChoiceInputConditions of the target describe ALTERNATIVE incoming
+     * LearningProgressInputConditions of the target describe ALTERNATIVE incoming
      * paths and must not be AND-combined - otherwise an object with several
      * incoming edges (e.g. the goal reachable via P1 or P2) would never be
      * enterable and a branch would silently collapse into a single successor.
@@ -162,7 +162,7 @@ class AdaptiveNavigator implements LSNavigator
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
         foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
-            if ($condition instanceof SimpleChoiceInputCondition) {
+            if ($condition instanceof LearningProgressInputCondition) {
                 $is_current_edge = false;
                 try {
                     $is_current_edge = $condition->getConditionTargetRefId() === $current->getRefId();
