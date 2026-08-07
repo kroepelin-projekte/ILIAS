@@ -27,6 +27,7 @@ use ILIAS\DI\Container;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
+use ILIAS\UI\Component\Symbol\Symbol;
 use ILIAS\UI\Factory;
 use ilLanguage;
 use ilObjectFactory;
@@ -583,9 +584,9 @@ abstract class AbstractCondition
      * Returns the glyphe for the condition.
      * Override this method in child classes to provide a specific glyph.
      *
-     * @return Glyph
+     * @return Glyph|Symbol
      */
-    protected function getGlyphe(): Glyph
+    protected function getGlyphe(): Glyph|Symbol
     {
         return $this->ui_factory->symbol()->glyph()->apply();
     }

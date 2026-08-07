@@ -11257,6 +11257,10 @@ lso#:#table_position#:#Position
 lso#:#table_sequence_content#:#Content Management
 lso#:#table_title#:#Title
 lso#:#unparticipate#:#Unsubscribe
+lso#:#logic_gatter#:#Logic Gate
+lso#:#logic_gatter_and#:#AND
+lso#:#logic_gatter_or#:#OR
+lso#:#logic_gatter_not#:#NOT
 lti#:#act_lti_for_obj_type#:#Activate LTI for Type of Object
 lti#:#activity_id#:#Activity ID
 lti#:#activity_id_info#:#This Activity ID is used by the LTI Provider to identify Statements.

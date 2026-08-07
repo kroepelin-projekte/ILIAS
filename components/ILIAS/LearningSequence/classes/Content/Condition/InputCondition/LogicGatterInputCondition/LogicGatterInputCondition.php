@@ -30,6 +30,8 @@ use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInte
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
+use ILIAS\UI\Component\Symbol\Glyph\Glyph;
+use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
 class LogicGatterInputCondition extends AbstractCondition implements InputConditionInterface
@@ -123,7 +125,7 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
         $this->assertContextSet();
 
         return [
-            $this->ui_factory->menu()->sub($this->getName(), [
+            $this->ui_factory->menu()->sub($this->lang->txt($this->getName()), [
                 $this->buildSubtypeStep(self::SUBTYPE_AND),
                 $this->buildSubtypeStep(self::SUBTYPE_OR),
                 $this->buildSubtypeStep(self::SUBTYPE_NOT),
@@ -133,6 +135,8 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
 
     /**
      * @return bool
+     * @throws ReflectionException
+     * @throws ilException
      */
     public function check(): bool
     {
@@ -219,9 +223,9 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
     private function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
-            self::SUBTYPE_AND => 'logic_gatter_and',
-            self::SUBTYPE_OR => 'logic_gatter_or',
-            self::SUBTYPE_NOT => 'logic_gatter_not',
+            self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
+            self::SUBTYPE_OR => $this->lang->txt('logic_gatter_or'),
+            self::SUBTYPE_NOT => $this->lang->txt('logic_gatter_not'),
             default => throw new \LogicException('Unknown logic gatter subtype.')
         };
     }
@@ -352,5 +356,13 @@ class LogicGatterInputCondition extends AbstractCondition implements InputCondit
             ['integer'],
             [$condition_id]
         );
+    }
+
+    /**
+     * @return Glyph|Symbol
+     */
+    protected function getGlyphe(): Glyph|Symbol
+    {
+        return $this->ui_factory->symbol()->icon()->custom('', '');
     }
 }
