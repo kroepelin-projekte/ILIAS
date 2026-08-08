@@ -20,18 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
-/**
- * Renders the learning map: a waterfall (top down) graph with branches and
- * merging paths in the adaptive mode, a chain running from left to right in
- * the sequential one - a monitor is wider than high, and the sequential map is
- * a single chain without branches.
- *
- * This class only produces the markup (tpl.lso_learning_map.html), the graph
- * data and the labels. Layout and drawing happen in the browser, see
- * resources/js/lso_learning_map.js; the styles live in
- * resources/css/lso_learning_map.css. Both assets are registered as public
- * assets in LearningSequence.php.
- */
 class LSOLearningMapRenderer
 {
     public const TEMPLATE = 'tpl.lso_learning_map.html';
@@ -44,17 +32,11 @@ class LSOLearningMapRenderer
     public const ORIENTATION_VERTICAL = 'vertical';
     public const ORIENTATION_HORIZONTAL = 'horizontal';
 
-    // Box metrics, handed over to the javascript as "metrics".
     private const NODE_WIDTH = 190;
     private const NODE_HEIGHT = 86;
     private const H_GAP = 26;
     private const V_GAP = 96;
 
-    /**
-     * @param bool $sequential the learning sequence runs in the sequential
-     *        mode. Its map is drawn horizontally and shows neither the walked
-     *        path nor a current position - the mode simply does not keep them.
-     */
     public function __construct(
         private \ILIAS\UI\Factory $ui_factory,
         private \ILIAS\UI\Renderer $ui_renderer,
@@ -85,13 +67,6 @@ class LSOLearningMapRenderer
         );
     }
 
-    /**
-     * The very same map, but without the panel around it - used where the
-     * surrounding component already provides a frame and a title, e.g. the
-     * modal of the kiosk player.
-     *
-     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
-     */
     public function renderWithoutPanel(array $graph): string
     {
         if (($graph['nodes'] ?? []) === []) {
@@ -110,9 +85,6 @@ class LSOLearningMapRenderer
             . ' Es fehlen Objekte oder ein Start-Objekt.';
     }
 
-    /**
-     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
-     */
     protected function buildMarkup(array $graph): string
     {
         $this->tpl->addCss(self::CSS);
@@ -122,9 +94,6 @@ class LSOLearningMapRenderer
 
         $template = new \ilTemplate(self::TEMPLATE, true, true, self::COMPONENT);
         $template->setVariable('MAP_ID', $map_id);
-        // the mode is already marked here on the server: the script adds the
-        // very same class, but only after the page has been built - too late
-        // for the size of the modal in the kiosk player.
         $template->setVariable(
             'MAP_MODIFIER',
             $this->sequential ? ' lso-learning-map--horizontal' : ''
@@ -143,12 +112,6 @@ class LSOLearningMapRenderer
         return $template->get();
     }
 
-    /**
-     * Everything the javascript needs: the graph itself, the box metrics and
-     * the labels it draws into the boxes.
-     *
-     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
-     */
     protected function getMapDataAsJson(array $graph): string
     {
         return json_encode(
@@ -169,28 +132,18 @@ class LSOLearningMapRenderer
         );
     }
 
-    /**
-     * @return array<string, string> the badge/button labels of a box
-     */
     protected function getNodeLabels(): array
     {
         // #ToDo Sprachvariablen
         return [
             'current' => 'hier',
             'done' => 'erledigt',
-            'blocked' => 'gesperrt',
+            'open' => 'verfügbar',
+            'blocked' => 'nicht verfügbar',
             'open_object' => 'Öffnen'
         ];
     }
 
-    /**
-     * The map is a graph, and a graph is nothing a screen reader can look at.
-     * The boxes are therefore drawn into an ordered list in learning order and
-     * every entry carries its position, its state and where it leads to; the
-     * texts for that are collected here (WCAG 1.1.1, 1.3.1).
-     *
-     * @return array<string, string>
-     */
     protected function getScreenReaderLabels(): array
     {
         // #ToDo Sprachvariablen
@@ -200,15 +153,15 @@ class LSOLearningMapRenderer
             'sr_summary_start' => 'Beginn: %s.',
             'sr_summary_end' => 'Ende: %s.',
             'sr_step' => 'Objekt %1$s von %2$s',
-            'sr_state_done' => 'Status: abgeschlossen',
-            'sr_state_open' => 'Status: fortfahren möglich',
-            'sr_state_blocked' => 'Status: gesperrt',
+            'sr_state_done' => 'Status: erledigt',
+            'sr_state_open' => 'Status: verfügbar',
+            'sr_state_blocked' => 'Status: nicht verfügbar',
             'sr_current' => 'Ihre aktuelle Position',
             'sr_start' => 'Beginn der Lernsequenz',
             'sr_end' => 'Ende der Lernsequenz',
             'sr_leads_to' => 'Führt zu: %s.',
             'sr_leads_to_none' => 'Führt zu keinem weiteren Objekt.',
-            'sr_blocked_way' => '%s (dieser Weg ist zurzeit gesperrt)',
+            'sr_blocked_way' => '%s (dieser Weg ist zurzeit nicht verfügbar)',
             'sr_fitted' => 'Ansicht eingepasst.',
             'sr_zoom' => 'Zoom %s Prozent.',
             'sr_at_current' => 'Ansicht bei Ihrer aktuellen Position: %s.',
@@ -222,39 +175,29 @@ class LSOLearningMapRenderer
         return 'Lernkarte: Darstellung der Objekte und ihrer Reihenfolge';
     }
 
-    /**
-     * @return array<string, string> css-modifier of the swatch => label
-     */
     protected function getLegend(): array
     {
         // #ToDo Sprachvariablen
         $legend = [
-            'open' => 'fortfahren möglich',
-            'blocked' => 'gesperrt',
+            'open' => 'verfügbar',
+            'blocked' => 'nicht verfügbar',
             'path' => 'bisheriger Pfad',
-            'done' => 'abgeschlossen',
+            'done' => 'erledigt',
             'current' => 'aktuelle Position'
         ];
 
         if ($this->sequential) {
-            // the sequential mode keeps neither a walked path nor a current
-            // position, so both swatches would explain something that is never
-            // drawn
+
             unset($legend['path'], $legend['current']);
         }
 
         return $legend;
     }
 
-    /**
-     * Zoom and pan controls. Every button talks to the javascript api of its
-     * map, which is registered as il.LSO.LearningMap.get(<map id>).
-     */
+
     protected function renderToolbar(string $map_id): string
     {
         // #ToDo Sprachvariablen
-        // "–", "+" and "100 %" say nothing when read out aloud, so every
-        // button carries a spoken name of its own (WCAG 4.1.2, 2.4.6)
         $actions = [
             '–' => ['Verkleinern', 'zoomBy(-0.15)'],
             '+' => ['Vergrößern', 'zoomBy(0.15)'],
@@ -264,9 +207,6 @@ class LSOLearningMapRenderer
         ];
 
         if ($this->sequential) {
-            // there is no current position in the sequential mode, and the
-            // chain is drawn at its natural size without zooming, so the zoom
-            // buttons would do nothing
             unset($actions['Zu meiner Position'], $actions['–'], $actions['+'], $actions['100 %']);
         }
 
@@ -292,14 +232,6 @@ class LSOLearningMapRenderer
             . '});';
     }
 
-    /**
-     * Translates the map data (LSOLearningMap::toArray()) into the graph
-     * structure the javascript draws. Nodes are keyed by obj_id, edges are
-     * derived from the successors of every node.
-     *
-     * @param array<string, mixed> $map LSOLearningMap::toArray()
-     * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
-     */
     public function fromMapData(array $map): array
     {
         $map_nodes = $map['nodes'] ?? [];
@@ -317,9 +249,6 @@ class LSOLearningMapRenderer
             $obj_id = (int) $node['obj_id'];
             $situation = (string) ($node['situation'] ?? '');
             $can_access = (bool) ($node['can_access'] ?? false);
-
-            // an object one may not enter is never "done", no matter what its
-            // (possibly empty) set of output-conditions says
             $state = 'blocked';
             if ($can_access && !empty($node['has_completed'])) {
                 $state = 'done';
@@ -344,11 +273,6 @@ class LSOLearningMapRenderer
                 'current' => (bool) ($node['is_current'] ?? false),
                 'terminal' => $terminal,
             ];
-
-            // an edge is passable only if this very edge may be used now: the
-            // object may be left (its output-conditions, e.g. learning progress
-            // "completed", are fulfilled) AND the target may be entered coming
-            // from here. The data layer decides that per edge.
             $passable_successors = array_map('intval', (array) ($node['passable_successors'] ?? []));
 
             foreach ($node['successors'] ?? [] as $successor_obj_id) {

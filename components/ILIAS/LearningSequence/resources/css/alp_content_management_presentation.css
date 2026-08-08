@@ -1,18 +1,3 @@
-/*
-LearningSequence / ALP – Dummy „Content Managent“ Presentation Table
-
-Wichtig:
-- Dieses CSS gehört zu der Demo-Presentation-Table und wird im Content-Tab geladen.
-- Wir nutzen bewusst HTML im ausklappbaren Content (Conditions + Information-Box),
-  aber KEIN Inline-CSS. Alles Styling wird hier zentral definiert.
-- Die Klassen sind bewusst mit „alp-cm-“ prefix versehen, um Kollisionen zu vermeiden.
-*/
-
-/*
-Badges am Titel (Online/Offline/Start/End)
-----------------------------------------
-Die Badges sind bewusst simpel gehalten und sollen optisch „badge-artig“ wirken.
-*/
 .alp-cm-badge {
     display: inline-block;
     margin-left: 6px;
@@ -45,10 +30,6 @@ Die Badges sind bewusst simpel gehalten und sollen optisch „badge-artig“ wir
     color: #111;
 }
 
-/*
-Linke Spalte: Conditions
------------------------
-*/
 .alp-cm-conditions {
     padding: 4px 8px;
 }
@@ -89,11 +70,6 @@ Linke Spalte: Conditions
     font-weight: 400;
 }
 
-/*
-Rechte Spalte: Information-Box
------------------------------
-Optik wie „graue Box“ aus dem vorherigen Stand, aber ohne Inline-CSS.
-*/
 .alp-cm-info {
     background: #f2f2f2;
     padding: 10px;

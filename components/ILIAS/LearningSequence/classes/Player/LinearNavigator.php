@@ -20,13 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Player;
 
-/**
- * Linear navigation: the objects are traversed in their fixed list order.
- *
- * This encapsulates the historic index-based logic of the player 1:1. There
- * are never any conditions in the linear mode, therefore leaving and entering
- * an object is always allowed.
- */
 class LinearNavigator implements LSNavigator
 {
     /**
@@ -87,8 +80,6 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
-     * Nothing to preload: the linear navigation is purely index based.
-     *
      * @param \LSLearnerItem[] $items
      */
     public function preload(array $items): void
@@ -96,8 +87,6 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
-     * There are no conditions in the linear mode.
-     *
      * @return int[]
      */
     public function getInputConditionIds(\LSLearnerItem $item): array
@@ -106,8 +95,7 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
-     * There are no conditions in the linear mode.
-     *
+
      * @return int[]
      */
     public function getOutputConditionIds(\LSLearnerItem $item): array
@@ -115,9 +103,7 @@ class LinearNavigator implements LSNavigator
         return [];
     }
 
-    /**
-     * @param \LSLearnerItem[] $items
-     */
+
     protected function findPosition(array $items, \LSLearnerItem $item): int
     {
         foreach ($items as $index => $candidate) {

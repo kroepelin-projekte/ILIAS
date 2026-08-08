@@ -13,35 +13,17 @@
  * https://github.com/ILIAS-eLearning
  */
 
-/* Styles of the learning map (LSOLearningMapRenderer). The box metrics are set
-   as custom properties by the renderer, the values here are only fallbacks.
-
-   The palette follows the colours of the delos theme. They cannot be used as
-   variables here (this is a plain css asset, not part of the scss build), so
-   the values are copied - and darkened where the theme colour does not reach
-   the required contrast. The ratio against the white background is noted at
-   every value: 4.5:1 is needed for text, 3:1 for borders, lines and badges
-   (WCAG 1.4.3 / 1.4.11). */
 .lso-learning-map {
-    /* $il-success-color #6ea03c darkened, 5.1:1 */
     --lso-learning-map-done: #4f7a1f;
-    /* $il-info-color, 5.5:1 */
     --lso-learning-map-current: #31708f;
-    /* $il-neutral-light-color, 4.7:1 - the former #b0b0b0 had 2.2:1 */
     --lso-learning-map-blocked: #737373;
-    /* $il-neutral-color, 14:1 */
     --lso-learning-map-edge: #2c2c2c;
-    /* border of a box, 4.5:1 - the former #c3c3c3 had 1.8:1 */
     --lso-learning-map-border: #767676;
     --lso-learning-map-node-width: 190px;
     --lso-learning-map-node-height: 86px;
     position: relative;
 }
 
-/* Visible for a screen reader, invisible on screen: the summary of the map,
-   the live region and the description of every box (see drawNodes()). It must
-   not be display:none - that would remove it from the accessibility tree as
-   well, and with it the only textual representation of the graph. */
 .lso-learning-map__sr-only {
     position: absolute;
     width: 1px;
@@ -93,8 +75,6 @@
     border-top-style: dashed;
 }
 
-/* mirrors the line of a walked path: not only a different colour, but a
-   noticeably thicker line (WCAG 1.4.1) */
 .lso-learning-map__swatch--path {
     border-top-color: var(--lso-learning-map-current);
     border-top-width: 5px;
@@ -132,30 +112,16 @@
     cursor: grabbing;
 }
 
-/* the viewport is focusable (pan by arrow keys), so the focus has to be
-   clearly visible - $il-focus-color of the delos theme */
 .lso-learning-map__viewport:focus-visible {
     outline: 2px solid #0078D7;
     outline-offset: 2px;
 }
 
-/* The horizontal map (sequential mode) is a plain chain running from left to
-   right. It is exactly as high as one object box plus some air, so it must
-   neither claim the minimum height of the waterfall layout nor be resizable
-   vertically; the javascript sets the height and keeps panning to left/right. */
 .lso-learning-map--horizontal .lso-learning-map__viewport {
     resize: none;
     min-height: 0;
 }
 
-/* The map inside the modal of the kiosk player.
-
-   The roundtrip modal belongs to the ILIAS ui framework (kitchen sink) and is
-   deliberately NOT styled from here: no rule of this file touches the dialog,
-   its dialog/content/body or its footer. The modal keeps its standard size and
-   behaviour, the map simply lives inside it.
-   The only thing set here concerns our own element: inside the modal the
-   viewport must not be dragged larger by the user. */
 .lso-learning-map-modal .lso-learning-map__viewport {
     resize: none;
 }
@@ -177,8 +143,6 @@
     z-index: 1;
 }
 
-/* the boxes are the items of an ordered list (learning order), the list markup
-   itself must not be visible */
 .lso-learning-map__nodes {
     position: absolute;
     top: 0;
@@ -189,8 +153,6 @@
     list-style: none;
 }
 
-/* The state of an edge must not be told by colour alone: a blocked way is
-   dashed, a walked one is markedly thicker (WCAG 1.4.1). */
 .lso-learning-map__edge {
     fill: none;
     stroke: var(--lso-learning-map-edge);
@@ -210,7 +172,6 @@
     stroke-width: 5;
 }
 
-/* the arrow heads, coloured like their line */
 .lso-learning-map__arrow {
     fill: var(--lso-learning-map-edge);
 }
@@ -314,9 +275,14 @@
     border-radius: 8px;
     background: #eee;
     color: #444;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
-/* text on a tinted background, all above 4.5:1 */
+.lso-learning-map__badge + .lso-learning-map__badge {
+    margin-left: .25rem;
+}
+
 .lso-learning-map__badge--done {
     background: #eaf3e0;
     color: #3d5e17;
@@ -327,18 +293,22 @@
     color: #255670;
 }
 
+.lso-learning-map__badge--open {
+    background: #fff;
+    color: #333;
+    box-shadow: inset 0 0 0 1px #767676;
+}
+
 .lso-learning-map__badge--blocked {
     background: #ededed;
     color: #4a4a4a;
 }
 
-/* A node the user cannot enter must stay readable: it is told apart by the
-   dashed border and its badge, not by being faded out. */
 .lso-learning-map__node--blocked .lso-learning-map__node-desc {
     color: var(--lso-learning-map-blocked);
 }
 
-/* Users who ask their system for less motion get no transitions from us. */
+
 @media (prefers-reduced-motion: reduce) {
     .lso-learning-map *,
     .lso-learning-map *::before,
@@ -350,9 +320,6 @@
     }
 }
 
-/* In the windows high contrast mode the browser throws our colours away. The
-   states then have to be carried by the system colours and by the line styles
-   (dashed = blocked, thick = walked path). */
 @media (forced-colors: active) {
     .lso-learning-map {
         --lso-learning-map-done: CanvasText;

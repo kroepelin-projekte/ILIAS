@@ -25,56 +25,16 @@ use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ilDBInterface;
 
-/**
- * Encapsulates the whole "where is the learner currently within an adaptive
- * learning sequence" logic.
- *
- * This class knows nothing about rendering; it purely answers questions about
- * the learner's position in the object graph based on the walked path
- * (LSOItemPath), the sequence boundaries (start/end object) and the navigation
- * rules (LSNavigator). It also performs the path mutations for the four
- * navigation cases (advance, back, choose a branch).
- *
- * It is intentionally kept separate from the player so it can be reused later,
- * most notably by the map view, which needs to know the current position and
- * the possible next objects without driving the kiosk mode player.
- */
 class LSOLearningMapPosition
 {
-    // The five situations an object can be in for the adaptive player.
     public const SIT_END = 'end';
     public const SIT_BLOCKED = 'blocked';
     public const SIT_DEADEND = 'deadend';
     public const SIT_BRANCH = 'branch';
     public const SIT_STRAIGHT = 'straight';
-
-    /**
-     * Append-only visit log table. In contrast to LSOItemPath (a stack that
-     * only reflects the currently active path and pops entries on "back"), this
-     * log keeps every visit a learner ever made within the learning sequence,
-     * including branches that were entered and later abandoned via "back". It is
-     * kept here on purpose so all "where is / how did the learner move" logic
-     * lives in one place (reusable by the upcoming map view).
-     */
     public const VISITS_TABLE = 'lso_item_visits';
-
-    /**
-     * Request-caches. The visit log is asked for several times per object
-     * while the map is being built (visited?, how often?, when last?), so it is
-     * read once and the derived statistics are pre-computed.
-     *
-     * @var array<int, array{ref_id: int, visited_ts: int}>|null
-     */
     protected ?array $raw_visit_log = null;
-
-    /**
-     * @var array<int, array{count: int, last_ts: int}>|null statistics per obj_id
-     */
     protected ?array $visit_stats = null;
-
-    /**
-     * @var array<int, int> ref_id => obj_id
-     */
     protected array $obj_id_by_ref_id = [];
 
     public function __construct(
@@ -86,28 +46,9 @@ class LSOLearningMapPosition
         protected ?ilDBInterface $db = null
     ) {
     }
-
-    /**
-     * Hook for subclasses that derive their state from the item list itself
-     * (e.g. the sequential mode, where start and end are simply the first and
-     * the last object). Called once by the map data builder before the graph is
-     * walked. The adaptive default reads its boundaries from the database and
-     * therefore does nothing here.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function prepareForItems(array $items): void
     {
     }
-
-    /**
-     * Records a visit of the given object in the append-only visit log (if a
-     * database connection was injected). Always inserts a new row (revisits are
-     * recorded as additional entries), so the log never loses information -
-     * this is called whenever the learner actually enters an object, so the log
-     * keeps the full history including branches that are later abandoned via
-     * "back".
-     */
     protected function recordVisit(int $ref_id): void
     {
         if ($this->db === null) {
@@ -130,41 +71,20 @@ class LSOLearningMapPosition
         $this->raw_visit_log = null;
         $this->visit_stats = null;
     }
-
-    /**
-     * Resolves a ref_id to its obj_id and remembers the result: the same
-     * handful of ref_ids is translated over and over again while the map is
-     * being built.
-     */
     protected function lookupObjId(int $ref_id): int
     {
         return $this->obj_id_by_ref_id[$ref_id] ??= \ilObject::_lookupObjId($ref_id);
     }
-
-    /**
-     * The ref_id of the configured start object (0 if none). Kept internal
-     * because the public API of this class always speaks obj_id; the ref_id is
-     * only an implementation detail needed to address the item inside the tree.
-     */
     protected function getStartRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
         return (int) ($boundaries['start_ref_id'] ?? 0);
     }
-
-    /**
-     * The ref_id of the configured end object (0 if none). Internal only, see
-     * getStartRefId().
-     */
     protected function getEndRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
         return (int) ($boundaries['end_ref_id'] ?? 0);
     }
-
-    /**
-     * The obj_id of the configured start object within the LSO (0 if none).
-     */
     public function getStartObjId(): int
     {
         $start_ref_id = $this->getStartRefId();
@@ -173,10 +93,6 @@ class LSOLearningMapPosition
         }
         return $this->lookupObjId($start_ref_id);
     }
-
-    /**
-     * The obj_id of the configured end object within the LSO (0 if none).
-     */
     public function getEndObjId(): int
     {
         $end_ref_id = $this->getEndRefId();
@@ -185,14 +101,6 @@ class LSOLearningMapPosition
         }
         return $this->lookupObjId($end_ref_id);
     }
-
-    /**
-     * Determines the current object from the walked path. On the first visit
-     * the start object is pushed onto the path. Path entries pointing to no
-     * longer existing objects are dropped.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function getCurrentItem(array $items): ?\LSLearnerItem
     {
         if (count($items) === 0) {
@@ -218,13 +126,6 @@ class LSOLearningMapPosition
 
         return $this->findItemByRefId($items, $current_ref_id);
     }
-
-    /**
-     * Classifies the situation of the given object:
-     * end, blocked, deadend, branch or straight.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function getSituation(array $items, \LSLearnerItem $item): string
     {
         if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
@@ -242,14 +143,6 @@ class LSOLearningMapPosition
         }
         return self::SIT_BRANCH;
     }
-
-    /**
-     * Same classification as getSituation(), but based on the configured graph
-     * instead of the currently enterable successors. The map must not turn a
-     * branch into a dead end just because its successors are still blocked.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function getStructuralSituation(array $items, \LSLearnerItem $item): string
     {
         if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
@@ -267,38 +160,14 @@ class LSOLearningMapPosition
         }
         return self::SIT_BRANCH;
     }
-
-    /**
-     * The objects that may currently be entered from the given object.
-     *
-     * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
-     */
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getSuccessors($items, $item);
     }
-
-    /**
-     * All objects an edge leads to, no matter whether they may currently be
-     * entered. This is the graph as it was configured and therefore the basis
-     * for the map, which has to show blocked objects, too.
-     *
-     * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
-     */
     public function getStructuralSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getStructuralSuccessors($items, $item);
     }
-
-    /**
-     * Handles "next"/"back". A negative direction pops the path (back); a
-     * positive direction advances if the current object may be left and there
-     * is exactly one allowed successor.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function advance(array $items, \LSLearnerItem $current_item, ?int $direction): \LSLearnerItem
     {
         if ($direction !== null && $direction < 0) {
@@ -320,16 +189,6 @@ class LSOLearningMapPosition
         }
         return $current_item;
     }
-
-    /**
-     * Jumps right to the object with the given obj_id, no matter whether it is
-     * a successor of the object worked on last. This is what the learning map
-     * needs: the learner picks one box and expects to land exactly there. The
-     * object has to be accessible (see mayAccess()); the jump is pushed onto
-     * the path, so "back" keeps working.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function jumpTo(array $items, \LSLearnerItem $current_item, ?int $obj_id): \LSLearnerItem
     {
         if ($obj_id === null || $obj_id === 0) {
@@ -351,17 +210,6 @@ class LSOLearningMapPosition
         }
         return $current_item;
     }
-
-    /**
-     * May the learner enter the given object at all? Same rule the map uses to
-     * decide whether it offers the "open"-button (see
-     * LSOLearningMapDataBuilder::canAccess()): the object's own input-conditions
-     * have to be fulfilled and at least one of its predecessors has to be
-     * leaveable, because several incoming edges are alternative paths. The start
-     * object has no predecessors and is always accessible.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     protected function mayAccess(array $items, \LSLearnerItem $item): bool
     {
         if ($this->getStartRefId() !== 0 && $item->getRefId() === $this->getStartRefId()) {
@@ -381,14 +229,6 @@ class LSOLearningMapPosition
         }
         return false;
     }
-
-    /**
-     * Handles the choice on a branch: only allowed successors may be selected;
-     * the selection is addressed by the obj_id of the target object within the
-     * LSO and is pushed onto the path.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function goTo(array $items, \LSLearnerItem $current_item, ?int $obj_id): \LSLearnerItem
     {
         if ($obj_id === null || $obj_id === 0 || !$this->navigator->canLeave($current_item)) {
@@ -404,12 +244,6 @@ class LSOLearningMapPosition
         return $current_item;
     }
 
-    /**
-     * The ordered list of visited ref_ids (oldest first). Internal only; the
-     * public API exposes the walked path as obj_ids (getWalkedObjIds()).
-     *
-     * @return int[]
-     */
     protected function getPath(): array
     {
         return $this->item_path->getPath($this->usr_id, $this->lso_obj_id);
@@ -420,21 +254,12 @@ class LSOLearningMapPosition
         return count($this->getPath());
     }
 
-    /**
-     * The ref_id of the object the learner is currently positioned on (top of
-     * the walked path). Returns 0 if the path is still empty. Internal only;
-     * the public counterpart is getCurrentObjId().
-     */
     protected function getCurrentRefId(): int
     {
         $current_ref_id = $this->item_path->getCurrent($this->usr_id, $this->lso_obj_id);
         return $current_ref_id ?? 0;
     }
 
-    /**
-     * "Wo ist der User gerade?" – the obj_id of the object the learner is
-     * currently positioned on. Returns 0 if the path is still empty.
-     */
     public function getCurrentObjId(): int
     {
         $current_ref_id = $this->getCurrentRefId();
@@ -444,24 +269,11 @@ class LSOLearningMapPosition
         return $this->lookupObjId($current_ref_id);
     }
 
-    /**
-     * The ordered list of visited ref_ids (oldest first). Internal only; the
-     * public counterpart is getWalkedObjIds().
-     *
-     * @return int[]
-     */
     protected function getWalkedRefIds(): array
     {
         return $this->getPath();
     }
 
-    /**
-     * "Wie ist der User gelaufen?" – the ordered list of visited obj_ids
-     * (oldest first), resolved from the walked ref_ids. The order reflects the
-     * actual path the learner took through the sequence.
-     *
-     * @return int[]
-     */
     public function getWalkedObjIds(): array
     {
         return array_map(
@@ -470,14 +282,6 @@ class LSOLearningMapPosition
         );
     }
 
-    /**
-     * The complete, append-only visit log (oldest first) including branches
-     * that were later abandoned via "back". Each entry is an associative array
-     * with the keys "obj_id" (the obj_id of the visited object within the LSO)
-     * and "visited_ts". Empty if no visit log repository was injected.
-     *
-     * @return array<int, array{obj_id: int, visited_ts: int}>
-     */
     public function getVisitLog(): array
     {
         return array_map(
@@ -489,13 +293,6 @@ class LSOLearningMapPosition
         );
     }
 
-    /**
-     * The raw append-only visit log (oldest first) as stored, keyed by the
-     * internal ref_id. Internal only; the public getVisitLog() resolves these
-     * to obj_ids.
-     *
-     * @return array<int, array{ref_id: int, visited_ts: int}>
-     */
     protected function getRawVisitLog(): array
     {
         if ($this->raw_visit_log !== null) {
@@ -522,13 +319,6 @@ class LSOLearningMapPosition
         return $log;
     }
 
-    /**
-     * Pre-computed visit statistics per obj_id (number of visits and the
-     * timestamp of the last visit), so the map does not have to walk the whole
-     * visit log once per object and question.
-     *
-     * @return array<int, array{count: int, last_ts: int}>
-     */
     protected function getVisitStats(): array
     {
         if ($this->visit_stats !== null) {
@@ -549,13 +339,6 @@ class LSOLearningMapPosition
         return $stats;
     }
 
-    /**
-     * Every ref_id the learner has ever visited (de-duplicated, order of first
-     * visit), including objects on branches that were later abandoned. Internal
-     * only; the public counterpart is getEverVisitedObjIds().
-     *
-     * @return int[]
-     */
     protected function getEverVisitedRefIds(): array
     {
         $ref_ids = [];
@@ -567,32 +350,16 @@ class LSOLearningMapPosition
         return $ref_ids;
     }
 
-    /**
-     * How often the learner has visited the object with the given obj_id
-     * within this learning sequence.
-     */
     public function getVisitCount(int $obj_id): int
     {
         return $this->getVisitStats()[$obj_id]['count'] ?? 0;
     }
 
-    /**
-     * "Wann war der User zuletzt hier?" – the timestamp (Unix seconds) of the
-     * most recent visit of the object with the given obj_id, or null if the
-     * learner has never visited it. Uses the append-only visit log, so it also
-     * covers objects on branches that were later abandoned via "back".
-     */
     public function getLastVisitTs(int $obj_id): ?int
     {
         return $this->getVisitStats()[$obj_id]['last_ts'] ?? null;
     }
 
-    /**
-     * Every obj_id the learner has ever visited (de-duplicated, order of first
-     * visit), resolved from the ever-visited ref_ids.
-     *
-     * @return int[]
-     */
     public function getEverVisitedObjIds(): array
     {
         return array_map(
@@ -601,39 +368,41 @@ class LSOLearningMapPosition
         );
     }
 
-    /**
-     * "Hat besucht?" – whether the learner has ever visited the object with the
-     * given obj_id within this learning sequence. Uses the append-only visit
-     * log, so it also returns true for objects on branches that were later
-     * abandoned via "back".
-     */
     public function hasVisited(int $obj_id): bool
     {
         return isset($this->getVisitStats()[$obj_id]);
     }
 
-    /**
-     * "Hat abgeschlossen?" – whether the learner may leave/advance from the
-     * object with the given obj_id according to its conditions (i.e. all of the
-     * object's output-conditions are fulfilled). This deliberately does NOT ask
-     * the learning-progress subsystem; "done" is defined purely by the adaptive
-     * conditions, exactly like the player uses to decide whether "next" is
-     * allowed. Requires the item list so the obj_id can be resolved to the
-     * corresponding learner item.
-     *
-     * @param \LSLearnerItem[] $items
-     */
+
     public function hasCompleted(array $items, int $obj_id): bool
     {
         if ($obj_id === 0) {
             return false;
         }
         foreach ($items as $item) {
-            if ($this->lookupObjId($item->getRefId()) === $obj_id) {
-                return $this->navigator->canLeave($item);
+            if ($this->lookupObjId($item->getRefId()) !== $obj_id) {
+                continue;
             }
+            if ($this->navigator->getOutputConditionIds($item) === []) {
+                return $this->hasLearningProgressCompleted($item, $obj_id);
+            }
+            return $this->navigator->canLeave($item);
         }
         return false;
+    }
+
+    protected function hasLearningProgressCompleted(\LSLearnerItem $item, int $obj_id): bool
+    {
+        $status = $item->getLearningProgressStatus();
+        if ($status !== 0) {
+            return $status === \ilLPStatus::LP_STATUS_COMPLETED_NUM;
+        }
+
+        try {
+            return \ilLPStatus::_hasUserCompleted($obj_id, $this->usr_id);
+        } catch (\Throwable $t) {
+            return false;
+        }
     }
 
     /**

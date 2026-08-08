@@ -36,9 +36,9 @@
   const DEFAULT_METRICS = {
     nodeWidth: 190, nodeHeight: 86, hGap: 26, vGap: 96,
   };
-  const DEFAULT_LABELS = {
-    current: 'hier', done: 'erledigt', blocked: 'gesperrt', openObject: '\u00d6ffnen',
-  };
+  /* there are no texts in this script on purpose: every label is written in
+     php (LSOLearningMapRenderer) and handed over with the graph data, so it
+     can become a language variable there */
 
   /* dummy nodes are the routing points of long edges. They reserve a real slot
      (width DUMMY_WIDTH, full box height) in their layer, so a line passing a
@@ -105,10 +105,7 @@
     };
     const labels = {
       ...rawLabels,
-      current: rawLabels.current || DEFAULT_LABELS.current,
-      done: rawLabels.done || DEFAULT_LABELS.done,
-      blocked: rawLabels.blocked || DEFAULT_LABELS.blocked,
-      openObject: rawLabels.open_object || DEFAULT_LABELS.openObject,
+      openObject: rawLabels.open_object,
     };
 
     /* horizontal: layers run left to right. A monitor is wider than high, and
@@ -512,22 +509,21 @@
         const o = n.raw;
         const cls = ['lso-learning-map__node'];
         if (o.state === 'done') { cls.push('lso-learning-map__node--done'); }
+        if (o.state === 'open') { cls.push('lso-learning-map__node--open'); }
         if (o.state === 'blocked') { cls.push('lso-learning-map__node--blocked'); }
         if (o.current) { cls.push('lso-learning-map__node--current'); }
         if (o.terminal) { cls.push('lso-learning-map__node--terminal'); }
         /* the badge is the visual shorthand of the state - the screen reader
            gets the very same information as a full sentence above, so it is
            not read out twice */
-        let badge = '';
+        const stateKey = o.state === 'done' || o.state === 'blocked' ? o.state : 'open';
+        let badge = `<span class="lso-learning-map__badge lso-learning-map__badge--${stateKey}"`
+          + ` aria-hidden="true">${escapeHtml(labels[stateKey])}</span>`;
         if (o.current) {
+          /* "here" is not a state of its own but tells where the learner
+             stands, so it is shown in addition to the state */
           badge = `<span class="lso-learning-map__badge lso-learning-map__badge--current" aria-hidden="true">${
-            escapeHtml(labels.current)}</span>`;
-        } else if (o.state === 'done') {
-          badge = `<span class="lso-learning-map__badge lso-learning-map__badge--done" aria-hidden="true">${
-            escapeHtml(labels.done)}</span>`;
-        } else if (o.state === 'blocked') {
-          badge = `<span class="lso-learning-map__badge lso-learning-map__badge--blocked" aria-hidden="true">${
-            escapeHtml(labels.blocked)}</span>`;
+            escapeHtml(labels.current)}</span>${badge}`;
         }
         html += `<li class="${cls.join(' ')}" id="${escapeHtml(`${id}_n_${o.id}`)}"`
           + ` style="left:${Math.round(n.sx)}px;top:${Math.round(n.sy)}px"`
