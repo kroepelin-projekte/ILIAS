@@ -18,14 +18,7 @@
 
 declare(strict_types=1);
 
-/**
- * The learning map for the page editor, the GUI.
- *
- * There is nothing to configure, so inserting the element immediately returns
- * to the page editor.
- *
- * @ilCtrl_isCalledBy ilPCLearningMapGUI: ilPageEditorGUI
- */
+
 class ilPCLearningMapGUI extends ilPageContentGUI
 {
     public const CMD_INSERT = 'insert';

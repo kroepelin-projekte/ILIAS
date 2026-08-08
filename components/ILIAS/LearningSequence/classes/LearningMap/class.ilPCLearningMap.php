@@ -18,18 +18,7 @@
 
 declare(strict_types=1);
 
-/**
- * The learning map as a page content element.
- *
- * It may only be placed on the intro-/extro-page of a learning sequence (see
- * ilLearningSequencePageObjectGUI::getPageConfig()), so the parent object of
- * the page always is the learning sequence the map is drawn for. Which map is
- * drawn - the condition graph of the adaptive mode or the plain chain of the
- * sequential one - is decided by the operation mode of that learning sequence.
- *
- * The element carries no settings at all: it is inserted and renders the map of
- * the current user.
- */
+
 class ilPCLearningMap extends ilPageContent
 {
     public const PCTYPE = 'lsolearningmap';

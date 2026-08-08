@@ -20,28 +20,11 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
-/**
- * The learner's position within a sequential learning sequence.
- *
- * The sequential mode has neither a configurable start/end object nor a walked
- * path or visit log - all of that belongs to the adaptive mode. What it does
- * have is the order of the objects, so the first object is the start and the
- * last one is the end of the sequence.
- *
- * Everything the sequential mode simply does not provide (current position,
- * walked path, visit statistics) stays empty on purpose; the map just does not
- * show it.
- */
 class LSOLearningMapSequentialPosition extends LSOLearningMapPosition
 {
     protected int $first_ref_id = 0;
     protected int $last_ref_id = 0;
 
-    /**
-     * Start and end are derived from the order of the objects.
-     *
-     * @param \LSLearnerItem[] $items
-     */
     public function prepareForItems(array $items): void
     {
         $items = array_values($items);
@@ -63,5 +46,18 @@ class LSOLearningMapSequentialPosition extends LSOLearningMapPosition
     protected function getEndRefId(): int
     {
         return $this->last_ref_id;
+    }
+
+    public function hasCompleted(array $items, int $obj_id): bool
+    {
+        if ($obj_id === 0) {
+            return false;
+        }
+        foreach ($items as $item) {
+            if ($this->lookupObjId($item->getRefId()) === $obj_id) {
+                return $this->navigator->canLeave($item);
+            }
+        }
+        return false;
     }
 }
