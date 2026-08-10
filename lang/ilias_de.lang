@@ -11179,9 +11179,6 @@ logging#:#log_error_message_send_mail#:# Bitte wenden Sie sich an <a href="mailt
 logging#:#log_error_path_not_configured_or_wrong#:#Der Pfad zu den Errorlogs (error_path) ist nicht gesetzt oder nicht erreichbar.
 logging#:#log_error_settings#:#Einstellungen für das Fehlerprotokoll
 logging#:#logs_settings#:#Protokollierungseinstellungen
-lso#:#logic_gate_and_byline#:#Alle ausgewählten Objekte müssen absolviert werden.
-lso#:#logic_gate_not_byline#:#Keines der ausgewählten Objekte darf absolviert sein.
-lso#:#logic_gate_or_byline#:#Mindestens eines der ausgewählten Objekte muss absolviert werden.
 lso#:#abstract#:#Einleitung
 lso#:#abstract_img#:#Bild für die Einleitungsseite
 lso#:#add_condition#:#Bedingung hinzufügen
@@ -11222,8 +11219,11 @@ lso#:#learning_progress_not_attempted#:#Nicht begonnen
 lso#:#learning_progress_output#:#Lernfortschritt
 lso#:#logic_gate#:#Logik Gatter
 lso#:#logic_gate_and#:#UND
+lso#:#logic_gate_and_byline#:#Alle ausgewählten Objekte müssen absolviert werden.
 lso#:#logic_gate_not#:#NICHT
+lso#:#logic_gate_not_byline#:#Keines der ausgewählten Objekte darf absolviert sein.
 lso#:#logic_gate_or#:#ODER
+lso#:#logic_gate_or_byline#:#Mindestens eines der ausgewählten Objekte muss absolviert werden.
 lso#:#lp_not_relevant_post_cond#:#für Fortfahren aktuell nicht maßgeblich
 lso#:#lso_activation_online_info#:#Nur wenn die Lernsequenz online geschaltet ist, können Personen beitreten und Mitglieder auf die Lernsequenz zugreifen. Wenn nicht, ist die Lernsequenz nur für Administration und Rollen mit dem Recht „Einstellungen bearbeiten“ verfügbar.
 lso#:#lso_adaptive_conditions_empty#:#(keine)

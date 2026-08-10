@@ -11151,9 +11151,6 @@ logging#:#log_error_message_send_mail#:#Please send a mail to <a href="mailto:%s
 logging#:#log_error_path_not_configured_or_wrong#:#Path to errors (error_path) is not configured or unreachable.
 logging#:#log_error_settings#:#Error logging settings
 logging#:#logs_settings#:#Logging Settings
-lso#:#logic_gate_and_byline#:#All selected objects must be completed.
-lso#:#logic_gate_not_byline#:#None of the selected objects may be completed.
-lso#:#logic_gate_or_byline#:#At least one of the selected objects must be completed.
 lso#:#abstract#:#Abstract
 lso#:#abstract_img#:#Image for Abstract
 lso#:#add_condition#:#Add Condition
@@ -11194,8 +11191,11 @@ lso#:#learning_progress_not_attempted#:#Not attempted
 lso#:#learning_progress_output#:#Learning Progress
 lso#:#logic_gate#:#Logic Gate
 lso#:#logic_gate_and#:#AND
+lso#:#logic_gate_and_byline#:#All selected objects must be completed.
 lso#:#logic_gate_not#:#NOT
+lso#:#logic_gate_not_byline#:#None of the selected objects may be completed.
 lso#:#logic_gate_or#:#OR
+lso#:#logic_gate_or_byline#:#At least one of the selected objects must be completed.
 lso#:#lp_not_relevant_post_cond#:#currently not relevant for continuation
 lso#:#lso_activation_online_info#:#Set the Learning Sequence online to make it visible and available for Learning Sequence members. If not, only administrators and tutors will have access to it.
 lso#:#lso_adaptive_conditions_empty#:#(none)
