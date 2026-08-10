@@ -20,25 +20,49 @@ namespace ILIAS\LearningSequence\Content\Adaptive;
  *
  *********************************************************************/
 
+/**
+ * Renders the adaptive learning sequence content table.
+ */
 readonly class LSOAdaptiveTable
 {
+    /**
+     * Creates the adaptive content table.
+     *
+     * @param array $objects Content data records.
+     */
     public function __construct(
+        /** UI factory. */
         private \ILIAS\UI\Factory $ui_factory,
+        /** UI renderer. */
         private \ILIAS\UI\Renderer $ui_renderer,
+        /** Content data records. */
         private array $objects,
+        /** Content filter. */
         private ?\ILIAS\UI\Component\Input\Container\Filter\Standard $filter = null,
+        /** Start object reference ID. */
         private int $start_ref_id = 0,
+        /** End object reference ID. */
         private int $end_ref_id = 0,
+        /** Parent content GUI. */
         private ?\ilObjLearningSequenceContentGUI $parent_gui = null,
+        /** Learning sequence repository reference ID. */
         private int $ref_id = 0,
+        /** Learning sequence object ID. */
         private int $obj_id = 0,
+        /** Language service. */
         private ?\ilLanguage $lng = null,
+        /** Controller service. */
         private ?\ilCtrl $ctrl = null,
+        /** Server request. */
         private ?\Psr\Http\Message\ServerRequestInterface $request = null,
+        /** Global template. */
         private ?\ilGlobalTemplateInterface $tpl = null
     ) {
     }
 
+    /**
+     * Renders the content table.
+     */
     public function render(): string
     {
         $data = $this->objects;
@@ -92,7 +116,10 @@ readonly class LSOAdaptiveTable
     }
 
     /**
+     * Builds the presentation table environment.
+     *
      * @param array<int, \ILIAS\UI\Component\Modal\Interruptive> $modals
+     * @return array<string, callable>
      */
     private function buildEnvironment(array &$modals): array
     {
@@ -201,6 +228,9 @@ readonly class LSOAdaptiveTable
         ];
     }
 
+    /**
+     * Builds the delete confirmation modal for an item.
+     */
     private function buildDeleteModal(int $ref_id, string $title): \ILIAS\UI\Component\Modal\Interruptive
     {
         $this->ctrl->setParameter($this->parent_gui, 'item_ref_id', '');
@@ -224,6 +254,11 @@ readonly class LSOAdaptiveTable
             ->withActionButtonLabel($this->lng->txt('delete'));
     }
 
+    /**
+     * Renders a list of condition titles and values.
+     *
+     * @param ilObjLearningSequenceConditionData[] $conditions
+     */
     private function renderKeyValueList(array $conditions): string
     {
         if ($conditions === []) {

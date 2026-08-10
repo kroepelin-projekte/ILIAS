@@ -19,11 +19,17 @@
 declare(strict_types=1);
 
 
+/**
+ * Handles the user interface for learning map page content.
+ */
 class ilPCLearningMapGUI extends ilPageContentGUI
 {
     public const CMD_INSERT = 'insert';
     public const CMD_EDIT = 'edit';
 
+    /**
+     * Executes the requested command.
+     */
     public function executeCommand(): void
     {
         $next_class = $this->ctrl->getNextClass($this);
@@ -33,7 +39,8 @@ class ilPCLearningMapGUI extends ilPageContentGUI
                 switch ($cmd) {
                     case self::CMD_INSERT:
                         $this->insertNewContentObj();
-                        // no break
+                        $this->returnToParent();
+                        break;
                     case self::CMD_EDIT:
                         $this->returnToParent();
                         break;
@@ -44,11 +51,17 @@ class ilPCLearningMapGUI extends ilPageContentGUI
         }
     }
 
+    /**
+     * Returns to the parent controller.
+     */
     protected function returnToParent(): void
     {
         $this->ctrl->returnToParent($this, "jump" . $this->hier_id);
     }
 
+    /**
+     * Creates a learning map page content object.
+     */
     protected function createNewPageContent(): ilPCLearningMap
     {
         return new ilPCLearningMap(
@@ -56,6 +69,9 @@ class ilPCLearningMapGUI extends ilPageContentGUI
         );
     }
 
+    /**
+     * Inserts a new learning map page content object.
+     */
     public function insertNewContentObj(): void
     {
         $this->content_obj = $this->createNewPageContent();

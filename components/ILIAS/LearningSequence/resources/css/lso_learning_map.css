@@ -13,6 +13,8 @@
  * https://github.com/ILIAS-eLearning
  */
 
+/* Learning map styling. */
+
 .lso-learning-map {
     --lso-learning-map-done: #4f7a1f;
     --lso-learning-map-current: #31708f;
@@ -23,6 +25,8 @@
     --lso-learning-map-node-height: 86px;
     position: relative;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__sr-only {
     position: absolute;
@@ -37,12 +41,16 @@
     border: 0;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: .25rem;
     margin-bottom: .5rem;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__legend {
     display: flex;
@@ -52,11 +60,15 @@
     margin-bottom: .5rem;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__legend-item {
     display: inline-flex;
     align-items: center;
     gap: .35rem;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__swatch {
     display: inline-block;
@@ -66,19 +78,27 @@
     border-top-style: solid;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__swatch--open {
     border-top-color: var(--lso-learning-map-edge);
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__swatch--blocked {
     border-top-color: var(--lso-learning-map-blocked);
     border-top-style: dashed;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__swatch--path {
     border-top-color: var(--lso-learning-map-current);
     border-top-width: 5px;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__swatch--done {
     height: 12px;
@@ -87,6 +107,8 @@
     border-radius: 2px;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__swatch--current {
     height: 12px;
     width: 12px;
@@ -94,6 +116,8 @@
     border-radius: 2px;
     box-shadow: 0 0 0 3px rgba(49, 112, 143, .25);
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__viewport {
     position: relative;
@@ -108,23 +132,33 @@
     cursor: grab;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__viewport.is-panning {
     cursor: grabbing;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__viewport:focus-visible {
     outline: 2px solid #0078D7;
     outline-offset: 2px;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map--horizontal .lso-learning-map__viewport {
     resize: none;
     min-height: 0;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map-modal .lso-learning-map__viewport {
     resize: none;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__canvas {
     position: absolute;
@@ -134,6 +168,8 @@
     will-change: transform;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__edges {
     position: absolute;
     top: 0;
@@ -142,6 +178,8 @@
     pointer-events: none;
     z-index: 1;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__nodes {
     position: absolute;
@@ -153,6 +191,8 @@
     list-style: none;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__edge {
     fill: none;
     stroke: var(--lso-learning-map-edge);
@@ -162,27 +202,39 @@
     shape-rendering: crispEdges;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__edge--blocked {
     stroke: var(--lso-learning-map-blocked);
     stroke-dasharray: 5 4;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__edge--path {
     stroke: var(--lso-learning-map-current);
     stroke-width: 5;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__arrow {
     fill: var(--lso-learning-map-edge);
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__arrow--blocked {
     fill: var(--lso-learning-map-blocked);
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__arrow--path {
     fill: var(--lso-learning-map-current);
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__edge-label {
     font-size: 10px;
@@ -191,6 +243,8 @@
     stroke: #fbfbfb;
     stroke-width: 3px;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__node {
     position: absolute;
@@ -208,10 +262,14 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node--done {
     border-color: var(--lso-learning-map-done);
     border-width: 2px;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__node--current {
     border-color: var(--lso-learning-map-current);
@@ -219,14 +277,20 @@
     box-shadow: 0 0 0 4px rgba(49, 112, 143, .22);
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node--blocked {
     border-style: dashed;
     border-color: var(--lso-learning-map-blocked);
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node--terminal {
     background: #f4f7fa;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__node-head {
     display: flex;
@@ -235,11 +299,15 @@
     min-width: 0;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node-icon {
     width: 16px;
     height: 16px;
     flex: 0 0 16px;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__node-title {
     font-weight: bold;
@@ -250,6 +318,8 @@
     white-space: nowrap;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node-desc {
     font-size: .74em;
     color: #555;
@@ -258,6 +328,8 @@
     overflow: hidden;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node-foot {
     display: flex;
     align-items: center;
@@ -265,9 +337,13 @@
     gap: .25rem;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__node-link {
     font-size: .74em;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__badge {
     font-size: .68em;
@@ -279,19 +355,27 @@
     flex: 0 0 auto;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__badge + .lso-learning-map__badge {
     margin-left: .25rem;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__badge--done {
     background: #eaf3e0;
     color: #3d5e17;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__badge--current {
     background: #e3eff5;
     color: #255670;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__badge--open {
     background: #fff;
@@ -299,10 +383,14 @@
     box-shadow: inset 0 0 0 1px #767676;
 }
 
+/* Learning map styling. */
+
 .lso-learning-map__badge--blocked {
     background: #ededed;
     color: #4a4a4a;
 }
+
+/* Learning map styling. */
 
 .lso-learning-map__node--blocked .lso-learning-map__node-desc {
     color: var(--lso-learning-map-blocked);
@@ -312,6 +400,7 @@
 @media (prefers-reduced-motion: reduce) {
     .lso-learning-map *,
     .lso-learning-map *::before,
+    /* Learning map styling. */
     .lso-learning-map *::after {
         transition-duration: .001ms !important;
         animation-duration: .001ms !important;
@@ -321,6 +410,7 @@
 }
 
 @media (forced-colors: active) {
+    /* Learning map styling. */
     .lso-learning-map {
         --lso-learning-map-done: CanvasText;
         --lso-learning-map-current: Highlight;
@@ -329,31 +419,45 @@
         --lso-learning-map-border: CanvasText;
     }
 
+    /* Learning map styling. */
+
     .lso-learning-map__edge {
         forced-color-adjust: none;
         stroke: CanvasText;
     }
 
+    /* Learning map styling. */
+
     .lso-learning-map__edge--blocked {
         stroke: GrayText;
     }
 
+    /* Learning map styling. */
+
     .lso-learning-map__edge--path {
         stroke: Highlight;
     }
+
+    /* Learning map styling. */
 
     .lso-learning-map__arrow {
         forced-color-adjust: none;
         fill: CanvasText;
     }
 
+    /* Learning map styling. */
+
     .lso-learning-map__arrow--blocked {
         fill: GrayText;
     }
 
+    /* Learning map styling. */
+
     .lso-learning-map__arrow--path {
         fill: Highlight;
     }
+
+    /* Learning map styling. */
 
     .lso-learning-map__node {
         border-width: 2px;

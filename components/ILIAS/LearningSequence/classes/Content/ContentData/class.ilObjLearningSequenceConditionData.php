@@ -17,11 +17,25 @@
  *********************************************************************/
 
 declare(strict_types=1);
+
+/**
+ * Data transfer object for a learning sequence condition.
+ */
 final readonly class ilObjLearningSequenceConditionData
 {
+    /**
+     * Creates condition data.
+     *
+     * @param string $title Condition title.
+     * @param string $value Condition value.
+     * @param string $internal_name Internal condition name.
+     */
     public function __construct(
+        /** Condition title. */
         public string $title,
+        /** Condition value. */
         public string $value,
+        /** Internal condition name. */
         public string $internal_name = '',
     ) {
     }

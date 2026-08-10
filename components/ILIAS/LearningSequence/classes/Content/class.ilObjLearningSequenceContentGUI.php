@@ -27,7 +27,22 @@ use ILIAS\UI\Renderer;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Class ilObjLearningSequenceContentGUI
+ * Manages the content of a learning sequence.
+ *
+ * @property \ilObjLearningSequenceGUI|self $parent_gui
+ * @property \ilCtrl $ctrl
+ * @property \ilGlobalTemplateInterface $tpl
+ * @property \ilLanguage $lng
+ * @property \ilAccessHandler $access
+ * @property \ilConfirmationGUI $confirmation_gui
+ * @property \LSItemOnlineStatus $ls_item_online_status
+ * @property RequestWrapper $query_wrapper
+ * @property RequestWrapper $post_wrapper
+ * @property Factory $refinery
+ * @property \ILIAS\UI\Factory $ui_factory
+ * @property Renderer $ui_renderer
+ * @property ServerRequestInterface $request
+ *
  * @ilCtrl_Calls ilObjLearningSequenceContentGUI: ilObjLearningSequenceConditionsGUI
  */
 class ilObjLearningSequenceContentGUI
@@ -71,24 +86,29 @@ class ilObjLearningSequenceContentGUI
     public const string FIELD_ONLINE = 'f_online';
     public const string FIELD_POSTCONDITION_TYPE = 'f_pct';
 
+    /**
+     * Creates the content management GUI.
+     */
     public function __construct(
         protected \ilObjLearningSequenceGUI|ilObjLearningSequenceContentGUI $parent_gui,
-        protected \ilCtrl                                                   $ctrl,
-        protected \ilGlobalTemplateInterface                                $tpl,
-        protected \ilLanguage                                               $lng,
-        protected \ilAccessHandler                                          $access,
-        protected \ilConfirmationGUI                                        $confirmation_gui,
-        protected \LSItemOnlineStatus                                       $ls_item_online_status,
-        protected RequestWrapper                                            $query_wrapper,
-        protected RequestWrapper                                            $post_wrapper,
-        protected Factory                                                   $refinery,
-        protected \ILIAS\UI\Factory                                         $ui_factory,
-        protected Renderer                                                  $ui_renderer,
-        protected ServerRequestInterface                                    $request
-    )
-    {
+        protected \ilCtrl $ctrl,
+        protected \ilGlobalTemplateInterface $tpl,
+        protected \ilLanguage $lng,
+        protected \ilAccessHandler $access,
+        protected \ilConfirmationGUI $confirmation_gui,
+        protected \LSItemOnlineStatus $ls_item_online_status,
+        protected RequestWrapper $query_wrapper,
+        protected RequestWrapper $post_wrapper,
+        protected Factory $refinery,
+        protected \ILIAS\UI\Factory $ui_factory,
+        protected Renderer $ui_renderer,
+        protected ServerRequestInterface $request
+    ) {
     }
 
+    /**
+     * Sets the page content.
+     */
     public function setContent(string $html): void
     {
         $this->tpl->setContent($html);
@@ -104,6 +124,9 @@ class ilObjLearningSequenceContentGUI
         $this->parent_gui->showPossibleSubObjects();
     }
 
+    /**
+     * Executes the requested content management command.
+     */
     public function executeCommand(): void
     {
         $this->assertReadAccess();
@@ -223,8 +246,9 @@ class ilObjLearningSequenceContentGUI
             $obj_id
         );
     }
-
-
+    /**
+     * Creates a handler for table actions.
+     */
     public function getTableActionHandler(): \ILIAS\LearningSequence\Content\LSOTableActionHandler
     {
         return new \ILIAS\LearningSequence\Content\LSOTableActionHandler(
@@ -237,16 +261,25 @@ class ilObjLearningSequenceContentGUI
         );
     }
 
+    /**
+     * Sets the selected item's postcondition to always allow proceeding.
+     */
     public function setConditionAlways(): void
     {
         $this->setPostConditionOperator(\ilLSPostCondition::OPERATOR_ALWAYS);
     }
 
+    /**
+     * Sets the selected item's postcondition to require learning progress.
+     */
     public function setConditionLP(): void
     {
         $this->setPostConditionOperator(\ilLSPostCondition::OPERATOR_LP);
     }
 
+    /**
+     * Sets the postcondition operator of the selected item.
+     */
     private function setPostConditionOperator(string $operator): void
     {
         $ref_id = $this->extractItemRefId();
@@ -268,21 +301,33 @@ class ilObjLearningSequenceContentGUI
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Forwards the cut command to the parent GUI.
+     */
     public function cut(): void
     {
         $this->forwardClipboardCommand(\ilObjLearningSequenceGUI::CMD_CUT);
     }
 
+    /**
+     * Forwards the copy command to the parent GUI.
+     */
     public function copy(): void
     {
         $this->forwardClipboardCommand('copy');
     }
 
+    /**
+     * Forwards the link command to the parent GUI.
+     */
     public function link(): void
     {
         $this->forwardClipboardCommand(\ilObjLearningSequenceGUI::CMD_LINK);
     }
 
+    /**
+     * Forwards a clipboard command for the selected item to the parent GUI.
+     */
     private function forwardClipboardCommand(string $cmd): void
     {
         $ref_id = $this->extractItemRefId();
@@ -295,6 +340,9 @@ class ilObjLearningSequenceContentGUI
         $this->ctrl->redirectByClass(\ilObjLearningSequenceGUI::class, $cmd);
     }
 
+    /**
+     * Opens the settings page of the selected item.
+     */
     public function settings(): void
     {
         $ref_id = $this->extractItemRefId();
@@ -329,13 +377,16 @@ class ilObjLearningSequenceContentGUI
         foreach ($list_gui->getCommands() as $cmd) {
             $key = ($cmd['lang_var'] !== '') ? $cmd['lang_var'] : $cmd['cmd'];
             if ($key === 'settings') {
-                return (string)$cmd['link'];
+                return (string) $cmd['link'];
             }
         }
 
         return '';
     }
 
+    /**
+     * Sets the selected item online.
+     */
     public function setOnline(): void
     {
         $ref_id = $this->extractItemRefId();
@@ -355,6 +406,9 @@ class ilObjLearningSequenceContentGUI
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Sets the selected item offline.
+     */
     public function setOffline(): void
     {
         $ref_id = $this->extractItemRefId();
@@ -374,24 +428,26 @@ class ilObjLearningSequenceContentGUI
         $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Extracts the selected item reference ID from the request.
+     */
     public function extractItemRefId(): int
     {
         $item_ref_id = 0;
         $query_params = $this->request->getQueryParams();
 
-        // Check for namespaced parameters first (from Ordering Table)
         if (isset($query_params['lso_content_seq_item_ref_id'])) {
             if (is_array($query_params['lso_content_seq_item_ref_id'])) {
-                $item_ref_id = (int)($query_params['lso_content_seq_item_ref_id'][0] ?? 0);
+                $item_ref_id = (int) ($query_params['lso_content_seq_item_ref_id'][0] ?? 0);
             } else {
-                $item_ref_id = (int)$query_params['lso_content_seq_item_ref_id'];
+                $item_ref_id = (int) $query_params['lso_content_seq_item_ref_id'];
             }
         }
         if ($item_ref_id === 0 && isset($query_params['item_ref_id'])) {
             if (is_array($query_params['item_ref_id'])) {
-                $item_ref_id = (int)($query_params['item_ref_id'][0] ?? 0);
+                $item_ref_id = (int) ($query_params['item_ref_id'][0] ?? 0);
             } else {
-                $item_ref_id = (int)$query_params['item_ref_id'];
+                $item_ref_id = (int) $query_params['item_ref_id'];
             }
         }
 

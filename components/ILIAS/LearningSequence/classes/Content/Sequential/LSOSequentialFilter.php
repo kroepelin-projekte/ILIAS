@@ -22,13 +22,23 @@ namespace ILIAS\LearningSequence\Content\Sequential;
 
 use ilObjLearningSequenceContentGUI;
 
+/**
+ * Builds the filter for sequential learning sequence content.
+ */
 class LSOSequentialFilter
 {
+    /** @var \ILIAS\UI\Factory */
     private \ILIAS\UI\Factory $ui_factory;
+    /** @var \ilLanguage */
     private \ilLanguage $lng;
+    /** @var \ilCtrl */
     private \ilCtrl $ctrl;
+    /** @var ilObjLearningSequenceContentGUI */
     private ilObjLearningSequenceContentGUI $parent_gui;
 
+    /**
+     * Creates a sequential content filter builder.
+     */
     public function __construct(
         \ILIAS\UI\Factory $ui_factory,
         \ilLanguage $lng,
@@ -41,12 +51,11 @@ class LSOSequentialFilter
         $this->parent_gui = $parent_gui;
     }
 
+    /**
+     * Builds a filter with links targeting the given action.
+     */
     public function getFilter(string $action): \ILIAS\UI\Component\Input\Container\Filter\Standard
     {
-        // The filter needs fully qualified URLs (toggle_on/off, expand,
-        // collapse, apply and the form action). Passing the bare command name
-        // would make the browser submit to a non-existing relative URL, so
-        // build a proper link target.
         $action_url = $this->ctrl->getLinkTarget($this->parent_gui, $action);
 
         $fields = [
@@ -68,12 +77,12 @@ class LSOSequentialFilter
         ];
 
         return $this->ui_factory->input()->container()->filter()->standard(
-            $action_url, // toggle_on
-            $action_url, // toggle_off
-            $action_url, // expand
-            $action_url, // collapse
-            $action_url, // apply
-            $action_url, // form action
+            $action_url,
+            $action_url,
+            $action_url,
+            $action_url,
+            $action_url,
+            $action_url,
             $fields,
             [true, true, true],
             true,

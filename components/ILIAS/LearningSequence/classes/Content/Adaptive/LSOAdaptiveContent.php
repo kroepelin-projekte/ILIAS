@@ -25,35 +25,47 @@ use ilObjLearningSequenceContentGUI;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Class LSOAdaptiveContent
+ * Controls adaptive learning sequence content management.
  */
 class LSOAdaptiveContent implements LSOContentController
 {
     use LSOContentDeletion;
 
+    /** Parent content GUI. */
     protected ilObjLearningSequenceContentGUI $parent_gui;
+    /** UI factory. */
     protected Factory $ui_factory;
+    /** UI renderer. */
     protected Renderer $ui_renderer;
+    /** Language service. */
     protected ilLanguage $lng;
+    /** Controller service. */
     protected ilCtrl $ctrl;
+    /** Server request. */
     protected ServerRequestInterface $request;
+    /** Global template. */
     protected ilGlobalTemplateInterface $tpl;
+    /** Database connection. */
     protected ilDBInterface $db;
+    /** Learning sequence repository reference ID. */
     protected int $ref_id;
+    /** Learning sequence object ID. */
     protected int $obj_id;
 
+    /**
+     * Creates the adaptive content controller.
+     */
     public function __construct(
-        ilObjLearningSequenceContentGUI          $parent_gui,
-        Factory                        $ui_factory,
-        Renderer                       $ui_renderer,
-        ilLanguage                              $lng,
-        ilCtrl                                  $ctrl,
+        ilObjLearningSequenceContentGUI $parent_gui,
+        Factory $ui_factory,
+        Renderer $ui_renderer,
+        ilLanguage $lng,
+        ilCtrl $ctrl,
         ServerRequestInterface $request,
-        ilGlobalTemplateInterface               $tpl,
-        int                                      $ref_id,
-        int                                      $obj_id
-    )
-    {
+        ilGlobalTemplateInterface $tpl,
+        int $ref_id,
+        int $obj_id
+    ) {
         global $DIC;
         $this->parent_gui = $parent_gui;
         $this->ui_factory = $ui_factory;
@@ -67,6 +79,11 @@ class LSOAdaptiveContent implements LSOContentController
         $this->db = $DIC->database();
     }
 
+    /**
+     * Gets the commands supported by the controller.
+     *
+     * @return string[]
+     */
     public function getSupportedCommands(): array
     {
         return [
@@ -79,6 +96,9 @@ class LSOAdaptiveContent implements LSOContentController
         ];
     }
 
+    /**
+     * Renders the adaptive content management view.
+     */
     public function manageContent(): void
     {
         // Restore the "add new object" drilldown in the toolbar so that new
@@ -101,10 +121,10 @@ class LSOAdaptiveContent implements LSOContentController
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
 
         $missing_hints = [];
-        if ((int)$boundary_data['start_ref_id'] === 0) {
+        if ((int) $boundary_data['start_ref_id'] === 0) {
             $missing_hints[] = $this->lng->txt('lso_adaptive_missing_start_object');
         }
-        if ((int)$boundary_data['end_ref_id'] === 0) {
+        if ((int) $boundary_data['end_ref_id'] === 0) {
             $missing_hints[] = $this->lng->txt('lso_adaptive_missing_end_object');
         }
         if ($missing_hints !== []) {
@@ -116,8 +136,8 @@ class LSOAdaptiveContent implements LSOContentController
             $this->ui_renderer,
             $data,
             $filter,
-            (int)$boundary_data['start_ref_id'],
-            (int)$boundary_data['end_ref_id'],
+            (int) $boundary_data['start_ref_id'],
+            (int) $boundary_data['end_ref_id'],
             $this->parent_gui,
             $this->ref_id,
             $this->obj_id,
@@ -132,6 +152,13 @@ class LSOAdaptiveContent implements LSOContentController
         );
     }
 
+    /**
+     * Gets the filtered content table data.
+     *
+     * @param array $items Learning sequence items.
+     * @param array|null $filter_data Filter data.
+     * @return ilObjLearningSequenceContentData[]
+     */
     protected function getTableData(array $items, ?array $filter_data): array
     {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
@@ -248,7 +275,7 @@ class LSOAdaptiveContent implements LSOContentController
             if ($index > 0) {
                 $prev_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index - 1]->getRefId()));
             }
-            $next_title =  $this->lng->txt('no_conditions');
+            $next_title = $this->lng->txt('no_conditions');
             if ($index < count($items) - 1) {
                 $next_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index + 1]->getRefId()));
             }
@@ -288,6 +315,11 @@ class LSOAdaptiveContent implements LSOContentController
         return $data;
     }
 
+    /**
+     * Gets input condition filter options.
+     *
+     * @return array<string, string>
+     */
     protected function getInputConditionOptions(): array
     {
         return $this->buildConditionOptions(
@@ -295,6 +327,11 @@ class LSOAdaptiveContent implements LSOContentController
         );
     }
 
+    /**
+     * Gets output condition filter options.
+     *
+     * @return array<string, string>
+     */
     protected function getOutputConditionOptions(): array
     {
         return $this->buildConditionOptions(
@@ -302,6 +339,9 @@ class LSOAdaptiveContent implements LSOContentController
         );
     }
 
+    /**
+     * Gets the condition discover service.
+     */
     private function getConditionDiscover(): ilObjLearningSequenceConditionDiscover
     {
         return new ilObjLearningSequenceConditionDiscover();
@@ -326,6 +366,11 @@ class LSOAdaptiveContent implements LSOContentController
         return $options;
     }
 
+    /**
+     * Gets actions specific to an adaptive learning sequence item.
+     *
+     * @return array<string, ilObjLearningSequenceActionData>
+     */
     public function getSpecificActions(int $ref_id, int $start_ref_id, int $end_ref_id): array
     {
         $specific_actions = [];
@@ -389,6 +434,9 @@ class LSOAdaptiveContent implements LSOContentController
         return $specific_actions;
     }
 
+    /**
+     * Sets the selected item as the start object.
+     */
     public function setStartObject(): void
     {
         global $DIC;
@@ -396,7 +444,7 @@ class LSOAdaptiveContent implements LSOContentController
         if ($ref_id > 0) {
             $boundaries = new LSOAdaptiveBoundaries($DIC->database());
             $current = $boundaries->getBoundariesFor($this->obj_id);
-            if ((int)$current['end_ref_id'] === $ref_id) {
+            if ((int) $current['end_ref_id'] === $ref_id) {
                 // An object must never be start and end object at the same time.
                 $this->tpl->setOnScreenMessage(
                     'failure',
@@ -411,6 +459,9 @@ class LSOAdaptiveContent implements LSOContentController
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Removes the start object.
+     */
     public function unsetStartObject(): void
     {
         global $DIC;
@@ -420,6 +471,9 @@ class LSOAdaptiveContent implements LSOContentController
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Sets the selected item as the end object.
+     */
     public function setEndObject(): void
     {
         global $DIC;
@@ -427,7 +481,7 @@ class LSOAdaptiveContent implements LSOContentController
         if ($ref_id > 0) {
             $boundaries = new LSOAdaptiveBoundaries($DIC->database());
             $current = $boundaries->getBoundariesFor($this->obj_id);
-            if ((int)$current['start_ref_id'] === $ref_id) {
+            if ((int) $current['start_ref_id'] === $ref_id) {
                 // An object must never be start and end object at the same time.
                 $this->tpl->setOnScreenMessage(
                     'failure',
@@ -442,6 +496,9 @@ class LSOAdaptiveContent implements LSOContentController
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }
 
+    /**
+     * Removes the end object.
+     */
     public function unsetEndObject(): void
     {
         global $DIC;

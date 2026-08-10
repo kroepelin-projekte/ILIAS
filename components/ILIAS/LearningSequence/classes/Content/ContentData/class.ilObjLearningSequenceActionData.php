@@ -18,15 +18,31 @@
 
 declare(strict_types=1);
 
+/**
+ * Data transfer object for an action in the learning sequence content table.
+ */
 final readonly class ilObjLearningSequenceActionData
 {
+    /**
+     * Creates action data.
+     *
+     * @param string $label Action label.
+     * @param string $link Action target.
+     * @param bool $is_divider Whether the action is a divider.
+     */
     public function __construct(
+        /** Action label. */
         public string $label,
+        /** Action target. */
         public string $link,
+        /** Whether the action is a divider. */
         public bool $is_divider = false
     ) {
     }
 
+    /**
+     * Creates a divider action.
+     */
     public static function divider(): self
     {
         return new self('', '', true);

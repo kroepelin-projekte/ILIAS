@@ -29,10 +29,30 @@ use ilObjLearningSequenceContentGUI;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Class LSOSequentialTable
+ * Renders the ordering table for sequential learning sequence content.
+ *
+ * @property ilObjLearningSequenceContentGUI $parent_gui
+ * @property UIFactory $ui_factory
+ * @property UIRenderer $ui_renderer
+ * @property \ilLanguage $lng
+ * @property \ilCtrl $ctrl
+ * @property \LSItem[] $items
+ * @property string $target_url
+ * @property string $title
+ * @property ServerRequestInterface $request
+ * @property \ilGlobalTemplateInterface $tpl
+ * @property int $ref_id
+ * @property int $obj_id
+ * @property array<string, mixed>|null $filter_data
  */
 class LSOSequentialTable implements OrderingRetrieval
 {
+    /**
+     * Creates the sequential content ordering table.
+     *
+     * @param \LSItem[] $items
+     * @param array<string, mixed>|null $filter_data
+     */
     public function __construct(
         protected ilObjLearningSequenceContentGUI $parent_gui,
         protected UIFactory $ui_factory,
@@ -50,6 +70,12 @@ class LSOSequentialTable implements OrderingRetrieval
     ) {
     }
 
+    /**
+     * Yields rows for the ordering table.
+     *
+     * @param string[] $visible_column_ids
+     * @return Generator<\ILIAS\UI\Component\Table\OrderingRow>
+     */
     public function getRows(
         OrderingRowBuilder $row_builder,
         array $visible_column_ids
@@ -120,6 +146,11 @@ class LSOSequentialTable implements OrderingRetrieval
         }
     }
 
+    /**
+     * Returns the table columns.
+     *
+     * @return array<string, \ILIAS\UI\Component\Table\Column\Column>
+     */
     public function getColumns(): array
     {
         $df = $this->ui_factory->table()->column();
@@ -206,11 +237,17 @@ class LSOSequentialTable implements OrderingRetrieval
         return array_map('intval', $data);
     }
 
+    /**
+     * Renders the ordering table.
+     */
     public function render(): string
     {
         return $this->ui_renderer->render($this->buildTable());
     }
 
+    /**
+     * Builds the ordering table including its actions.
+     */
     private function buildTable(): \ILIAS\UI\Component\Table\Ordering
     {
         $columns = $this->getColumns();

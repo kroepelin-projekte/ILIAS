@@ -20,30 +20,66 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+/**
+ * Represents a node in a learning map.
+ */
 final class LSOLearningMapNode
 {
+    /**
+     * Creates a learning map node.
+     *
+     * @param int[] $successors
+     * @param int[] $passable_successors
+     * @param int[] $input_condition_ids
+     * @param int[] $output_condition_ids
+     */
     public function __construct(
+        /** @var int The object ID. */
         public readonly int $obj_id,
+        /** @var string The item title. */
         public readonly string $title,
+        /** @var string The item description. */
         public readonly string $description,
+        /** @var string The icon path. */
         public readonly string $icon,
+        /** @var string|null The player link. */
         public readonly ?string $player_link,
+        /** @var bool Whether the item can be accessed. */
         public readonly bool $can_access,
+        /** @var bool Whether the item was visited. */
         public readonly bool $has_visited,
+        /** @var bool Whether the item was completed. */
         public readonly bool $has_completed,
+        /** @var bool Whether the item can be left. */
         public readonly bool $can_leave,
+        /** @var string The item's situation. */
         public readonly string $situation,
+        /** @var int[] The successor object IDs. */
         public readonly array $successors,
+        /** @var int[] The passable successor object IDs. */
         public readonly array $passable_successors,
+        /** @var int[] The input condition IDs. */
         public readonly array $input_condition_ids,
+        /** @var int[] The output condition IDs. */
         public readonly array $output_condition_ids,
+        /** @var int The number of visits. */
         public readonly int $visit_count,
+        /** @var int|null The last visit timestamp. */
         public readonly ?int $last_visited_ts,
+        /** @var bool Whether the item is current. */
         public readonly bool $is_current,
+        /** @var bool Whether the item is on the walked path. */
         public readonly bool $is_on_walked_path,
+        /** @var int The graph depth. */
         public readonly int $depth
     ) {
     }
+
+    /**
+     * Returns the node as an array.
+     *
+     * @return array<string, mixed>
+     */
 
     public function toArray(): array
     {

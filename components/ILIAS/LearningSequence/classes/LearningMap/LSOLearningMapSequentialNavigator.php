@@ -22,8 +22,14 @@ namespace ILIAS\LearningSequence\LearningMap;
 
 use ILIAS\LearningSequence\Player\LinearNavigator;
 
+/**
+ * Provides navigation rules for sequential learning maps.
+ */
 class LSOLearningMapSequentialNavigator extends LinearNavigator
 {
+    /**
+     * Determines whether the current item may be left.
+     */
     public function canLeave(\LSLearnerItem $current): bool
     {
         $condition = $current->getPostCondition();
@@ -38,8 +44,7 @@ class LSOLearningMapSequentialNavigator extends LinearNavigator
     }
 
     /**
-     * An object may be entered as soon as the object it is reached from may be
-     * left; there are no input-conditions in the sequential mode.
+     * Determines whether the target item may be entered from the current item.
      */
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
