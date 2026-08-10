@@ -23,7 +23,10 @@ namespace ILIAS\LearningSequence\Player;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\AccruedValueOutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions\LearningProgressInputAwareCondition;
 
@@ -46,9 +49,25 @@ class AdaptiveNavigator implements LSNavigator
      */
     protected array $conditions_cache = [];
     /**
-     * @var array<int, int[]> Source reference identifiers indexed by target item reference identifier.
+     * @var array<int, int[]> Source reference identifiers of alternative edge conditions indexed by target item reference identifier.
      */
     protected array $edge_targets_cache = [];
+    /**
+     * @var array<int, int[]> Structural source reference identifiers of dependency-style conditions indexed by target item reference identifier.
+     */
+    protected array $dependency_targets_cache = [];
+    /**
+     * @var array<int, int[]> Synthetic successor reference identifiers for global unlock conditions.
+     */
+    protected array $points_structural_successors_cache = [];
+    /**
+     * @var array<int, int[]> Synthetic predecessor reference identifiers for global unlock conditions.
+     */
+    protected array $points_structural_predecessors_cache = [];
+    /**
+     * @var int Maximum sum of all configurable points outputs in the sequence.
+     */
+    protected int $max_points_budget = 0;
     /**
      * @var array<int, bool> Whether an item may be left, indexed by item reference identifier.
      */
@@ -82,28 +101,41 @@ class AdaptiveNavigator implements LSNavigator
         foreach ($items as $item) {
             $ref_ids[] = $item->getRefId();
         }
-        $ref_ids = array_values(array_filter(
+        $ref_ids = array_values(array_unique($ref_ids));
+        $missing_ref_ids = array_values(array_filter(
             array_unique($ref_ids),
             fn(int $ref_id): bool => !isset($this->conditions_cache[$ref_id])
         ));
+
+        $this->edge_targets_cache = [];
+        $this->dependency_targets_cache = [];
+        $this->points_structural_successors_cache = [];
+        $this->points_structural_predecessors_cache = [];
+        $this->can_leave_cache = [];
+        $this->can_enter_ignoring_edges_cache = [];
 
         if ($ref_ids === []) {
             return;
         }
 
-        $ids_per_item = $this->discoverer->preloadConditionIdsForItems($ref_ids);
+        if ($missing_ref_ids !== []) {
+            $ids_per_item = $this->discoverer->preloadConditionIdsForItems($missing_ref_ids);
 
-        foreach ($ids_per_item as $ref_id => $ids) {
-            $conditions = [];
-            foreach ($ids as $id) {
-                try {
-                    $conditions[] = $this->condition_factory->getConditionInstanceById($id);
-                } catch (\Throwable $t) {
-                    continue;
+            foreach ($ids_per_item as $ref_id => $ids) {
+                $conditions = [];
+                foreach ($ids as $id) {
+                    try {
+                        $conditions[] = $this->condition_factory->getConditionInstanceById($id);
+                    } catch (\Throwable $t) {
+                        continue;
+                    }
                 }
+                $this->conditions_cache[$ref_id] = $conditions;
             }
-            $this->conditions_cache[$ref_id] = $conditions;
         }
+
+        $this->buildNavigationSourceCaches($ref_ids);
+        $this->buildPointsNavigationCaches($items);
     }
 
     /**
@@ -119,15 +151,21 @@ class AdaptiveNavigator implements LSNavigator
             if ($item->getRefId() === $current->getRefId()) {
                 continue;
             }
-            if (!$this->isEdge($current->getRefId(), $item->getRefId())) {
+            if (
+                $this->isEdge($current->getRefId(), $item->getRefId())
+                || in_array($current->getRefId(), $this->getDependencyTargetsFor($item->getRefId()), true)
+            ) {
+                if ($this->canEnterFrom($current, $item)) {
+                    $successors[$item->getRefId()] = $item;
+                }
                 continue;
             }
-            if (!$this->canEnterFrom($current, $item)) {
-                continue;
+
+            if ($this->isGlobalSuccessorTarget($item->getRefId()) && $this->canEnter($item)) {
+                $successors[$item->getRefId()] = $item;
             }
-            $successors[] = $item;
         }
-        return $successors;
+        return array_values($successors);
     }
 
     /**
@@ -143,10 +181,13 @@ class AdaptiveNavigator implements LSNavigator
             if ($item->getRefId() === $current->getRefId()) {
                 continue;
             }
-            if (!$this->isEdge($current->getRefId(), $item->getRefId())) {
-                continue;
+            if (
+                $this->isEdge($current->getRefId(), $item->getRefId())
+                || in_array($current->getRefId(), $this->getDependencyTargetsFor($item->getRefId()), true)
+                || in_array($item->getRefId(), $this->getPointsStructuralSuccessorsFor($current->getRefId()), true)
+            ) {
+                $successors[] = $item;
             }
-            $successors[] = $item;
         }
         return $successors;
     }
@@ -159,7 +200,11 @@ class AdaptiveNavigator implements LSNavigator
      */
     public function getPredecessors(array $items, \LSLearnerItem $current): array
     {
-        $predecessor_ref_ids = $this->getEdgeTargetsFor($current->getRefId());
+        $predecessor_ref_ids = array_values(array_unique(array_merge(
+            $this->getEdgeTargetsFor($current->getRefId()),
+            $this->getDependencyTargetsFor($current->getRefId()),
+            $this->getPointsStructuralPredecessorsFor($current->getRefId())
+        )));
         $predecessors = [];
         foreach ($items as $item) {
             if (in_array($item->getRefId(), $predecessor_ref_ids, true)) {
@@ -216,7 +261,7 @@ class AdaptiveNavigator implements LSNavigator
 
         $can_enter = true;
         foreach ($this->getConditionsFor($ref_id) as $condition) {
-            if ($condition instanceof LearningProgressInputAwareCondition) {
+            if ($this->isAlternativeEdgeCondition($condition)) {
                 continue;
             }
             if ($condition instanceof InputConditionInterface && !$this->checkCondition($condition)) {
@@ -234,24 +279,43 @@ class AdaptiveNavigator implements LSNavigator
      */
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
-        foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
-            if ($condition instanceof LearningProgressInputAwareCondition) {
-                $is_current_edge = false;
-                try {
-                    $is_current_edge = $condition->getConditionTargetRefId() === $current->getRefId();
-                } catch (\Throwable $t) {
+        $conditions = $this->getConditionsFor($target->getRefId());
+        $has_alternative_edge_condition = array_any(
+            $conditions,
+            fn(AbstractCondition $condition): bool => $this->isAlternativeEdgeCondition($condition)
+        );
+        $matches_alternative_edge_condition = false;
+
+        foreach ($conditions as $condition) {
+            if (!$condition instanceof InputConditionInterface) {
+                continue;
+            }
+
+            if ($this->isAlternativeEdgeCondition($condition)) {
+                if (!$this->conditionReferencesCurrent($condition, $current->getRefId())) {
                     continue;
                 }
-                if ($is_current_edge && !$this->checkCondition($condition)) {
+                $matches_alternative_edge_condition = true;
+                if (!$this->checkCondition($condition)) {
                     return false;
                 }
                 continue;
             }
-            if ($condition instanceof InputConditionInterface && !$this->checkCondition($condition)) {
+
+            if (
+                !$has_alternative_edge_condition
+                && $this->isDependencyCondition($condition)
+                && !$this->conditionReferencesCurrent($condition, $current->getRefId())
+            ) {
+                return false;
+            }
+
+            if (!$this->checkCondition($condition)) {
                 return false;
             }
         }
-        return true;
+
+        return !$has_alternative_edge_condition || $matches_alternative_edge_condition;
     }
 
     /**
@@ -323,19 +387,258 @@ class AdaptiveNavigator implements LSNavigator
             return $this->edge_targets_cache[$item_ref_id];
         }
 
-        $targets = [];
-        foreach ($this->getConditionsFor($item_ref_id) as $condition) {
-            if ($condition instanceof LearningProgressInputAwareCondition) {
-                try {
-                    $targets[] = $condition->getConditionTargetRefId();
-                } catch (\Throwable $t) {
+        return $this->edge_targets_cache[$item_ref_id] = [];
+    }
+
+    /**
+     * @return int[]
+     */
+    protected function getDependencyTargetsFor(int $item_ref_id): array
+    {
+        return $this->dependency_targets_cache[$item_ref_id] ?? [];
+    }
+
+    /**
+     * @param int[] $item_ref_ids
+     */
+    protected function buildNavigationSourceCaches(array $item_ref_ids): void
+    {
+        $this->edge_targets_cache = [];
+        $this->dependency_targets_cache = [];
+
+        foreach ($item_ref_ids as $item_ref_id) {
+            $edge_targets = [];
+            $dependency_targets = [];
+
+            foreach ($this->getConditionsFor($item_ref_id) as $condition) {
+                if (!$condition instanceof InputConditionNavigationAwareInterface) {
                     continue;
+                }
+
+                $source_ref_ids = array_values(array_unique(array_map('intval', $condition->getNavigationSourceRefIds())));
+                if ($source_ref_ids === []) {
+                    continue;
+                }
+
+                if ($condition->getNavigationMode() === InputConditionNavigationAwareInterface::NAVIGATION_MODE_EDGE) {
+                    $edge_targets = array_values(array_unique(array_merge($edge_targets, $source_ref_ids)));
+                    continue;
+                }
+
+                if ($condition->getNavigationMode() === InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY) {
+                    $dependency_targets = array_values(array_unique(array_merge($dependency_targets, $source_ref_ids)));
+                }
+            }
+
+            $this->edge_targets_cache[$item_ref_id] = $edge_targets;
+            $this->dependency_targets_cache[$item_ref_id] = $dependency_targets;
+        }
+    }
+
+    /**
+     * Precomputes synthetic points-based unlock edges for map rendering.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    protected function buildPointsNavigationCaches(array $items): void
+    {
+        $this->points_structural_successors_cache = [];
+        $this->points_structural_predecessors_cache = [];
+        $this->max_points_budget = 0;
+
+        foreach ($items as $item) {
+            $ref_id = $item->getRefId();
+            $this->points_structural_successors_cache[$ref_id] = [];
+            $this->points_structural_predecessors_cache[$ref_id] = [];
+            $this->max_points_budget += $this->getConfiguredPointsOutput($ref_id);
+        }
+
+        if ($items === []) {
+            return;
+        }
+
+        $queue = [];
+        $seen_states = [];
+        foreach ($items as $item) {
+            $ref_id = $item->getRefId();
+            if ($this->hasSourceScopedNavigation($ref_id)) {
+                continue;
+            }
+            if (!$this->canStructurallyEnterWithAvailablePoints($ref_id, 0)) {
+                continue;
+            }
+
+            $points_after = $this->getConfiguredPointsOutput($ref_id);
+            $seen_states[$ref_id][$points_after] = true;
+            $queue[] = [$ref_id, $points_after];
+        }
+
+        while ($queue !== []) {
+            [$current_ref_id, $current_points_after] = array_shift($queue);
+            $current_points_before = max(0, $current_points_after - $this->getConfiguredPointsOutput($current_ref_id));
+
+            foreach ($items as $target) {
+                $target_ref_id = $target->getRefId();
+                if ($target_ref_id === $current_ref_id) {
+                    continue;
+                }
+
+                if ($this->isEdge($current_ref_id, $target_ref_id)) {
+                    if ($this->canStructurallyEnterWithAvailablePoints($target_ref_id, $current_points_after)) {
+                        $candidate_points = min(
+                            $this->max_points_budget,
+                            $current_points_after + $this->getConfiguredPointsOutput($target_ref_id)
+                        );
+                        if (!isset($seen_states[$target_ref_id][$candidate_points])) {
+                            $seen_states[$target_ref_id][$candidate_points] = true;
+                            $queue[] = [$target_ref_id, $candidate_points];
+                        }
+                    }
+                    continue;
+                }
+
+                $required_points = $this->getPureAccumulatedRequirement($target_ref_id, 'points');
+                if ($required_points === null || $required_points === 0) {
+                    continue;
+                }
+                if ($current_points_before >= $required_points || $current_points_after < $required_points) {
+                    continue;
+                }
+
+                $this->addPointsStructuralEdge($current_ref_id, $target_ref_id);
+
+                $candidate_points = min(
+                    $this->max_points_budget,
+                    $current_points_after + $this->getConfiguredPointsOutput($target_ref_id)
+                );
+                if (!isset($seen_states[$target_ref_id][$candidate_points])) {
+                    $seen_states[$target_ref_id][$candidate_points] = true;
+                    $queue[] = [$target_ref_id, $candidate_points];
                 }
             }
         }
+    }
 
-        $this->edge_targets_cache[$item_ref_id] = $targets;
-        return $targets;
+    protected function addPointsStructuralEdge(int $from_ref_id, int $to_ref_id): void
+    {
+        if (!in_array($to_ref_id, $this->points_structural_successors_cache[$from_ref_id] ?? [], true)) {
+            $this->points_structural_successors_cache[$from_ref_id][] = $to_ref_id;
+        }
+        if (!in_array($from_ref_id, $this->points_structural_predecessors_cache[$to_ref_id] ?? [], true)) {
+            $this->points_structural_predecessors_cache[$to_ref_id][] = $from_ref_id;
+        }
+    }
+
+    /**
+     * Returns whether the target behaves like a global points gate in the player.
+     */
+    protected function isGlobalSuccessorTarget(int $target_ref_id): bool
+    {
+        foreach ($this->getConditionsFor($target_ref_id) as $condition) {
+            if (
+                $condition instanceof InputConditionNavigationAwareInterface
+                && $condition->getNavigationMode() === InputConditionNavigationAwareInterface::NAVIGATION_MODE_GLOBAL
+            ) {
+                return !$this->hasSourceScopedNavigation($target_ref_id);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Returns whether the item can be entered using points-only structural data.
+     */
+    protected function canStructurallyEnterWithAvailablePoints(int $target_ref_id, int $available_points): bool
+    {
+        $required_points = $this->getPureAccumulatedRequirement($target_ref_id, 'points');
+        if ($required_points === null) {
+            return false;
+        }
+
+        return $available_points >= $required_points;
+    }
+
+    /**
+     * Returns the required points if the item's non-edge inputs are points-only.
+     */
+    protected function getPureAccumulatedRequirement(int $target_ref_id, string $accumulation_identifier): ?int
+    {
+        $required_points = 0;
+        foreach ($this->getConditionsFor($target_ref_id) as $condition) {
+            if (
+                $condition instanceof InputConditionNavigationAwareInterface
+                && $condition->getNavigationMode() !== InputConditionNavigationAwareInterface::NAVIGATION_MODE_GLOBAL
+            ) {
+                return null;
+            }
+            if (
+                $condition instanceof AccruedValueInputConditionInterface
+                && $condition->getAccumulationIdentifier() === $accumulation_identifier
+            ) {
+                $required_points = max($required_points, $condition->getRequiredAccumulatedValue());
+                continue;
+            }
+            if ($condition instanceof InputConditionInterface) {
+                return null;
+            }
+        }
+
+        return $required_points;
+    }
+
+    protected function getConfiguredPointsOutput(int $item_ref_id): int
+    {
+        $points = 0;
+        foreach ($this->getConditionsFor($item_ref_id) as $condition) {
+            if (
+                $condition instanceof AccruedValueOutputConditionInterface
+                && $condition->getAccumulationIdentifier() === 'points'
+            ) {
+                $points += $condition->getAccumulatedValue();
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return int[]
+     */
+    protected function getPointsStructuralSuccessorsFor(int $item_ref_id): array
+    {
+        return $this->points_structural_successors_cache[$item_ref_id] ?? [];
+    }
+
+    /**
+     * @return int[]
+     */
+    protected function getPointsStructuralPredecessorsFor(int $item_ref_id): array
+    {
+        return $this->points_structural_predecessors_cache[$item_ref_id] ?? [];
+    }
+
+    protected function isAlternativeEdgeCondition(AbstractCondition $condition): bool
+    {
+        return $condition instanceof InputConditionNavigationAwareInterface
+            && $condition->getNavigationMode() === InputConditionNavigationAwareInterface::NAVIGATION_MODE_EDGE;
+    }
+
+    protected function isDependencyCondition(AbstractCondition $condition): bool
+    {
+        return $condition instanceof InputConditionNavigationAwareInterface
+            && $condition->getNavigationMode() === InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
+    }
+
+    protected function conditionReferencesCurrent(AbstractCondition $condition, int $current_ref_id): bool
+    {
+        return $condition instanceof InputConditionNavigationAwareInterface
+            && in_array($current_ref_id, $condition->getNavigationSourceRefIds(), true);
+    }
+
+    protected function hasSourceScopedNavigation(int $target_ref_id): bool
+    {
+        return $this->getEdgeTargetsFor($target_ref_id) !== [] || $this->getDependencyTargetsFor($target_ref_id) !== [];
     }
 
     /**

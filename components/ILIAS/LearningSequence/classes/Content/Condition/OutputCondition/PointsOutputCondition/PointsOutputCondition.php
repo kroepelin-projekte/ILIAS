@@ -21,14 +21,16 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\AccruedValueOutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ilLPStatus;
+use ilObject;
 use LogicException;
 
-final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface
+final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface
 {
     protected const string NAME = 'points_output';
     private const string SETTINGS_TABLE = 'lso_c_points_output';
@@ -59,9 +61,19 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     public function check(): bool
     {
         return ilLPStatus::_hasUserCompleted(
-            $this->obj_ref_id,
+            $this->resolveObjId(),
             $this->dic->user()->getId()
         );
+    }
+
+    public function getAccumulationIdentifier(): string
+    {
+        return 'points';
+    }
+
+    public function getAccumulatedValue(): int
+    {
+        return $this->getPoints();
     }
 
     /**
@@ -209,5 +221,14 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         }
 
         return $this->points;
+    }
+
+    /**
+     * Resolves the obj_id for the condition's object. The condition stores a
+     * ref_id in obj_ref_id, but ilLPStatus expects an obj_id.
+     */
+    private function resolveObjId(): int
+    {
+        return ilObject::_lookupObjId((int) $this->obj_ref_id);
     }
 }

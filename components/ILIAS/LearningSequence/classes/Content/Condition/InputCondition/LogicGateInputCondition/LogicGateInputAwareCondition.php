@@ -24,6 +24,7 @@ use ilCtrlException;
 use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
@@ -35,7 +36,10 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGateInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+class LogicGateInputAwareCondition extends AbstractCondition implements
+    InputConditionInterface,
+    SubtypeAwareInterface,
+    InputConditionNavigationAwareInterface
 {
     final protected const string NAME = "logic_gate";
     private const string SETTINGS_TABLE = 'lso_c_logic_gate_input';
@@ -92,11 +96,19 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
     }
 
     /**
-     * @return array
+     * @return int[]
      */
     private function getItemsAsArray(): array
     {
-        return array_filter(explode(', ', $this->items));
+        $items = preg_split('/\s*,\s*/', trim($this->items));
+        if ($items === false) {
+            return [];
+        }
+
+        return array_values(array_map(
+            'intval',
+            array_filter($items, static fn(string $item): bool => $item !== '')
+        ));
     }
 
     /**
@@ -149,8 +161,22 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
         };
     }
 
+    public function getNavigationMode(): string
+    {
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
+    }
+
+    public function getNavigationSourceRefIds(): array
+    {
+        return $this->getItemsAsArray();
+    }
+
     /**
-     * Check if at least one output condition of the item is fulfilled.
+     * Checks whether an item should count as completed for logic-gate evaluation.
+     *
+     * If an item defines output conditions, all of them must be fulfilled, mirroring
+     * the navigator's canLeave() semantics. Without output conditions we fall back to
+     * the item's regular learning-progress completion state.
      *
      * @throws ReflectionException
      * @throws ilException
@@ -169,10 +195,19 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
             fn($condition) => $condition instanceof OutputConditionInterface
         );
 
-        return array_any(
-            $output_conditions,
-            fn($condition) => $condition->check()
-        );
+        if ($output_conditions !== []) {
+            return array_all(
+                $output_conditions,
+                fn($condition) => $condition->check()
+            );
+        }
+
+        $item_obj_id = \ilObject::_lookupObjId($item_ref_id);
+        if ($item_obj_id <= 0) {
+            return false;
+        }
+
+        return \ilLPStatus::_hasUserCompleted($item_obj_id, $this->dic->user()->getId());
     }
 
     /**

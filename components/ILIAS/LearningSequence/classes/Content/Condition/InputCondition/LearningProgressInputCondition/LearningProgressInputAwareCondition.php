@@ -22,6 +22,7 @@ namespace ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgre
 
 use ilCtrlException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
@@ -33,7 +34,10 @@ use ilLPStatus;
 use ilObject;
 use LogicException;
 
-final class LearningProgressInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+final class LearningProgressInputAwareCondition extends AbstractCondition implements
+    InputConditionInterface,
+    SubtypeAwareInterface,
+    InputConditionNavigationAwareInterface
 {
     protected const string NAME = 'learning_progress_input';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_input';
@@ -77,6 +81,16 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             self::SUBTYPE_FAILED => $this->isFailed($target_obj_id),
             default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
         };
+    }
+
+    public function getNavigationMode(): string
+    {
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_EDGE;
+    }
+
+    public function getNavigationSourceRefIds(): array
+    {
+        return [$this->getConditionTargetRefId()];
     }
 
     /**
