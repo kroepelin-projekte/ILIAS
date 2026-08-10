@@ -28,14 +28,14 @@ readonly class LSOAdaptiveTable
     /**
      * Creates the adaptive content table.
      *
-     * @param array $objects Content data records.
+     * @param \ilObjLearningSequenceContentData[] $objects Content data records.
      */
     public function __construct(
         /** UI factory. */
         private \ILIAS\UI\Factory $ui_factory,
         /** UI renderer. */
         private \ILIAS\UI\Renderer $ui_renderer,
-        /** Content data records. */
+        /** @var \ilObjLearningSequenceContentData[] Content data records. */
         private array $objects,
         /** Content filter. */
         private ?\ILIAS\UI\Component\Input\Container\Filter\Standard $filter = null,
@@ -47,8 +47,6 @@ readonly class LSOAdaptiveTable
         private ?\ilObjLearningSequenceContentGUI $parent_gui = null,
         /** Learning sequence repository reference ID. */
         private int $ref_id = 0,
-        /** Learning sequence object ID. */
-        private int $obj_id = 0,
         /** Language service. */
         private ?\ilLanguage $lng = null,
         /** Controller service. */
@@ -99,7 +97,7 @@ readonly class LSOAdaptiveTable
         };
 
         $table = $this->ui_factory->table()->presentation(
-            'Content Management',
+            $this->lng->txt('lso_adaptive_content_management'),
             $view_controls,
             $mapping
         )
@@ -130,16 +128,20 @@ readonly class LSOAdaptiveTable
 
             $badges_html = '';
             if ($record->is_online) {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--online">Online</span>';
+                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--online">'
+                    . $this->lng->txt('lso_adaptive_online') . '</span>';
             } else {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--offline">Offline</span>';
+                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--offline">'
+                    . $this->lng->txt('lso_adaptive_offline') . '</span>';
             }
 
             if ($record->start_object !== '') {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--start">Start</span>';
+                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--start">'
+                    . $this->lng->txt('lso_adaptive_start') . '</span>';
             }
             if ($record->end_object !== '') {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--end">End</span>';
+                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--end">'
+                    . $this->lng->txt('lso_adaptive_end') . '</span>';
             }
 
             return $link_html . $badges_html;
@@ -203,16 +205,23 @@ readonly class LSOAdaptiveTable
             $output = $record->output_conditions;
 
             $html_conditions = '<div class="alp-cm-conditions">';
-            $html_conditions .= '<h4 class="alp-cm-conditions__title">Input conditions</h4>';
+            $html_conditions .= '<h4 class="alp-cm-conditions__title">'
+                . $this->lng->txt('lso_adaptive_input_conditions') . '</h4>';
             $html_conditions .= $this->renderKeyValueList($input);
-            $html_conditions .= '<h4 class="alp-cm-conditions__title alp-cm-conditions__title--spaced">Output conditions</h4>';
+            $html_conditions .= '<h4 class="alp-cm-conditions__title alp-cm-conditions__title--spaced">'
+                . $this->lng->txt('lso_adaptive_output_conditions') . '</h4>';
             $html_conditions .= $this->renderKeyValueList($output);
             $html_conditions .= '</div>';
 
             $html_info = '<div class="alp-cm-info">';
-            $html_info .= '<h4 class="alp-cm-info__title">Information</h4>';
-            $html_info .= '<div class="alp-cm-info__item"><strong>Previous Object</strong> ' . htmlspecialchars($record->previous_objects) . '</div>';
-            $html_info .= '<div class="alp-cm-info__item"><strong>Next Object</strong> ' . htmlspecialchars($record->next_objects) . '</div>';
+            $html_info .= '<h4 class="alp-cm-info__title">'
+                . $this->lng->txt('lso_adaptive_information') . '</h4>';
+            $html_info .= '<div class="alp-cm-info__item"><strong>'
+                . $this->lng->txt('lso_adaptive_previous_object') . '</strong> '
+                . htmlspecialchars($record->previous_objects) . '</div>';
+            $html_info .= '<div class="alp-cm-info__item"><strong>'
+                . $this->lng->txt('lso_adaptive_next_object') . '</strong> '
+                . htmlspecialchars($record->next_objects) . '</div>';
             $html_info .= '</div>';
 
             return $this->ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(
@@ -257,25 +266,34 @@ readonly class LSOAdaptiveTable
     /**
      * Renders a list of condition titles and values.
      *
-     * @param ilObjLearningSequenceConditionData[] $conditions
+     * @param \ilObjLearningSequenceConditionData[] $conditions
      */
     private function renderKeyValueList(array $conditions): string
     {
         if ($conditions === []) {
-            return '<div class="alp-cm-conditions__empty">(keine)</div>';
+            return '<div class="alp-cm-conditions__empty">'
+                . $this->lng->txt('lso_adaptive_conditions_empty')
+                . '</div>';
         }
 
         $html = '<ul class="alp-cm-kv-list">';
         foreach ($conditions as $condition) {
             $html .= '<li class="alp-cm-kv-list__item">'
+                . '<span class="alp-cm-kv-list__glyph">'
+                . $this->ui_renderer->render($condition->glyph)
+                . '</span>'
                 . '<span class="alp-cm-kv-list__condition">'
                 . htmlspecialchars($condition->title)
-                . '</span>'
-                . '<span class="alp-cm-kv-list__separator">:</span>'
-                . '<span class="alp-cm-kv-list__value">'
-                . htmlspecialchars($condition->value)
-                . '</span>'
-                . '</li>';
+                . '</span>';
+
+            if ($condition->value !== '') {
+                $html .= '<span class="alp-cm-kv-list__separator">:</span>'
+                    . '<span class="alp-cm-kv-list__value">'
+                    . htmlspecialchars($condition->value)
+                    . '</span>';
+            }
+
+            $html .= '</li>';
         }
         $html .= '</ul>';
         return $html;

@@ -547,6 +547,14 @@ abstract class AbstractCondition
     }
 
     /**
+     * Returns the glyph representing this condition.
+     */
+    public function getGlyph(): Symbol
+    {
+        return $this->getGlyphe();
+    }
+
+    /**
      * Determines whether the condition requires additional configuration.
      * Override this method in child classes if configuration is needed.
      *

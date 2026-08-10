@@ -11198,10 +11198,22 @@ lso#:#logic_gate_not#:#NOT
 lso#:#logic_gate_or#:#OR
 lso#:#lp_not_relevant_post_cond#:#currently not relevant for continuation
 lso#:#lso_activation_online_info#:#Set the Learning Sequence online to make it visible and available for Learning Sequence members. If not, only administrators and tutors will have access to it.
+lso#:#lso_adaptive_conditions_empty#:#(none)
+lso#:#lso_adaptive_content_management#:#Content Management
+lso#:#lso_adaptive_end#:#End
 lso#:#lso_adaptive_filter_end#:#End
 lso#:#lso_adaptive_filter_start#:#Start
+lso#:#lso_adaptive_information#:#Information
+lso#:#lso_adaptive_input_conditions#:#Input Conditions
 lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
 lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a start object is required.
+lso#:#lso_adaptive_next_object#:#Next Object
+lso#:#lso_adaptive_offline#:#Offline
+lso#:#lso_adaptive_offline_due_to_missing_boundaries#:#The Learning Sequence was taken offline because it no longer has a start or end object.
+lso#:#lso_adaptive_online#:#Online
+lso#:#lso_adaptive_output_conditions#:#Output Conditions
+lso#:#lso_adaptive_previous_object#:#Previous Object
+lso#:#lso_adaptive_start#:#Start
 lso#:#lso_adaptive_start_end_not_same#:#An object cannot be the start and end object at the same time.
 lso#:#lso_at_least_one_admin#:#There has to be at least one learning sequence administrator.
 lso#:#lso_condition_simple_choice_target#:#Select Single Object
@@ -11256,6 +11268,7 @@ lso#:#lso_learning_map_open#:#Available
 lso#:#lso_learning_map_open_object#:#Open
 lso#:#lso_learning_map_path#:#Previous path
 lso#:#lso_learning_map_reset_zoom#:#Original size, 100 percent
+lso#:#lso_learning_map_reset_zoom_label#:#100 %
 lso#:#lso_learning_map_sr_at_current#:#View at your current position: %s.
 lso#:#lso_learning_map_sr_blocked_way#:#%s (this path is currently not available)
 lso#:#lso_learning_map_sr_current#:#Your current position
@@ -11277,7 +11290,9 @@ lso#:#lso_learning_map_sr_zoom#:#Zoom %s percent.
 lso#:#lso_learning_map_title#:#Learning Map
 lso#:#lso_learning_map_viewport#:#Learning map: display of objects and their order
 lso#:#lso_learning_map_zoom_in#:#Zoom in
+lso#:#lso_learning_map_zoom_in_symbol#:#+
 lso#:#lso_learning_map_zoom_out#:#Zoom out
+lso#:#lso_learning_map_zoom_out_symbol#:#–
 lso#:#lso_legacy_info#:#The object will open in a new tab in your browser. Please return to this tab after processing/editing the contents. Reload the page if you have edited the content but the "Next" button remains disabled.
 lso#:#lso_mail_admission_new_bod#:#we are pleased to announce your registration for the learning sequence "%s".
 lso#:#lso_mail_admission_new_sub#:#Your registration for learning sequence "%s"
