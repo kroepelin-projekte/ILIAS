@@ -22,6 +22,9 @@ namespace ILIAS\LearningSequence\LearningMap;
 
 use ILIAS\LearningSequence\Player\LSNavigator;
 
+/**
+ * Builds learning map data for a user and view mode.
+ */
 class LSOLearningMapDataBuilder
 {
     /**
@@ -29,18 +32,32 @@ class LSOLearningMapDataBuilder
      */
     protected array $obj_id_by_ref_id = [];
 
+    /**
+     * Creates a learning map data builder.
+     */
     public function __construct(
+        /** @var LSNavigator The learning sequence navigator. */
         protected LSNavigator $navigator,
+        /** @var \LSUrlBuilder The URL builder. */
         protected \LSUrlBuilder $url_builder,
+        /** @var string The player command. */
         protected string $goto_command,
+        /** @var int The learning sequence object ID. */
         protected int $lso_obj_id,
+        /** @var int The default user ID. */
         protected int $default_usr_id,
+        /** @var \Closure The position factory. */
         protected \Closure $position_factory,
+        /** @var \Closure The item factory. */
         protected \Closure $items_factory,
+        /** @var bool Whether links use reference IDs. */
         protected bool $link_by_ref_id = false
     ) {
     }
 
+    /**
+     * Builds a learning map.
+     */
     public function build(int $mode, ?int $usr_id = null): LSOLearningMap
     {
         if (!LSOLearningMapViewMode::isValid($mode)) {
@@ -70,6 +87,11 @@ class LSOLearningMapDataBuilder
         return new LSOLearningMap($this->lso_obj_id, $usr_id, $mode, $start_obj_id, $end_obj_id, $nodes);
     }
 
+    /**
+     * Prepares object ID and navigation caches.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     protected function prepareCaches(LSOLearningMapPosition $position, array $items): void
     {
         $this->obj_id_by_ref_id = [];
@@ -82,11 +104,21 @@ class LSOLearningMapDataBuilder
         $this->navigator->preload($items);
     }
 
+    /**
+     * Returns the object ID for a reference ID.
+     */
     protected function lookupObjId(int $ref_id): int
     {
         return $this->obj_id_by_ref_id[$ref_id] ??= \ilObject::_lookupObjId($ref_id);
     }
 
+    /**
+     * Traverses the learning sequence and builds its nodes.
+     *
+     * @param \LSLearnerItem[] $items
+     * @param int[] $walked_obj_ids
+     * @return array<int, LSOLearningMapNode>
+     */
     protected function traverse(
         LSOLearningMapPosition $position,
         array $items,
@@ -149,6 +181,13 @@ class LSOLearningMapDataBuilder
         return $nodes;
     }
 
+    /**
+     * Collects unvisited items that start disconnected graph segments.
+     *
+     * @param \LSLearnerItem[] $items
+     * @param array<int, bool> $visited
+     * @return array<int, array{0: \LSLearnerItem, 1: int}>
+     */
     protected function collectAdditionalRoots(array $items, array $visited): array
     {
         $roots = [];
@@ -163,6 +202,8 @@ class LSOLearningMapDataBuilder
     }
 
     /**
+     * Creates a node for an item.
+     *
      * @param \LSLearnerItem[] $items
      * @param int[] $successor_obj_ids
      * @param int[] $passable_successor_obj_ids
@@ -216,6 +257,11 @@ class LSOLearningMapDataBuilder
         );
     }
 
+    /**
+     * Determines whether an item can be accessed.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     protected function canAccess(
         LSOLearningMapPosition $position,
         array $items,
@@ -243,6 +289,12 @@ class LSOLearningMapDataBuilder
         return false;
     }
 
+    /**
+     * Applies a view mode to learning map nodes.
+     *
+     * @param array<int, LSOLearningMapNode> $nodes
+     * @return array<int, LSOLearningMapNode>
+     */
     protected function applyViewMode(array $nodes, int $mode): array
     {
         if ($mode !== LSOLearningMapViewMode::MODE_REACHABLE_ONLY) {
@@ -259,6 +311,12 @@ class LSOLearningMapDataBuilder
         return $this->pruneDanglingEdges($kept);
     }
 
+    /**
+     * Removes edges pointing to omitted nodes.
+     *
+     * @param array<int, LSOLearningMapNode> $nodes
+     * @return array<int, LSOLearningMapNode>
+     */
     protected function pruneDanglingEdges(array $nodes): array
     {
         $pruned = [];
@@ -296,6 +354,11 @@ class LSOLearningMapDataBuilder
         return $pruned;
     }
 
+    /**
+     * Resolves the first item from the configured start object.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     protected function resolveStartItem(array $items, int $start_obj_id): ?\LSLearnerItem
     {
         if ($items === []) {

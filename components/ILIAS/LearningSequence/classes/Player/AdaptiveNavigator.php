@@ -27,16 +27,40 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterf
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions\LearningProgressInputAwareCondition;
 
+/**
+ * Provides condition-based navigation through an adaptive learning sequence.
+ */
 class AdaptiveNavigator implements LSNavigator
 {
+    /**
+     * Discovers the conditions assigned to learning-sequence items.
+     */
     protected ilObjLearningSequenceConditionDiscover $discoverer;
+    /**
+     * Creates condition instances from their identifiers.
+     */
     protected ConditionFactory $condition_factory;
 
+    /**
+     * @var array<int, AbstractCondition[]> Condition instances indexed by item reference identifier.
+     */
     protected array $conditions_cache = [];
+    /**
+     * @var array<int, int[]> Source reference identifiers indexed by target item reference identifier.
+     */
     protected array $edge_targets_cache = [];
+    /**
+     * @var array<int, bool> Whether an item may be left, indexed by item reference identifier.
+     */
     protected array $can_leave_cache = [];
+    /**
+     * @var array<int, bool> Whether an item may be entered without edge conditions, indexed by item reference identifier.
+     */
     protected array $can_enter_ignoring_edges_cache = [];
 
+    /**
+     * Creates an adaptive navigator with the supplied or default condition services.
+     */
     public function __construct(
         ?ilObjLearningSequenceConditionDiscover $discoverer = null,
         ?ConditionFactory $condition_factory = null
@@ -47,7 +71,11 @@ class AdaptiveNavigator implements LSNavigator
             ?? new ConditionFactory($this->discoverer, $DIC->database());
     }
 
-
+    /**
+     * Preloads condition instances for the given items.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function preload(array $items): void
     {
         $ref_ids = [];
@@ -78,7 +106,12 @@ class AdaptiveNavigator implements LSNavigator
         }
     }
 
-
+    /**
+     * Returns the items connected to and enterable from the current item.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getSuccessors(array $items, \LSLearnerItem $current): array
     {
         $successors = [];
@@ -97,7 +130,12 @@ class AdaptiveNavigator implements LSNavigator
         return $successors;
     }
 
-
+    /**
+     * Returns the items structurally connected to the current item.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
     {
         $successors = [];
@@ -113,7 +151,12 @@ class AdaptiveNavigator implements LSNavigator
         return $successors;
     }
 
-
+    /**
+     * Returns the items that are connected to the current item by an incoming edge.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getPredecessors(array $items, \LSLearnerItem $current): array
     {
         $predecessor_ref_ids = $this->getEdgeTargetsFor($current->getRefId());
@@ -126,6 +169,9 @@ class AdaptiveNavigator implements LSNavigator
         return $predecessors;
     }
 
+    /**
+     * Determines whether all output conditions of the current item are met.
+     */
     public function canLeave(\LSLearnerItem $current): bool
     {
         $ref_id = $current->getRefId();
@@ -145,6 +191,9 @@ class AdaptiveNavigator implements LSNavigator
         return $can_leave;
     }
 
+    /**
+     * Determines whether all input conditions of the target item are met.
+     */
     public function canEnter(\LSLearnerItem $target): bool
     {
         foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
@@ -155,7 +204,9 @@ class AdaptiveNavigator implements LSNavigator
         return true;
     }
 
-
+    /**
+     * Determines whether the target is enterable without learning-progress edge conditions.
+     */
     public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
     {
         $ref_id = $target->getRefId();
@@ -178,6 +229,9 @@ class AdaptiveNavigator implements LSNavigator
         return $can_enter;
     }
 
+    /**
+     * Determines whether the target is enterable from the current item.
+     */
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
         foreach ($this->getConditionsFor($target->getRefId()) as $condition) {
@@ -200,7 +254,11 @@ class AdaptiveNavigator implements LSNavigator
         return true;
     }
 
-
+    /**
+     * Returns the identifiers of input conditions assigned to an item.
+     *
+     * @return int[]
+     */
     public function getInputConditionIds(\LSLearnerItem $item): array
     {
         $ids = [];
@@ -215,6 +273,11 @@ class AdaptiveNavigator implements LSNavigator
         return $ids;
     }
 
+    /**
+     * Returns the identifiers of output conditions assigned to an item.
+     *
+     * @return int[]
+     */
     public function getOutputConditionIds(\LSLearnerItem $item): array
     {
         $ids = [];
@@ -229,6 +292,9 @@ class AdaptiveNavigator implements LSNavigator
         return $ids;
     }
 
+    /**
+     * Evaluates a condition and treats evaluation failures as unmet conditions.
+     */
     protected function checkCondition(AbstractCondition $condition): bool
     {
         try {
@@ -238,13 +304,19 @@ class AdaptiveNavigator implements LSNavigator
         }
     }
 
-
+    /**
+     * Determines whether an edge connects two items.
+     */
     protected function isEdge(int $from_ref_id, int $to_ref_id): bool
     {
         return in_array($from_ref_id, $this->getEdgeTargetsFor($to_ref_id), true);
     }
 
-
+    /**
+     * Returns the source reference identifiers of edges leading to an item.
+     *
+     * @return int[]
+     */
     protected function getEdgeTargetsFor(int $item_ref_id): array
     {
         if (isset($this->edge_targets_cache[$item_ref_id])) {
@@ -266,6 +338,11 @@ class AdaptiveNavigator implements LSNavigator
         return $targets;
     }
 
+    /**
+     * Returns the condition instances assigned to an item.
+     *
+     * @return AbstractCondition[]
+     */
     protected function getConditionsFor(int $item_ref_id): array
     {
         if (isset($this->conditions_cache[$item_ref_id])) {

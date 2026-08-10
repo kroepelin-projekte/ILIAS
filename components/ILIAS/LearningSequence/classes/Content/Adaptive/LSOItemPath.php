@@ -34,8 +34,14 @@ class LSOItemPath
 {
     public const string TABLE_NAME = 'lso_item_path';
 
+    /**
+     * Database connection.
+     */
     protected ilDBInterface $db;
 
+    /**
+     * Creates the item path repository.
+     */
     public function __construct(ilDBInterface $db)
     {
         $this->db = $db;

@@ -20,24 +20,42 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+/**
+ * Represents the data required to render a learning map.
+ */
 final class LSOLearningMap
 {
+    /**
+     * Creates a learning map.
+     *
+     * @param array<int, LSOLearningMapNode> $nodes
+     */
     public function __construct(
+        /** @var int The learning sequence object ID. */
         public readonly int $lso_obj_id,
+        /** @var int The user ID. */
         public readonly int $usr_id,
+        /** @var int The view mode. */
         public readonly int $mode,
+        /** @var int The start object ID. */
         public readonly int $start_obj_id,
+        /** @var int The end object ID. */
         public readonly int $end_obj_id,
+        /** @var array<int, LSOLearningMapNode> The map nodes. */
         public readonly array $nodes
     ) {
     }
 
+    /**
+     * Returns the node for an object.
+     */
     public function getNode(int $obj_id): ?LSOLearningMapNode
     {
         return $this->nodes[$obj_id] ?? null;
     }
 
     /**
+     * Returns the learning map as an array.
      *
      * @return array<string, mixed>
      */

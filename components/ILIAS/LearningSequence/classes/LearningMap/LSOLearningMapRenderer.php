@@ -20,14 +20,15 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+/**
+ * Renders Learning Map data as an interactive HTML graph.
+ */
 class LSOLearningMapRenderer
 {
     public const TEMPLATE = 'tpl.lso_learning_map.html';
     public const COMPONENT = 'components/ILIAS/LearningSequence';
     public const JS = 'assets/js/lso_learning_map.js';
     public const CSS = 'assets/css/lso_learning_map.css';
-
-    public const TITLE = 'Learning Map'; // #ToDo Sprachvariable
 
     public const ORIENTATION_VERTICAL = 'vertical';
     public const ORIENTATION_HORIZONTAL = 'horizontal';
@@ -37,12 +38,19 @@ class LSOLearningMapRenderer
     private const H_GAP = 26;
     private const V_GAP = 96;
 
+    /**
+     * Provides localized Learning Map labels.
+     */
+    private \ilLanguage $lng;
+
     public function __construct(
         private \ILIAS\UI\Factory $ui_factory,
         private \ILIAS\UI\Renderer $ui_renderer,
         private \ilGlobalTemplateInterface $tpl,
         private bool $sequential = false
     ) {
+        global $DIC;
+        $this->lng = $DIC->language();
     }
 
     /**
@@ -50,10 +58,10 @@ class LSOLearningMapRenderer
      */
     public function render(array $graph): string
     {
-        if (($graph['nodes'] ?? []) === []) {
+        if ($graph['nodes'] === []) {
             return $this->ui_renderer->render(
                 $this->ui_factory->panel()->standard(
-                    self::TITLE,
+                    $this->txt('lso_learning_map_title'),
                     $this->ui_factory->messageBox()->info($this->getEmptyMessage())
                 )
             );
@@ -61,15 +69,18 @@ class LSOLearningMapRenderer
 
         return $this->ui_renderer->render(
             $this->ui_factory->panel()->standard(
-                self::TITLE,
+                $this->txt('lso_learning_map_title'),
                 $this->ui_factory->legacy()->content($this->buildMarkup($graph))
             )
         );
     }
 
+    /**
+     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
+     */
     public function renderWithoutPanel(array $graph): string
     {
-        if (($graph['nodes'] ?? []) === []) {
+        if ($graph['nodes'] === []) {
             return $this->ui_renderer->render(
                 $this->ui_factory->messageBox()->info($this->getEmptyMessage())
             );
@@ -80,11 +91,12 @@ class LSOLearningMapRenderer
 
     protected function getEmptyMessage(): string
     {
-        // #ToDo Sprachvariable
-        return 'Für diese Lernsequenz können noch keine Wege dargestellt werden.'
-            . ' Es fehlen Objekte oder ein Start-Objekt.';
+        return $this->txt('lso_learning_map_empty');
     }
 
+    /**
+     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
+     */
     protected function buildMarkup(array $graph): string
     {
         $this->tpl->addCss(self::CSS);
@@ -112,6 +124,9 @@ class LSOLearningMapRenderer
         return $template->get();
     }
 
+    /**
+     * @param array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>} $graph
+     */
     protected function getMapDataAsJson(array $graph): string
     {
         return json_encode(
@@ -132,58 +147,63 @@ class LSOLearningMapRenderer
         );
     }
 
+    /**
+     * @return array<string, string>
+     */
     protected function getNodeLabels(): array
     {
-        // #ToDo Sprachvariablen
         return [
-            'current' => 'hier',
-            'done' => 'erledigt',
-            'open' => 'verfügbar',
-            'blocked' => 'nicht verfügbar',
-            'open_object' => 'Öffnen'
+            'current' => $this->txt('lso_learning_map_current'),
+            'done' => $this->txt('lso_learning_map_done'),
+            'open' => $this->txt('lso_learning_map_open'),
+            'blocked' => $this->txt('lso_learning_map_blocked'),
+            'open_object' => $this->txt('lso_learning_map_open_object')
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
     protected function getScreenReaderLabels(): array
     {
-        // #ToDo Sprachvariablen
         return [
-            'sr_summary' => 'Lernkarte mit %s Objekten.',
-            'sr_summary_current' => 'Ihre aktuelle Position: %s.',
-            'sr_summary_start' => 'Beginn: %s.',
-            'sr_summary_end' => 'Ende: %s.',
-            'sr_step' => 'Objekt %1$s von %2$s',
-            'sr_state_done' => 'Status: erledigt',
-            'sr_state_open' => 'Status: verfügbar',
-            'sr_state_blocked' => 'Status: nicht verfügbar',
-            'sr_current' => 'Ihre aktuelle Position',
-            'sr_start' => 'Beginn der Lernsequenz',
-            'sr_end' => 'Ende der Lernsequenz',
-            'sr_leads_to' => 'Führt zu: %s.',
-            'sr_leads_to_none' => 'Führt zu keinem weiteren Objekt.',
-            'sr_blocked_way' => '%s (dieser Weg ist zurzeit nicht verfügbar)',
-            'sr_fitted' => 'Ansicht eingepasst.',
-            'sr_zoom' => 'Zoom %s Prozent.',
-            'sr_at_current' => 'Ansicht bei Ihrer aktuellen Position: %s.',
-            'sr_no_current' => 'Es ist keine aktuelle Position bekannt.'
+            'sr_summary' => $this->txt('lso_learning_map_sr_summary'),
+            'sr_summary_current' => $this->txt('lso_learning_map_sr_summary_current'),
+            'sr_summary_start' => $this->txt('lso_learning_map_sr_summary_start'),
+            'sr_summary_end' => $this->txt('lso_learning_map_sr_summary_end'),
+            'sr_step' => $this->txt('lso_learning_map_sr_step'),
+            'sr_state_done' => $this->txt('lso_learning_map_sr_state_done'),
+            'sr_state_open' => $this->txt('lso_learning_map_sr_state_open'),
+            'sr_state_blocked' => $this->txt('lso_learning_map_sr_state_blocked'),
+            'sr_current' => $this->txt('lso_learning_map_sr_current'),
+            'sr_start' => $this->txt('lso_learning_map_sr_start'),
+            'sr_end' => $this->txt('lso_learning_map_sr_end'),
+            'sr_leads_to' => $this->txt('lso_learning_map_sr_leads_to'),
+            'sr_leads_to_none' => $this->txt('lso_learning_map_sr_leads_to_none'),
+            'sr_blocked_way' => $this->txt('lso_learning_map_sr_blocked_way'),
+            'sr_fitted' => $this->txt('lso_learning_map_sr_fitted'),
+            'sr_zoom' => $this->txt('lso_learning_map_sr_zoom'),
+            'sr_at_current' => $this->txt('lso_learning_map_sr_at_current'),
+            'sr_no_current' => $this->txt('lso_learning_map_sr_no_current')
         ];
     }
 
     protected function getViewportLabel(): string
     {
-        // #ToDo Sprachvariable
-        return 'Lernkarte: Darstellung der Objekte und ihrer Reihenfolge';
+        return $this->txt('lso_learning_map_viewport');
     }
 
+    /**
+     * @return array<string, string>
+     */
     protected function getLegend(): array
     {
-        // #ToDo Sprachvariablen
         $legend = [
-            'open' => 'verfügbar',
-            'blocked' => 'nicht verfügbar',
-            'path' => 'bisheriger Pfad',
-            'done' => 'erledigt',
-            'current' => 'aktuelle Position'
+            'open' => $this->txt('lso_learning_map_open'),
+            'blocked' => $this->txt('lso_learning_map_blocked'),
+            'path' => $this->txt('lso_learning_map_path'),
+            'done' => $this->txt('lso_learning_map_done'),
+            'current' => $this->txt('lso_learning_map_current')
         ];
 
         if ($this->sequential) {
@@ -193,21 +213,18 @@ class LSOLearningMapRenderer
 
         return $legend;
     }
-
-
     protected function renderToolbar(string $map_id): string
     {
-        // #ToDo Sprachvariablen
         $actions = [
-            '–' => ['Verkleinern', 'zoomBy(-0.15)'],
-            '+' => ['Vergrößern', 'zoomBy(0.15)'],
-            '100 %' => ['Originalgröße, 100 Prozent', 'resetZoom()'],
-            'Einpassen' => ['Ansicht einpassen', 'fit()'],
-            'Zu meiner Position' => ['Zu meiner Position springen', 'focusCurrent()']
+            '–' => [$this->txt('lso_learning_map_zoom_out'), 'zoomBy(-0.15)'],
+            '+' => [$this->txt('lso_learning_map_zoom_in'), 'zoomBy(0.15)'],
+            '100 %' => [$this->txt('lso_learning_map_reset_zoom'), 'resetZoom()'],
+            $this->txt('lso_learning_map_fit') => [$this->txt('lso_learning_map_fit'), 'fit()'],
+            $this->txt('lso_learning_map_focus_current') => [$this->txt('lso_learning_map_focus_current'), 'focusCurrent()']
         ];
 
         if ($this->sequential) {
-            unset($actions['Zu meiner Position'], $actions['–'], $actions['+'], $actions['100 %']);
+            unset($actions[$this->txt('lso_learning_map_focus_current')], $actions['–'], $actions['+'], $actions['100 %']);
         }
 
         $buttons = [];
@@ -232,6 +249,15 @@ class LSOLearningMapRenderer
             . '});';
     }
 
+    private function txt(string $key): string
+    {
+        return $this->lng->txt($key);
+    }
+
+    /**
+     * @param array{nodes?: array<int, array<string, mixed>>, start_obj_id?: int, end_obj_id?: int} $map
+     * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
+     */
     public function fromMapData(array $map): array
     {
         $map_nodes = $map['nodes'] ?? [];

@@ -20,10 +20,21 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+/**
+ * Tracks the position in a sequential learning map.
+ */
 class LSOLearningMapSequentialPosition extends LSOLearningMapPosition
 {
+    /** @var int The reference ID of the first item. */
     protected int $first_ref_id = 0;
+    /** @var int The reference ID of the last item. */
     protected int $last_ref_id = 0;
+
+    /**
+     * Prepares the position for the given items.
+     *
+     * @param \LSLearnerItem[] $items
+     */
 
     public function prepareForItems(array $items): void
     {
@@ -38,16 +49,27 @@ class LSOLearningMapSequentialPosition extends LSOLearningMapPosition
         $this->last_ref_id = $items[count($items) - 1]->getRefId();
     }
 
+    /**
+     * Returns the reference ID of the first item.
+     */
     protected function getStartRefId(): int
     {
         return $this->first_ref_id;
     }
 
+    /**
+     * Returns the reference ID of the last item.
+     */
     protected function getEndRefId(): int
     {
         return $this->last_ref_id;
     }
 
+    /**
+     * Determines whether an item has been completed.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function hasCompleted(array $items, int $obj_id): bool
     {
         if ($obj_id === 0) {

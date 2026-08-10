@@ -19,6 +19,9 @@
 declare(strict_types=1);
 
 
+/**
+ * Provides learning maps as page content.
+ */
 class ilPCLearningMap extends ilPageContent
 {
     public const PCTYPE = 'lsolearningmap';
@@ -26,11 +29,17 @@ class ilPCLearningMap extends ilPageContent
     public const PLACEHOLDER = '[[[LEARNINGMAP]]]';
     public const PROVIDING_TYPES = ['lso'];
 
+    /**
+     * Initializes the page content type.
+     */
     public function init(): void
     {
         $this->setType(self::PCTYPE);
     }
 
+    /**
+     * Creates the page content node.
+     */
     public function create(
         ilPageObject $a_pg_obj,
         string $a_hier_id,
@@ -43,7 +52,7 @@ class ilPCLearningMap extends ilPageContent
     }
 
     /**
-     * @inheritdoc
+     * Replaces the learning map placeholder in page output.
      */
     public function modifyPageContentPostXsl(
         string $a_output,
@@ -62,12 +71,18 @@ class ilPCLearningMap extends ilPageContent
         return $a_output;
     }
 
+    /**
+     * Determines whether an object provides a learning map.
+     */
     protected function supportsLearningMap(int $parent_obj_id): bool
     {
         $parent_obj_type = \ilObject::_lookupType($parent_obj_id);
         return in_array($parent_obj_type, self::PROVIDING_TYPES);
     }
 
+    /**
+     * Replaces the placeholder with a rendered learning map.
+     */
     protected function replaceWithRenderedLearningMap(int $obj_id, string $html): string
     {
         $lso = \ilObjectFactory::getInstanceByObjId($obj_id);

@@ -20,11 +20,14 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Player;
 
+/**
+ * Provides index-based navigation through the items of a learning sequence.
+ */
 class LinearNavigator implements LSNavigator
 {
     /**
      * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
+     * @return \LSLearnerItem[] The item directly following the current item.
      */
     public function getSuccessors(array $items, \LSLearnerItem $current): array
     {
@@ -38,7 +41,7 @@ class LinearNavigator implements LSNavigator
 
     /**
      * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
+     * @return \LSLearnerItem[] The item structurally following the current item.
      */
     public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
     {
@@ -47,7 +50,7 @@ class LinearNavigator implements LSNavigator
 
     /**
      * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
+     * @return \LSLearnerItem[] The item directly preceding the current item.
      */
     public function getPredecessors(array $items, \LSLearnerItem $current): array
     {
@@ -59,27 +62,41 @@ class LinearNavigator implements LSNavigator
         return [];
     }
 
+    /**
+     * Allows leaving every item in linear navigation.
+     */
     public function canLeave(\LSLearnerItem $current): bool
     {
         return true;
     }
 
+    /**
+     * Allows entering every item in linear navigation.
+     */
     public function canEnter(\LSLearnerItem $target): bool
     {
         return true;
     }
 
+    /**
+     * Allows entering every item because linear navigation has no edge conditions.
+     */
     public function canEnterIgnoringEdges(\LSLearnerItem $target): bool
     {
         return true;
     }
 
+    /**
+     * Allows entering every target from every current item.
+     */
     public function canEnterFrom(\LSLearnerItem $current, \LSLearnerItem $target): bool
     {
         return true;
     }
 
     /**
+     * Does not preload data because linear navigation has no state to load.
+     *
      * @param \LSLearnerItem[] $items
      */
     public function preload(array $items): void
@@ -87,6 +104,8 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
+     * Returns no input-condition identifiers because linear navigation has no conditions.
+     *
      * @return int[]
      */
     public function getInputConditionIds(\LSLearnerItem $item): array
@@ -95,7 +114,8 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
-
+     * Returns no output-condition identifiers because linear navigation has no conditions.
+     *
      * @return int[]
      */
     public function getOutputConditionIds(\LSLearnerItem $item): array
@@ -103,7 +123,12 @@ class LinearNavigator implements LSNavigator
         return [];
     }
 
-
+    /**
+     * Finds the array index of an item by its reference identifier.
+     *
+     * @param \LSLearnerItem[] $items
+     * @throws \Exception If the item is not part of the given items.
+     */
     protected function findPosition(array $items, \LSLearnerItem $item): int
     {
         foreach ($items as $index => $candidate) {

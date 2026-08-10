@@ -13,56 +13,32 @@
  * https://github.com/ILIAS-eLearning
  */
 
-/**
- * Learning map: a waterfall graph with branches and merging paths.
- *
- * It is drawn top down (adaptive mode) or left to right (sequential mode, see
- * "orientation" in the data). The layout itself is always computed in the same
- * logical space - "along" is the axis inside a layer, "depth" the axis from
- * layer to layer - and is only mapped onto screen coordinates at the very end.
- *
- * The markup and the graph data are provided by LSOLearningMapRenderer, this
- * script does the layout and the drawing:
- *  1. layering    -> longest path from the start node (rank assignment)
- *  2. ordering    -> weighted median + transpose (Sugiyama style)
- *  3. positioning -> median alignment, no overlaps
- *  4. edges       -> orthogonal svg paths (down, across, down)
- *
- * The whole canvas is zoomable (wheel + buttons) and pannable (drag).
- * Every map registers its api as il.LSO.LearningMap.get(<map id>).
- */
 (function (window, document) {
   const CONTAINER_SELECTOR = '[data-lso-learning-map]';
   const DEFAULT_METRICS = {
     nodeWidth: 190, nodeHeight: 86, hGap: 26, vGap: 96,
   };
-  /* there are no texts in this script on purpose: every label is written in
-     php (LSOLearningMapRenderer) and handed over with the graph data, so it
-     can become a language variable there */
-
-  /* dummy nodes are the routing points of long edges. They reserve a real slot
-     (width DUMMY_WIDTH, full box height) in their layer, so a line passing a
-     layer keeps the regular h_gap distance to every box. */
   const DUMMY_WIDTH = 18;
-  /* the viewport grows with the number of boxes, but stops at MAX_HEIGHT.
-     PAD_Y is the free space above the start box and below the end box. */
   const MIN_HEIGHT = 280;
   const MAX_HEIGHT = 780;
   const PAD_Y = 24;
 
   const instances = {};
 
-  /* the result is used inside attributes too (title, aria-label, href), so the
-     quotes have to be escaped as well */
+  /**
+   * Escapes text for use in generated markup.
+   */
+
   function escapeHtml(value) {
     const div = document.createElement('div');
     div.textContent = (value === undefined || value === null) ? '' : String(value);
     return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  /* the labels come from the renderer and may carry "%s" resp. "%1$s"
-     placeholders - once these are language variables, the order of the
-     arguments may well differ from language to language */
+  /**
+   * Formats translated labels with positional placeholders.
+   */
+
   function fmt(template, args) {
     let i = 0;
     return String(template === undefined ? '' : template)
@@ -77,12 +53,9 @@
   }
 
   /**
-   * Builds one map inside the given container.
-   *
-   * @param {HTMLElement} root
-   * @param {object} data nodes, edges, metrics and labels, see LSOLearningMapRenderer
-   * @return {object|null} the public api of this map
+   * Creates and registers a learning map in a container.
    */
+
   function create(root, data) {
     const viewport = root.querySelector('.lso-learning-map__viewport');
     const canvas = root.querySelector('.lso-learning-map__canvas');
@@ -93,8 +66,6 @@
     }
 
     const { id } = root;
-    /* the data comes from the php side and uses snake_case keys; inside this
-       script everything is camelCase (code style) */
     const rawMetrics = data.metrics || {};
     const rawLabels = data.labels || {};
     const M = {
@@ -108,11 +79,7 @@
       openObject: rawLabels.open_object,
     };
 
-    /* horizontal: layers run left to right. A monitor is wider than high, and
-       the sequential map is a plain chain, so it is laid out along the wide
-       axis and its viewport is limited to the height of a single box. */
     const horizontal = (data.orientation === 'horizontal');
-    /* size of a box along the layer axis resp. across the layers */
     const ALONG = horizontal ? M.nodeHeight : M.nodeWidth;
     const DEPTH = horizontal ? M.nodeWidth : M.nodeHeight;
     if (horizontal) {
@@ -122,7 +89,6 @@
     root.style.setProperty('--lso-learning-map-node-width', `${M.nodeWidth}px`);
     root.style.setProperty('--lso-learning-map-node-height', `${M.nodeHeight}px`);
 
-    /* ------------------------------------------------ graph helpers */
     const nodes = {};
     const order = [];
     (data.nodes || []).forEach((n) => {
@@ -138,13 +104,13 @@
     edges.forEach((e) => {
       nodes[e.from].out.push(e);
       nodes[e.to].in.push(e);
-      /* the original edges of a box, kept apart from "out": build() adds the
-         segments of the routing there, and the text alternative needs the
-         real successors, not the routing points */
       (nodes[e.from].raw.outEdges = nodes[e.from].raw.outEdges || []).push(e);
     });
 
-    /* 1. ranking: longest path, cycle safe */
+    /**
+   * Assigns nodes to graph layers.
+   */
+
     function rank() {
       const indeg = {};
       const queue = [];
@@ -166,7 +132,6 @@
           }
         }
       }
-      /* end node always at the very bottom, start node at the very top */
       let max = 0;
       order.forEach((k) => { max = Math.max(max, nodes[k].rank); });
       order.forEach((k) => {
@@ -175,9 +140,11 @@
       });
     }
 
-    /* 2. build layers, split long edges into dummy chains */
     const layers = [];
     const segments = [];
+    /**
+     * Builds layout layers and routing segments.
+     */
     function build() {
       let max = 0;
       order.forEach((k) => { max = Math.max(max, nodes[k].rank); });
@@ -210,9 +177,11 @@
       });
     }
 
-    /* adjacency per direction, precomputed (fast neighbour lookup) */
     let adjUp = {};
     let adjDown = {};
+    /**
+     * Builds adjacency indexes for graph traversal.
+     */
     function buildAdj() {
       adjUp = {};
       adjDown = {};
@@ -226,8 +195,6 @@
       return (dir === 'up' ? adjUp[node.id] : adjDown[node.id]) || [];
     }
 
-    /* 3. ordering inside layers: weighted median + transpose, keeps the number
-       of edge crossings as low as possible (Sugiyama style) */
     function reindex() {
       layers.forEach((l) => { l.forEach((n, i) => { n.idx = i; }); });
     }
@@ -326,15 +293,10 @@
       reindex();
     }
 
-    /* 4. coordinates. n.x/n.y are the logical along/depth position, n.sx/n.sy
-       the resulting position on the screen (see toScreen()). */
     let width = 0;
     let height = 0;
-    /* extent of the real boxes along resp. across the layers */
     let alongExtent = 0;
     let depthExtent = 0;
-    /* vertical extent of the real boxes on screen, needed for equal spacing
-       top and bottom */
     let contentTop = 0;
     let contentBottom = 0;
     function positions() {
@@ -350,7 +312,6 @@
           x += w(n) + M.hGap;
         });
       });
-      /* median alignment, a few relaxation passes, keeps boxes untangled */
       for (let it = 0; it < 6; it += 1) {
         for (let r = 0; r < layers.length; r += 1) {
           layers[r].forEach((n) => {
@@ -359,7 +320,6 @@
             const target = ns.reduce((a, m) => a + m.x + (w(m) / 2), 0) / ns.length - (w(n) / 2);
             n.x += (target - n.x) * 0.5;
           });
-          /* resolve overlaps left to right */
           const l = layers[r];
           for (let i = 1; i < l.length; i += 1) {
             const min = l[i - 1].x + w(l[i - 1]) + M.hGap;
@@ -389,9 +349,6 @@
       depthExtent = bottom + 20;
     }
 
-    /* maps the logical along/depth layout onto the screen: top down by
-       default, left to right when horizontal. A box is always node_width wide
-       and node_height high on screen, no matter which way the layers run. */
     function toScreen() {
       contentTop = Infinity;
       contentBottom = -Infinity;
@@ -409,23 +366,13 @@
       height = horizontal ? alongExtent : depthExtent;
     }
 
-    /* a logical point [along, depth] on the screen */
     function point(p) {
       return horizontal ? [p[1], p[0]] : [p[0], p[1]];
     }
 
-    /* ------------------------------------------------ accessibility */
-    /* A graph is nothing a screen reader can look at: the drawn edges are
-       hidden from it (aria-hidden on the svg), and the information they carry
-       is written into the boxes instead. The boxes themselves are list items
-       of an ordered list in learning order, so the map is read as "object 3 of
-       8, ..., leads to ..." (WCAG 1.1.1, 1.3.1). */
     const live = root.querySelector('[data-lso-learning-map-live]');
     const summary = root.querySelector('[data-lso-learning-map-summary]');
 
-    /* Only what the user has really triggered is announced. The map fits
-       itself while it is being built and whenever it becomes visible or is
-       resized - nobody wants to hear that. */
     let announcementsOn = false;
     function announce(message) {
       if (live && announcementsOn) { live.textContent = message; }
@@ -441,8 +388,6 @@
       return (nodes[nodeId] && nodes[nodeId].raw.title) || '';
     }
 
-    /* the boxes in learning order: layer by layer, inside a layer left to
-       right - exactly the order in which the map is read visually */
     function inLearningOrder() {
       const ordered = [];
       layers.forEach((l) => {
@@ -457,8 +402,6 @@
       return labels.sr_state_open;
     }
 
-    /* "leads to: A, B (this way is blocked at the moment)" - the successors of
-       a box, i.e. the very information the drawn arrows carry */
     function successorSentence(node) {
       const parts = [];
       (node.raw.outEdges || []).forEach((e) => {
@@ -480,8 +423,6 @@
       return parts.join('. ').replace(/\.\./g, '.');
     }
 
-    /* a short description of the map as a whole, referenced by the viewport
-       via aria-describedby */
     function writeSummary() {
       if (!summary) { return; }
       const ordered = inLearningOrder();
@@ -500,7 +441,6 @@
       summary.textContent = parts.join(' ');
     }
 
-    /* ------------------------------------------------ rendering */
     function drawNodes() {
       const ordered = inLearningOrder();
       const total = ordered.length;
@@ -513,15 +453,10 @@
         if (o.state === 'blocked') { cls.push('lso-learning-map__node--blocked'); }
         if (o.current) { cls.push('lso-learning-map__node--current'); }
         if (o.terminal) { cls.push('lso-learning-map__node--terminal'); }
-        /* the badge is the visual shorthand of the state - the screen reader
-           gets the very same information as a full sentence above, so it is
-           not read out twice */
         const stateKey = o.state === 'done' || o.state === 'blocked' ? o.state : 'open';
         let badge = `<span class="lso-learning-map__badge lso-learning-map__badge--${stateKey}"`
           + ` aria-hidden="true">${escapeHtml(labels[stateKey])}</span>`;
         if (o.current) {
-          /* "here" is not a state of its own but tells where the learner
-             stands, so it is shown in addition to the state */
           badge = `<span class="lso-learning-map__badge lso-learning-map__badge--current" aria-hidden="true">${
             escapeHtml(labels.current)}</span>${badge}`;
         }
@@ -536,8 +471,6 @@
           + '</div>'
           + `<div class="lso-learning-map__node-desc">${escapeHtml(o.description || '')}</div>`
           + `<div class="lso-learning-map__node-foot">${
-          /* "open" alone would be the same name on every box - the aria-label
-             makes each link tell where it leads (WCAG 2.4.4) */
             o.href
               ? `<a class="btn btn-default btn-sm lso-learning-map__node-link" href="${escapeHtml(o.href)}"`
               + ` aria-label="${escapeHtml(`${labels.openObject}: ${o.title}`)}">${
@@ -554,8 +487,6 @@
     function drawEdges() {
       const parts = [];
       let defs = '';
-      /* the arrow heads are coloured by the stylesheet, not here - only that
-         way the high contrast mode of the operating system can override them */
       ['open', 'blocked', 'path'].forEach((key) => {
         defs += `<marker id="${id}_arrow_${key}" viewBox="0 0 10 10" refX="9" refY="5"`
           + ' markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
@@ -565,18 +496,12 @@
       });
       parts.push(`<defs>${defs}</defs>`);
 
-      /* group segments per original edge so we can draw one polyline */
       const byEdge = new Map();
       segments.forEach((s) => {
         if (!byEdge.has(s.edge)) { byEdge.set(s.edge, []); }
         byEdge.get(s.edge).push(s);
       });
 
-      /* fan out the attachment points so parallel edges stay apart and never
-         overlap a box: docking happens on the box borders only. The docks are
-         sorted by the x position of the other end, this way the arrows leave
-         and enter a box in the same left to right order as their partners and
-         therefore do not cross right below/above a box. */
       const outSegs = {};
       const inSegs = {};
       segments.forEach((s) => {
@@ -603,9 +528,6 @@
         const left = node.x + ((ALONG - span) / 2);
         return left + ((span * (index + 1)) / (count + 1));
       }
-      /* a dummy is treated exactly like a box: the line enters at its top and
-         leaves at its bottom. That way every horizontal run stays inside the
-         v_gap between two layers and can never cross a box. */
       function exitPoint(s) {
         const node = s.from;
         if (node.dummy) { return [dockX(node), node.y + DEPTH]; }
@@ -617,9 +539,6 @@
         return [dockX(node, s.inCount || 1, s.inIndex || 0), node.y];
       }
 
-      /* channel assignment: each horizontal run gets its own lane inside the
-         gap between two layers (greedy interval colouring), so horizontal
-         lines never lie on top of each other and cross as little as possible */
       const gaps = {};
       segments.forEach((s) => {
         s.exit = exitPoint(s);
@@ -637,10 +556,6 @@
             hs.push(s);
           }
         });
-        /* order the lanes so that no vertical stub has to cross a horizontal
-           run: a run whose target stub lies inside another run must be placed
-           below it, a run whose source stub lies inside another run above it.
-           Solved as a topological sort over these constraints. */
         const n = hs.length;
         const adj = [];
         const deg = [];
@@ -671,7 +586,7 @@
             if (deg[t] === 0) { queue.push(t); }
           });
         }
-        if (placed < n) { /* cyclic constraints: fall back to span order */
+        if (placed < n) {
           const rest = [];
           for (i = 0; i < n; i += 1) { if (deg[i] > 0) { rest.push(hs[i]); } }
           rest.sort((a, b) => (a.hi - a.lo) - (b.hi - b.lo));
@@ -685,8 +600,6 @@
 
       byEdge.forEach((segs, e) => {
         segs.sort((a, b) => a.from.rank - b.from.rank);
-        /* orthogonal routing: down out of the box, sideways inside the lane
-           between two layers (never across a box), down into the target */
         const pts = [];
         segs.forEach((s) => {
           const a = s.exit;
@@ -706,7 +619,6 @@
           pts.push([b[0], b[1]]);
         });
 
-        /* from here on the points are screen coordinates */
         const sp = pts.map(point);
         let d = `M ${Math.round(sp[0][0])} ${Math.round(sp[0][1])}`;
         for (let i = 1; i < sp.length; i += 1) {
@@ -739,7 +651,6 @@
       svg.innerHTML = parts.join('');
     }
 
-    /* ------------------------------------------------ zoom & pan */
     let zoom = 1;
     let panX = 0;
     let panY = 0;
@@ -751,10 +662,6 @@
     }
     function clampZoom(z) { return Math.min(2.5, Math.max(0.2, z)); }
     function contentHeight() { return contentBottom - contentTop; }
-    /* keeps one axis inside sensible bounds: the content may be moved until its
-       edge reaches the margin, never further - so there is no endless scrolling
-       into the void behind the last box. If the content is smaller than the
-       viewport it stays centered. */
     function clampAxis(pan, start, size, view, margin) {
       const px = size * zoom;
       const max = margin - start * zoom;
@@ -764,8 +671,6 @@
       }
       return Math.min(max, Math.max(min, pan));
     }
-    /* the horizontal map is exactly as high as one box, so there is nothing to
-       scroll vertically: the content stays centered, panning is left/right only */
     function clampPan() {
       panX = clampAxis(panX, 0, width, viewport.clientWidth, PAD_Y);
       if (horizontal) {
@@ -774,23 +679,16 @@
       }
       panY = clampAxis(panY, contentTop, contentHeight(), viewport.clientHeight, PAD_Y);
     }
-    /* The modal of the kiosk player belongs to the ILIAS ui framework and is
-       not touched at all - neither here nor in the css. Only our own map sets
-       its height, exactly as it does outside of a modal; the dialog grows with
-       it. inModal is used for nothing but the behaviour of the observers. */
     const modalWrapper = root.closest('.lso-learning-map-modal');
     const inModal = modalWrapper !== null;
     function autoHeight() {
       const wanted = Math.round(contentHeight()) + 2 * PAD_Y;
-      /* horizontal: one box plus some air, no minimum height */
       const min = horizontal ? 0 : MIN_HEIGHT;
       viewport.style.height = `${Math.max(min, Math.min(MAX_HEIGHT, wanted))}px`;
     }
 
     const api = {
       zoomBy(delta) {
-        /* the horizontal map is not zoomable: it is exactly as high as one box
-           and is meant to be scrolled sideways at its natural size */
         if (horizontal) { return; }
         const cx = viewport.clientWidth / 2;
         const cy = viewport.clientHeight / 2;
@@ -803,7 +701,6 @@
       },
       resetZoom() {
         if (horizontal) { return; }
-        /* 100 %: no scaling, but content centered horizontally and vertically */
         const ch = contentHeight();
         zoom = 1;
         panX = (viewport.clientWidth - width) / 2;
@@ -816,8 +713,6 @@
         const sx = (viewport.clientWidth - 2 * PAD_Y) / width;
         const sy = (viewport.clientHeight - 2 * PAD_Y) / ch;
         if (horizontal) {
-          /* no zooming here: the chain is drawn at its natural size and only
-             scrolled sideways, so "fit" merely moves it back to the start */
           zoom = 1;
           panX = Math.max(0, (viewport.clientWidth - width) / 2);
           apply();
@@ -826,7 +721,6 @@
         }
         zoom = clampZoom(Math.min(sx, sy));
         panX = (viewport.clientWidth - width * zoom) / 2;
-        /* same distance from the start box to the top as from the end box to the bottom */
         panY = (viewport.clientHeight - ch * zoom) / 2 - contentTop * zoom;
         apply();
         announce(labels.sr_fitted);
@@ -848,8 +742,6 @@
     };
 
     viewport.addEventListener('wheel', (e) => {
-      /* a horizontal wheel (or shift + wheel) scrolls the map sideways -
-         in both orientations, and without any zooming */
       let dx = 0;
       if (Math.abs(e.deltaX) >= 1) {
         dx = e.deltaX;
@@ -923,9 +815,6 @@
       apply();
     });
 
-    /* the toolbar buttons are rendered by the ILIAS UI framework; they call
-       the api of this map via il.LSO.LearningMap.get(<map id>) */
-
     rank();
     build();
     ordering();
@@ -938,11 +827,6 @@
     silently(api.fit);
     announcementsOn = true;
 
-    /* Inside a modal (kiosk player) the map is built while it is still hidden,
-       so the viewport has no size yet and everything would be misplaced. The
-       observers below measure and fit the map again as soon as it becomes
-       visible - and whenever its size changes, e.g. when the window is
-       resized while the modal is open. */
     if (window.ResizeObserver) {
       let lastW = viewport.clientWidth;
       let lastH = viewport.clientHeight;
@@ -954,13 +838,10 @@
         lastW = w;
         lastH = h;
         if (wasHidden) {
-          /* the map has just become visible (modal opened) */
           autoHeight();
           silently(api.fit);
           return;
         }
-        /* outside the modal the height may have been changed by the user via
-           the resize handle - only the panning has to be corrected there */
         if (inModal) {
           silently(api.fit);
           return;
@@ -970,7 +851,6 @@
       observer.observe(viewport);
     }
 
-    /* the map may have to be fitted again when the window is resized */
     if (inModal) {
       window.addEventListener('resize', () => {
         silently(api.fit);
@@ -980,11 +860,6 @@
     return api;
   }
 
-  /**
-   * Reads the graph data belonging to a container and builds the map.
-   *
-   * @param {HTMLElement} root
-   */
   function init(root) {
     if (!root || root.dataset.lsoLearningMapInitialised === 'true') {
       return;

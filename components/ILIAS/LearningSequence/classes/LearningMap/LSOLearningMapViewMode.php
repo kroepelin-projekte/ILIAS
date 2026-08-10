@@ -20,13 +20,20 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+/**
+ * Defines the available learning map view modes.
+ */
 final class LSOLearningMapViewMode
 {
     public const MODE_FULL_ROUTE = 1;
     public const MODE_REACHABLE_ONLY = 2;
     public const MODE_PROGRESS = 3;
 
-
+    /**
+     * Returns all valid view modes.
+     *
+     * @return int[]
+     */
     public static function all(): array
     {
         return [
@@ -36,6 +43,9 @@ final class LSOLearningMapViewMode
         ];
     }
 
+    /**
+     * Determines whether a view mode is valid.
+     */
     public static function isValid(int $mode): bool
     {
         return in_array($mode, self::all(), true);

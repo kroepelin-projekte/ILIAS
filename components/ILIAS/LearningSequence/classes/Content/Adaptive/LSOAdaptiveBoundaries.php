@@ -22,17 +22,31 @@ use ilDBInterface;
  *
  *********************************************************************/
 
+/**
+ * Stores start and end object boundaries of adaptive learning sequences.
+ */
 class LSOAdaptiveBoundaries
 {
     public const string TABLE_NAME = 'lso_item_boundaries';
 
+    /**
+     * Database connection.
+     */
     protected ilDBInterface $db;
 
+    /**
+     * Creates the boundary repository.
+     */
     public function __construct(ilDBInterface $db)
     {
         $this->db = $db;
     }
 
+    /**
+     * Gets the start and end boundaries of a learning sequence.
+     *
+     * @return array{start_ref_id: int, end_ref_id: int}
+     */
     public function getBoundariesFor(int $lso_obj_id): array
     {
         $query = "SELECT start_ref_id, end_ref_id FROM " . self::TABLE_NAME . " WHERE obj_id = " . $this->db->quote($lso_obj_id, 'integer');
@@ -47,6 +61,9 @@ class LSOAdaptiveBoundaries
         return ['start_ref_id' => 0, 'end_ref_id' => 0];
     }
 
+    /**
+     * Sets the start object reference ID of a learning sequence.
+     */
     public function setStartRefId(int $lso_obj_id, int $start_ref_id): void
     {
         $boundaries = $this->getBoundariesFor($lso_obj_id);
@@ -65,6 +82,9 @@ class LSOAdaptiveBoundaries
         }
     }
 
+    /**
+     * Sets the end object reference ID of a learning sequence.
+     */
     public function setEndRefId(int $lso_obj_id, int $end_ref_id): void
     {
         $boundaries = $this->getBoundariesFor($lso_obj_id);
@@ -83,6 +103,9 @@ class LSOAdaptiveBoundaries
         }
     }
 
+    /**
+     * Removes the start object reference ID of a learning sequence.
+     */
     public function unsetStartRefId(int $lso_obj_id): void
     {
         $this->db->update(
@@ -93,6 +116,9 @@ class LSOAdaptiveBoundaries
         $this->cleanupIfEmpty($lso_obj_id);
     }
 
+    /**
+     * Removes the end object reference ID of a learning sequence.
+     */
     public function unsetEndRefId(int $lso_obj_id): void
     {
         $this->db->update(
@@ -138,6 +164,9 @@ class LSOAdaptiveBoundaries
         return $changed;
     }
 
+    /**
+     * Removes an empty boundary record.
+     */
     protected function cleanupIfEmpty(int $lso_obj_id): void
     {
         $boundaries = $this->getBoundariesFor($lso_obj_id);

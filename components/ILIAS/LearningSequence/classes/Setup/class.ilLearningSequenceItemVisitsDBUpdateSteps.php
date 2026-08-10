@@ -30,15 +30,27 @@ declare(strict_types=1);
  */
 class ilLearningSequenceItemVisitsDBUpdateSteps implements \ilDatabaseUpdateSteps
 {
+    /**
+     * The name of the table created by this update step.
+     */
     private const TABLE_NAME = "lso_item_visits";
 
+    /**
+     * The database connection used to run the update step.
+     */
     protected \ilDBInterface $db;
 
+    /**
+     * Sets the database connection used by the update step.
+     */
     public function prepare(\ilDBInterface $db): void
     {
         $this->db = $db;
     }
 
+    /**
+     * Creates the item-visits table if it does not already exist.
+     */
     public function step_1(): void
     {
         if (!$this->db->tableExists(self::TABLE_NAME)) {

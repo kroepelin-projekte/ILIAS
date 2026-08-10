@@ -25,6 +25,9 @@ use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ilDBInterface;
 
+/**
+ * Tracks a user's position and visit history in a learning map.
+ */
 class LSOLearningMapPosition
 {
     public const SIT_END = 'end';
@@ -33,22 +36,42 @@ class LSOLearningMapPosition
     public const SIT_BRANCH = 'branch';
     public const SIT_STRAIGHT = 'straight';
     public const VISITS_TABLE = 'lso_item_visits';
+    /** @var array<int, array{ref_id: int, visited_ts: int}>|null Cached visit log. */
     protected ?array $raw_visit_log = null;
+    /** @var array<int, array{count: int, last_ts: int}>|null Cached visit statistics. */
     protected ?array $visit_stats = null;
+    /** @var array<int, int> Object IDs indexed by reference ID. */
     protected array $obj_id_by_ref_id = [];
 
+    /**
+     * Creates a learning map position.
+     */
     public function __construct(
+        /** @var LSNavigator The learning sequence navigator. */
         protected LSNavigator $navigator,
+        /** @var LSOItemPath The user's item path. */
         protected LSOItemPath $item_path,
+        /** @var LSOAdaptiveBoundaries The adaptive boundaries. */
         protected LSOAdaptiveBoundaries $boundaries,
+        /** @var int The learning sequence object ID. */
         protected int $lso_obj_id,
+        /** @var int The user ID. */
         protected int $usr_id,
+        /** @var ilDBInterface|null The database connection. */
         protected ?ilDBInterface $db = null
     ) {
     }
+    /**
+     * Prepares the position for the given items.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function prepareForItems(array $items): void
     {
     }
+    /**
+     * Records a visit to an item.
+     */
     protected function recordVisit(int $ref_id): void
     {
         if ($this->db === null) {
@@ -71,20 +94,32 @@ class LSOLearningMapPosition
         $this->raw_visit_log = null;
         $this->visit_stats = null;
     }
+    /**
+     * Returns the object ID for a reference ID.
+     */
     protected function lookupObjId(int $ref_id): int
     {
         return $this->obj_id_by_ref_id[$ref_id] ??= \ilObject::_lookupObjId($ref_id);
     }
+    /**
+     * Returns the configured start reference ID.
+     */
     protected function getStartRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
         return (int) ($boundaries['start_ref_id'] ?? 0);
     }
+    /**
+     * Returns the configured end reference ID.
+     */
     protected function getEndRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
         return (int) ($boundaries['end_ref_id'] ?? 0);
     }
+    /**
+     * Returns the configured start object ID.
+     */
     public function getStartObjId(): int
     {
         $start_ref_id = $this->getStartRefId();
@@ -93,6 +128,9 @@ class LSOLearningMapPosition
         }
         return $this->lookupObjId($start_ref_id);
     }
+    /**
+     * Returns the configured end object ID.
+     */
     public function getEndObjId(): int
     {
         $end_ref_id = $this->getEndRefId();
@@ -101,6 +139,11 @@ class LSOLearningMapPosition
         }
         return $this->lookupObjId($end_ref_id);
     }
+    /**
+     * Returns the current item and initializes it when necessary.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function getCurrentItem(array $items): ?\LSLearnerItem
     {
         if (count($items) === 0) {
@@ -126,6 +169,11 @@ class LSOLearningMapPosition
 
         return $this->findItemByRefId($items, $current_ref_id);
     }
+    /**
+     * Returns the navigable situation of an item.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function getSituation(array $items, \LSLearnerItem $item): string
     {
         if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
@@ -143,6 +191,11 @@ class LSOLearningMapPosition
         }
         return self::SIT_BRANCH;
     }
+    /**
+     * Returns the structural situation of an item.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function getStructuralSituation(array $items, \LSLearnerItem $item): string
     {
         if ($this->getEndRefId() !== 0 && $item->getRefId() === $this->getEndRefId()) {
@@ -160,14 +213,31 @@ class LSOLearningMapPosition
         }
         return self::SIT_BRANCH;
     }
+    /**
+     * Returns the navigable successors of an item.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getSuccessors($items, $item);
     }
+    /**
+     * Returns the structural successors of an item.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
     public function getStructuralSuccessors(array $items, \LSLearnerItem $item): array
     {
         return $this->navigator->getStructuralSuccessors($items, $item);
     }
+    /**
+     * Advances from the current item in a direction.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function advance(array $items, \LSLearnerItem $current_item, ?int $direction): \LSLearnerItem
     {
         if ($direction !== null && $direction < 0) {
@@ -189,6 +259,11 @@ class LSOLearningMapPosition
         }
         return $current_item;
     }
+    /**
+     * Jumps to an accessible item.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function jumpTo(array $items, \LSLearnerItem $current_item, ?int $obj_id): \LSLearnerItem
     {
         if ($obj_id === null || $obj_id === 0) {
@@ -210,6 +285,11 @@ class LSOLearningMapPosition
         }
         return $current_item;
     }
+    /**
+     * Determines whether an item may be accessed.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     protected function mayAccess(array $items, \LSLearnerItem $item): bool
     {
         if ($this->getStartRefId() !== 0 && $item->getRefId() === $this->getStartRefId()) {
@@ -229,6 +309,11 @@ class LSOLearningMapPosition
         }
         return false;
     }
+    /**
+     * Moves to a successor item.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function goTo(array $items, \LSLearnerItem $current_item, ?int $obj_id): \LSLearnerItem
     {
         if ($obj_id === null || $obj_id === 0 || !$this->navigator->canLeave($current_item)) {
@@ -244,22 +329,36 @@ class LSOLearningMapPosition
         return $current_item;
     }
 
+    /**
+     * Returns the reference ID path.
+     *
+     * @return int[]
+     */
     protected function getPath(): array
     {
         return $this->item_path->getPath($this->usr_id, $this->lso_obj_id);
     }
 
+    /**
+     * Returns the number of items in the path.
+     */
     public function getPathLength(): int
     {
         return count($this->getPath());
     }
 
+    /**
+     * Returns the current reference ID.
+     */
     protected function getCurrentRefId(): int
     {
         $current_ref_id = $this->item_path->getCurrent($this->usr_id, $this->lso_obj_id);
         return $current_ref_id ?? 0;
     }
 
+    /**
+     * Returns the current object ID.
+     */
     public function getCurrentObjId(): int
     {
         $current_ref_id = $this->getCurrentRefId();
@@ -269,11 +368,21 @@ class LSOLearningMapPosition
         return $this->lookupObjId($current_ref_id);
     }
 
+    /**
+     * Returns the reference IDs on the walked path.
+     *
+     * @return int[]
+     */
     protected function getWalkedRefIds(): array
     {
         return $this->getPath();
     }
 
+    /**
+     * Returns the object IDs on the walked path.
+     *
+     * @return int[]
+     */
     public function getWalkedObjIds(): array
     {
         return array_map(
@@ -282,6 +391,11 @@ class LSOLearningMapPosition
         );
     }
 
+    /**
+     * Returns the visit log with object IDs.
+     *
+     * @return array<int, array{obj_id: int, visited_ts: int}>
+     */
     public function getVisitLog(): array
     {
         return array_map(
@@ -293,6 +407,11 @@ class LSOLearningMapPosition
         );
     }
 
+    /**
+     * Returns the cached or persisted visit log.
+     *
+     * @return array<int, array{ref_id: int, visited_ts: int}>
+     */
     protected function getRawVisitLog(): array
     {
         if ($this->raw_visit_log !== null) {
@@ -319,6 +438,11 @@ class LSOLearningMapPosition
         return $log;
     }
 
+    /**
+     * Returns visit statistics indexed by object ID.
+     *
+     * @return array<int, array{count: int, last_ts: int}>
+     */
     protected function getVisitStats(): array
     {
         if ($this->visit_stats !== null) {
@@ -339,6 +463,11 @@ class LSOLearningMapPosition
         return $stats;
     }
 
+    /**
+     * Returns all reference IDs that have been visited.
+     *
+     * @return int[]
+     */
     protected function getEverVisitedRefIds(): array
     {
         $ref_ids = [];
@@ -350,16 +479,27 @@ class LSOLearningMapPosition
         return $ref_ids;
     }
 
+    /**
+     * Returns the number of visits to an object.
+     */
     public function getVisitCount(int $obj_id): int
     {
         return $this->getVisitStats()[$obj_id]['count'] ?? 0;
     }
 
+    /**
+     * Returns the timestamp of the last visit to an object.
+     */
     public function getLastVisitTs(int $obj_id): ?int
     {
         return $this->getVisitStats()[$obj_id]['last_ts'] ?? null;
     }
 
+    /**
+     * Returns all object IDs that have been visited.
+     *
+     * @return int[]
+     */
     public function getEverVisitedObjIds(): array
     {
         return array_map(
@@ -368,12 +508,19 @@ class LSOLearningMapPosition
         );
     }
 
+    /**
+     * Determines whether an object has been visited.
+     */
     public function hasVisited(int $obj_id): bool
     {
         return isset($this->getVisitStats()[$obj_id]);
     }
 
-
+    /**
+     * Determines whether an item has been completed.
+     *
+     * @param \LSLearnerItem[] $items
+     */
     public function hasCompleted(array $items, int $obj_id): bool
     {
         if ($obj_id === 0) {
@@ -391,6 +538,9 @@ class LSOLearningMapPosition
         return false;
     }
 
+    /**
+     * Determines completion using learning progress.
+     */
     protected function hasLearningProgressCompleted(\LSLearnerItem $item, int $obj_id): bool
     {
         $status = $item->getLearningProgressStatus();
@@ -406,6 +556,8 @@ class LSOLearningMapPosition
     }
 
     /**
+     * Finds an item by its reference ID.
+     *
      * @param \LSLearnerItem[] $items
      */
     protected function findItemByRefId(array $items, int $ref_id): ?\LSLearnerItem

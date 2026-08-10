@@ -31,21 +31,36 @@ use ilObjLearningSequenceActionData;
 use ilObjLearningSequenceContentGUI;
 use Psr\Http\Message\ServerRequestInterface;
 
+/**
+ * Controls content management for sequential learning sequences.
+ */
 class LSOSequentialContent implements LSOContentController
 {
     use LSOContentDeletion;
 
+    /** @var \ilObjLearningSequenceContentGUI */
     protected \ilObjLearningSequenceContentGUI $parent_gui;
+    /** @var Factory */
     protected Factory $ui_factory;
+    /** @var Renderer */
     protected Renderer $ui_renderer;
+    /** @var \ilLanguage */
     protected \ilLanguage $lng;
+    /** @var \ilCtrl */
     protected \ilCtrl $ctrl;
+    /** @var ServerRequestInterface */
     protected ServerRequestInterface $request;
+    /** @var \ilGlobalTemplateInterface */
     protected \ilGlobalTemplateInterface $tpl;
 
+    /** @var int */
     protected int $ref_id;
+    /** @var int */
     protected int $obj_id;
 
+    /**
+     * Creates a controller for a sequential learning sequence.
+     */
     public function __construct(
         \ilObjLearningSequenceContentGUI $parent_gui,
         Factory $ui_factory,
@@ -68,6 +83,11 @@ class LSOSequentialContent implements LSOContentController
         $this->obj_id = $obj_id;
     }
 
+    /**
+     * Returns the commands supported by this controller.
+     *
+     * @return string[]
+     */
     public function getSupportedCommands(): array
     {
         return [
@@ -113,8 +133,6 @@ class LSOSequentialContent implements LSOContentController
 
     public function manageContent(): void
     {
-        // Restore the "add new object" drilldown in the toolbar so that new
-        // objects can be created directly from the content management view.
         $this->parent_gui->showPossibleSubObjects();
 
         $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
@@ -147,6 +165,9 @@ class LSOSequentialContent implements LSOContentController
         );
     }
 
+    /**
+     * Stores the order submitted by the ordering table.
+     */
     public function reorder(): void
     {
         $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
@@ -187,10 +208,14 @@ class LSOSequentialContent implements LSOContentController
         $this->parent_gui->setContent($table->render());
     }
 
+    /**
+     * Returns actions specific to a sequential content item.
+     *
+     * @return array<string, ilObjLearningSequenceActionData>
+     */
     public function getSpecificActions(int $ref_id, string $current_op): array
     {
         $specific_actions = [];
-        // We add both actions here but they will be disabled/filtered in the table class
         $specific_actions['condition_always'] = new ilObjLearningSequenceActionData(
             label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('condition_always'),
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_ALWAYS

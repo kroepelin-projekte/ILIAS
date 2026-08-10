@@ -66,9 +66,6 @@ trait LSOContentDeletion
             $this->ctrl->redirect($this->parent_gui, \ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
         }
 
-        // Before the objects themselves are removed, clean up any conditions
-        // (generic lso_conditions entry + condition specific payload tables)
-        // attached to them, regardless of the current operation mode.
         $condition_handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler();
         foreach ($ref_ids as $ref_id) {
             $condition_handler->deleteConditionsByRefId($this->ref_id, $ref_id);
@@ -76,12 +73,6 @@ trait LSOContentDeletion
 
         \ilRepUtil::deleteObjects($this->ref_id, $ref_ids);
 
-        // When the learning sequence runs in adaptive mode, a deleted object
-        // may still be referenced as the start and/or end object in
-        // lso_item_boundaries. Remove those dangling references (only the
-        // affected field, not the whole row). If such a reference was actually
-        // removed, the learning sequence can no longer be presented and is
-        // therefore switched offline together with an info message.
         $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
         if ($lso->getLSSettings()->getMode() === \ilLearningSequenceSettings::MODE_ADAPTIVE) {
             global $DIC;
@@ -127,8 +118,6 @@ trait LSOContentDeletion
             $ref_ids = array_map('intval', $post[self::MODAL_ITEMS_FIELD]);
         }
 
-        // Ids submitted by the classic confirmation page (ilConfirmationGUI
-        // uses the field name "id[]").
         if ($ref_ids === [] && isset($post['id']) && is_array($post['id'])) {
             $ref_ids = array_map('intval', $post['id']);
         }
@@ -193,6 +182,13 @@ trait LSOContentDeletion
  * moved here (previously its own file LSOTableActionHandler.php) to keep the
  * content related helpers together while giving the action collection a single,
  * well defined responsibility.
+ *
+ * @property-read \ilObjLearningSequenceContentGUI $gui
+ * @property-read \ilObjLearningSequenceGUI $container_gui
+ * @property-read \ilCtrl $ctrl
+ * @property-read \ilLanguage $lng
+ * @property-read \ilAccessHandler $access
+ * @property-read \LSItemOnlineStatus $ls_item_online_status
  */
 class LSOTableActionHandler
 {
@@ -220,6 +216,9 @@ class LSOTableActionHandler
      */
     private const array REMAINING_ACTION_ORDER = ['link', 'cut', 'copy'];
 
+    /**
+     * Creates an action handler for learning sequence content tables.
+     */
     public function __construct(
         private readonly \ilObjLearningSequenceContentGUI $gui,
         private readonly \ilObjLearningSequenceGUI $container_gui,
