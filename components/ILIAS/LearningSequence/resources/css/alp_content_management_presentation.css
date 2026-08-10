@@ -48,18 +48,32 @@
 }
 
 .alp-cm-kv-list {
-    margin: 0 0 0 16px;
+    display: grid;
+    gap: 4px;
+    margin: 0;
     padding: 0;
+    list-style: none;
 }
 
 .alp-cm-kv-list__item {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
     margin: 0;
-    padding: 0;
-    list-style: disc;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #f7f7f7;
+}
+
+.alp-cm-kv-list__glyph {
+    display: inline-flex;
+    align-items: center;
+    width: 20px;
+    margin-right: 6px;
 }
 
 .alp-cm-kv-list__condition {
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .alp-cm-kv-list__separator {
@@ -68,6 +82,7 @@
 
 .alp-cm-kv-list__value {
     font-weight: 400;
+    color: #555;
 }
 
 .alp-cm-info {

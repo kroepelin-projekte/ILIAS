@@ -73,6 +73,7 @@ trait LSOContentDeletion
 
         \ilRepUtil::deleteObjects($this->ref_id, $ref_ids);
 
+        /** @var \ilObjLearningSequence $lso */
         $lso = \ilObjLearningSequence::getInstanceByRefId($this->ref_id);
         if ($lso->getLSSettings()->getMode() === \ilLearningSequenceSettings::MODE_ADAPTIVE) {
             global $DIC;
@@ -92,7 +93,7 @@ trait LSOContentDeletion
                 }
                 $this->tpl->setOnScreenMessage(
                     'info',
-                    'Weil es kein Start/End Objekt mehr gibt, wurde die Lernsequence offline geschaltet.',
+                    $this->lng->txt('lso_adaptive_offline_due_to_missing_boundaries'),
                     true
                 );
             }
@@ -128,7 +129,10 @@ trait LSOContentDeletion
             if (is_array($value)) {
                 $ref_ids = array_map('intval', $value);
             } elseif ($value !== null && $value !== '') {
-                $ref_ids = array_map('intval', array_filter(explode(',', (string) $value), 'strlen'));
+                $ref_ids = array_map(
+                    'intval',
+                    array_filter(explode(',', (string) $value), static fn(string $id): bool => $id !== '')
+                );
             }
         }
 

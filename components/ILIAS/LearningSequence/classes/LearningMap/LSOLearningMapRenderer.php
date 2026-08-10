@@ -216,15 +216,20 @@ class LSOLearningMapRenderer
     protected function renderToolbar(string $map_id): string
     {
         $actions = [
-            '–' => [$this->txt('lso_learning_map_zoom_out'), 'zoomBy(-0.15)'],
-            '+' => [$this->txt('lso_learning_map_zoom_in'), 'zoomBy(0.15)'],
-            '100 %' => [$this->txt('lso_learning_map_reset_zoom'), 'resetZoom()'],
+            $this->txt('lso_learning_map_zoom_out_symbol') => [$this->txt('lso_learning_map_zoom_out'), 'zoomBy(-0.15)'],
+            $this->txt('lso_learning_map_zoom_in_symbol') => [$this->txt('lso_learning_map_zoom_in'), 'zoomBy(0.15)'],
+            $this->txt('lso_learning_map_reset_zoom_label') => [$this->txt('lso_learning_map_reset_zoom'), 'resetZoom()'],
             $this->txt('lso_learning_map_fit') => [$this->txt('lso_learning_map_fit'), 'fit()'],
             $this->txt('lso_learning_map_focus_current') => [$this->txt('lso_learning_map_focus_current'), 'focusCurrent()']
         ];
 
         if ($this->sequential) {
-            unset($actions[$this->txt('lso_learning_map_focus_current')], $actions['–'], $actions['+'], $actions['100 %']);
+            unset(
+                $actions[$this->txt('lso_learning_map_focus_current')],
+                $actions[$this->txt('lso_learning_map_zoom_out_symbol')],
+                $actions[$this->txt('lso_learning_map_zoom_in_symbol')],
+                $actions[$this->txt('lso_learning_map_reset_zoom_label')]
+            );
         }
 
         $buttons = [];

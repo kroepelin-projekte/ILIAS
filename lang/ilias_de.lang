@@ -11226,10 +11226,22 @@ lso#:#logic_gatter_not#:#NICHT
 lso#:#logic_gatter_or#:#ODER
 lso#:#lp_not_relevant_post_cond#:#für Fortfahren aktuell nicht maßgeblich
 lso#:#lso_activation_online_info#:#Nur wenn die Lernsequenz online geschaltet ist, können Personen beitreten und Mitglieder auf die Lernsequenz zugreifen. Wenn nicht, ist die Lernsequenz nur für Administration und Rollen mit dem Recht „Einstellungen bearbeiten“ verfügbar.
+lso#:#lso_adaptive_conditions_empty#:#(keine)
+lso#:#lso_adaptive_content_management#:#Inhaltsverwaltung
+lso#:#lso_adaptive_end#:#Ende
 lso#:#lso_adaptive_filter_end#:#Ende
 lso#:#lso_adaptive_filter_start#:#Start
+lso#:#lso_adaptive_information#:#Informationen
+lso#:#lso_adaptive_input_conditions#:#Eingangsbedingungen
 lso#:#lso_adaptive_missing_end_object#:#Um die Lernsequenz zu beenden, wird ein End Objekt benötigt.
 lso#:#lso_adaptive_missing_start_object#:#Um die Lernsequenz zu starten, wird ein Start Objekt benötigt.
+lso#:#lso_adaptive_next_object#:#Nächstes Objekt
+lso#:#lso_adaptive_offline#:#Offline
+lso#:#lso_adaptive_offline_due_to_missing_boundaries#:#Weil es kein Start-/Endobjekt mehr gibt, wurde die Lernsequenz offline geschaltet.
+lso#:#lso_adaptive_online#:#Online
+lso#:#lso_adaptive_output_conditions#:#Ausgangsbedingungen
+lso#:#lso_adaptive_previous_object#:#Vorheriges Objekt
+lso#:#lso_adaptive_start#:#Start
 lso#:#lso_adaptive_start_end_not_same#:#Ein Objekt kann nicht gleichzeitig Start- und Endobjekt sein.
 lso#:#lso_at_least_one_admin#:#Dieser Lernsequenz muss mindestens eine Person mit der Rolle „Lernsequenzadministration“ zugeordnet sein.
 lso#:#lso_condition_simple_choice_target#:#Einzelnes Objekt auswählen
@@ -11284,6 +11296,7 @@ lso#:#lso_learning_map_open#:#Verfügbar
 lso#:#lso_learning_map_open_object#:#Öffnen
 lso#:#lso_learning_map_path#:#Bisheriger Pfad
 lso#:#lso_learning_map_reset_zoom#:#Originalgröße, 100 Prozent
+lso#:#lso_learning_map_reset_zoom_label#:#100 %
 lso#:#lso_learning_map_sr_at_current#:#Ansicht bei Ihrer aktuellen Position: %s.
 lso#:#lso_learning_map_sr_blocked_way#:#%s (dieser Weg ist zurzeit nicht verfügbar)
 lso#:#lso_learning_map_sr_current#:#Ihre aktuelle Position
@@ -11305,7 +11318,9 @@ lso#:#lso_learning_map_sr_zoom#:#Zoom %s Prozent.
 lso#:#lso_learning_map_title#:#Lernkarte
 lso#:#lso_learning_map_viewport#:#Lernkarte: Darstellung der Objekte und ihrer Reihenfolge
 lso#:#lso_learning_map_zoom_in#:#Vergrößern
+lso#:#lso_learning_map_zoom_in_symbol#:#+
 lso#:#lso_learning_map_zoom_out#:#Verkleinern
+lso#:#lso_learning_map_zoom_out_symbol#:#–
 lso#:#lso_legacy_info#:#Das Objekt öffnet sich in einem neuen Tab Ihres Browsers. Bitte kommen Sie nach Bearbeitung des Inhalts in diesen Tab zurück. Laden Sie die Seite neu, wenn sie den Inhalt bearbeitet haben, aber die „Weiter“-Schaltfläche weiterhin deaktiviert bleibt.
 lso#:#lso_mail_admission_new_bod#:#Sie sind in die Lernsequenz „%s“ als Mitglied aufgenommen worden.
 lso#:#lso_mail_admission_new_sub#:#Mitgliedschaft in der Lernsequenz „%s“
