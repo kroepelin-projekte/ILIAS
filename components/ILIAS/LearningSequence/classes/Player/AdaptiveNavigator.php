@@ -101,27 +101,37 @@ class AdaptiveNavigator implements LSNavigator
         foreach ($items as $item) {
             $ref_ids[] = $item->getRefId();
         }
-        $ref_ids = array_values(array_filter(
+        $ref_ids = array_values(array_unique($ref_ids));
+        $missing_ref_ids = array_values(array_filter(
             array_unique($ref_ids),
             fn(int $ref_id): bool => !isset($this->conditions_cache[$ref_id])
         ));
+
+        $this->edge_targets_cache = [];
+        $this->dependency_targets_cache = [];
+        $this->points_structural_successors_cache = [];
+        $this->points_structural_predecessors_cache = [];
+        $this->can_leave_cache = [];
+        $this->can_enter_ignoring_edges_cache = [];
 
         if ($ref_ids === []) {
             return;
         }
 
-        $ids_per_item = $this->discoverer->preloadConditionIdsForItems($ref_ids);
+        if ($missing_ref_ids !== []) {
+            $ids_per_item = $this->discoverer->preloadConditionIdsForItems($missing_ref_ids);
 
-        foreach ($ids_per_item as $ref_id => $ids) {
-            $conditions = [];
-            foreach ($ids as $id) {
-                try {
-                    $conditions[] = $this->condition_factory->getConditionInstanceById($id);
-                } catch (\Throwable $t) {
-                    continue;
+            foreach ($ids_per_item as $ref_id => $ids) {
+                $conditions = [];
+                foreach ($ids as $id) {
+                    try {
+                        $conditions[] = $this->condition_factory->getConditionInstanceById($id);
+                    } catch (\Throwable $t) {
+                        continue;
+                    }
                 }
+                $this->conditions_cache[$ref_id] = $conditions;
             }
-            $this->conditions_cache[$ref_id] = $conditions;
         }
 
         $this->buildNavigationSourceCaches($ref_ids);

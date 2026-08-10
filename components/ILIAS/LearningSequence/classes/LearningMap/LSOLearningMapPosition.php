@@ -303,7 +303,10 @@ class LSOLearningMapPosition
             return true;
         }
         foreach ($predecessors as $predecessor) {
-            if ($this->navigator->canLeave($predecessor)) {
+            if (
+                $this->navigator->canLeave($predecessor)
+                && $this->navigator->canEnterFrom($predecessor, $item)
+            ) {
                 return true;
             }
         }

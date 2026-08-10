@@ -269,7 +269,7 @@ class LSOLearningMapDataBuilder
         int $obj_id,
         int $start_obj_id
     ): bool {
-        if ($obj_id === $start_obj_id || $position->hasVisited($obj_id)) {
+        if ($obj_id === $start_obj_id) {
             return true;
         }
         if (!$this->navigator->canEnterIgnoringEdges($item)) {

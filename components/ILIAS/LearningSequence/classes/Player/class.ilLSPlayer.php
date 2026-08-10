@@ -86,6 +86,8 @@ class ilLSPlayer
         }
 
         if ($this->isAdaptive()) {
+            $this->position->prepareForItems($items);
+            $this->navigator->preload($items);
             $current_item = $this->getAdaptiveCurrentItem($items);
         } else {
             $current_item = $this->getNextAvailableItem($items, $this->getCurrentItem($items));
@@ -194,7 +196,11 @@ class ilLSPlayer
         $is_resume = $command === null;
         if ($this->isAdaptive() && ($is_back_step || $is_resume)) {
             $back_situation = $this->getAdaptiveSituation($items, $item);
-            if ($back_situation === 'branch' || $back_situation === 'deadend') {
+            $structural_situation = $this->position->getStructuralSituation($items, $item);
+            if (
+                $back_situation === 'branch'
+                || ($back_situation === 'deadend' && $structural_situation === 'deadend')
+            ) {
                 $show_choice = true;
             }
         }

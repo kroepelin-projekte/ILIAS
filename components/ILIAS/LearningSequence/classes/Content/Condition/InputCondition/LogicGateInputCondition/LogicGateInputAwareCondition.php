@@ -164,7 +164,11 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     }
 
     /**
-     * Check if at least one output condition of the item is fulfilled.
+     * Checks whether an item should count as completed for logic-gate evaluation.
+     *
+     * If an item defines output conditions, all of them must be fulfilled, mirroring
+     * the navigator's canLeave() semantics. Without output conditions we fall back to
+     * the item's regular learning-progress completion state.
      *
      * @throws ReflectionException
      * @throws ilException
@@ -183,10 +187,19 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             fn($condition) => $condition instanceof OutputConditionInterface
         );
 
-        return array_any(
-            $output_conditions,
-            fn($condition) => $condition->check()
-        );
+        if ($output_conditions !== []) {
+            return array_all(
+                $output_conditions,
+                fn($condition) => $condition->check()
+            );
+        }
+
+        $item_obj_id = \ilObject::_lookupObjId($item_ref_id);
+        if ($item_obj_id <= 0) {
+            return false;
+        }
+
+        return \ilLPStatus::_hasUserCompleted($item_obj_id, $this->dic->user()->getId());
     }
 
     /**
