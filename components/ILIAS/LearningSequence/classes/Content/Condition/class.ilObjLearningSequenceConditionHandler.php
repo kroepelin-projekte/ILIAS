@@ -160,6 +160,11 @@ class ConditionHandler
      */
     protected function formatConditionsForGui(array $db_conditions): array
     {
+        if ($this->db === null) {
+            return [];
+        }
+
+        $condition_factory = new ConditionFactory($this->discoverer, $this->db);
         $result = [];
         foreach ($db_conditions as $db_cond) {
             $type_id = $db_cond['type_id'];
@@ -173,9 +178,13 @@ class ConditionHandler
                 $class = $this->discoverer->getConditionByName($row['condition_name']);
                 if ($class) {
                     try {
+                        $condition = $condition_factory->getConditionInstanceById((int) $db_cond['condition_id']);
                         $result[] = [
                             'title' => $this->discoverer->getConditionTitleByClass($class),
-                            'value' => '-',
+                            'value' => $condition instanceof SubtypeAwareInterface
+                                ? $condition->getSubtypeLabel($condition->getSubtype())
+                                : '',
+                            'glyph' => $condition->getGlyph(),
                             'internal_name' => $row['condition_name']
                         ];
                     } catch (\Throwable $e) {

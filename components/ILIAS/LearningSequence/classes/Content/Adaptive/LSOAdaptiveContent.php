@@ -106,7 +106,9 @@ class LSOAdaptiveContent implements LSOContentController
         $this->parent_gui->showPossibleSubObjects();
 
         $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
-        $items = ilObjLearningSequence::getInstanceByRefId($this->ref_id)->getLSItems();
+        /** @var ilObjLearningSequence $lso */
+        $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+        $items = $lso->getLSItems();
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
         $filter = $filter_gui->getFilter(
             'manageContent',
@@ -140,7 +142,6 @@ class LSOAdaptiveContent implements LSOContentController
             (int) $boundary_data['end_ref_id'],
             $this->parent_gui,
             $this->ref_id,
-            $this->obj_id,
             $this->lng,
             $this->ctrl,
             $this->request,
@@ -155,8 +156,8 @@ class LSOAdaptiveContent implements LSOContentController
     /**
      * Gets the filtered content table data.
      *
-     * @param array $items Learning sequence items.
-     * @param array|null $filter_data Filter data.
+     * @param \LSItem[] $items Learning sequence items.
+     * @param array<string, mixed>|null $filter_data Filter data.
      * @return ilObjLearningSequenceContentData[]
      */
     protected function getTableData(array $items, ?array $filter_data): array
@@ -230,6 +231,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $input_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
+                    glyph: $db_cond['glyph'],
                     internal_name: $db_cond['internal_name']
                 );
             }
@@ -240,6 +242,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $output_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
+                    glyph: $db_cond['glyph'],
                     internal_name: $db_cond['internal_name']
                 );
             }

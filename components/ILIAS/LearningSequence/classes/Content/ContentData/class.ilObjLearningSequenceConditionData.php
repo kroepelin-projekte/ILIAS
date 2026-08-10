@@ -28,6 +28,7 @@ final readonly class ilObjLearningSequenceConditionData
      *
      * @param string $title Condition title.
      * @param string $value Condition value.
+     * @param \ILIAS\UI\Component\Symbol\Symbol $glyph Condition glyph.
      * @param string $internal_name Internal condition name.
      */
     public function __construct(
@@ -35,6 +36,8 @@ final readonly class ilObjLearningSequenceConditionData
         public string $title,
         /** Condition value. */
         public string $value,
+        /** Condition glyph. */
+        public \ILIAS\UI\Component\Symbol\Symbol $glyph,
         /** Internal condition name. */
         public string $internal_name = '',
     ) {
