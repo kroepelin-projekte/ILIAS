@@ -21,6 +21,8 @@ declare(strict_types=1);
 
 /**
  * Handles the user interface for learning map page content.
+ *
+ * @ilCtrl_isCalledBy ilPCLearningMapGUI: ilPageEditorGUI
  */
 class ilPCLearningMapGUI extends ilPageContentGUI
 {
