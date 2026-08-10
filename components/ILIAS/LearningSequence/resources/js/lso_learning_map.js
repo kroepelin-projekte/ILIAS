@@ -467,7 +467,7 @@
             escapeHtml(nodeDescription(n, position + 1, total))}</span>`
           + `<div class="lso-learning-map__node-head">${
             o.icon ? `<img class="lso-learning-map__node-icon" src="${escapeHtml(o.icon)}" alt="">` : ''
-          }<span class="lso-learning-map__node-title">${escapeHtml(o.title)}</span>`
+          }<h3 class="lso-learning-map__node-title">${escapeHtml(o.title)}</h3>`
           + '</div>'
           + `<div class="lso-learning-map__node-desc">${escapeHtml(o.description || '')}</div>`
           + `<div class="lso-learning-map__node-foot">${

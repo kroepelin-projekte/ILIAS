@@ -316,6 +316,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    margin: 0;
+    padding: 0;
 }
 
 /* Learning map styling. */
@@ -341,6 +343,7 @@
 
 .lso-learning-map__node-link {
     font-size: .74em;
+    flex-shrink: 0;
 }
 
 /* Learning map styling. */
@@ -351,8 +354,6 @@
     border-radius: 8px;
     background: #eee;
     color: #444;
-    white-space: nowrap;
-    flex: 0 0 auto;
 }
 
 /* Learning map styling. */

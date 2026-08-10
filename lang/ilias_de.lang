@@ -11179,9 +11179,9 @@ logging#:#log_error_message_send_mail#:# Bitte wenden Sie sich an <a href="mailt
 logging#:#log_error_path_not_configured_or_wrong#:#Der Pfad zu den Errorlogs (error_path) ist nicht gesetzt oder nicht erreichbar.
 logging#:#log_error_settings#:#Einstellungen für das Fehlerprotokoll
 logging#:#logs_settings#:#Protokollierungseinstellungen
-lso#:#AND_byline#:#Alle ausgewählten Objekte müssen absolviert werden.
-lso#:#NOT_byline#:#Keines der ausgewählten Objekte darf absolviert sein.
-lso#:#OR_byline#:#Mindestens eines der ausgewählten Objekte muss absolviert werden.
+lso#:#logic_gate_and_byline#:#Alle ausgewählten Objekte müssen absolviert werden.
+lso#:#logic_gate_not_byline#:#Keines der ausgewählten Objekte darf absolviert sein.
+lso#:#logic_gate_or_byline#:#Mindestens eines der ausgewählten Objekte muss absolviert werden.
 lso#:#abstract#:#Einleitung
 lso#:#abstract_img#:#Bild für die Einleitungsseite
 lso#:#add_condition#:#Bedingung hinzufügen
@@ -11220,10 +11220,10 @@ lso#:#learning_progress_in_progress#:#In Bearbeitung
 lso#:#learning_progress_input#:#Lernfortschritt
 lso#:#learning_progress_not_attempted#:#Nicht begonnen
 lso#:#learning_progress_output#:#Lernfortschritt
-lso#:#logic_gatter#:#Logik Gatter
-lso#:#logic_gatter_and#:#UND
-lso#:#logic_gatter_not#:#NICHT
-lso#:#logic_gatter_or#:#ODER
+lso#:#logic_gate#:#Logik Gatter
+lso#:#logic_gate_and#:#UND
+lso#:#logic_gate_not#:#NICHT
+lso#:#logic_gate_or#:#ODER
 lso#:#lp_not_relevant_post_cond#:#für Fortfahren aktuell nicht maßgeblich
 lso#:#lso_activation_online_info#:#Nur wenn die Lernsequenz online geschaltet ist, können Personen beitreten und Mitglieder auf die Lernsequenz zugreifen. Wenn nicht, ist die Lernsequenz nur für Administration und Rollen mit dem Recht „Einstellungen bearbeiten“ verfügbar.
 lso#:#lso_adaptive_filter_end#:#Ende
@@ -11243,8 +11243,8 @@ lso#:#lso_exception_condition_exists#:#Bedingung existiert bereits für dieses E
 lso#:#lso_exception_condition_id_not_set#:#Bedingungs-ID ist nicht gesetzt.
 lso#:#lso_exception_condition_not_exists#:#Bedingung existiert nicht.
 lso#:#lso_exception_context_incomplete#:#Bedingungskontext ist unvollständig.
-lso#:#lso_exception_logic_gatter_condition_id_not_set#:#Logik-Gatter condition_id ist nicht gesetzt.
-lso#:#lso_exception_logic_gatter_subtype_not_stored#:#Logik-Gatter-Subtyp ist nicht gespeichert.
+lso#:#lso_exception_logic_gate_condition_id_not_set#:#Logik-Gatter condition_id ist nicht gesetzt.
+lso#:#lso_exception_logic_gate_subtype_not_stored#:#Logik-Gatter-Subtyp ist nicht gespeichert.
 lso#:#lso_exception_lp_condition_ambiguous#:#Lernfortschritts-Bedingungssuche ist mehrdeutig.
 lso#:#lso_exception_lp_subtype_not_set#:#Lernfortschritts-Subtyp ist nicht gesetzt.
 lso#:#lso_exception_lp_subtype_not_stored#:#Lernfortschritts-Subtyp ist nicht gespeichert.
@@ -11269,7 +11269,7 @@ lso#:#lso_exception_subset_not_set#:#Anzahl der Objekte ist nicht gesetzt.
 lso#:#lso_exception_subset_not_stored#:#Anzahl der Objekte ist nicht gespeichert.
 lso#:#lso_exception_type_not_registered#:#Bedingungstyp ist nicht registriert.
 lso#:#lso_exception_unknown_learning_progress_subtype#:#Unbekannter Lernfortschritts-Subtyp.
-lso#:#lso_exception_unknown_logic_gatter_subtype#:#Unbekannter Logik-Gatter-Subtyp.
+lso#:#lso_exception_unknown_logic_gate_subtype#:#Unbekannter Logik-Gatter-Subtyp.
 lso#:#lso_exception_unsupported_subtype#:#Nicht unterstützter Subtyp "%s".
 lso#:#lso_header_delete_members#:#Sie möchten folgende Mitglieder aus der Lernsequenz austragen?
 lso#:#lso_header_edit_members#:#Mitglieder bearbeiten

@@ -171,6 +171,10 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     private function checkIfConditionExistsInItem(AbstractCondition $condition): void
     {
+        if (!$this->create) {
+            return;
+        }
+
         $condition_ids = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
         foreach ($condition_ids as $condition_id) {
             $any_condition_of_object = $this->buildCondition($condition_id);

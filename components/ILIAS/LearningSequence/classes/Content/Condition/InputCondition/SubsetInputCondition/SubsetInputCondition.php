@@ -114,7 +114,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     {
         $this->assertContextSet();
 
-        $multi_select = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
+        $multi_select = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true
         );

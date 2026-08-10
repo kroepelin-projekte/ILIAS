@@ -35,7 +35,8 @@ class LSOObjectPicker
     protected UIFactory $ui_factory;
 
     public function __construct(
-        protected int $lso_ref_id
+        protected int $lso_ref_id,
+        protected int $current_item_ref_id,
     ) {
         global $DIC;
         $this->ui_factory = $DIC->ui()->factory();
@@ -45,8 +46,11 @@ class LSOObjectPicker
     {
         $lso = \ilObjLearningSequence::getInstanceByRefId($this->lso_ref_id);
         $lso_items = $lso->getLSItems();
+        $filtered_lso_items = array_filter(
+            $lso_items, fn($item) => $item->getRefId() !== $this->current_item_ref_id
+        );
 
-        $retrieval = new class ($lso_items) implements NodeRetrieval {
+        $retrieval = new class ($filtered_lso_items) implements NodeRetrieval {
             protected array $items;
 
             public function __construct(array $items)

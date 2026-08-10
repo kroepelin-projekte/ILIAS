@@ -11151,9 +11151,9 @@ logging#:#log_error_message_send_mail#:#Please send a mail to <a href="mailto:%s
 logging#:#log_error_path_not_configured_or_wrong#:#Path to errors (error_path) is not configured or unreachable.
 logging#:#log_error_settings#:#Error logging settings
 logging#:#logs_settings#:#Logging Settings
-lso#:#AND_byline#:#All selected objects must be completed.
-lso#:#NOT_byline#:#None of the selected objects may be completed.
-lso#:#OR_byline#:#At least one of the selected objects must be completed.
+lso#:#logic_gate_and_byline#:#All selected objects must be completed.
+lso#:#logic_gate_not_byline#:#None of the selected objects may be completed.
+lso#:#logic_gate_or_byline#:#At least one of the selected objects must be completed.
 lso#:#abstract#:#Abstract
 lso#:#abstract_img#:#Image for Abstract
 lso#:#add_condition#:#Add Condition
@@ -11192,10 +11192,10 @@ lso#:#learning_progress_in_progress#:#In progress
 lso#:#learning_progress_input#:#Learning Progress
 lso#:#learning_progress_not_attempted#:#Not attempted
 lso#:#learning_progress_output#:#Learning Progress
-lso#:#logic_gatter#:#Logic Gate
-lso#:#logic_gatter_and#:#AND
-lso#:#logic_gatter_not#:#NOT
-lso#:#logic_gatter_or#:#OR
+lso#:#logic_gate#:#Logic Gate
+lso#:#logic_gate_and#:#AND
+lso#:#logic_gate_not#:#NOT
+lso#:#logic_gate_or#:#OR
 lso#:#lp_not_relevant_post_cond#:#currently not relevant for continuation
 lso#:#lso_activation_online_info#:#Set the Learning Sequence online to make it visible and available for Learning Sequence members. If not, only administrators and tutors will have access to it.
 lso#:#lso_adaptive_filter_end#:#End
@@ -11215,8 +11215,8 @@ lso#:#lso_exception_condition_exists#:#Condition already exists for this item an
 lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
 lso#:#lso_exception_condition_not_exists#:#Condition does not exist.
 lso#:#lso_exception_context_incomplete#:#Condition context is incomplete.
-lso#:#lso_exception_logic_gatter_condition_id_not_set#:#Logic gatter condition_id is not set.
-lso#:#lso_exception_logic_gatter_subtype_not_stored#:#Logic gatter subtype is not stored.
+lso#:#lso_exception_logic_gate_condition_id_not_set#:#Logic gate condition_id is not set.
+lso#:#lso_exception_logic_gate_subtype_not_stored#:#Logic gate subtype is not stored.
 lso#:#lso_exception_lp_condition_ambiguous#:#Learning progress condition lookup is ambiguous.
 lso#:#lso_exception_lp_subtype_not_set#:#Learning progress subtype is not set.
 lso#:#lso_exception_lp_subtype_not_stored#:#Learning progress subtype is not stored.
@@ -11241,7 +11241,7 @@ lso#:#lso_exception_subset_not_set#:#Subset is not set.
 lso#:#lso_exception_subset_not_stored#:#Subset is not stored.
 lso#:#lso_exception_type_not_registered#:#Condition type is not registered.
 lso#:#lso_exception_unknown_learning_progress_subtype#:#Unknown learning progress subtype.
-lso#:#lso_exception_unknown_logic_gatter_subtype#:#Unknown logic gatter subtype.
+lso#:#lso_exception_unknown_logic_gate_subtype#:#Unknown logic gate subtype.
 lso#:#lso_exception_unsupported_subtype#:#Unsupported subtype "%s".
 lso#:#lso_header_delete_members#:#Would you like to remove the following members from this learning sequence?
 lso#:#lso_header_edit_members#:#Edit Members

@@ -35,14 +35,14 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGatterInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+class LogicGateInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
 {
-    final protected const string NAME = "logic_gatter";
-    private const string SETTINGS_TABLE = 'lso_c_logic_gatter_input';
+    final protected const string NAME = "logic_gate";
+    private const string SETTINGS_TABLE = 'lso_c_logic_gate_input';
 
-    private const string SUBTYPE_AND = 'AND';
-    private const string SUBTYPE_OR = 'OR';
-    private const string SUBTYPE_NOT = 'NOT';
+    private const string SUBTYPE_AND = 'logic_gate_and';
+    private const string SUBTYPE_OR = 'logic_gate_or';
+    private const string SUBTYPE_NOT = 'logic_gate_not';
     private string $items = '';
     private ilObjLearningSequenceConditionDiscover $discover;
     private ConditionFactory $condition_factory;
@@ -145,7 +145,7 @@ class LogicGatterInputAwareCondition extends AbstractCondition implements InputC
             self::SUBTYPE_AND => $this->areAllItemsCompleted(),
             self::SUBTYPE_OR => $this->isAnyItemCompleted(),
             self::SUBTYPE_NOT => $this->areNoItemsCompleted(),
-            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gate_subtype'))
         };
     }
 
@@ -224,10 +224,10 @@ class LogicGatterInputAwareCondition extends AbstractCondition implements InputC
     public function getSubtypeLabel(string $subtype): string
     {
         return match ($subtype) {
-            self::SUBTYPE_AND => $this->lang->txt('logic_gatter_and'),
-            self::SUBTYPE_OR => $this->lang->txt('logic_gatter_or'),
-            self::SUBTYPE_NOT => $this->lang->txt('logic_gatter_not'),
-            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gatter_subtype'))
+            self::SUBTYPE_AND => $this->lang->txt('logic_gate_and'),
+            self::SUBTYPE_OR => $this->lang->txt('logic_gate_or'),
+            self::SUBTYPE_NOT => $this->lang->txt('logic_gate_not'),
+            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gate_subtype'))
         };
     }
 
@@ -253,7 +253,7 @@ class LogicGatterInputAwareCondition extends AbstractCondition implements InputC
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_condition_id_not_set'));
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gate_condition_id_not_set'));
         }
 
         $res = $this->getDatabase()->queryF(
@@ -264,7 +264,7 @@ class LogicGatterInputAwareCondition extends AbstractCondition implements InputC
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException($this->lang->txt('lso_exception_logic_gatter_subtype_not_stored'));
+            throw new \LogicException($this->lang->txt('lso_exception_logic_gate_subtype_not_stored'));
         }
 
         $this->setSubtype($row['subtype']);
@@ -284,7 +284,7 @@ class LogicGatterInputAwareCondition extends AbstractCondition implements InputC
      */
     public function getAdditionalForm(): ?FormStandard
     {
-        $input = new LSOObjectPicker((int) $this->lso_ref_id)->getPicker(
+        $input = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true,
         )->withByline($this->lang->txt($this->getSubtype() . '_byline'));
