@@ -177,8 +177,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
 
         $condition_ids = $this->discoverer->getAllConditionIdsForItem($this->item_ref_id);
         foreach ($condition_ids as $condition_id) {
-            $any_condition_of_object = $this->buildCondition($condition_id);
-
+            $any_condition_of_object = $this->condition_factory->getConditionInstanceById($condition_id);
             if ($condition->getTypeId() === $any_condition_of_object->getTypeId()) {
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('lso_exception_condition_already_exists'), true);
 
