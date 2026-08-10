@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\AccruedValueOutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
@@ -29,7 +30,7 @@ use ilLPStatus;
 use ilObject;
 use LogicException;
 
-final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface
+final class PointsOutputCondition extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface
 {
     protected const string NAME = 'points_output';
     private const string SETTINGS_TABLE = 'lso_c_points_output';
@@ -63,6 +64,16 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
             $this->resolveObjId(),
             $this->dic->user()->getId()
         );
+    }
+
+    public function getAccumulationIdentifier(): string
+    {
+        return 'points';
+    }
+
+    public function getAccumulatedValue(): int
+    {
+        return $this->getPoints();
     }
 
     /**

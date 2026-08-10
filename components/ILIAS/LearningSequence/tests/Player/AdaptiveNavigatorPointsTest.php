@@ -19,7 +19,10 @@
 declare(strict_types=1);
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\AccruedValueOutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Player\AdaptiveNavigator;
 use PHPUnit\Framework\TestCase;
@@ -30,12 +33,12 @@ class AdaptiveNavigatorPointsTest extends TestCase
     {
         $items = $this->buildItems([135, 137, 138, 139, 136, 140]);
         $navigator = $this->buildNavigator([
-            135 => [$this->mockPointsOutput(10, true)],
-            137 => [$this->mockPointsInput(10, true), $this->mockPointsOutput(20, false)],
-            138 => [$this->mockPointsInput(10, true), $this->mockPointsOutput(15, false)],
-            139 => [$this->mockPointsInput(25, false), $this->mockPointsOutput(5, false)],
+            135 => [$this->mockPointsReward(10, true)],
+            137 => [$this->mockPointsInput(10, true), $this->mockPointsReward(20, false)],
+            138 => [$this->mockPointsInput(10, true), $this->mockPointsReward(15, false)],
+            139 => [$this->mockPointsInput(25, false), $this->mockPointsReward(5, false)],
             136 => [$this->mockPointsInput(30, false)],
-            140 => [$this->mockPointsInput(30, false), $this->mockPointsOutput(1, false)],
+            140 => [$this->mockPointsInput(30, false), $this->mockPointsReward(1, false)],
         ]);
 
         $navigator->preload($items);
@@ -52,12 +55,12 @@ class AdaptiveNavigatorPointsTest extends TestCase
     {
         $items = $this->buildItems([135, 137, 138, 139, 136, 140]);
         $navigator = $this->buildNavigator([
-            135 => [$this->mockPointsOutput(10, true)],
-            137 => [$this->mockPointsInput(10, true), $this->mockPointsOutput(20, true)],
-            138 => [$this->mockPointsInput(10, true), $this->mockPointsOutput(15, true)],
-            139 => [$this->mockPointsInput(25, true), $this->mockPointsOutput(5, true)],
+            135 => [$this->mockPointsReward(10, true)],
+            137 => [$this->mockPointsInput(10, true), $this->mockPointsReward(20, true)],
+            138 => [$this->mockPointsInput(10, true), $this->mockPointsReward(15, true)],
+            139 => [$this->mockPointsInput(25, true), $this->mockPointsReward(5, true)],
             136 => [$this->mockPointsInput(30, true)],
-            140 => [$this->mockPointsInput(30, true), $this->mockPointsOutput(1, true)],
+            140 => [$this->mockPointsInput(30, true), $this->mockPointsReward(1, true)],
         ]);
 
         $navigator->preload($items);
@@ -100,6 +103,10 @@ class AdaptiveNavigatorPointsTest extends TestCase
             public function preload(array $items): void
             {
                 $this->conditions_cache = $this->seed_conditions;
+                $this->buildNavigationSourceCaches(array_map(
+                    static fn(LSLearnerItem $item): int => $item->getRefId(),
+                    $items
+                ));
                 $this->buildPointsNavigationCaches($items);
             }
         };
@@ -107,7 +114,10 @@ class AdaptiveNavigatorPointsTest extends TestCase
 
     private function mockPointsInput(int $points, bool $check_result): AbstractCondition
     {
-        return new class ($points, $check_result) extends AbstractCondition implements InputConditionInterface {
+        return new class ($points, $check_result) extends AbstractCondition implements
+            InputConditionInterface,
+            InputConditionNavigationAwareInterface,
+            AccruedValueInputConditionInterface {
             protected const string NAME = 'points_input';
 
             public function __construct(private int $points, private bool $check_result)
@@ -123,12 +133,32 @@ class AdaptiveNavigatorPointsTest extends TestCase
             {
                 return $this->points;
             }
+
+            public function getNavigationMode(): string
+            {
+                return InputConditionNavigationAwareInterface::NAVIGATION_MODE_GLOBAL;
+            }
+
+            public function getNavigationSourceRefIds(): array
+            {
+                return [];
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'points';
+            }
+
+            public function getRequiredAccumulatedValue(): int
+            {
+                return $this->points;
+            }
         };
     }
 
-    private function mockPointsOutput(int $points, bool $check_result): AbstractCondition
+    private function mockPointsReward(int $points, bool $check_result): AbstractCondition
     {
-        return new class ($points, $check_result) extends AbstractCondition implements OutputConditionInterface {
+        return new class ($points, $check_result) extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface {
             protected const string NAME = 'points_output';
 
             public function __construct(private int $points, private bool $check_result)
@@ -141,6 +171,16 @@ class AdaptiveNavigatorPointsTest extends TestCase
             }
 
             public function getPoints(): int
+            {
+                return $this->points;
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'points';
+            }
+
+            public function getAccumulatedValue(): int
             {
                 return $this->points;
             }

@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SubsetInputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
@@ -37,7 +38,7 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
  * and access is granted as soon as the number of completed objects reaches the
  * required subset size.
  */
-class SubsetInputCondition extends AbstractCondition implements InputConditionInterface
+class SubsetInputCondition extends AbstractCondition implements InputConditionInterface, InputConditionNavigationAwareInterface
 {
     protected const string NAME = 'subset';
     private const string SETTINGS_TABLE = 'lso_c_subset';
@@ -98,6 +99,16 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         }
 
         return $completed_counter >= $this->getSubset();
+    }
+
+    public function getNavigationMode(): string
+    {
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
+    }
+
+    public function getNavigationSourceRefIds(): array
+    {
+        return $this->getObjectRefIds();
     }
 
     /**

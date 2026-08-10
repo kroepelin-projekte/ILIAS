@@ -24,6 +24,7 @@ use ilCtrlException;
 use ilException;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
@@ -35,7 +36,10 @@ use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ILIAS\UI\Component\Symbol\Symbol;
 use ReflectionException;
 
-class LogicGateInputAwareCondition extends AbstractCondition implements InputConditionInterface, SubtypeAwareInterface
+class LogicGateInputAwareCondition extends AbstractCondition implements
+    InputConditionInterface,
+    SubtypeAwareInterface,
+    InputConditionNavigationAwareInterface
 {
     final protected const string NAME = "logic_gate";
     private const string SETTINGS_TABLE = 'lso_c_logic_gate_input';
@@ -147,6 +151,16 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
             self::SUBTYPE_NOT => $this->areNoItemsCompleted(),
             default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gate_subtype'))
         };
+    }
+
+    public function getNavigationMode(): string
+    {
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
+    }
+
+    public function getNavigationSourceRefIds(): array
+    {
+        return array_values(array_map('intval', $this->getItemsAsArray()));
     }
 
     /**

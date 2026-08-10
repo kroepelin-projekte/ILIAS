@@ -21,13 +21,18 @@ declare(strict_types=1);
 namespace ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition;
 
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 
-final class PointsInputCondition extends AbstractCondition implements InputConditionInterface
+final class PointsInputCondition extends AbstractCondition implements
+    InputConditionInterface,
+    InputConditionNavigationAwareInterface,
+    AccruedValueInputConditionInterface
 {
     protected const string NAME = 'points_input';
     private const string SETTINGS_TABLE = 'lso_c_points_input';
@@ -58,6 +63,26 @@ final class PointsInputCondition extends AbstractCondition implements InputCondi
     public function check(): bool
     {
         return $this->getAvailablePoints() >= $this->getPoints();
+    }
+
+    public function getNavigationMode(): string
+    {
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_GLOBAL;
+    }
+
+    public function getNavigationSourceRefIds(): array
+    {
+        return [];
+    }
+
+    public function getAccumulationIdentifier(): string
+    {
+        return 'points';
+    }
+
+    public function getRequiredAccumulatedValue(): int
+    {
+        return $this->getPoints();
     }
 
     /**
