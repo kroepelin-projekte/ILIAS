@@ -1,0 +1,85 @@
+<?php
+
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
+declare(strict_types=1);
+
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\LogicGateInputAwareCondition;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use PHPUnit\Framework\TestCase;
+
+class LogicGateInputAwareConditionTest extends TestCase
+{
+    public function testOrGateEvaluatesConfiguredItemsWithoutWhitespaceDependency(): void
+    {
+        $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
+            ->newInstanceWithoutConstructor();
+        $condition->setSubtype('logic_gate_or');
+        $condition->setItems('151,152');
+
+        $this->injectDependencies(
+            $condition,
+            new class () extends ilObjLearningSequenceConditionDiscover {
+                public function getAllConditionIdsForItem(int $item_ref_id): array
+                {
+                    return match ($item_ref_id) {
+                        151 => [1],
+                        152 => [2],
+                        default => [],
+                    };
+                }
+            },
+            new class () extends ConditionFactory {
+                public function __construct()
+                {
+                }
+
+                public function getConditionInstanceById(int $condition_id): AbstractCondition
+                {
+                    return new class ($condition_id === 1) extends AbstractCondition implements OutputConditionInterface {
+                        public function __construct(private bool $check_result)
+                        {
+                        }
+
+                        public function check(): bool
+                        {
+                            return $this->check_result;
+                        }
+                    };
+                }
+            }
+        );
+
+        $this->assertTrue($condition->check());
+        $this->assertSame([151, 152], $condition->getNavigationSourceRefIds());
+    }
+
+    private function injectDependencies(
+        LogicGateInputAwareCondition $condition,
+        ilObjLearningSequenceConditionDiscover $discoverer,
+        ConditionFactory $factory
+    ): void {
+        $discover_property = new ReflectionProperty($condition, 'discover');
+        $discover_property->setValue($condition, $discoverer);
+
+        $factory_property = new ReflectionProperty($condition, 'condition_factory');
+        $factory_property->setValue($condition, $factory);
+    }
+}

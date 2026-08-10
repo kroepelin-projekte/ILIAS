@@ -96,11 +96,19 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     }
 
     /**
-     * @return array
+     * @return int[]
      */
     private function getItemsAsArray(): array
     {
-        return array_filter(explode(', ', $this->items));
+        $items = preg_split('/\s*,\s*/', trim($this->items));
+        if ($items === false) {
+            return [];
+        }
+
+        return array_values(array_map(
+            'intval',
+            array_filter($items, static fn(string $item): bool => $item !== '')
+        ));
     }
 
     /**
@@ -160,7 +168,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
 
     public function getNavigationSourceRefIds(): array
     {
-        return array_values(array_map('intval', $this->getItemsAsArray()));
+        return $this->getItemsAsArray();
     }
 
     /**
