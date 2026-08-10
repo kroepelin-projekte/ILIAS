@@ -24,6 +24,7 @@ class ConditionHandler
 {
     protected ?\ilDBInterface $db = null;
     protected ilObjLearningSequenceConditionDiscover $discoverer;
+    private ConditionFactory $condition_factory;
 
     public function __construct(?\ilDBInterface $db = null)
     {
@@ -33,6 +34,10 @@ class ConditionHandler
             $this->db = $DIC->database();
         }
         $this->discoverer = new ilObjLearningSequenceConditionDiscover();
+        $this->condition_factory = new ConditionFactory(
+            $this->discoverer,
+            $this->db,
+        );
     }
 
     /**
@@ -80,11 +85,9 @@ class ConditionHandler
 
         while ($row = $this->db->fetchAssoc($res)) {
             $condition_id = (int) $row['condition_id'];
-            $type_id = (int) $row['type_id'];
 
             try {
-                $condition = $this->discoverer->getConditionInstanceByTypeId($type_id, $lso_ref_id, $obj_ref_id);
-                $condition->setConditionId($condition_id);
+                $condition = $this->condition_factory->getConditionInstanceById($condition_id);
                 $condition->delete();
             } catch (\Throwable $e) {
                 // If the concrete condition can no longer be resolved we still
