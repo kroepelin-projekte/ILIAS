@@ -29,7 +29,9 @@ use ilLPStatus;
 use ilObject;
 use LogicException;
 
-final class LearningProgressOutputAware extends AbstractCondition implements OutputConditionInterface, SubtypeAwareInterface
+final class LearningProgressOutputAwareCondition extends AbstractCondition implements
+    OutputConditionInterface,
+    SubtypeAwareInterface
 {
     protected const string NAME = 'learning_progress_output';
     private const string SETTINGS_TABLE = 'lso_c_learning_progress_output';
@@ -114,7 +116,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
         }
 
         $this->setSubtype($row['subtype']);
-        return (string)$this->subtype;
+        return (string) $this->subtype;
     }
 
     /**
@@ -179,7 +181,7 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
             throw new LogicException($this->lang->txt('lso_exception_lp_condition_ambiguous'));
         }
 
-        return (int)$row['condition_id'];
+        return (int) $row['condition_id'];
     }
 
     /**
@@ -248,9 +250,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isNotAttempted(): bool
     {
         return ilLPStatus::_lookupStatus(
-                $this->resolveObjId(),
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
+            $this->resolveObjId(),
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_NOT_ATTEMPTED_NUM;
     }
 
     /**
@@ -261,9 +263,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isInProgress(): bool
     {
         return ilLPStatus::_lookupStatus(
-                $this->resolveObjId(),
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
+            $this->resolveObjId(),
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_IN_PROGRESS_NUM;
     }
 
     /**
@@ -287,9 +289,9 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
     private function isFailed(): bool
     {
         return ilLPStatus::_lookupStatus(
-                $this->resolveObjId(),
-                $this->dic->user()->getId()
-            ) === ilLPStatus::LP_STATUS_FAILED_NUM;
+            $this->resolveObjId(),
+            $this->dic->user()->getId()
+        ) === ilLPStatus::LP_STATUS_FAILED_NUM;
     }
 
     /**
@@ -298,6 +300,6 @@ final class LearningProgressOutputAware extends AbstractCondition implements Out
      */
     private function resolveObjId(): int
     {
-        return ilObject::_lookupObjId((int)$this->obj_ref_id);
+        return ilObject::_lookupObjId((int) $this->obj_ref_id);
     }
 }
