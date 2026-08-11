@@ -24,7 +24,7 @@ use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\UI\Component\Menu\Drilldown;
 use ILIAS\UI\Component\Modal\Roundtrip;
-use ILIAS\UI\Component\Table\Table;
+use ILIAS\UI\Component\Panel\Panel;
 use ILIAS\UI\URLBuilder;
 use JetBrains\PhpStorm\NoReturn;
 use Psr\Http\Message\ServerRequestInterface;
@@ -185,7 +185,7 @@ class ilObjLearningSequenceConditionsGUI
      * @throws ilCtrlException
      * @throws ilException
      */
-    private function buildConditionsTable(): Table
+    private function buildConditionsTable(): Panel
     {
         $df = new Factory();
         $af = new \ILIAS\UI\Implementation\Component\Table\Action\Factory();
@@ -232,12 +232,9 @@ class ilObjLearningSequenceConditionsGUI
             $row_id_token,
         )->withAsync();
 
-        return $this->ui_factory->table()->data(
+        $table = $this->ui_factory->table()->data(
             new ilLearningSequenceConditionsRetrieval($this->lso_ref_id, $this->item_ref_id),
-            sprintf(
-                $this->lng->txt('manage_conditions'),
-                ilObject::_lookupTitle(ilObject::_lookupObjectId($this->item_ref_id))
-            ),
+            '',
             [
                 'type' => $this->ui_factory->table()->column()->text(
                     $this->lng->txt('condition_type')
@@ -255,6 +252,14 @@ class ilObjLearningSequenceConditionsGUI
         )
             ->withActions($actions)
             ->withRequest($this->request);
+
+        return $this->ui_factory->panel()->standard(
+            sprintf(
+                $this->lng->txt('manage_conditions'),
+                ilObject::_lookupTitle(ilObject::_lookupObjectId($this->item_ref_id))
+            ),
+            $table
+        );
     }
 
     /**
