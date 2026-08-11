@@ -334,11 +334,6 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         );
     }
 
-    public function getAdditionalDisplayInformation(): string
-    {
-        return '';
-    }
-
     /**
      * @return string[]
      */
