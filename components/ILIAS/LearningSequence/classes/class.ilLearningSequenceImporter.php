@@ -117,6 +117,7 @@ class ilLearningSequenceImporter extends ilXmlImporter
     {
         $this->updateRefId($mapping);
         $this->buildLSItems($this->data["item_data"], $mapping);
+        $this->buildItemConditions($this->data["item_data"], $mapping);
         $this->buildLPSettings($this->data["lp_settings"], $mapping);
 
         $roles = $this->obj->getLSRoles();
@@ -164,6 +165,95 @@ class ilLearningSequenceImporter extends ilXmlImporter
 
         if ($updated) {
             $this->obj->storeLSItems($updated);
+        }
+    }
+
+    /**
+     * Creates lso_conditions + condition payload (lso_c_*) based on parsed XML.
+     *
+     * Expected $ls_data format (per item):
+     *  [
+     *    'ref_id' => <old_ref_id>,
+     *    'conditions' => [
+     *      [
+     *        'type_id' => <int|string>, // maps to lso_condition_types.type_id
+     *        'subtype' => <string|null>,
+     *        'data' => <payload array exported by AbstractCondition::export()>
+     *      ],
+     *      ...
+     *    ]
+     *  ]
+     */
+    protected function buildItemConditions(array $ls_data, ilImportMapping $mapping): void
+    {
+        global $DIC;
+
+        $db = $DIC->database();
+
+        $discover = new \ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover();
+        $factory = new \ILIAS\LearningSequence\Content\Condition\ConditionFactory($discover, $db);
+
+        $handler = new \ILIAS\LearningSequence\Content\Condition\ConditionHandler($db);
+
+        $new_lso_ref_id = $this->obj->getRefId();
+
+        foreach ($ls_data as $item_data) {
+            $old_item_ref_id = (string) ($item_data['ref_id'] ?? '');
+            if ($old_item_ref_id === '') {
+                continue;
+            }
+
+            $new_item_ref_id = $mapping->getMapping('components/ILIAS/Container', 'refs', $old_item_ref_id);
+            if ($new_item_ref_id === null) {
+                continue;
+            }
+            $new_item_ref_id = (int) $new_item_ref_id;
+
+            $conditions = is_array($item_data['conditions'] ?? null) ? $item_data['conditions'] : [];
+            if ($conditions === []) {
+                continue;
+            }
+
+            // Avoid duplicates when re-importing/updating: clear existing conditions for this item.
+            $handler->deleteConditionsByRefId($new_lso_ref_id, $new_item_ref_id);
+
+            foreach ($conditions as $cond) {
+                if (!is_array($cond)) {
+                    continue;
+                }
+
+                $type_id_raw = $cond['type_id'] ?? null;
+                if (!is_numeric($type_id_raw)) {
+                    continue;
+                }
+                $type_id = (int) $type_id_raw;
+
+                $subtype = isset($cond['subtype']) && is_string($cond['subtype']) && $cond['subtype'] !== ''
+                    ? $cond['subtype']
+                    : null;
+
+                $payload = is_array($cond['data'] ?? null) ? $cond['data'] : [];
+
+                try {
+                    $condition = $factory->getNewConditionInstance(
+                        $new_lso_ref_id,
+                        $new_item_ref_id,
+                        $type_id,
+                        $subtype
+                    );
+                    #$condition->setImportMapping($mapping);
+                    $condition->create();
+
+                    $new_condition_id = (int) $condition->getConditionId();
+                    if ($new_condition_id > 0) {
+                        $condition->import($payload, $new_condition_id);
+                    }
+                } catch (\Throwable $e) {
+                    // Import should be resilient: log and continue with next condition
+                    $this->log->warning(__METHOD__ . ': condition import failed: ' . $e->getMessage());
+                    continue;
+                }
+            }
         }
     }
 

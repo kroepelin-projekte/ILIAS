@@ -104,7 +104,7 @@ abstract class AbstractCondition
     public function applyAdditionalFormData(array $data): void
     {
         // If a condition exposes an additional form it MUST implement this hook
-        if ($this->getAdditionalForm() !== null) {
+        if (self::migrate()) {
             $method = new \ReflectionMethod(static::class, 'applyAdditionalFormData');
             if ($method->getDeclaringClass()->getName() === self::class) {
                 throw new \LogicException(
@@ -481,7 +481,7 @@ abstract class AbstractCondition
      * @param string $class
      * @return string
      */
-    protected function getIdentifierForClass(string $class): string
+    public function getIdentifierForClass(string $class): string
     {
         $parts = explode('\\', $class);
         $short_name = end($parts);
@@ -654,5 +654,155 @@ abstract class AbstractCondition
                 }
             }
         }
+    }
+
+    /**
+     * @return array
+     */
+    public function getData(): array
+    {
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $definitions = static::migrate();
+        if ($definitions === []) {
+            return [];
+        }
+
+        $db = $this->getDatabase();
+        $result = [];
+
+        foreach ($definitions as $def) {
+            $table = $def->tableName;
+
+            if (!$db->tableExists($table) || !$db->tableColumnExists($table, 'condition_id')) {
+                continue;
+            }
+
+            $res = $db->queryF(
+                'SELECT * FROM ' . $table . ' WHERE condition_id = %s',
+                ['integer'],
+                [$this->condition_id]
+            );
+
+            $rows = [];
+            while ($row = $db->fetchAssoc($res)) {
+                $rows[] = $row;
+            }
+
+            $result[] = [
+                'table' => $table,
+                'fields' => $def->fields,
+                'rows' => $rows,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Default export based on migrate() table definitions.
+     *
+     * @return array<int, array{
+     *   table:string,
+     *   fields:array,
+     *   rows:array<int, array<string, mixed>>
+     * }>
+     */
+    protected function exportPayload(): array
+    {
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $definitions = static::migrate();
+        if ($definitions === []) {
+            return [];
+        }
+
+        $db = $this->getDatabase();
+        $result = [];
+
+        foreach ($definitions as $def) {
+            $table = $def->tableName;
+            if (!$db->tableExists($table) || !$db->tableColumnExists($table, 'condition_id')) {
+                continue;
+            }
+
+            $res = $db->queryF(
+                'SELECT * FROM ' . $table . ' WHERE condition_id = %s',
+                ['integer'],
+                [$this->condition_id]
+            );
+
+            $rows = [];
+            while ($row = $db->fetchAssoc($res)) {
+                $rows[] = $row;
+            }
+
+            $result[] = [
+                'ilias_version_numeric' => defined('ILIAS_VERSION_NUMERIC') ? (int) ILIAS_VERSION_NUMERIC : null,
+                'table' => $table,
+                'fields' => $def->fields,
+                'rows' => $rows,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Default import for payload exported by exportPayload().
+     * $new_condition_id must already be created in lso_conditions.
+     */
+    protected function importPayload(array $payload, int $new_condition_id): void
+    {
+        $db = $this->getDatabase();
+
+        foreach ($payload as $tableData) {
+            $table = (string)($tableData['table'] ?? '');
+            $rows = is_array($tableData['rows'] ?? null) ? $tableData['rows'] : [];
+
+            $ilias_version_numeric = null;
+            if (isset($tableData['ilias_version_numeric']) && is_numeric($tableData['ilias_version_numeric'])) {
+                $ilias_version_numeric = (int)$tableData['ilias_version_numeric'];
+            }
+
+            if ($table === '' || !$db->tableExists($table)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $row['condition_id'] = $new_condition_id;
+
+                $insert = [];
+                foreach ($row as $col => $value) {
+                    $type = is_int($value) ? 'integer' : 'text';
+                    $insert[(string)$col] = [$type, $value];
+                }
+
+                $db->insert($table, $insert);
+            }
+        }
+    }
+
+    final public function export(): array
+    {
+        return $this->exportPayload();
+    }
+
+    final public function import(array $payload, int $new_condition_id): void
+    {
+        $this->importPayload($payload, $new_condition_id);
+    }
+
+    public function setImportMapping(array $mapping): void
+    {
+        $d = 0;
     }
 }
