@@ -138,7 +138,7 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
 
         $parts = [];
         if ($summary !== '') {
-            $parts[] = '<div>' . htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+            $parts[] = '<div>' . $this->formatDetailLine($summary) . '</div>';
         }
 
         if ($targets !== []) {
@@ -148,10 +148,26 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
                 $targets
             );
 
-            $parts[] = '<div>' . htmlspecialchars($this->lng->txt('condition_targets') . ':', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+            $parts[] = '<div><strong>' .
+                htmlspecialchars($this->lng->txt('condition_targets') . ':', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') .
+                '</strong></div>';
             $parts[] = '<ul>' . implode('', $targets_html) . '</ul>';
         }
 
         return implode('', $parts);
+    }
+
+    private function formatDetailLine(string $line): string
+    {
+        $parts = explode(':', $line, 2);
+        if (count($parts) !== 2) {
+            return htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+
+        $key = trim($parts[0]);
+        $value = trim($parts[1]);
+
+        return '<strong>' . htmlspecialchars($key . ':', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong> '
+            . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
