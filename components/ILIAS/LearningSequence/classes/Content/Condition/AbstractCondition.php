@@ -97,6 +97,24 @@ abstract class AbstractCondition
     }
 
     /**
+     * Returns additional condition-specific information for table overviews.
+     */
+    public function getAdditionalDisplayInformation(): string
+    {
+        return '';
+    }
+
+    /**
+     * Returns condition-specific object titles for table overviews.
+     *
+     * @return string[]
+     */
+    public function getAdditionalDisplayObjectTitles(): array
+    {
+        return [];
+    }
+
+    /**
      * Applies validated additional form data to the condition before create()/edit().
      *
      * @param array $data
@@ -400,6 +418,16 @@ abstract class AbstractCondition
     protected function getDatabase(): ilDBInterface
     {
         return $this->dic->database();
+    }
+
+    protected function getObjectTitleByRefId(int $ref_id): string
+    {
+        $obj_id = \ilObject::_lookupObjId($ref_id);
+        if ($obj_id > 0) {
+            return \ilObject::_lookupTitle($obj_id);
+        }
+
+        return sprintf('Ref-ID %d', $ref_id);
     }
 
     /**

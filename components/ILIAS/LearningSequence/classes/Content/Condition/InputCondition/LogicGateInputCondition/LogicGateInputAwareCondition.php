@@ -334,6 +334,22 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         );
     }
 
+    public function getAdditionalDisplayInformation(): string
+    {
+        return '';
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getAdditionalDisplayObjectTitles(): array
+    {
+        return array_map(
+            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
+            $this->getItemsAsArray()
+        );
+    }
+
     /**
      * @throws ilCtrlException
      */
@@ -401,4 +417,5 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     {
         return $this->ui_factory->symbol()->icon()->custom('', '');
     }
+
 }

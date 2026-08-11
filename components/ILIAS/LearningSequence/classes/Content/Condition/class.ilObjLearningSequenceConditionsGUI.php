@@ -47,18 +47,17 @@ class ilObjLearningSequenceConditionsGUI
 
     public function __construct(
         protected ilObjLearningSequenceGUI|ilObjLearningSequenceContentGUI $parent_gui,
-        protected ilCtrl                                                   $ctrl,
-        protected ilGlobalTemplateInterface                                $tpl,
-        protected ilLanguage                                               $lng,
-        protected ilAccess                                                 $access,
-        protected RequestWrapper                                           $query_wrapper,
-        protected RequestWrapper                                           $post_wrapper,
-        protected ILIAS\UI\Factory                                         $ui_factory,
-        protected ILIAS\UI\Renderer                                        $ui_renderer,
-        protected ServerRequestInterface                                   $request,
-        protected \ILIAS\Refinery\Factory                                  $refinery,
-    )
-    {
+        protected ilCtrl $ctrl,
+        protected ilGlobalTemplateInterface $tpl,
+        protected ilLanguage $lng,
+        protected ilAccess $access,
+        protected RequestWrapper $query_wrapper,
+        protected RequestWrapper $post_wrapper,
+        protected ILIAS\UI\Factory $ui_factory,
+        protected ILIAS\UI\Renderer $ui_renderer,
+        protected ServerRequestInterface $request,
+        protected \ILIAS\Refinery\Factory $refinery,
+    ) {
         global $DIC;
         $this->lso_ref_id = $this->query_wrapper->retrieve('ref_id', $DIC->refinery()->kindlyTo()->int());
         $this->item_ref_id = $this->query_wrapper->retrieve('item_ref_id', $DIC->refinery()->kindlyTo()->int());
@@ -111,10 +110,14 @@ class ilObjLearningSequenceConditionsGUI
     protected function manageConditions(): void
     {
         global $DIC;
+        /** @var \ILIAS\DI\Container $DIC */
         $DIC->tabs()->setBack2Target($this->lng->txt('back'), $this->ctrl->getLinkTarget($this->parent_gui));
 
         $modal = $this->buildAddConditionModal();
-        $button = $this->ui_factory->button()->standard($this->lng->txt('add_condition'), '#')->withOnClick($modal->getShowSignal());
+        $button = $this->ui_factory->button()->standard(
+            $this->lng->txt('add_condition'),
+            '#'
+        )->withOnClick($modal->getShowSignal());
         $DIC->toolbar()->addComponent($button);
 
         $this->tpl->setContent(
@@ -153,8 +156,14 @@ class ilObjLearningSequenceConditionsGUI
         return $this->ui_factory->menu()->drilldown(
             $this->lng->txt('conditions'),
             [
-                $this->ui_factory->menu()->sub($this->lng->txt('input_conditions'), array_merge(...$input_conditions_steps)),
-                $this->ui_factory->menu()->sub($this->lng->txt('output_conditions'), array_merge(...$output_conditions_steps))
+                $this->ui_factory->menu()->sub(
+                    $this->lng->txt('input_conditions'),
+                    array_merge(...$input_conditions_steps)
+                ),
+                $this->ui_factory->menu()->sub(
+                    $this->lng->txt('output_conditions'),
+                    array_merge(...$output_conditions_steps)
+                )
             ]
         );
     }
@@ -182,8 +191,16 @@ class ilObjLearningSequenceConditionsGUI
         $af = new \ILIAS\UI\Implementation\Component\Table\Action\Factory();
 
         // single action - edit
-        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionConfigurationGUI::class, 'ref_id', $this->lso_ref_id);
-        $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionConfigurationGUI::class, 'item_ref_id', $this->item_ref_id);
+        $this->ctrl->setParameterByClass(
+            ilObjLearningSequenceConditionConfigurationGUI::class,
+            'ref_id',
+            $this->lso_ref_id
+        );
+        $this->ctrl->setParameterByClass(
+            ilObjLearningSequenceConditionConfigurationGUI::class,
+            'item_ref_id',
+            $this->item_ref_id
+        );
         $url = $this->ctrl->getLinkTargetByClass(
             ilObjLearningSequenceConditionConfigurationGUI::class,
             ilObjLearningSequenceConditionConfigurationGUI::CMD_CONFIGURE_COMMAND
@@ -217,12 +234,23 @@ class ilObjLearningSequenceConditionsGUI
 
         return $this->ui_factory->table()->data(
             new ilLearningSequenceConditionsRetrieval($this->lso_ref_id, $this->item_ref_id),
-            sprintf($this->lng->txt('manage_conditions'), ilObject::_lookupTitle(ilObject::_lookupObjectId($this->item_ref_id))),
+            sprintf(
+                $this->lng->txt('manage_conditions'),
+                ilObject::_lookupTitle(ilObject::_lookupObjectId($this->item_ref_id))
+            ),
             [
-                'id' => $this->ui_factory->table()->column()->text('ID')->withIsSortable(false),
-                'type' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_type'))->withIsSortable(false),
-                'name' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_name'))->withIsSortable(false),
-                'subtype' => $this->ui_factory->table()->column()->text($this->lng->txt('condition_subtype'))->withIsSortable(false),
+                'type' => $this->ui_factory->table()->column()->text(
+                    $this->lng->txt('condition_type')
+                )->withIsSortable(false),
+                'name' => $this->ui_factory->table()->column()->text(
+                    $this->lng->txt('condition_name')
+                )->withIsSortable(false),
+                'subtype' => $this->ui_factory->table()->column()->text(
+                    $this->lng->txt('condition_subtype')
+                )->withIsSortable(false),
+                'details' => $this->ui_factory->table()->column()->text(
+                    $this->lng->txt('details')
+                )->withIsSortable(false),
             ]
         )
             ->withActions($actions)
@@ -237,7 +265,7 @@ class ilObjLearningSequenceConditionsGUI
      */
     private function createCondition(): void
     {
-        $type_id = (int)$this->request->getQueryParams()['type_id'] ?? '';
+        $type_id = (int) $this->request->getQueryParams()['type_id'] ?? '';
         $subtype = $this->request->getQueryParams()['subtype'] ?? null;
 
         try {
@@ -338,7 +366,7 @@ class ilObjLearningSequenceConditionsGUI
         $condition_to_delete = $this->post_wrapper->retrieve('interruptive_items', $list);
 
         foreach ($condition_to_delete as $condition) {
-            $condition_id = (int)str_replace('condition_', '', $condition);
+            $condition_id = (int) str_replace('condition_', '', $condition);
             $condition = $this->condition_factory->getConditionInstanceById($condition_id);
             $condition->delete();
         }

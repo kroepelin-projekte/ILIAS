@@ -98,11 +98,16 @@ final class PointsInputCondition extends AbstractCondition implements
         if ($this->condition_id !== null) {
             $input = $input->withValue($this->getPoints());
         }
- 
+
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
             [ $input ]
         );
+    }
+
+    public function getAdditionalDisplayInformation(): string
+    {
+        return sprintf('%s: %d', $this->lang->txt('condition_points'), $this->getPoints());
     }
 
     /**

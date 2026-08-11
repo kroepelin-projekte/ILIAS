@@ -42,16 +42,15 @@ class ilObjLearningSequenceConditionConfigurationGUI
     private ConditionFactory $condition_factory;
 
     public function __construct(
-        protected ilCtrl                          $ctrl,
-        protected ilGlobalTemplateInterface       $tpl,
-        protected ilLanguage                      $lng,
-        protected ilAccess                        $access,
-        protected ArrayBasedRequestWrapper        $post_wrapper,
-        protected ILIAS\UI\Factory                $ui_factory,
-        protected ILIAS\UI\Renderer               $ui_renderer,
-        protected ServerRequestInterface          $request,
-    )
-    {
+        protected ilCtrl $ctrl,
+        protected ilGlobalTemplateInterface $tpl,
+        protected ilLanguage $lng,
+        protected ilAccess $access,
+        protected ArrayBasedRequestWrapper $post_wrapper,
+        protected ILIAS\UI\Factory $ui_factory,
+        protected ILIAS\UI\Renderer $ui_renderer,
+        protected ServerRequestInterface $request,
+    ) {
         global $DIC;
         $this->dic = $DIC;
         $this->ctrl = $DIC->ctrl();
@@ -95,7 +94,10 @@ class ilObjLearningSequenceConditionConfigurationGUI
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
         $DIC->tabs()->setBack2Target(
             $this->lng->txt('back'),
-            $this->ctrl->getLinkTargetByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS)
+            $this->ctrl->getLinkTargetByClass(
+                ilObjLearningSequenceConditionsGUI::class,
+                ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
+            )
         );
     }
 
@@ -181,8 +183,15 @@ class ilObjLearningSequenceConditionConfigurationGUI
             if ($condition->getTypeId() === $any_condition_of_object->getTypeId()) {
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('lso_exception_condition_already_exists'), true);
 
-                $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
-                $this->ctrl->redirectByClass(ilObjLearningSequenceConditionsGUI::class, ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS);
+                $this->ctrl->setParameterByClass(
+                    ilObjLearningSequenceConditionsGUI::class,
+                    'item_ref_id',
+                    $this->item_ref_id
+                );
+                $this->ctrl->redirectByClass(
+                    ilObjLearningSequenceConditionsGUI::class,
+                    ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
+                );
                 return;
             }
         }

@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Data\Order;
 use ILIAS\Data\Range;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
@@ -56,56 +57,41 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
         mixed $additional_viewcontrol_data,
         mixed $filter_data,
         mixed $additional_parameters
-    ): Generator
-    {
-        $input_condition_ids = [];
-        $output_condition_ids = [];
+    ): Generator {
+        $input_conditions = [];
+        $output_conditions = [];
 
         foreach ($this->conditions as $condition_id) {
             $condition = $this->condition_factory->getConditionInstanceById($condition_id);
 
             if ($condition instanceof InputConditionInterface) {
-                $input_condition_ids[] = (int) $condition_id;
+                $input_conditions[(int) $condition_id] = $condition;
             } else {
-                $output_condition_ids[] = (int) $condition_id;
+                $output_conditions[(int) $condition_id] = $condition;
             }
         }
 
-        sort($input_condition_ids, SORT_NUMERIC);
-        sort($output_condition_ids, SORT_NUMERIC);
+        ksort($input_conditions, SORT_NUMERIC);
+        ksort($output_conditions, SORT_NUMERIC);
 
-        $sorted_condition_ids = array_merge($input_condition_ids, $output_condition_ids);
+        foreach ([$input_conditions, $output_conditions] as $grouped_conditions) {
+            foreach ($grouped_conditions as $condition_id => $condition) {
+                $row = $row_builder->buildDataRow(
+                    (string) $condition_id,
+                    [
+                        'type' => $this->resolveTypeLabel($condition),
+                        'name' => $this->lng->txt($condition->getName()),
+                        'subtype' => $this->resolveSubtypeLabel($condition),
+                        'details' => $this->buildDetails($condition),
+                    ]
+                );
 
-        foreach ($sorted_condition_ids as $condition_id) {
-            $condition = $this->condition_factory->getConditionInstanceById($condition_id);
+                if ($condition->getAdditionalForm() === null) {
+                    $row = $row->withDisabledAction('edit');
+                }
 
-            if ($condition instanceof InputConditionInterface) {
-                $type = $this->lng->txt('input_conditions');
-            } else {
-                $type = $this->lng->txt('output_conditions');
+                yield $row;
             }
-
-            if ($condition instanceof SubtypeAwareInterface) {
-                $subtype = $condition->getSubtypeLabel($condition->getSubtype());
-            } else {
-                $subtype = '';
-            }
-
-            $row = $row_builder->buildDataRow(
-                (string) $condition_id,
-                [
-                    'id' => (string) $condition_id,
-                    'type' => $type,
-                    'name' => $this->lng->txt($condition->getName()),
-                    'subtype' => $subtype,
-                ]
-            );
-
-            if ($condition->getAdditionalForm() === null) {
-                $row = $row->withDisabledAction('edit');
-            }
-
-            yield $row;
         }
     }
 
@@ -115,8 +101,57 @@ class ilLearningSequenceConditionsRetrieval implements DataRetrieval
      * @param mixed $additional_parameters
      * @return int|null
      */
-    public function getTotalRowCount(mixed $additional_viewcontrol_data, mixed $filter_data, mixed $additional_parameters): ?int
-    {
+    public function getTotalRowCount(
+        mixed $additional_viewcontrol_data,
+        mixed $filter_data,
+        mixed $additional_parameters
+    ): ?int {
         return count($this->conditions);
+    }
+
+    private function resolveTypeLabel(AbstractCondition $condition): string
+    {
+        if ($condition instanceof InputConditionInterface) {
+            return $this->lng->txt('input_conditions');
+        }
+
+        return $this->lng->txt('output_conditions');
+    }
+
+    private function resolveSubtypeLabel(AbstractCondition $condition): string
+    {
+        if ($condition instanceof SubtypeAwareInterface) {
+            return $condition->getSubtypeLabel($condition->getSubtype());
+        }
+
+        return '';
+    }
+
+    private function buildDetails(AbstractCondition $condition): string
+    {
+        $summary = trim($condition->getAdditionalDisplayInformation());
+        $targets = $condition->getAdditionalDisplayObjectTitles();
+
+        if ($summary === '' && $targets === []) {
+            return '';
+        }
+
+        $parts = [];
+        if ($summary !== '') {
+            $parts[] = '<div>' . htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+        }
+
+        if ($targets !== []) {
+            $targets_html = array_map(
+                static fn(string $target): string =>
+                    '<li>' . htmlspecialchars($target, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</li>',
+                $targets
+            );
+
+            $parts[] = '<div>' . htmlspecialchars($this->lng->txt('condition_targets') . ':', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+            $parts[] = '<ul>' . implode('', $targets_html) . '</ul>';
+        }
+
+        return implode('', $parts);
     }
 }

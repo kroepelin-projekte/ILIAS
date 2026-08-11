@@ -151,6 +151,22 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         );
     }
 
+    public function getAdditionalDisplayInformation(): string
+    {
+        return sprintf('%s: %d', $this->lang->txt('subset_amount'), $this->getSubset());
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getAdditionalDisplayObjectTitles(): array
+    {
+        return array_map(
+            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
+            $this->getObjectRefIds()
+        );
+    }
+
     /**
      * @param array $data
      */

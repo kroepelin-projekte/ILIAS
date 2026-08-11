@@ -96,6 +96,11 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
         );
     }
 
+    public function getAdditionalDisplayInformation(): string
+    {
+        return sprintf('%s: %d', $this->lang->txt('condition_points'), $this->getPoints());
+    }
+
     /**
      * @param array $data
      */
