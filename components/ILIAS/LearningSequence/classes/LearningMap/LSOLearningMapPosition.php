@@ -221,7 +221,12 @@ class LSOLearningMapPosition
      */
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
-        return $this->navigator->getSuccessors($items, $item);
+        $successors = $this->navigator->getSuccessors($items, $item);
+        if ($successors !== []) {
+            return $successors;
+        }
+
+        return $this->getFallbackSuccessorsFromPath($items, $item);
     }
     /**
      * Returns the structural successors of an item.
@@ -571,5 +576,53 @@ class LSOLearningMapPosition
             }
         }
         return null;
+    }
+
+    /**
+     * Returns successors from the nearest previous path node when the current
+     * node has no direct successor.
+     *
+     * This keeps adaptive navigation moving in branch-topologies where
+     * subsequent options are reachable from an earlier branch node.
+     *
+     * @param \LSLearnerItem[] $items
+     * @return \LSLearnerItem[]
+     */
+    protected function getFallbackSuccessorsFromPath(array $items, \LSLearnerItem $current_item): array
+    {
+        $current_ref_id = $current_item->getRefId();
+        $walked_ref_ids = $this->getWalkedRefIds();
+        if ($walked_ref_ids === []) {
+            return [];
+        }
+
+        $fallback = [];
+        foreach (array_reverse($walked_ref_ids) as $path_ref_id) {
+            if ($path_ref_id === $current_ref_id) {
+                continue;
+            }
+
+            $path_item = $this->findItemByRefId($items, $path_ref_id);
+            if ($path_item === null) {
+                continue;
+            }
+            if (!$this->navigator->canLeave($path_item)) {
+                continue;
+            }
+
+            foreach ($this->navigator->getSuccessors($items, $path_item) as $candidate) {
+                $candidate_ref_id = $candidate->getRefId();
+                if ($candidate_ref_id === $current_ref_id) {
+                    continue;
+                }
+                $fallback[$candidate_ref_id] = $candidate;
+            }
+
+            if ($fallback !== []) {
+                break;
+            }
+        }
+
+        return array_values($fallback);
     }
 }

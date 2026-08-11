@@ -111,6 +111,61 @@ class LearningMapAccessibilityTest extends TestCase
         $this->assertFalse($position->exposeMayAccess([$target, $predecessor], $target));
     }
 
+    public function testFallbackSuccessorsUseNearestPreviousBranchNode(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+
+        $start = $this->mockItem(149);
+        $page1 = $this->mockItem(151);
+        $page2 = $this->mockItem(152);
+        $page3 = $this->mockItem(153);
+        $items = [$start, $page1, $page2, $page3];
+
+        $navigator->method('getSuccessors')
+            ->willReturnCallback(
+                static fn(array $items, \LSLearnerItem $current): array => match ($current->getRefId()) {
+                    151 => [],
+                    149 => [$page1, $page2, $page3],
+                    default => [],
+                }
+            );
+        $navigator->method('canLeave')
+            ->willReturnCallback(
+                static fn(\LSLearnerItem $current): bool => $current->getRefId() === 149
+            );
+
+        $item_path = $this->createStub(LSOItemPath::class);
+        $boundaries = $this->createStub(LSOAdaptiveBoundaries::class);
+
+        $position = new class ($navigator, $item_path, $boundaries) extends LSOLearningMapPosition {
+            public function __construct(
+                LSNavigator $navigator,
+                LSOItemPath $item_path,
+                LSOAdaptiveBoundaries $boundaries
+            )
+            {
+                parent::__construct(
+                    $navigator,
+                    $item_path,
+                    $boundaries,
+                    421,
+                    6
+                );
+            }
+
+            protected function getPath(): array
+            {
+                return [149, 152, 151];
+            }
+        };
+
+        $successors = $position->getSuccessors($items, $page1);
+        $refs = array_map(static fn(\LSLearnerItem $item): int => $item->getRefId(), $successors);
+        sort($refs);
+
+        $this->assertSame([152, 153], $refs);
+    }
+
     private function mockItem(int $ref_id): \LSLearnerItem
     {
         $item = $this->createMock(\LSLearnerItem::class);
