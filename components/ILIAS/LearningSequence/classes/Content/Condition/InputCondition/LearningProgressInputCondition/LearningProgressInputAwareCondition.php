@@ -171,6 +171,17 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
     }
 
     /**
+     * @return string[]
+     */
+    public function getAdditionalDisplayObjectTitles(): array
+    {
+        return array_map(
+            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
+            [$this->getConditionTargetRefId()]
+        );
+    }
+
+    /**
      * Get the subtype of the learning progress condition.
      *
      * @return string
