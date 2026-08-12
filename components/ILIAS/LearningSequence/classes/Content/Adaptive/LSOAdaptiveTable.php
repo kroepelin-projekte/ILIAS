@@ -1,9 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
-namespace ILIAS\LearningSequence\Content\Adaptive;
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -19,6 +15,10 @@ namespace ILIAS\LearningSequence\Content\Adaptive;
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Adaptive;
 
 /**
  * Renders the adaptive learning sequence content table.
