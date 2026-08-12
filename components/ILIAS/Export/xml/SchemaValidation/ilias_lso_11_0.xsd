@@ -15,6 +15,9 @@
             </xs:sequence>
             <xs:attribute name="ref_id" type="xs:string" use="required"/>
             <xs:attribute name="members_gallery" type="xs:boolean" use="required"/>
+            <xs:attribute name="mode" type="xs:integer" default="0"/>
+            <xs:attribute name="start_ref_id" type="xs:integer" default="0"/>
+            <xs:attribute name="end_ref_id" type="xs:integer" default="0"/>
         </xs:complexType>
     </xs:element>
 

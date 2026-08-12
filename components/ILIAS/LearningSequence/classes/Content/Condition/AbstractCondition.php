@@ -54,6 +54,13 @@ abstract class AbstractCondition
     protected ?int $type_id = null;
     protected ?string $subtype = null;
     protected Factory $ui_factory;
+    /**
+     * Ref-id mappings (old → new) passed in from the importer.
+     * Used by importPayload() to rewrite ref_id values in payload rows.
+     *
+     * @var array<string, string>
+     */
+    protected array $import_mapping = [];
 
     public function __construct(?int $condition_id = null)
     {
@@ -755,38 +762,104 @@ abstract class AbstractCondition
     /**
      * Default import for payload exported by exportPayload().
      * $new_condition_id must already be created in lso_conditions.
+     * Handles multiple tables, maps 'item' ref_ids, and avoids duplicate entries
+     * by checking if condition_id already exists in the table (update vs insert).
      */
     protected function importPayload(array $payload, int $new_condition_id): void
     {
         $db = $this->getDatabase();
+        $ref_mapping = $this->import_mapping;
 
         foreach ($payload as $tableData) {
             $table = (string)($tableData['table'] ?? '');
             $rows = is_array($tableData['rows'] ?? null) ? $tableData['rows'] : [];
 
-            $ilias_version_numeric = null;
-            if (isset($tableData['ilias_version_numeric']) && is_numeric($tableData['ilias_version_numeric'])) {
-                $ilias_version_numeric = (int)$tableData['ilias_version_numeric'];
-            }
-
             if ($table === '' || !$db->tableExists($table)) {
                 continue;
             }
+
+            $table_has_item_column = $db->tableColumnExists($table, 'item');
+            $table_has_condition_id_column = $db->tableColumnExists($table, 'condition_id');
+
+            if ($table_has_item_column && $rows === []) {
+                throw new \RuntimeException("Payload for table '{$table}' is empty, but table requires 'item' rows.");
+            }
+
+            $inserted_item_rows = 0;
 
             foreach ($rows as $row) {
                 if (!is_array($row)) {
                     continue;
                 }
 
-                $row['condition_id'] = $new_condition_id;
+                $insert = [
+                    'condition_id' => ['integer', $new_condition_id],
+                ];
 
-                $insert = [];
                 foreach ($row as $col => $value) {
-                    $type = is_int($value) ? 'integer' : 'text';
-                    $insert[(string)$col] = [$type, $value];
+                    $col = (string) $col;
+
+                    // Always enforce the new condition id
+                    if ($col === 'condition_id') {
+                        continue;
+                    }
+
+                    // Only import columns that actually exist in the target table
+                    if (!$db->tableColumnExists($table, $col)) {
+                        continue;
+                    }
+
+                    if ($col === 'item') {
+                        // Remap ref_id values using the container refs mapping
+                        if (is_string($value) && isset($ref_mapping[$value])) {
+                            $value = $ref_mapping[$value];
+                        } elseif (is_int($value) && isset($ref_mapping[(string) $value])) {
+                            $value = (int) $ref_mapping[(string) $value];
+                        }
+
+                        // Validate item
+                        if (is_string($value) && ctype_digit($value)) {
+                            $value = (int) $value;
+                        }
+
+                        if (!is_int($value) || $value <= 0) {
+                            throw new \RuntimeException("Invalid 'item' value in payload for table '{$table}'.");
+                        }
+
+                        $insert['item'] = ['integer', $value];
+                        $inserted_item_rows++;
+                        continue;
+                    }
+
+                    if ($value === null) {
+                        $insert[$col] = ['text', ''];
+                        continue;
+                    }
+
+                    $insert[$col] = [is_int($value) ? 'integer' : 'text', $value];
+                }
+
+                // Check if a row with this condition_id already exists in the table
+                // If so, perform an UPDATE instead of INSERT to avoid duplicate entry
+                if ($table_has_condition_id_column) {
+                    $existing_result = $db->queryF(
+                        "SELECT condition_id FROM $table WHERE condition_id = %s",
+                        ['integer'],
+                        [$new_condition_id]
+                    );
+                    if ($db->numRows($existing_result) > 0) {
+                        // Remove condition_id from insert data (it's the PK, don't update it)
+                        unset($insert['condition_id']);
+                        $db->update($table, $insert, ['condition_id' => ['integer', $new_condition_id]]);
+                        continue;
+                    }
                 }
 
                 $db->insert($table, $insert);
+            }
+
+            if ($table_has_item_column && $inserted_item_rows === 0) {
+                throw new \RuntimeException("No valid 'item' rows imported for item-based table '{$table}'.");
             }
         }
     }
@@ -803,6 +876,6 @@ abstract class AbstractCondition
 
     public function setImportMapping(array $mapping): void
     {
-        $d = 0;
+        $this->import_mapping = array_map('intval', $mapping['components/ILIAS/Container']['refs'] ?? []);
     }
 }

@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
@@ -40,6 +41,7 @@ class ilLearningSequenceXMLWriter extends ilXmlWriter
     protected ilLearningSequenceSettings $ls_settings;
     private ilObjLearningSequenceConditionDiscover $discover;
     private ConditionFactory $condition_factory;
+    private ilDBInterface $database;
 
     public function __construct(
         protected ilObjLearningSequence $ls_object,
@@ -48,11 +50,12 @@ class ilLearningSequenceXMLWriter extends ilXmlWriter
     ) {
         global $DIC;
         parent::__construct();
+        $this->database = $DIC->database();
         $this->ls_settings = $ls_object->getLSSettings();
         $this->discover = new ilObjLearningSequenceConditionDiscover();
         $this->condition_factory = new ConditionFactory(
             $this->discover,
-            $DIC->database()
+            $this->database,
         );
     }
 
@@ -87,9 +90,15 @@ class ilLearningSequenceXMLWriter extends ilXmlWriter
 
     protected function writeLearningSequence(): void
     {
+        $boundaries = new LSOAdaptiveBoundaries($this->database)
+            ->getBoundariesFor($this->ls_object->getId());
+
         $attributes = [
             'ref_id' => $this->ls_object->getRefId(),
-            'members_gallery' => $this->ls_settings->getMembersGallery() ? 'true' : 'false'
+            'members_gallery' => $this->ls_settings->getMembersGallery() ? 'true' : 'false',
+            'mode' => $this->ls_settings->getMode(),
+            'start_ref_id' => $boundaries['start_ref_id'],
+            'end_ref_id' => $boundaries['end_ref_id'],
         ];
         $this->xmlStartTag(self::TAG_LSO, $attributes);
 
@@ -163,10 +172,10 @@ class ilLearningSequenceXMLWriter extends ilXmlWriter
         $this->xmlStartTag(self::TAG_ITEM_CONDITIONS);
         foreach ($conditions as $condition) {
             $attrs = [
-                'type' => (string) ($condition['type_id'] ?? ''),
+                'type' => $condition['type']
             ];
 
-            if (isset($condition['subtype']) && $condition['subtype'] !== null && $condition['subtype'] !== '') {
+            if (isset($condition['subtype'])) {
                 $attrs['subtype'] = (string) $condition['subtype'];
             }
 
