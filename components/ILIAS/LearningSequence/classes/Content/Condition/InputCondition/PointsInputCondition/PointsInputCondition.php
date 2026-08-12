@@ -24,6 +24,7 @@ use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
@@ -36,9 +37,15 @@ final class PointsInputCondition extends AbstractCondition implements
 {
     protected const string NAME = 'points_input';
     private const string SETTINGS_TABLE = 'lso_c_points_input';
+    private const string TARGETS_TABLE = 'lso_c_points_input_tgt';
     private const string POINTS_FIELD = 'points';
+    private const string SOURCE_REF_ID_FIELD = 'source_ref_id';
 
     private ?int $points = null;
+    /**
+     * @var int[]|null
+     */
+    private ?array $source_ref_ids = null;
 
     /**
      * @inheritDoc
@@ -53,6 +60,14 @@ final class PointsInputCondition extends AbstractCondition implements
                     self::POINTS_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
+            ),
+            new TableDefinition(
+                tableName: self::TARGETS_TABLE,
+                fields: [
+                    'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    self::SOURCE_REF_ID_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                ],
+                primaryKeys: ['condition_id', self::SOURCE_REF_ID_FIELD]
             )
         ];
     }
@@ -67,12 +82,12 @@ final class PointsInputCondition extends AbstractCondition implements
 
     public function getNavigationMode(): string
     {
-        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_GLOBAL;
+        return InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
     }
 
     public function getNavigationSourceRefIds(): array
     {
-        return [];
+        return $this->getSourceRefIds();
     }
 
     public function getAccumulationIdentifier(): string
@@ -90,18 +105,28 @@ final class PointsInputCondition extends AbstractCondition implements
      */
     public function getAdditionalForm(): FormStandard
     {
-        $input = $this->ui_factory->input()->field()->numeric(
+        $multi_select = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
+            $this->lang->txt('lso_condition_simple_multi_target'),
+            true
+        );
+        $points_input = $this->ui_factory->input()->field()->numeric(
             $this->lang->txt('points_input'),
             $this->lang->txt('points_input_byline')
         );
 
         if ($this->condition_id !== null) {
-            $input = $input->withValue($this->getPoints());
+            $multi_select = $multi_select->withValue(
+                array_map(static fn(int $ref_id): string => (string) $ref_id, $this->getSourceRefIds())
+            );
+            $points_input = $points_input->withValue($this->getPoints());
         }
 
         return $this->ui_factory->input()->container()->form()->standard(
             $this->buildUrl(self::CREATE_COMMAND, true)->__toString(),
-            [ $input ]
+            [
+                $multi_select,
+                $points_input
+            ]
         );
     }
 
@@ -111,16 +136,92 @@ final class PointsInputCondition extends AbstractCondition implements
     }
 
     /**
+     * @return string[]
+     */
+    public function getAdditionalDisplayObjectTitles(): array
+    {
+        return array_map(
+            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
+            $this->getSourceRefIds()
+        );
+    }
+
+    /**
      * @param array<mixed> $data
      */
     public function applyAdditionalFormData(array $data): void
     {
-        $points = array_shift($data);
+        $source_ref_ids = array_values(array_unique(array_filter(
+            array_map(
+                static fn(mixed $value): int => (int) $value,
+                is_array($data[0] ?? null) ? $data[0] : []
+            ),
+            static fn(int $value): bool => $value > 0
+        )));
+        if ($source_ref_ids === []) {
+            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
+        }
+
+        $points = $data[1] ?? null;
         if (is_array($points) || !is_numeric($points)) {
             throw new \LogicException($this->lang->txt('lso_exception_points_invalid'));
         }
 
+        $this->setSourceRefIds($source_ref_ids);
         $this->setPoints((int) $points);
+    }
+
+    /**
+     * @return int[]
+     */
+    public function getSourceRefIds(): array
+    {
+        if ($this->source_ref_ids !== null) {
+            return $this->source_ref_ids;
+        }
+
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $res = $this->getDatabase()->queryF(
+            'SELECT ' . self::SOURCE_REF_ID_FIELD . ' FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$this->condition_id]
+        );
+
+        $source_ref_ids = [];
+        while ($row = $this->getDatabase()->fetchAssoc($res)) {
+            $source_ref_ids[] = (int) $row[self::SOURCE_REF_ID_FIELD];
+        }
+
+        $source_ref_ids = array_values(array_unique(array_filter(
+            $source_ref_ids,
+            static fn(int $value): bool => $value > 0
+        )));
+        if ($source_ref_ids === []) {
+            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_stored'));
+        }
+
+        $this->source_ref_ids = $source_ref_ids;
+        return $this->source_ref_ids;
+    }
+
+    /**
+     * @param int[] $source_ref_ids
+     */
+    public function setSourceRefIds(array $source_ref_ids): void
+    {
+        $current_ref_id = $this->obj_ref_id;
+        $source_ref_ids = array_values(array_unique(array_filter(
+            array_map(static fn(mixed $value): int => (int) $value, $source_ref_ids),
+            static fn(int $value): bool => $value > 0 && $value !== $current_ref_id
+        )));
+        if ($source_ref_ids === []) {
+            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
+        }
+
+        $this->source_ref_ids = $source_ref_ids;
     }
 
     /**
@@ -175,6 +276,7 @@ final class PointsInputCondition extends AbstractCondition implements
             'condition_id' => ['integer', $condition_id],
             self::POINTS_FIELD => ['integer', $this->requirePoints()]
         ]);
+        $this->storeSourceRefIds($condition_id, $this->requireSourceRefIds());
     }
 
     /**
@@ -191,6 +293,12 @@ final class PointsInputCondition extends AbstractCondition implements
                 'condition_id' => ['integer', $condition_id]
             ]
         );
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+        $this->storeSourceRefIds($condition_id, $this->requireSourceRefIds());
     }
 
     /**
@@ -198,6 +306,11 @@ final class PointsInputCondition extends AbstractCondition implements
      */
     protected function deleteConditionData(int $condition_id): void
     {
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
         $this->getDatabase()->manipulateF(
             'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
             ['integer'],
@@ -222,28 +335,27 @@ final class PointsInputCondition extends AbstractCondition implements
     }
 
     /**
-     * Returns the total points available from previous items in the Learning Sequence.
+     * Returns the total points available from configured source objects.
      *
      * @return int
      */
     private function getAvailablePoints(): int
     {
-        $items = $this->getLsoItems();
         $points = 0;
 
-        foreach ($items as $item) {
-            if ($item->getRefId() === $this->obj_ref_id) {
+        foreach ($this->getSourceRefIds() as $source_ref_id) {
+            if ($source_ref_id === $this->obj_ref_id) {
                 continue;
             }
 
-            $points += $this->getPointsFromItem((int) $item->getRefId());
+            $points += $this->getPointsFromItem($source_ref_id);
         }
 
         return $points;
     }
 
     /**
-     * Returns the points from a previous item in the Learning Sequence.
+     * Returns the points from a configured source object.
      *
      * @param int $ref_id
      * @return int
@@ -268,7 +380,7 @@ final class PointsInputCondition extends AbstractCondition implements
     }
 
     /**
-     * Returns the condition ID for the PointsOutputCondition of a previous item in the Learning Sequence.
+     * Returns the condition ID for the PointsOutputCondition of a configured source object.
      *
      * @param int $ref_id
      * @return int|null
@@ -305,5 +417,30 @@ final class PointsInputCondition extends AbstractCondition implements
         }
 
         return $this->points;
+    }
+
+    /**
+     * @return int[]
+     */
+    private function requireSourceRefIds(): array
+    {
+        if ($this->source_ref_ids === null || $this->source_ref_ids === []) {
+            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_set'));
+        }
+
+        return $this->source_ref_ids;
+    }
+
+    /**
+     * @param int[] $source_ref_ids
+     */
+    private function storeSourceRefIds(int $condition_id, array $source_ref_ids): void
+    {
+        foreach ($source_ref_ids as $source_ref_id) {
+            $this->getDatabase()->insert(self::TARGETS_TABLE, [
+                'condition_id' => ['integer', $condition_id],
+                self::SOURCE_REF_ID_FIELD => ['integer', $source_ref_id]
+            ]);
+        }
     }
 }
