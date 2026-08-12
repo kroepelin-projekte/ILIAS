@@ -346,6 +346,48 @@
     const backwardBounds = { left: 0, right: 0 };
     const BACKWARD_LANE_SPACING = M.hGap + 12;
     const BACKWARD_SEARCH_LIMIT = 12;
+
+    /**
+     * Orthogonal route of a backward edge: the line leaves the object through a
+     * free channel beside it, runs in the aisle between two layers and only
+     * then goes outwards. Each lane uses its own aisle height, so lines
+     * starting at the same object height never overlap each other.
+     */
+    function backwardPolyline(edge, route, bounds) {
+      const source = nodes[edge.from];
+      const target = nodes[edge.to];
+      const dir = route.side === 'right' ? 1 : -1;
+      const laneX = route.side === 'right'
+        ? bounds.right + M.hGap + ((route.lane + 1) * BACKWARD_LANE_SPACING)
+        : bounds.left - M.hGap - ((route.lane + 1) * BACKWARD_LANE_SPACING);
+      const portY = function (node, port) {
+        return node.y + ((DEPTH * (port.index + 1)) / (port.count + 1));
+      };
+      const channelX = function (node, port) {
+        const border = route.side === 'right' ? node.x + ALONG : node.x;
+        return border + (dir * ((M.hGap * (port.index + 1)) / (port.count + 1)));
+      };
+      const aisle = Math.max(4, Math.min(M.vGap - 6, 6 + (route.lane * 8)));
+      const sourceY = portY(source, route.sourcePort);
+      const targetY = portY(target, route.targetPort);
+      const sourceX = route.side === 'right' ? source.x + ALONG : source.x;
+      const targetX = route.side === 'right' ? target.x + ALONG : target.x;
+      const sourceChannel = channelX(source, route.sourcePort);
+      const targetChannel = channelX(target, route.targetPort);
+      const sourceRun = source.y + DEPTH + aisle;
+      const targetRun = target.y - aisle;
+      return [
+        [sourceX, sourceY],
+        [sourceChannel, sourceY],
+        [sourceChannel, sourceRun],
+        [laneX, sourceRun],
+        [laneX, targetRun],
+        [targetChannel, targetRun],
+        [targetChannel, targetY],
+        [targetX, targetY],
+      ];
+    }
+
     function positions() {
       backwardRoutes.clear();
       const w = function (n) { return n.dummy ? DUMMY_WIDTH : ALONG; };
@@ -395,12 +437,6 @@
       function portOrder(port, routes) {
         const { lane } = routes.get(port.edge);
         return nodes[port.other].y > nodes[port.node].y ? -lane : lane;
-      }
-
-      function laneOffset(side, lane) {
-        return side === 'right'
-          ? contentRight + M.hGap + ((lane + 1) * BACKWARD_LANE_SPACING)
-          : contentLeft - M.hGap - ((lane + 1) * BACKWARD_LANE_SPACING);
       }
 
       function planRoutes(sides) {
@@ -495,16 +531,10 @@
         const planned = planRoutes(sides);
         const polylines = [];
         planned.plan.forEach((route, edge) => {
-          const source = nodes[edge.from];
-          const target = nodes[edge.to];
-          const x = laneOffset(route.side, route.lane);
-          const sourceX = route.side === 'right' ? source.x + ALONG : source.x;
-          const targetX = route.side === 'right' ? target.x + ALONG : target.x;
-          const sourceY = source.y
-            + ((DEPTH * (route.sourcePort.index + 1)) / (route.sourcePort.count + 1));
-          const targetY = target.y
-            + ((DEPTH * (route.targetPort.index + 1)) / (route.targetPort.count + 1));
-          polylines.push([[sourceX, sourceY], [x, sourceY], [x, targetY], [targetX, targetY]]);
+          polylines.push(backwardPolyline(edge, route, {
+            left: contentLeft,
+            right: contentRight,
+          }));
         });
         let objectHits = 0;
         let lineCrossings = 0;
@@ -557,7 +587,8 @@
         ? M.hGap + (lanes.left * BACKWARD_LANE_SPACING) + 20
         : 0;
       const shift = 40 - minX + leftReserve;
-      layers.forEach((l) => { l.forEach((n) => { n.x += shift; n.y += 20; }); });
+      const vReserve = backwardRoutes.size > 0 ? M.vGap : 0;
+      layers.forEach((l) => { l.forEach((n) => { n.x += shift; n.y += 20 + vReserve; }); });
       let right = 0;
       let bottom = 0;
       layers.forEach((l) => {
@@ -570,7 +601,7 @@
       backwardBounds.right = right;
       alongExtent = right + 40
         + (lanes.right > 0 ? M.hGap + (lanes.right * BACKWARD_LANE_SPACING) : 0);
-      depthExtent = bottom + 20;
+      depthExtent = bottom + 20 + vReserve;
     }
 
     function toScreen() {
@@ -770,22 +801,7 @@
       }
 
       backwardRoutes.forEach((route, e) => {
-        const source = nodes[e.from];
-        const target = nodes[e.to];
-        const laneX = route.side === 'right'
-          ? backwardBounds.right + M.hGap + ((route.lane + 1) * BACKWARD_LANE_SPACING)
-          : backwardBounds.left - M.hGap - ((route.lane + 1) * BACKWARD_LANE_SPACING);
-        const sourceX = route.side === 'right' ? source.x + ALONG : source.x;
-        const targetX = route.side === 'right' ? target.x + ALONG : target.x;
-        const sourcePoint = [
-          sourceX,
-          source.y + (DEPTH * (route.sourcePort.index + 1)) / (route.sourcePort.count + 1),
-        ];
-        const targetPoint = [
-          targetX,
-          target.y + (DEPTH * (route.targetPort.index + 1)) / (route.targetPort.count + 1),
-        ];
-        addEdge(e, [sourcePoint, [laneX, sourcePoint[1]], [laneX, targetPoint[1]], targetPoint]);
+        addEdge(e, backwardPolyline(e, route, backwardBounds));
       });
 
       const byEdge = new Map();
