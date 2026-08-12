@@ -376,16 +376,36 @@
       const targetChannel = channelX(target, route.targetPort);
       const sourceRun = source.y + DEPTH + aisle;
       const targetRun = target.y - aisle;
-      return [
-        [sourceX, sourceY],
-        [sourceChannel, sourceY],
-        [sourceChannel, sourceRun],
-        [laneX, sourceRun],
-        [laneX, targetRun],
-        [targetChannel, targetRun],
-        [targetChannel, targetY],
-        [targetX, targetY],
-      ];
+      const blocked = function (y, xa, xb) {
+        const from = Math.min(xa, xb);
+        const to = Math.max(xa, xb);
+        let hit = false;
+        layers.forEach((l) => {
+          l.forEach((n) => {
+            if (hit || n.dummy || n === source || n === target) { return; }
+            if (y <= n.y || y >= n.y + DEPTH) { return; }
+            if (n.x + ALONG > from && n.x < to) { hit = true; }
+          });
+        });
+        return hit;
+      };
+      const head = blocked(sourceY, sourceX, laneX)
+        ? [
+          [sourceX, sourceY],
+          [sourceChannel, sourceY],
+          [sourceChannel, sourceRun],
+          [laneX, sourceRun],
+        ]
+        : [[sourceX, sourceY], [laneX, sourceY]];
+      const tail = blocked(targetY, targetX, laneX)
+        ? [
+          [laneX, targetRun],
+          [targetChannel, targetRun],
+          [targetChannel, targetY],
+          [targetX, targetY],
+        ]
+        : [[laneX, targetY], [targetX, targetY]];
+      return head.concat(tail);
     }
 
     function positions() {
