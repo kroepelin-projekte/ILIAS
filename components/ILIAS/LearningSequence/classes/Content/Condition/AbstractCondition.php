@@ -792,7 +792,7 @@ abstract class AbstractCondition
                 continue;
             }
 
-            $table_has_item_column = $db->tableColumnExists($table, 'item');
+            $table_has_item_column = $db->tableColumnExists($table, 'item_ref_id');
 
             if ($table_has_item_column && $rows === []) {
                 throw new \RuntimeException("Payload for table '{$table}' is empty, but table requires 'item' rows.");
@@ -825,13 +825,13 @@ abstract class AbstractCondition
                     $field_info = $field_map[$col] ?? null;
 
                     // Remap ref_id values using the container refs mapping
-                    if ($col === 'item') {
+                    if ($col === 'item_ref_id') {
                         if (!isset($ref_mapping[$value])) {
                             continue 2;
                         }
 
                         $value = (int) $ref_mapping[$value];
-                        $insert['item'] = ['integer', $value];
+                        $insert['item_ref_id'] = ['integer', $value];
                         $inserted_item_rows++;
                     }
 

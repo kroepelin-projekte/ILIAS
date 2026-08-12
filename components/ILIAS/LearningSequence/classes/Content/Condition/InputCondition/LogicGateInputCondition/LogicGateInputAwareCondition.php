@@ -72,7 +72,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
         $db = $this->dic->database();
         $query = $db->queryF(
             <<<SQL
-            SELECT item FROM $s
+            SELECT item_ref_id FROM $s
             JOIN $i ON $s.condition_id = $i.condition_id
             WHERE $s.condition_id = %s
             SQL,
@@ -80,7 +80,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
             [$this->condition_id]
         );
         while ($row = $db->fetchAssoc($query)) {
-            $this->items[] = $row['item'];
+            $this->items[] = $row['item_ref_id'];
         }
     }
 
@@ -127,9 +127,9 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
                 tableName: self::SETTINGS_TABLE_ITEMS,
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
-                    'item' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    'item_ref_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                 ],
-                primaryKeys: ['condition_id', 'item']
+                primaryKeys: ['condition_id', 'item_ref_id']
             )
         ];
     }
@@ -351,7 +351,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
         foreach ($this->items as $item) {
             $this->getDatabase()->insert(self::SETTINGS_TABLE_ITEMS, [
                 'condition_id' => ['integer', $condition_id],
-                'item' => ['integer', $item],
+                'item_ref_id' => ['integer', $item],
             ]);
         }
     }
@@ -377,7 +377,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements InputCon
         foreach ($this->items as $item) {
             $this->getDatabase()->insert(self::SETTINGS_TABLE_ITEMS, [
                 'condition_id' => ['integer', $condition_id],
-                'item' => ['integer', $item],
+                'item_ref_id' => ['integer', $item],
             ]);
         }
     }
