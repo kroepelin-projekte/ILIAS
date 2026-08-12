@@ -40,6 +40,7 @@ final readonly class ilObjLearningSequenceContentData
      * @param string $next_objects Next object label.
      * @param array $input_conditions Input conditions.
      * @param array $output_conditions Output conditions.
+     * @param bool $has_structural_successor Whether a structural successor exists.
      * @param ilObjLearningSequenceActionData[] $actions Available actions.
      */
     public function __construct(
@@ -71,6 +72,8 @@ final readonly class ilObjLearningSequenceContentData
         public array $input_conditions,
         /** Output conditions. */
         public array $output_conditions,
+        /** Whether a structural successor exists. */
+        public bool $has_structural_successor,
         /** Available actions. */
         public array $actions = []
     ) {

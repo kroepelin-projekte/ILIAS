@@ -11,6 +11,7 @@ use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
+use ILIAS\LearningSequence\Player\AdaptiveNavigator;
 use ILIAS\UI\Factory;
 use ILIAS\UI\Renderer;
 use ilLanguage;
@@ -109,6 +110,12 @@ class LSOAdaptiveContent implements LSOContentController
         /** @var ilObjLearningSequence $lso */
         $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
         $items = $lso->getLSItems();
+        $navigator = new AdaptiveNavigator();
+        $navigator->preload($items);
+        $structural_successors = [];
+        foreach ($items as $item) {
+            $structural_successors[$item->getRefId()] = $navigator->getStructuralSuccessors($items, $item) !== [];
+        }
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
         $filter = $filter_gui->getFilter(
             'manageContent',
@@ -117,7 +124,7 @@ class LSOAdaptiveContent implements LSOContentController
         )->withRequest($this->request);
 
         $filter_data = $filter->getData();
-        $data = $this->getTableData($items, $filter_data);
+        $data = $this->getTableData($items, $filter_data, $structural_successors);
 
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -158,9 +165,10 @@ class LSOAdaptiveContent implements LSOContentController
      *
      * @param \LSItem[] $items Learning sequence items.
      * @param array<string, mixed>|null $filter_data Filter data.
+     * @param array<int, bool> $structural_successors Whether each item has a structural successor.
      * @return ilObjLearningSequenceContentData[]
      */
-    protected function getTableData(array $items, ?array $filter_data): array
+    protected function getTableData(array $items, ?array $filter_data, array $structural_successors): array
     {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -309,6 +317,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $next_title,
                 $input_conditions,
                 $output_conditions,
+                $structural_successors[$ref_id],
                 $actions
             );
 

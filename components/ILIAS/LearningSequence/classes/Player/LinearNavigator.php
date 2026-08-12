@@ -40,12 +40,17 @@ class LinearNavigator implements LSNavigator
     }
 
     /**
-     * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[] The item structurally following the current item.
+     * @param \LSItem[] $items
+     * @return \LSItem[] The item structurally following the current item.
      */
-    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
+    public function getStructuralSuccessors(array $items, \LSItem $current): array
     {
-        return $this->getSuccessors($items, $current);
+        $position = $this->findPosition($items, $current);
+        $next = $position + 1;
+        if ($next >= 0 && $next < count($items)) {
+            return [$items[$next]];
+        }
+        return [];
     }
 
     /**
@@ -97,7 +102,7 @@ class LinearNavigator implements LSNavigator
     /**
      * Does not preload data because linear navigation has no state to load.
      *
-     * @param \LSLearnerItem[] $items
+     * @param \LSItem[] $items
      */
     public function preload(array $items): void
     {
@@ -126,10 +131,10 @@ class LinearNavigator implements LSNavigator
     /**
      * Finds the array index of an item by its reference identifier.
      *
-     * @param \LSLearnerItem[] $items
+     * @param \LSItem[] $items
      * @throws \Exception If the item is not part of the given items.
      */
-    protected function findPosition(array $items, \LSLearnerItem $item): int
+    protected function findPosition(array $items, \LSItem $item): int
     {
         foreach ($items as $index => $candidate) {
             if ($candidate->getRefId() === $item->getRefId()) {

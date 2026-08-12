@@ -27,6 +27,29 @@ use PHPUnit\Framework\TestCase;
 
 class AdaptiveNavigatorLogicGateTest extends TestCase
 {
+    public function testStructuralSuccessorsAcceptRepositoryItems(): void
+    {
+        $items = array_map(function (int $ref_id): LSItem {
+            $item = $this->createMock(LSItem::class);
+            $item->method('getRefId')->willReturn($ref_id);
+            return $item;
+        }, [149, 151]);
+        $navigator = $this->buildNavigator([
+            149 => [],
+            151 => [$this->mockEdgeInput([149], true)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame(
+            [151],
+            array_map(
+                static fn(LSItem $item): int => $item->getRefId(),
+                $navigator->getStructuralSuccessors($items, $items[0])
+            )
+        );
+    }
+
     public function testDependencyConditionsDriveSuccessorsAndPredecessors(): void
     {
         $items = $this->buildItems([149, 151, 152, 153, 154, 150]);
@@ -81,7 +104,7 @@ class AdaptiveNavigatorLogicGateTest extends TestCase
             {
                 $this->conditions_cache = $this->seed_conditions;
                 $this->buildNavigationSourceCaches(array_map(
-                    static fn(LSLearnerItem $item): int => $item->getRefId(),
+                    static fn(LSItem $item): int => $item->getRefId(),
                     $items
                 ));
                 $this->buildPointsNavigationCaches($items);

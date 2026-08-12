@@ -93,7 +93,7 @@ class AdaptiveNavigator implements LSNavigator
     /**
      * Preloads condition instances for the given items.
      *
-     * @param \LSLearnerItem[] $items
+     * @param \LSItem[] $items
      */
     public function preload(array $items): void
     {
@@ -171,10 +171,10 @@ class AdaptiveNavigator implements LSNavigator
     /**
      * Returns the items structurally connected to the current item.
      *
-     * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
+     * @param \LSItem[] $items
+     * @return \LSItem[]
      */
-    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array
+    public function getStructuralSuccessors(array $items, \LSItem $current): array
     {
         $successors = [];
         foreach ($items as $item) {
@@ -438,7 +438,7 @@ class AdaptiveNavigator implements LSNavigator
     /**
      * Precomputes synthetic points-based unlock edges for map rendering.
      *
-     * @param \LSLearnerItem[] $items
+     * @param \LSItem[] $items
      */
     protected function buildPointsNavigationCaches(array $items): void
     {
