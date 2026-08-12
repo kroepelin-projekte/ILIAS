@@ -109,28 +109,57 @@
     });
 
     /**
-   * Assigns nodes to graph layers.
-   */
+     * Marks edges closing a cycle so the ranking always works on a DAG.
+     */
+    function markBackEdges() {
+      const state = {};
+      const roots = order.filter((k) => nodes[k].in.length === 0);
+      const starts = roots.concat(order.filter((k) => nodes[k].in.length !== 0));
+      edges.forEach((e) => { e.cycle = false; });
+      starts.forEach((start) => {
+        if (state[start]) { return; }
+        const stack = [{ id: start, i: 0 }];
+        state[start] = 1;
+        while (stack.length) {
+          const frame = stack[stack.length - 1];
+          const node = nodes[frame.id];
+          if (frame.i >= node.out.length) {
+            state[frame.id] = 2;
+            stack.pop();
+          } else {
+            const e = node.out[frame.i];
+            frame.i += 1;
+            if (state[e.to] === 1) {
+              e.cycle = true;
+            } else if (!state[e.to]) {
+              state[e.to] = 1;
+              stack.push({ id: e.to, i: 0 });
+            }
+          }
+        }
+      });
+    }
 
     function rank() {
+      markBackEdges();
+      const forward = edges.filter((e) => !e.cycle);
       const indeg = {};
       const queue = [];
-      order.forEach((k) => { indeg[k] = nodes[k].in.length; });
+      order.forEach((k) => { indeg[k] = 0; });
+      forward.forEach((e) => { indeg[e.to] += 1; });
       order.forEach((k) => { if (indeg[k] === 0) { queue.push(k); } });
-      if (queue.length === 0) { queue.push(order[0]); }
-      const seen = {};
+      const outgoing = {};
+      forward.forEach((e) => { (outgoing[e.from] = outgoing[e.from] || []).push(e); });
       let guard = 0;
       while (queue.length && guard < 100000) {
         guard += 1;
         const current = queue.shift();
-        if (!seen[current]) {
-          seen[current] = true;
-          for (let i = 0; i < nodes[current].out.length; i += 1) {
-            const t = nodes[current].out[i].to;
-            nodes[t].rank = Math.max(nodes[t].rank, nodes[current].rank + 1);
-            indeg[t] -= 1;
-            if (indeg[t] <= 0) { queue.push(t); }
-          }
+        const out = outgoing[current] || [];
+        for (let i = 0; i < out.length; i += 1) {
+          const t = out[i].to;
+          nodes[t].rank = Math.max(nodes[t].rank, nodes[current].rank + 1);
+          indeg[t] -= 1;
+          if (indeg[t] === 0) { queue.push(t); }
         }
       }
       let max = 0;
