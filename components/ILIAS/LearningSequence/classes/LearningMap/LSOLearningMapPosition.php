@@ -182,6 +182,9 @@ class LSOLearningMapPosition
         if (!$this->navigator->canLeave($item)) {
             return self::SIT_BLOCKED;
         }
+        if ($this->getStructuralSuccessors($items, $item) === []) {
+            return self::SIT_DEADEND;
+        }
         $count = count($this->getSuccessors($items, $item));
         if ($count === 0) {
             return self::SIT_DEADEND;

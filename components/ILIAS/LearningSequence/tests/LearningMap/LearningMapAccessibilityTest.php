@@ -86,8 +86,7 @@ class LearningMapAccessibilityTest extends TestCase
                 LSNavigator $navigator,
                 LSOItemPath $item_path,
                 LSOAdaptiveBoundaries $boundaries
-            )
-            {
+            ) {
                 parent::__construct(
                     $navigator,
                     $item_path,
@@ -142,8 +141,7 @@ class LearningMapAccessibilityTest extends TestCase
                 LSNavigator $navigator,
                 LSOItemPath $item_path,
                 LSOAdaptiveBoundaries $boundaries
-            )
-            {
+            ) {
                 parent::__construct(
                     $navigator,
                     $item_path,
@@ -164,6 +162,59 @@ class LearningMapAccessibilityTest extends TestCase
         sort($refs);
 
         $this->assertSame([152, 153], $refs);
+    }
+
+    public function testItemWithoutStructuralSuccessorIsDeadEndDespiteFallbackSuccessors(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+
+        $start = $this->mockItem(149);
+        $current = $this->mockItem(151);
+        $alternative = $this->mockItem(152);
+        $items = [$start, $current, $alternative];
+
+        $navigator->method('canLeave')->willReturn(true);
+        $navigator->method('getSuccessors')
+            ->willReturnCallback(
+                static fn(array $items, \LSLearnerItem $item): array => match ($item->getRefId()) {
+                    149 => [$current, $alternative],
+                    default => [],
+                }
+            );
+        $navigator->method('getStructuralSuccessors')->willReturn([]);
+
+        $item_path = $this->createStub(LSOItemPath::class);
+        $boundaries = $this->createStub(LSOAdaptiveBoundaries::class);
+
+        $position = new class ($navigator, $item_path, $boundaries) extends LSOLearningMapPosition {
+            public function __construct(
+                LSNavigator $navigator,
+                LSOItemPath $item_path,
+                LSOAdaptiveBoundaries $boundaries
+            ) {
+                parent::__construct($navigator, $item_path, $boundaries, 421, 6);
+            }
+
+            /**
+             * @param \LSLearnerItem[] $items
+             */
+            public function exposeSituation(array $items, \LSLearnerItem $item): string
+            {
+                return $this->getSituation($items, $item);
+            }
+
+            protected function getEndRefId(): int
+            {
+                return 0;
+            }
+
+            protected function getPath(): array
+            {
+                return [149, 151];
+            }
+        };
+
+        $this->assertSame(LSOLearningMapPosition::SIT_DEADEND, $position->exposeSituation($items, $current));
     }
 
     private function mockItem(int $ref_id): \LSLearnerItem
