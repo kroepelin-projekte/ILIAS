@@ -30,6 +30,16 @@
     color: #111;
 }
 
+.alp-cm-badge--dead-end {
+    background: #fce4e4;
+    color: #8b0000;
+}
+
+.alp-cm-badge--entry-point {
+    background: #fff4cc;
+    color: #5c4700;
+}
+
 .alp-cm-conditions {
     padding: 4px 8px;
 }

@@ -40,10 +40,10 @@ interface LSNavigator
      * regardless of whether they may currently be entered. Needed by views
      * (e.g. the map) that have to show blocked objects as well.
      *
-     * @param \LSLearnerItem[] $items
-     * @return \LSLearnerItem[]
+     * @param \LSItem[] $items
+     * @return \LSItem[]
      */
-    public function getStructuralSuccessors(array $items, \LSLearnerItem $current): array;
+    public function getStructuralSuccessors(array $items, \LSItem $current): array;
 
     /**
      * @param \LSLearnerItem[] $items
@@ -80,7 +80,7 @@ interface LSNavigator
      * walking the graph does not hit the database once per item. Navigators
      * without any state to load may implement this as a no-op.
      *
-     * @param \LSLearnerItem[] $items
+     * @param \LSItem[] $items
      */
     public function preload(array $items): void;
 

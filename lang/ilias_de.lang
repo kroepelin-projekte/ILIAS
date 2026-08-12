@@ -11230,7 +11230,9 @@ lso#:#lp_not_relevant_post_cond#:#für Fortfahren aktuell nicht maßgeblich
 lso#:#lso_activation_online_info#:#Nur wenn die Lernsequenz online geschaltet ist, können Personen beitreten und Mitglieder auf die Lernsequenz zugreifen. Wenn nicht, ist die Lernsequenz nur für Administration und Rollen mit dem Recht „Einstellungen bearbeiten“ verfügbar.
 lso#:#lso_adaptive_conditions_empty#:#(keine)
 lso#:#lso_adaptive_content_management#:#Inhaltsverwaltung
+lso#:#lso_adaptive_dead_end#:#Sackgasse
 lso#:#lso_adaptive_end#:#Ende
+lso#:#lso_adaptive_entry_point#:#Einstiegspunkt
 lso#:#lso_adaptive_filter_end#:#Ende
 lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Informationen

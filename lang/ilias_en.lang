@@ -11202,7 +11202,9 @@ lso#:#lp_not_relevant_post_cond#:#currently not relevant for continuation
 lso#:#lso_activation_online_info#:#Set the Learning Sequence online to make it visible and available for Learning Sequence members. If not, only administrators and tutors will have access to it.
 lso#:#lso_adaptive_conditions_empty#:#(none)
 lso#:#lso_adaptive_content_management#:#Content Management
+lso#:#lso_adaptive_dead_end#:#Dead End
 lso#:#lso_adaptive_end#:#End
+lso#:#lso_adaptive_entry_point#:#Entry Point
 lso#:#lso_adaptive_filter_end#:#End
 lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Information
