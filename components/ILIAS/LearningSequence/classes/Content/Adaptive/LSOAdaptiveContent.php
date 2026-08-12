@@ -130,7 +130,10 @@ class LSOAdaptiveContent implements LSOContentController
         $navigator->preload($items);
         $structural_successors = [];
         foreach ($items as $item) {
-            $structural_successors[$item->getRefId()] = $navigator->getStructuralSuccessors($items, $item) !== [];
+            $structural_successors[$item->getRefId()] = array_map(
+                static fn(\LSItem $successor): int => $successor->getRefId(),
+                $navigator->getStructuralSuccessors($items, $item)
+            );
         }
         $filter_gui = new LSOAdaptiveFilter($this->ui_factory, $this->lng, $this->ctrl, $this->parent_gui);
         $filter = $filter_gui->getFilter(
@@ -177,11 +180,31 @@ class LSOAdaptiveContent implements LSOContentController
     }
 
     /**
+     * Builds a readable list of object titles for the given ref ids.
+     *
+     * @param int[] $ref_ids Ref ids of the connected objects.
+     */
+    protected function getObjectTitleList(array $ref_ids): string
+    {
+        $titles = [];
+        foreach (array_unique($ref_ids) as $ref_id) {
+            $titles[] = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
+        }
+        sort($titles);
+
+        if ($titles === []) {
+            return $this->lng->txt('no_conditions');
+        }
+
+        return implode(', ', $titles);
+    }
+
+    /**
      * Gets the filtered content table data.
      *
      * @param \LSItem[] $items Learning sequence items.
      * @param array<string, mixed>|null $filter_data Filter data.
-     * @param array<int, bool> $structural_successors Whether each item has a structural successor.
+     * @param array<int, int[]> $structural_successors Ref ids of the structural successors per item.
      * @return ilObjLearningSequenceContentData[]
      */
     protected function getTableData(array $items, ?array $filter_data, array $structural_successors): array
@@ -190,6 +213,13 @@ class LSOAdaptiveContent implements LSOContentController
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
         $start_ref_id = $boundary_data['start_ref_id'];
         $end_ref_id = $boundary_data['end_ref_id'];
+
+        $structural_predecessors = [];
+        foreach ($structural_successors as $source_ref_id => $successor_ref_ids) {
+            foreach ($successor_ref_ids as $successor_ref_id) {
+                $structural_predecessors[$successor_ref_id][] = (int) $source_ref_id;
+            }
+        }
 
         $name_filter = $filter_data['name'] ?? '';
         $input_filter = $filter_data['input_conditions'] ?? [];
@@ -298,14 +328,8 @@ class LSOAdaptiveContent implements LSOContentController
             }
 
             // Information
-            $prev_title = $this->lng->txt('no_conditions');
-            if ($index > 0) {
-                $prev_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index - 1]->getRefId()));
-            }
-            $next_title = $this->lng->txt('no_conditions');
-            if ($index < count($items) - 1) {
-                $next_title = ilObject::_lookupTitle(ilObject::_lookupObjId($items[$index + 1]->getRefId()));
-            }
+            $prev_title = $this->getObjectTitleList($structural_predecessors[$ref_id] ?? []);
+            $next_title = $this->getObjectTitleList($structural_successors[$ref_id] ?? []);
 
             $icon_path = ilObject::_getIcon($obj_id, "small", $type);
             $actions = $this->parent_gui->getTableActionHandler()->collectActions(
@@ -333,7 +357,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $next_title,
                 $input_conditions,
                 $output_conditions,
-                $structural_successors[$ref_id],
+                ($structural_successors[$ref_id] ?? []) !== [],
                 $actions
             );
 
