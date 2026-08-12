@@ -227,8 +227,10 @@ abstract class AbstractCondition
 
     /**
      * Saves the condition to the DB
+     * @param bool $is_import If true, skips createConditionData() (data will be filled by importPayload())
+     * @throws ReflectionException
      */
-    public function create(): void
+    public function create(bool $is_import = false): void
     {
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('createConditionData');
@@ -249,7 +251,12 @@ abstract class AbstractCondition
         ]);
 
         $this->condition_id = $condition_id;
-        $this->createConditionData($condition_id);
+        
+        // Only call createConditionData if this is NOT an import
+        // (during import, data will be filled by importPayload())
+        if (!$is_import) {
+            $this->createConditionData($condition_id);
+        }
     }
 
     /**
@@ -762,8 +769,6 @@ abstract class AbstractCondition
     /**
      * Default import for payload exported by exportPayload().
      * $new_condition_id must already be created in lso_conditions.
-     * Handles multiple tables, maps 'item' ref_ids, and avoids duplicate entries
-     * by checking if condition_id already exists in the table (update vs insert).
      */
     protected function importPayload(array $payload, int $new_condition_id): void
     {
@@ -772,14 +777,22 @@ abstract class AbstractCondition
 
         foreach ($payload as $tableData) {
             $table = (string)($tableData['table'] ?? '');
+            $fields = (array)($tableData['fields'] ?? []);
             $rows = is_array($tableData['rows'] ?? null) ? $tableData['rows'] : [];
+
+            $field_map = [];
+            foreach ($fields as $col_name => $field_def) {
+                $field_map[$col_name] = [
+                    'type' => $field_def['type'] ?? 'text',
+                    'nullable' => !($field_def['notnull'] ?? true),
+                ];
+            }
 
             if ($table === '' || !$db->tableExists($table)) {
                 continue;
             }
 
             $table_has_item_column = $db->tableColumnExists($table, 'item');
-            $table_has_condition_id_column = $db->tableColumnExists($table, 'condition_id');
 
             if ($table_has_item_column && $rows === []) {
                 throw new \RuntimeException("Payload for table '{$table}' is empty, but table requires 'item' rows.");
@@ -809,50 +822,31 @@ abstract class AbstractCondition
                         continue;
                     }
 
+                    $field_info = $field_map[$col] ?? null;
+
+                    // Remap ref_id values using the container refs mapping
                     if ($col === 'item') {
-                        // Remap ref_id values using the container refs mapping
-                        if (is_string($value) && isset($ref_mapping[$value])) {
-                            $value = $ref_mapping[$value];
-                        } elseif (is_int($value) && isset($ref_mapping[(string) $value])) {
-                            $value = (int) $ref_mapping[(string) $value];
+                        if (!isset($ref_mapping[$value])) {
+                            continue 2;
                         }
 
-                        // Validate item
-                        if (is_string($value) && ctype_digit($value)) {
-                            $value = (int) $value;
-                        }
-
-                        if (!is_int($value) || $value <= 0) {
-                            throw new \RuntimeException("Invalid 'item' value in payload for table '{$table}'.");
-                        }
-
+                        $value = (int) $ref_mapping[$value];
                         $insert['item'] = ['integer', $value];
                         $inserted_item_rows++;
-                        continue;
                     }
 
+                    // Handle NULL values based on field definition
                     if ($value === null) {
-                        $insert[$col] = ['text', ''];
+                        if ($field_info && ($field_info['nullable'] ?? false)) {
+                            $insert[$col] = [$field_info['type'], null];
+                        } else {
+                            $insert[$col] = [$field_info ? $field_info['type'] : 'text', ''];
+                        }
                         continue;
                     }
 
-                    $insert[$col] = [is_int($value) ? 'integer' : 'text', $value];
-                }
-
-                // Check if a row with this condition_id already exists in the table
-                // If so, perform an UPDATE instead of INSERT to avoid duplicate entry
-                if ($table_has_condition_id_column) {
-                    $existing_result = $db->queryF(
-                        "SELECT condition_id FROM $table WHERE condition_id = %s",
-                        ['integer'],
-                        [$new_condition_id]
-                    );
-                    if ($db->numRows($existing_result) > 0) {
-                        // Remove condition_id from insert data (it's the PK, don't update it)
-                        unset($insert['condition_id']);
-                        $db->update($table, $insert, ['condition_id' => ['integer', $new_condition_id]]);
-                        continue;
-                    }
+                    $type = $field_info ? $field_info['type'] : (is_int($value) ? 'integer' : 'text');
+                    $insert[$col] = [$type, $value];
                 }
 
                 $db->insert($table, $insert);

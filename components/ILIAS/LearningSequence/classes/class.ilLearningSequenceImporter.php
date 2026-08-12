@@ -244,7 +244,7 @@ class ilLearningSequenceImporter extends ilXmlImporter
                         $condition->setSubtype($subtype);
                     }
 
-                    $condition->create();
+                    $condition->create(true);
                     $created = true;
 
                     $new_condition_id = (int) $condition->getConditionId();
