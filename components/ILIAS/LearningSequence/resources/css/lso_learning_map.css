@@ -100,6 +100,26 @@
 
 /* Learning map styling. */
 
+.lso-learning-map__swatch--node_open {
+    height: 12px;
+    width: 12px;
+    border: 1px solid var(--lso-learning-map-border);
+    border-radius: 2px;
+    background: #fff;
+}
+
+/* Learning map styling. */
+
+.lso-learning-map__swatch--node_blocked {
+    height: 12px;
+    width: 12px;
+    border: 1px dashed var(--lso-learning-map-blocked);
+    border-radius: 2px;
+    background: #fff;
+}
+
+/* Learning map styling. */
+
 .lso-learning-map__swatch--done {
     height: 12px;
     width: 12px;
@@ -348,47 +368,45 @@
 
 /* Learning map styling. */
 
-.lso-learning-map__badge {
-    font-size: .68em;
-    padding: 0 .3rem;
-    border-radius: 8px;
-    background: #eee;
+.lso-learning-map__glyphs {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Learning map styling. */
+
+.lso-learning-map__glyph {
+    font-size: .82em;
+    line-height: 1;
     color: #444;
 }
 
 /* Learning map styling. */
 
-.lso-learning-map__badge + .lso-learning-map__badge {
-    margin-left: .25rem;
+.lso-learning-map__glyph .glyph {
+    color: inherit;
+    cursor: default;
 }
 
 /* Learning map styling. */
 
-.lso-learning-map__badge--done {
-    background: #eaf3e0;
-    color: #3d5e17;
+.lso-learning-map__glyph--done {
+    color: var(--lso-learning-map-done);
 }
 
 /* Learning map styling. */
 
-.lso-learning-map__badge--current {
-    background: #e3eff5;
-    color: #255670;
+.lso-learning-map__glyph--current {
+    color: var(--lso-learning-map-current);
 }
 
 /* Learning map styling. */
 
-.lso-learning-map__badge--open {
-    background: #fff;
-    color: #333;
-    box-shadow: inset 0 0 0 1px #767676;
-}
-
-/* Learning map styling. */
-
-.lso-learning-map__badge--blocked {
-    background: #ededed;
-    color: #4a4a4a;
+.lso-learning-map__glyph--blocked {
+    color: var(--lso-learning-map-blocked);
 }
 
 /* Learning map styling. */
