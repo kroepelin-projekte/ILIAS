@@ -168,6 +168,16 @@
         if (nodes[k].raw.terminal === 'end') { nodes[k].rank = max; }
         if (nodes[k].raw.terminal === 'start') { nodes[k].rank = 0; }
       });
+
+      const indegForward = {};
+      const outdegForward = {};
+      order.forEach((k) => { indegForward[k] = 0; outdegForward[k] = 0; });
+      forward.forEach((e) => { indegForward[e.to] += 1; outdegForward[e.from] += 1; });
+      const detached = order.filter((k) => !nodes[k].raw.terminal
+        && indegForward[k] === 0 && outdegForward[k] === 0);
+      if (detached.length) {
+        detached.forEach((k) => { nodes[k].rank = max + 1; });
+      }
     }
 
     const layers = [];
