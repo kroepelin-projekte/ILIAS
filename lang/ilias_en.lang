@@ -11268,6 +11268,8 @@ lso#:#lso_learning_map_done#:#Completed
 lso#:#lso_learning_map_empty#:#No paths can be displayed for this Learning Sequence yet. Objects or a start object are missing.
 lso#:#lso_learning_map_fit#:#Fit view
 lso#:#lso_learning_map_focus_current#:#Go to my position
+lso#:#lso_learning_map_node_blocked#:#Object not available
+lso#:#lso_learning_map_node_open#:#Object available
 lso#:#lso_learning_map_open#:#Available
 lso#:#lso_learning_map_open_object#:#Open
 lso#:#lso_learning_map_path#:#Previous path

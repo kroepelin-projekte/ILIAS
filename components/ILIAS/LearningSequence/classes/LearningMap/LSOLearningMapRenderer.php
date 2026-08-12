@@ -33,6 +33,20 @@ class LSOLearningMapRenderer
     public const ORIENTATION_VERTICAL = 'vertical';
     public const ORIENTATION_HORIZONTAL = 'horizontal';
 
+    /**
+     * Glyphs shown in the object boxes instead of the former state badges.
+     * Change the values here to switch a glyph; the keys are used by the map
+     * script and by the legend.
+     *
+     * @var array<string, string>
+     */
+    public const STATE_GLYPHS = [
+        'current' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::NEXT,
+        'done' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::CHECKED,
+        'open' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::UNCHECKED,
+        'blocked' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::CLOSE
+    ];
+
     private const NODE_WIDTH = 190;
     private const NODE_HEIGHT = 86;
     private const H_GAP = 26;
@@ -121,6 +135,14 @@ class LSOLearningMapRenderer
             $template->parseCurrentBlock();
         }
 
+        foreach ($this->getGlyphLegend() as $key => $entry) {
+            $template->setCurrentBlock('legend_glyph_item');
+            $template->setVariable('LEGEND_GLYPH_KEY', $key);
+            $template->setVariable('LEGEND_GLYPH', $entry['glyph']);
+            $template->setVariable('LEGEND_GLYPH_LABEL', $entry['label']);
+            $template->parseCurrentBlock();
+        }
+
         return $template->get();
     }
 
@@ -140,7 +162,8 @@ class LSOLearningMapRenderer
                     'h_gap' => self::H_GAP,
                     'v_gap' => self::V_GAP,
                 ],
-                'labels' => $this->getNodeLabels() + $this->getScreenReaderLabels()
+                'labels' => $this->getNodeLabels() + $this->getScreenReaderLabels(),
+                'glyphs' => $this->getStateGlyphs()
             ],
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
@@ -159,6 +182,48 @@ class LSOLearningMapRenderer
             'blocked' => $this->txt('lso_learning_map_blocked'),
             'open_object' => $this->txt('lso_learning_map_open_object')
         ];
+    }
+
+    /**
+     * Rendered glyph markup per state, keyed like self::STATE_GLYPHS.
+     *
+     * @return array<string, string>
+     */
+    protected function getStateGlyphs(): array
+    {
+        $glyphs = [];
+        foreach (self::STATE_GLYPHS as $key => $type) {
+            $glyphs[$key] = $this->ui_renderer->render(
+                $this->ui_factory->symbol()->glyph()->$type()
+                    ->withLabel($this->getStateGlyphLabel($key))
+            );
+        }
+
+        return $glyphs;
+    }
+
+    /**
+     * @return array<string, array{glyph: string, label: string}>
+     */
+    protected function getGlyphLegend(): array
+    {
+        $legend = [];
+        foreach ($this->getStateGlyphs() as $key => $glyph) {
+            if ($this->sequential && $key === 'current') {
+                continue;
+            }
+            $legend[$key] = [
+                'glyph' => $glyph,
+                'label' => $this->getStateGlyphLabel($key)
+            ];
+        }
+
+        return $legend;
+    }
+
+    protected function getStateGlyphLabel(string $key): string
+    {
+        return $this->txt('lso_learning_map_' . $key);
     }
 
     /**
@@ -202,6 +267,8 @@ class LSOLearningMapRenderer
             'open' => $this->txt('lso_learning_map_open'),
             'blocked' => $this->txt('lso_learning_map_blocked'),
             'path' => $this->txt('lso_learning_map_path'),
+            'node_open' => $this->txt('lso_learning_map_node_open'),
+            'node_blocked' => $this->txt('lso_learning_map_node_blocked'),
             'done' => $this->txt('lso_learning_map_done'),
             'current' => $this->txt('lso_learning_map_current')
         ];

@@ -11296,6 +11296,8 @@ lso#:#lso_learning_map_done#:#Erledigt
 lso#:#lso_learning_map_empty#:#Für diese Lernsequenz können noch keine Wege dargestellt werden. Es fehlen Objekte oder ein Start-Objekt.
 lso#:#lso_learning_map_fit#:#Ansicht einpassen
 lso#:#lso_learning_map_focus_current#:#Zu meiner Position springen
+lso#:#lso_learning_map_node_blocked#:#Objekt nicht verfügbar
+lso#:#lso_learning_map_node_open#:#Objekt verfügbar
 lso#:#lso_learning_map_open#:#Verfügbar
 lso#:#lso_learning_map_open_object#:#Öffnen
 lso#:#lso_learning_map_path#:#Bisheriger Pfad

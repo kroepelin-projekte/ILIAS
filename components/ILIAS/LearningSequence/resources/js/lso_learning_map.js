@@ -78,6 +78,7 @@
       ...rawLabels,
       openObject: rawLabels.open_object,
     };
+    const glyphs = data.glyphs || {};
 
     const horizontal = (data.orientation === 'horizontal');
     const ALONG = horizontal ? M.nodeHeight : M.nodeWidth;
@@ -155,6 +156,9 @@
       edges.forEach((e) => {
         const a = nodes[e.from];
         const b = nodes[e.to];
+        if (b.rank <= a.rank) {
+          return;
+        }
         if (b.rank - a.rank <= 1) {
           segments.push({ edge: e, from: a, to: b });
           return;
@@ -299,7 +303,12 @@
     let depthExtent = 0;
     let contentTop = 0;
     let contentBottom = 0;
+    const backwardRoutes = new Map();
+    const backwardBounds = { left: 0, right: 0 };
+    const BACKWARD_LANE_SPACING = M.hGap + 12;
+    const BACKWARD_SEARCH_LIMIT = 12;
     function positions() {
+      backwardRoutes.clear();
       const w = function (n) { return n.dummy ? DUMMY_WIDTH : ALONG; };
       layers.forEach((l, r) => {
         let total = 0;
@@ -335,7 +344,180 @@
       layers.forEach((l) => {
         l.forEach((n) => { minX = Math.min(minX, n.x); });
       });
-      const shift = 40 - minX;
+      const backwardEdges = edges.filter((e) => nodes[e.to].rank <= nodes[e.from].rank);
+      const nodeList = [];
+      layers.forEach((l) => { l.forEach((n) => { if (!n.dummy) { nodeList.push(n); } }); });
+      const contentLeft = minX;
+      let contentRight = -Infinity;
+      layers.forEach((l) => {
+        l.forEach((n) => { contentRight = Math.max(contentRight, n.x + w(n)); });
+      });
+
+      function portOrder(port, routes) {
+        const { lane } = routes.get(port.edge);
+        return nodes[port.other].y > nodes[port.node].y ? -lane : lane;
+      }
+
+      function laneOffset(side, lane) {
+        return side === 'right'
+          ? contentRight + M.hGap + ((lane + 1) * BACKWARD_LANE_SPACING)
+          : contentLeft - M.hGap - ((lane + 1) * BACKWARD_LANE_SPACING);
+      }
+
+      function planRoutes(sides) {
+        const plan = new Map();
+        const counts = { left: 0, right: 0 };
+        ['left', 'right'].forEach((side) => {
+          const sideEdges = backwardEdges.filter((unused, index) => sides[index] === side);
+          sideEdges.sort((first, second) => {
+            const firstSpan = Math.abs(nodes[first.from].y - nodes[first.to].y);
+            const secondSpan = Math.abs(nodes[second.from].y - nodes[second.to].y);
+            return firstSpan - secondSpan;
+          });
+          sideEdges.forEach((edge, lane) => {
+            plan.set(edge, { side, lane });
+            counts[side] += 1;
+          });
+        });
+        const ports = {};
+        plan.forEach((route, edge) => {
+          const sourceKey = `${edge.from}:${route.side}`;
+          const targetKey = `${edge.to}:${route.side}`;
+          (ports[sourceKey] = ports[sourceKey] || []).push({
+            edge, kind: 'source', node: edge.from, other: edge.to,
+          });
+          (ports[targetKey] = ports[targetKey] || []).push({
+            edge, kind: 'target', node: edge.to, other: edge.from,
+          });
+        });
+        Object.keys(ports).forEach((key) => {
+          ports[key].sort((first, second) => portOrder(first, plan) - portOrder(second, plan));
+          ports[key].forEach((port, index, all) => {
+            plan.get(port.edge)[`${port.kind}Port`] = { index, count: all.length };
+          });
+        });
+        return { plan, counts };
+      }
+
+      function crossesLines(a, b, c, d) {
+        const turn = function (p, q, r) {
+          return ((q[0] - p[0]) * (r[1] - p[1])) - ((q[1] - p[1]) * (r[0] - p[0]));
+        };
+        const first = turn(a, b, c);
+        const second = turn(a, b, d);
+        const third = turn(c, d, a);
+        const fourth = turn(c, d, b);
+        return ((first > 0 && second < 0) || (first < 0 && second > 0))
+          && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0));
+      }
+
+      function hitsNodes(a, b) {
+        return nodeList.reduce((count, node) => {
+          const left = node.x;
+          const right = node.x + ALONG;
+          const top = node.y;
+          const bottom = node.y + DEPTH;
+          const inside = function (p) {
+            return p[0] > left && p[0] < right && p[1] > top && p[1] < bottom;
+          };
+          const borders = [
+            [[left, top], [right, top]],
+            [[right, top], [right, bottom]],
+            [[right, bottom], [left, bottom]],
+            [[left, bottom], [left, top]],
+          ];
+          const touched = inside(a) || inside(b)
+            || borders.some((border) => crossesLines(a, b, border[0], border[1]));
+          return count + (touched ? 1 : 0);
+        }, 0);
+      }
+
+      const forwardLines = [];
+      segments.forEach((s) => {
+        if (backwardEdges.indexOf(s.edge) !== -1) { return; }
+        const fromX = s.from.x + (w(s.from) / 2);
+        const toX = s.to.x + (w(s.to) / 2);
+        const gapTop = s.from.y + DEPTH;
+        const gapBottom = s.to.y;
+        const middle = (gapTop + gapBottom) / 2;
+        forwardLines.push([[fromX, gapTop], [fromX, middle]]);
+        forwardLines.push([[fromX, middle], [toX, middle]]);
+        forwardLines.push([[toX, middle], [toX, gapBottom]]);
+      });
+      layers.forEach((l) => {
+        l.forEach((n) => {
+          if (!n.dummy) { return; }
+          const x = n.x + (DUMMY_WIDTH / 2);
+          forwardLines.push([[x, n.y], [x, n.y + DEPTH]]);
+        });
+      });
+
+      function evaluateSides(sides) {
+        const planned = planRoutes(sides);
+        const polylines = [];
+        planned.plan.forEach((route, edge) => {
+          const source = nodes[edge.from];
+          const target = nodes[edge.to];
+          const x = laneOffset(route.side, route.lane);
+          const sourceX = route.side === 'right' ? source.x + ALONG : source.x;
+          const targetX = route.side === 'right' ? target.x + ALONG : target.x;
+          const sourceY = source.y
+            + ((DEPTH * (route.sourcePort.index + 1)) / (route.sourcePort.count + 1));
+          const targetY = target.y
+            + ((DEPTH * (route.targetPort.index + 1)) / (route.targetPort.count + 1));
+          polylines.push([[sourceX, sourceY], [x, sourceY], [x, targetY], [targetX, targetY]]);
+        });
+        let objectHits = 0;
+        let lineCrossings = 0;
+        polylines.forEach((points, index) => {
+          for (let i = 1; i < points.length; i += 1) {
+            const a = points[i - 1];
+            const b = points[i];
+            objectHits += hitsNodes(a, b);
+            lineCrossings += forwardLines.reduce((count, line) => (
+              count + (crossesLines(a, b, line[0], line[1]) ? 1 : 0)
+            ), 0);
+            for (let other = 0; other < index; other += 1) {
+              const others = polylines[other];
+              for (let j = 1; j < others.length; j += 1) {
+                if (crossesLines(a, b, others[j - 1], others[j])) { lineCrossings += 1; }
+              }
+            }
+          }
+        });
+        const balance = Math.abs(planned.counts.right - planned.counts.left);
+        return {
+          score: (objectHits * 1000) + (lineCrossings * 10) + balance,
+          plan: planned.plan,
+          counts: planned.counts,
+        };
+      }
+
+      let best = null;
+      if (backwardEdges.length > 0 && backwardEdges.length <= BACKWARD_SEARCH_LIMIT) {
+        const combinations = 2 ** backwardEdges.length;
+        for (let combination = 0; combination < combinations; combination += 1) {
+          const sides = backwardEdges.map((unused, index) => (
+            Math.floor(combination / (2 ** index)) % 2 === 1 ? 'right' : 'left'
+          ));
+          const candidate = evaluateSides(sides);
+          if (!best || candidate.score < best.score) { best = candidate; }
+        }
+      } else if (backwardEdges.length > 0) {
+        best = evaluateSides(backwardEdges.map((unused, index) => (
+          index % 2 === 0 ? 'right' : 'left'
+        )));
+      }
+      const lanes = { left: 0, right: 0 };
+      if (best) {
+        best.plan.forEach((route, edge) => { backwardRoutes.set(edge, route); });
+        lanes.left = best.counts.left;
+        lanes.right = best.counts.right;
+      }
+      const leftReserve = lanes.left > 0
+        ? M.hGap + (lanes.left * BACKWARD_LANE_SPACING) + 20
+        : 0;
+      const shift = 40 - minX + leftReserve;
       layers.forEach((l) => { l.forEach((n) => { n.x += shift; n.y += 20; }); });
       let right = 0;
       let bottom = 0;
@@ -345,7 +527,10 @@
           bottom = Math.max(bottom, n.y + DEPTH);
         });
       });
-      alongExtent = right + 40;
+      backwardBounds.left = contentLeft + shift;
+      backwardBounds.right = right;
+      alongExtent = right + 40
+        + (lanes.right > 0 ? M.hGap + (lanes.right * BACKWARD_LANE_SPACING) : 0);
       depthExtent = bottom + 20;
     }
 
@@ -454,12 +639,15 @@
         if (o.current) { cls.push('lso-learning-map__node--current'); }
         if (o.terminal) { cls.push('lso-learning-map__node--terminal'); }
         const stateKey = o.state === 'done' || o.state === 'blocked' ? o.state : 'open';
-        let badge = `<span class="lso-learning-map__badge lso-learning-map__badge--${stateKey}"`
-          + ` aria-hidden="true">${escapeHtml(labels[stateKey])}</span>`;
-        if (o.current) {
-          badge = `<span class="lso-learning-map__badge lso-learning-map__badge--current" aria-hidden="true">${
-            escapeHtml(labels.current)}</span>${badge}`;
-        }
+        const stateKeys = o.current ? ['current', stateKey] : [stateKey];
+        const glyphMarkup = stateKeys
+          .filter((key) => glyphs[key])
+          .map((key) => `<span class="lso-learning-map__glyph lso-learning-map__glyph--${key}">${
+            glyphs[key]}</span>`)
+          .join('');
+        const nodeGlyphs = glyphMarkup
+          ? `<span class="lso-learning-map__glyphs">${glyphMarkup}</span>`
+          : '';
         html += `<li class="${cls.join(' ')}" id="${escapeHtml(`${id}_n_${o.id}`)}"`
           + ` style="left:${Math.round(n.sx)}px;top:${Math.round(n.sy)}px"`
           + ` title="${escapeHtml(o.title + (o.description ? ` \u2013 ${o.description}` : ''))}">`
@@ -476,7 +664,7 @@
               + ` aria-label="${escapeHtml(`${labels.openObject}: ${o.title}`)}">${
                 escapeHtml(labels.openObject)}</a>`
               : '<span class="lso-learning-map__node-link">&nbsp;</span>'
-          }${badge
+          }${nodeGlyphs
           }</div>`
           + '</li>';
       });
@@ -485,19 +673,85 @@
     }
 
     function drawEdges() {
+      const ARROW_SIZE = 12;
       const parts = [];
       let defs = '';
       ['open', 'blocked', 'path'].forEach((key) => {
-        defs += `<marker id="${id}_arrow_${key}" viewBox="0 0 10 10" refX="9" refY="5"`
-          + ' markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+        defs += `<marker id="${id}_arrow_${key}" viewBox="0 0 10 10" refX="0" refY="5"`
+          + ` markerWidth="${ARROW_SIZE}" markerHeight="${ARROW_SIZE}" markerUnits="userSpaceOnUse"`
+          + ' orient="auto-start-reverse">'
           + `<path class="lso-learning-map__arrow${
             key === 'open' ? '' : ` lso-learning-map__arrow--${key}`
           }" d="M 0 0 L 10 5 L 0 10 z"/></marker>`;
       });
       parts.push(`<defs>${defs}</defs>`);
 
+      function edgeKind(e) {
+        if (e.passable === false) { return 'blocked'; }
+        if (e.on_path) { return 'path'; }
+        return 'open';
+      }
+
+      function edgeClass(kind) {
+        return `lso-learning-map__edge${kind === 'blocked' ? ' lso-learning-map__edge--blocked' : ''
+        }${kind === 'path' ? ' lso-learning-map__edge--path' : ''}`;
+      }
+
+      function addEdge(e, pts) {
+        const sp = pts.map(point);
+        if (sp.length > 1) {
+          const last = sp[sp.length - 1];
+          const prev = sp[sp.length - 2];
+          const dx = last[0] - prev[0];
+          const dy = last[1] - prev[1];
+          const len = Math.sqrt((dx * dx) + (dy * dy));
+          if (len > ARROW_SIZE) {
+            sp[sp.length - 1] = [
+              last[0] - ((dx / len) * ARROW_SIZE),
+              last[1] - ((dy / len) * ARROW_SIZE),
+            ];
+          }
+        }
+        let d = `M ${Math.round(sp[0][0])} ${Math.round(sp[0][1])}`;
+        for (let i = 1; i < sp.length; i += 1) {
+          const same = Math.round(sp[i][0]) === Math.round(sp[i - 1][0])
+            && Math.round(sp[i][1]) === Math.round(sp[i - 1][1]);
+          if (!same) {
+            d += ` L ${Math.round(sp[i][0])} ${Math.round(sp[i][1])}`;
+          }
+        }
+
+        const kind = edgeKind(e);
+        parts.push(`<path class="${edgeClass(kind)}" d="${d}" marker-end="url(#${id}_arrow_${kind})"/>`);
+        if (e.label) {
+          const mid = sp[Math.floor(sp.length / 2)];
+          parts.push(`<text class="lso-learning-map__edge-label" x="${mid[0] + 6}" y="${mid[1] - 8}">${
+            escapeHtml(e.label)}</text>`);
+        }
+      }
+
+      backwardRoutes.forEach((route, e) => {
+        const source = nodes[e.from];
+        const target = nodes[e.to];
+        const laneX = route.side === 'right'
+          ? backwardBounds.right + M.hGap + ((route.lane + 1) * BACKWARD_LANE_SPACING)
+          : backwardBounds.left - M.hGap - ((route.lane + 1) * BACKWARD_LANE_SPACING);
+        const sourceX = route.side === 'right' ? source.x + ALONG : source.x;
+        const targetX = route.side === 'right' ? target.x + ALONG : target.x;
+        const sourcePoint = [
+          sourceX,
+          source.y + (DEPTH * (route.sourcePort.index + 1)) / (route.sourcePort.count + 1),
+        ];
+        const targetPoint = [
+          targetX,
+          target.y + (DEPTH * (route.targetPort.index + 1)) / (route.targetPort.count + 1),
+        ];
+        addEdge(e, [sourcePoint, [laneX, sourcePoint[1]], [laneX, targetPoint[1]], targetPoint]);
+      });
+
       const byEdge = new Map();
       segments.forEach((s) => {
+        if (backwardRoutes.has(s.edge)) { return; }
         if (!byEdge.has(s.edge)) { byEdge.set(s.edge, []); }
         byEdge.get(s.edge).push(s);
       });
@@ -505,6 +759,7 @@
       const outSegs = {};
       const inSegs = {};
       segments.forEach((s) => {
+        if (backwardRoutes.has(s.edge)) { return; }
         (outSegs[s.from.id] = outSegs[s.from.id] || []).push(s);
         (inSegs[s.to.id] = inSegs[s.to.id] || []).push(s);
       });
@@ -619,31 +874,7 @@
           pts.push([b[0], b[1]]);
         });
 
-        const sp = pts.map(point);
-        let d = `M ${Math.round(sp[0][0])} ${Math.round(sp[0][1])}`;
-        for (let i = 1; i < sp.length; i += 1) {
-          const same = Math.round(sp[i][0]) === Math.round(sp[i - 1][0])
-            && Math.round(sp[i][1]) === Math.round(sp[i - 1][1]);
-          if (!same) {
-            d += ` L ${Math.round(sp[i][0])} ${Math.round(sp[i][1])}`;
-          }
-        }
-
-        let kind = 'open';
-        if (e.passable === false) {
-          kind = 'blocked';
-        } else if (e.on_path) {
-          kind = 'path';
-        }
-        const cls = `lso-learning-map__edge${kind === 'blocked' ? ' lso-learning-map__edge--blocked' : ''
-        }${kind === 'path' ? ' lso-learning-map__edge--path' : ''}`;
-        parts.push(`<path class="${cls}" d="${d}" marker-end="url(#${id}_arrow_${kind})"/>`);
-
-        if (e.label) {
-          const mid = sp[Math.floor(sp.length / 2)];
-          parts.push(`<text class="lso-learning-map__edge-label" x="${mid[0] + 6}" y="${mid[1] - 8}">${
-            escapeHtml(e.label)}</text>`);
-        }
+        addEdge(e, pts);
       });
 
       svg.setAttribute('width', Math.round(width));
