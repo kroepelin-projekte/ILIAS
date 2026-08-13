@@ -35,6 +35,11 @@
     color: #8b0000;
 }
 
+.alp-cm-badge--misconfigured {
+    background: #c62828;
+    color: #fff;
+}
+
 .alp-cm-badge--entry-point {
     background: #fff4cc;
     color: #5c4700;

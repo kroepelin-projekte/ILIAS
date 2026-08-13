@@ -180,6 +180,30 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         return $this->getItems();
     }
 
+    public function getStaticInputConditionConstraints(): array
+    {
+        $ref_ids = $this->getNavigationSourceRefIds();
+
+        return match ($this->getSubtype()) {
+            self::SUBTYPE_AND => [['kind' => 'all_completed', 'ref_ids' => $ref_ids]],
+            self::SUBTYPE_OR => [['kind' => 'any_completed', 'ref_ids' => $ref_ids]],
+            self::SUBTYPE_NOT => [['kind' => 'none_completed', 'ref_ids' => $ref_ids]],
+            default => []
+        };
+    }
+
+    /**
+     * @param array<string, int> $context
+     */
+    public function hasStaticInputConfigurationConflict(array $context = []): bool
+    {
+        $start_ref_id = (int) ($context['start_ref_id'] ?? 0);
+
+        return $start_ref_id > 0
+            && $this->getSubtype() === self::SUBTYPE_NOT
+            && in_array($start_ref_id, $this->getNavigationSourceRefIds(), true);
+    }
+
     /**
      * Checks whether an item should count as completed for logic-gate evaluation.
      *

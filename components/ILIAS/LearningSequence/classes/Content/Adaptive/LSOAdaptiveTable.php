@@ -147,6 +147,10 @@ readonly class LSOAdaptiveTable
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--dead-end">'
                     . $this->lng->txt('lso_adaptive_dead_end') . '</span>';
             }
+            if ($record->has_conflicting_input_configuration) {
+                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--misconfigured">'
+                    . $this->lng->txt('lso_adaptive_misconfigured') . '</span>';
+            }
             if ($record->start_object === '' && $record->input_conditions === []) {
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--entry-point">'
                     . $this->lng->txt('lso_adaptive_entry_point') . '</span>';

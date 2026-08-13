@@ -11209,6 +11209,7 @@ lso#:#lso_adaptive_filter_end#:#End
 lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Information
 lso#:#lso_adaptive_input_conditions#:#Input Conditions
+lso#:#lso_adaptive_misconfigured#:#Misconfigured
 lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
 lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a start object is required.
 lso#:#lso_adaptive_next_object#:#Next Object

@@ -23,6 +23,7 @@ namespace ILIAS\LearningSequence\Content\Adaptive;
 use ilCtrl;
 use ilDBInterface;
 use ilGlobalTemplateInterface;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\LSOContentController;
@@ -143,7 +144,7 @@ class LSOAdaptiveContent implements LSOContentController
         )->withRequest($this->request);
 
         $filter_data = $filter->getData();
-        $data = $this->getTableData($items, $filter_data, $structural_successors);
+        $data = $this->getTableData($items, $filter_data, $structural_successors, $navigator);
 
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -205,9 +206,15 @@ class LSOAdaptiveContent implements LSOContentController
      * @param \LSItem[] $items Learning sequence items.
      * @param array<string, mixed>|null $filter_data Filter data.
      * @param array<int, int[]> $structural_successors Ref ids of the structural successors per item.
+     * @param AdaptiveNavigator $navigator Navigator with preloaded conditions.
      * @return ilObjLearningSequenceContentData[]
      */
-    protected function getTableData(array $items, ?array $filter_data, array $structural_successors): array
+    protected function getTableData(
+        array $items,
+        ?array $filter_data,
+        array $structural_successors,
+        AdaptiveNavigator $navigator
+    ): array
     {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -357,6 +364,10 @@ class LSOAdaptiveContent implements LSOContentController
                 $next_title,
                 $input_conditions,
                 $output_conditions,
+                $this->hasConflictingInputConfiguration(
+                    $navigator->getInputConditions($item),
+                    (int) $start_ref_id
+                ),
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions
             );
@@ -365,6 +376,73 @@ class LSOAdaptiveContent implements LSOContentController
         }
 
         return $data;
+    }
+
+    /**
+     * @param AbstractCondition[] $conditions
+     */
+    protected function hasConflictingInputConfiguration(array $conditions, int $start_ref_id): bool
+    {
+        $requires_completed = [];
+        $requires_not_completed = [];
+        $any_completed_clauses = [];
+        $has_constraints = false;
+        $context = ['start_ref_id' => $start_ref_id];
+
+        foreach ($conditions as $condition) {
+            if ($condition->hasStaticInputConfigurationConflict($context)) {
+                return true;
+            }
+
+            foreach ($condition->getStaticInputConditionConstraints() as $constraint) {
+                $has_constraints = true;
+                $kind = (string) ($constraint['kind'] ?? '');
+                $ref_ids = array_values(array_unique(array_map(
+                    'intval',
+                    (array) ($constraint['ref_ids'] ?? [])
+                )));
+
+                if ($kind === 'all_completed') {
+                    foreach ($ref_ids as $ref_id) {
+                        $requires_completed[$ref_id] = true;
+                    }
+                    continue;
+                }
+
+                if ($kind === 'none_completed') {
+                    foreach ($ref_ids as $ref_id) {
+                        $requires_not_completed[$ref_id] = true;
+                    }
+                    continue;
+                }
+
+                if ($kind === 'any_completed') {
+                    $any_completed_clauses[] = $ref_ids;
+                }
+            }
+        }
+
+        if (!$has_constraints) {
+            return false;
+        }
+
+        if (array_intersect_key($requires_completed, $requires_not_completed) !== []) {
+            return true;
+        }
+
+        foreach ($any_completed_clauses as $clause) {
+            if (
+                $clause === []
+                || array_all(
+                    $clause,
+                    static fn(int $ref_id): bool => isset($requires_not_completed[$ref_id])
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

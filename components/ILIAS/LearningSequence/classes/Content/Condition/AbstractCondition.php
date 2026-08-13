@@ -577,6 +577,27 @@ abstract class AbstractCondition
     }
 
     /**
+     * Returns statically analyzable input-condition constraints.
+     *
+     * @return array<int, array{kind: string, ref_ids: int[]}>
+     */
+    public function getStaticInputConditionConstraints(): array
+    {
+        return [];
+    }
+
+    /**
+     * Allows concrete conditions to report static misconfigurations that depend
+     * on context information such as the configured start object.
+     *
+     * @param array<string, int> $context
+     */
+    public function hasStaticInputConfigurationConflict(array $context = []): bool
+    {
+        return false;
+    }
+
+    /**
      * Returns the glyphe for the condition.
      * Override this method in child classes to provide a specific glyph.
      *

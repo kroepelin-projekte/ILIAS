@@ -71,6 +71,31 @@ class LogicGateInputAwareConditionTest extends TestCase
         $this->assertSame([151, 152], $condition->getNavigationSourceRefIds());
     }
 
+    public function testNotGateExposesStaticConflictConstraints(): void
+    {
+        $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
+            ->newInstanceWithoutConstructor();
+        $condition->setSubtype('logic_gate_not');
+        $condition->setItems('151, 152');
+
+        $constraints = $condition->getStaticInputConditionConstraints();
+
+        $this->assertCount(1, $constraints);
+        $this->assertSame('none_completed', $constraints[0]['kind']);
+        $this->assertSame([151, 152], $constraints[0]['ref_ids']);
+    }
+
+    public function testNotGateOnStartObjectIsReportedAsStaticConflict(): void
+    {
+        $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
+            ->newInstanceWithoutConstructor();
+        $condition->setSubtype('logic_gate_not');
+        $condition->setItems('151, 152');
+
+        $this->assertTrue($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 151]));
+        $this->assertFalse($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 999]));
+    }
+
     private function injectDependencies(
         LogicGateInputAwareCondition $condition,
         ilObjLearningSequenceConditionDiscover $discoverer,

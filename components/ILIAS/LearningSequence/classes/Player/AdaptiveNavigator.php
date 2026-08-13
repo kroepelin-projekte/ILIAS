@@ -357,6 +357,17 @@ class AdaptiveNavigator implements LSNavigator
     }
 
     /**
+     * @return AbstractCondition[]
+     */
+    public function getInputConditions(\LSItem $item): array
+    {
+        return array_values(array_filter(
+            $this->getConditionsFor($item->getRefId()),
+            static fn(AbstractCondition $condition): bool => $condition instanceof InputConditionInterface
+        ));
+    }
+
+    /**
      * Evaluates a condition and treats evaluation failures as unmet conditions.
      */
     protected function checkCondition(AbstractCondition $condition): bool
