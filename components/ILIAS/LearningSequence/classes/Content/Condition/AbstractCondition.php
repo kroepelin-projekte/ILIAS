@@ -590,10 +590,31 @@ abstract class AbstractCondition
      * Allows concrete conditions to report static misconfigurations that depend
      * on context information such as the configured start object.
      *
-     * @param array<string, int> $context
+     * @param array<string, mixed> $context
      */
     public function hasStaticInputConfigurationConflict(array $context = []): bool
     {
+        return false;
+    }
+
+    /**
+     * @param int[] $referenced_ref_ids
+     * @param array<string, mixed> $context
+     */
+    protected function referencesMissingLsoItems(array $referenced_ref_ids, array $context = []): bool
+    {
+        $valid_ref_ids = $context['valid_ref_ids'] ?? [];
+        if (!is_array($valid_ref_ids) || $valid_ref_ids === []) {
+            return false;
+        }
+
+        $normalized_valid_ref_ids = array_values(array_unique(array_map('intval', $valid_ref_ids)));
+        foreach (array_values(array_unique(array_map('intval', $referenced_ref_ids))) as $ref_id) {
+            if (!in_array($ref_id, $normalized_valid_ref_ids, true)) {
+                return true;
+            }
+        }
+
         return false;
     }
 

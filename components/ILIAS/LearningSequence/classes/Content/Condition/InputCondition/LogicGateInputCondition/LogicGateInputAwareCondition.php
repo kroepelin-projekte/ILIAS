@@ -193,10 +193,14 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     }
 
     /**
-     * @param array<string, int> $context
+     * @param array<string, mixed> $context
      */
     public function hasStaticInputConfigurationConflict(array $context = []): bool
     {
+        if ($this->referencesMissingLsoItems($this->getNavigationSourceRefIds(), $context)) {
+            return true;
+        }
+
         $start_ref_id = (int) ($context['start_ref_id'] ?? 0);
 
         return $start_ref_id > 0

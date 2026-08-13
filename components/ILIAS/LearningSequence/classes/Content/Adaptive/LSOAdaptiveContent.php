@@ -233,6 +233,13 @@ class LSOAdaptiveContent implements LSOContentController
         $output_filter = $filter_data['output_conditions'] ?? [];
         $online_filter = $filter_data['online_status'] ?? null;
         $position_filter = $filter_data['position'] ?? [];
+        $input_conflict_context = [
+            'start_ref_id' => (int) $start_ref_id,
+            'valid_ref_ids' => array_map(
+                static fn(\LSItem $item): int => $item->getRefId(),
+                $items
+            ),
+        ];
 
         usort($items, function ($a, $b) use ($start_ref_id, $end_ref_id) {
             if ($a->getRefId() === $start_ref_id) {
@@ -366,7 +373,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $output_conditions,
                 $this->hasConflictingInputConfiguration(
                     $navigator->getInputConditions($item),
-                    (int) $start_ref_id
+                    $input_conflict_context
                 ),
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions
@@ -380,14 +387,14 @@ class LSOAdaptiveContent implements LSOContentController
 
     /**
      * @param AbstractCondition[] $conditions
+     * @param array<string, mixed> $context
      */
-    protected function hasConflictingInputConfiguration(array $conditions, int $start_ref_id): bool
+    protected function hasConflictingInputConfiguration(array $conditions, array $context): bool
     {
         $requires_completed = [];
         $requires_not_completed = [];
         $any_completed_clauses = [];
         $has_constraints = false;
-        $context = ['start_ref_id' => $start_ref_id];
 
         foreach ($conditions as $condition) {
             if ($condition->hasStaticInputConfigurationConflict($context)) {

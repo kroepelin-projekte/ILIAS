@@ -112,6 +112,14 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
+     * @param array<string, mixed> $context
+     */
+    public function hasStaticInputConfigurationConflict(array $context = []): bool
+    {
+        return $this->referencesMissingLsoItems($this->getObjectRefIds(), $context);
+    }
+
+    /**
      * Builds the configuration form of this condition.
      *
      * The form offers a multi select ({@see LSOObjectPicker}) that lets the author pick

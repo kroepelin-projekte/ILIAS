@@ -33,10 +33,11 @@ class LSOAdaptiveContentStaticConflictTest extends TestCase
 
             /**
              * @param AbstractCondition[] $conditions
+             * @param array<string, mixed> $context
              */
-            public function detect(array $conditions, int $start_ref_id): bool
+            public function detect(array $conditions, array $context): bool
             {
-                return $this->hasConflictingInputConfiguration($conditions, $start_ref_id);
+                return $this->hasConflictingInputConfiguration($conditions, $context);
             }
         };
 
@@ -47,7 +48,7 @@ class LSOAdaptiveContentStaticConflictTest extends TestCase
             $this->mockCondition([
                 ['kind' => 'none_completed', 'ref_ids' => [151]],
             ]),
-        ], 0));
+        ], []));
     }
 
     public function testAcceptsCompatibleStaticInputConstraints(): void
@@ -59,10 +60,11 @@ class LSOAdaptiveContentStaticConflictTest extends TestCase
 
             /**
              * @param AbstractCondition[] $conditions
+             * @param array<string, mixed> $context
              */
-            public function detect(array $conditions, int $start_ref_id): bool
+            public function detect(array $conditions, array $context): bool
             {
-                return $this->hasConflictingInputConfiguration($conditions, $start_ref_id);
+                return $this->hasConflictingInputConfiguration($conditions, $context);
             }
         };
 
@@ -74,7 +76,7 @@ class LSOAdaptiveContentStaticConflictTest extends TestCase
             $this->mockCondition([
                 ['kind' => 'none_completed', 'ref_ids' => [152]],
             ]),
-        ], 0));
+        ], []));
     }
 
     /**

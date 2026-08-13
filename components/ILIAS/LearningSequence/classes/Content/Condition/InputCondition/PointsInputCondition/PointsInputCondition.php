@@ -101,6 +101,18 @@ final class PointsInputCondition extends AbstractCondition implements
     }
 
     /**
+     * @param array<string, mixed> $context
+     */
+    public function hasStaticInputConfigurationConflict(array $context = []): bool
+    {
+        if ($this->referencesMissingLsoItems($this->getSourceRefIds(), $context)) {
+            return true;
+        }
+
+        return $this->getMaximumReachablePoints($context) < $this->getPoints();
+    }
+
+    /**
      * @inheritDoc
      */
     public function getAdditionalForm(): FormStandard
@@ -374,6 +386,46 @@ final class PointsInputCondition extends AbstractCondition implements
 
         try {
             return $condition->check() ? $condition->getPoints() : 0;
+        } catch (\LogicException) {
+            return 0;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function getMaximumReachablePoints(array $context = []): int
+    {
+        $configured_points_outputs = $context['configured_points_outputs_by_ref_id'] ?? null;
+        if (is_array($configured_points_outputs)) {
+            $maximum_points = 0;
+            foreach ($this->getSourceRefIds() as $source_ref_id) {
+                $maximum_points += max(0, (int) ($configured_points_outputs[$source_ref_id] ?? 0));
+            }
+
+            return $maximum_points;
+        }
+
+        $maximum_points = 0;
+        foreach ($this->getSourceRefIds() as $source_ref_id) {
+            $maximum_points += $this->getConfiguredPointsFromItem($source_ref_id);
+        }
+
+        return $maximum_points;
+    }
+
+    private function getConfiguredPointsFromItem(int $ref_id): int
+    {
+        $condition_id = $this->getOutputConditionIdForItem($ref_id);
+        if ($condition_id === null) {
+            return 0;
+        }
+
+        $condition = new PointsOutputCondition();
+        $condition->setConditionId($condition_id);
+
+        try {
+            return $condition->getPoints();
         } catch (\LogicException) {
             return 0;
         }

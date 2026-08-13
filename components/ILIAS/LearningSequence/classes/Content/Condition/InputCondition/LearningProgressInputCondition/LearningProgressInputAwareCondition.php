@@ -94,6 +94,14 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
     }
 
     /**
+     * @param array<string, mixed> $context
+     */
+    public function hasStaticInputConfigurationConflict(array $context = []): bool
+    {
+        return $this->referencesMissingLsoItems([$this->getConditionTargetRefId()], $context);
+    }
+
+    /**
      * @inheritDoc
      */
     public static function migrate(): array
