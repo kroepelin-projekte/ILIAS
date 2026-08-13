@@ -177,7 +177,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
 
     public function getNavigationSourceRefIds(): array
     {
-        return $this->getItemsAsArray();
+        return $this->getItems();
     }
 
     /**
