@@ -85,7 +85,7 @@ class Handler extends XMLExportFile implements XMLExportComponentFileInterface
                 ->withSubType('comp')
                 ->withVersion($major_structure_schema_version);
             $structure_xsd = $structure_schema_handler->getXSDFileHandlerByVersionOrLatest();
-            /*if (!$structure_schema_handler->doesXSDFileWithMatchingVersionExist()) {
+            if (!$structure_schema_handler->doesXSDFileWithMatchingVersionExist()) {
                 $statuses = $statuses->withAddedStatus(
                     $this->getFailMsgNoMatchingVersionFound(
                         $this,
@@ -94,7 +94,7 @@ class Handler extends XMLExportFile implements XMLExportComponentFileInterface
                     )
                 );
                 return $statuses;
-            }*/
+            }
             if (!is_null($structure_xsd)) {
                 // uncomment as soon as all export files use the exp:Export/exp:ExportItem/Component structure
                 /*$sets = $sets->withElement(
