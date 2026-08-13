@@ -87,15 +87,23 @@ class LSOObjectPicker
                 IconFactory $icon_factory,
                 array $node_ids,
             ): \Generator {
-                foreach ($this->items as $item) {
-                    $ref_id = (string) $item->getRefId();
-                    if (in_array($ref_id, $node_ids)) {
-                        $obj_id = \ilObject::_lookupObjId((int) $ref_id);
-                        $title = \ilObject::_lookupTitle($obj_id);
-                        $type = \ilObject::_lookupType($obj_id);
+                foreach ($node_ids as $node_id) {
+                    $ref_id = (string) $node_id;
+                    $obj_id = \ilObject::_lookupObjId((int) $ref_id);
+                    $title = ($obj_id > 0)
+                        ? \ilObject::_lookupTitle($obj_id)
+                        : sprintf('Ref-ID %s', $ref_id);
+                    $type = ($obj_id > 0)
+                        ? \ilObject::_lookupType($obj_id)
+                        : '';
+
+                    if ($type !== '') {
                         $icon = $icon_factory->standard($type, $title);
                         yield $node_factory->leaf([$ref_id], $title, $icon);
+                        continue;
                     }
+
+                    yield $node_factory->leaf([$ref_id], $title);
                 }
             }
         };
