@@ -54,6 +54,13 @@ abstract class AbstractCondition
     protected ?int $type_id = null;
     protected ?string $subtype = null;
     protected Factory $ui_factory;
+    /**
+     * Ref-id mappings (old → new) passed in from the importer.
+     * Used by importPayload() to rewrite ref_id values in payload rows.
+     *
+     * @var array<string, string>
+     */
+    protected array $import_mapping = [];
 
     public function __construct(?int $condition_id = null)
     {
@@ -122,7 +129,7 @@ abstract class AbstractCondition
     public function applyAdditionalFormData(array $data): void
     {
         // If a condition exposes an additional form it MUST implement this hook
-        if ($this->getAdditionalForm() !== null) {
+        if (self::migrate()) {
             $method = new \ReflectionMethod(static::class, 'applyAdditionalFormData');
             if ($method->getDeclaringClass()->getName() === self::class) {
                 throw new \LogicException(
@@ -238,8 +245,10 @@ abstract class AbstractCondition
 
     /**
      * Saves the condition to the DB
+     * @param bool $is_import If true, skips createConditionData() (data will be filled by importPayload())
+     * @throws ReflectionException
      */
-    public function create(): void
+    public function create(bool $is_import = false): void
     {
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('createConditionData');
@@ -260,7 +269,12 @@ abstract class AbstractCondition
         ]);
 
         $this->condition_id = $condition_id;
-        $this->createConditionData($condition_id);
+        
+        // Only call createConditionData if this is NOT an import
+        // (during import, data will be filled by importPayload())
+        if (!$is_import) {
+            $this->createConditionData($condition_id);
+        }
     }
 
     /**
@@ -509,7 +523,7 @@ abstract class AbstractCondition
      * @param string $class
      * @return string
      */
-    protected function getIdentifierForClass(string $class): string
+    public function getIdentifierForClass(string $class): string
     {
         $parts = explode('\\', $class);
         $short_name = end($parts);
@@ -682,5 +696,208 @@ abstract class AbstractCondition
                 }
             }
         }
+    }
+
+    /**
+     * @return array
+     */
+    public function getData(): array
+    {
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $definitions = static::migrate();
+        if ($definitions === []) {
+            return [];
+        }
+
+        $db = $this->getDatabase();
+        $result = [];
+
+        foreach ($definitions as $def) {
+            $table = $def->tableName;
+
+            if (!$db->tableExists($table) || !$db->tableColumnExists($table, 'condition_id')) {
+                continue;
+            }
+
+            $res = $db->queryF(
+                'SELECT * FROM ' . $table . ' WHERE condition_id = %s',
+                ['integer'],
+                [$this->condition_id]
+            );
+
+            $rows = [];
+            while ($row = $db->fetchAssoc($res)) {
+                $rows[] = $row;
+            }
+
+            $result[] = [
+                'table' => $table,
+                'fields' => $def->fields,
+                'rows' => $rows,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Default export based on migrate() table definitions.
+     *
+     * @return array<int, array{
+     *   table:string,
+     *   fields:array,
+     *   rows:array<int, array<string, mixed>>
+     * }>
+     */
+    protected function exportPayload(): array
+    {
+        if ($this->condition_id === null) {
+            return [];
+        }
+
+        $definitions = static::migrate();
+        if ($definitions === []) {
+            return [];
+        }
+
+        $db = $this->getDatabase();
+        $result = [];
+
+        foreach ($definitions as $def) {
+            $table = $def->tableName;
+            if (!$db->tableExists($table) || !$db->tableColumnExists($table, 'condition_id')) {
+                continue;
+            }
+
+            $res = $db->queryF(
+                'SELECT * FROM ' . $table . ' WHERE condition_id = %s',
+                ['integer'],
+                [$this->condition_id]
+            );
+
+            $rows = [];
+            while ($row = $db->fetchAssoc($res)) {
+                $rows[] = $row;
+            }
+
+            $result[] = [
+                'ilias_version_numeric' => defined('ILIAS_VERSION_NUMERIC') ? (int) ILIAS_VERSION_NUMERIC : null,
+                'table' => $table,
+                'fields' => $def->fields,
+                'rows' => $rows,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Default import for payload exported by exportPayload().
+     * $new_condition_id must already be created in lso_conditions.
+     */
+    protected function importPayload(array $payload, int $new_condition_id): void
+    {
+        $db = $this->getDatabase();
+        $ref_mapping = $this->import_mapping;
+
+        foreach ($payload as $tableData) {
+            $table = (string)($tableData['table'] ?? '');
+            $fields = (array)($tableData['fields'] ?? []);
+            $rows = is_array($tableData['rows'] ?? null) ? $tableData['rows'] : [];
+
+            $field_map = [];
+            foreach ($fields as $col_name => $field_def) {
+                $field_map[$col_name] = [
+                    'type' => $field_def['type'] ?? 'text',
+                    'nullable' => !($field_def['notnull'] ?? true),
+                ];
+            }
+
+            if ($table === '' || !$db->tableExists($table)) {
+                continue;
+            }
+
+            $table_has_item_column = $db->tableColumnExists($table, 'item_ref_id');
+
+            if ($table_has_item_column && $rows === []) {
+                throw new \RuntimeException("Payload for table '{$table}' is empty, but table requires 'item' rows.");
+            }
+
+            $inserted_item_rows = 0;
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $insert = [
+                    'condition_id' => ['integer', $new_condition_id],
+                ];
+
+                foreach ($row as $col => $value) {
+                    $col = (string) $col;
+
+                    // Always enforce the new condition id
+                    if ($col === 'condition_id') {
+                        continue;
+                    }
+
+                    // Only import columns that actually exist in the target table
+                    if (!$db->tableColumnExists($table, $col)) {
+                        continue;
+                    }
+
+                    $field_info = $field_map[$col] ?? null;
+
+                    // Remap ref_id values using the container refs mapping
+                    if ($col === 'item_ref_id') {
+                        if (!isset($ref_mapping[$value])) {
+                            continue 2;
+                        }
+
+                        $value = (int) $ref_mapping[$value];
+                        $insert['item_ref_id'] = ['integer', $value];
+                        $inserted_item_rows++;
+                    }
+
+                    // Handle NULL values based on field definition
+                    if ($value === null) {
+                        if ($field_info && ($field_info['nullable'] ?? false)) {
+                            $insert[$col] = [$field_info['type'], null];
+                        } else {
+                            $insert[$col] = [$field_info ? $field_info['type'] : 'text', ''];
+                        }
+                        continue;
+                    }
+
+                    $type = $field_info ? $field_info['type'] : (is_int($value) ? 'integer' : 'text');
+                    $insert[$col] = [$type, $value];
+                }
+
+                $db->insert($table, $insert);
+            }
+
+            if ($table_has_item_column && $inserted_item_rows === 0) {
+                throw new \RuntimeException("No valid 'item' rows imported for item-based table '{$table}'.");
+            }
+        }
+    }
+
+    final public function export(): array
+    {
+        return $this->exportPayload();
+    }
+
+    final public function import(array $payload, int $new_condition_id): void
+    {
+        $this->importPayload($payload, $new_condition_id);
+    }
+
+    public function setImportMapping(array $mapping): void
+    {
+        $this->import_mapping = array_map('intval', $mapping['components/ILIAS/Container']['refs'] ?? []);
     }
 }

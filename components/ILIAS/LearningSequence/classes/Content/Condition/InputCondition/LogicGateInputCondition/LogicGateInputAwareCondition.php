@@ -43,11 +43,12 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
 {
     final protected const string NAME = "logic_gate";
     private const string SETTINGS_TABLE = 'lso_c_logic_gate_input';
+    private const string SETTINGS_TABLE_ITEMS = 'lso_c_logic_gate_items';
 
     private const string SUBTYPE_AND = 'logic_gate_and';
     private const string SUBTYPE_OR = 'logic_gate_or';
     private const string SUBTYPE_NOT = 'logic_gate_not';
-    private string $items = '';
+    private array $items = [];
     private ilObjLearningSequenceConditionDiscover $discover;
     private ConditionFactory $condition_factory;
 
@@ -69,46 +70,47 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     {
         parent::read();
 
+        $s = self::SETTINGS_TABLE;
+        $i = self::SETTINGS_TABLE_ITEMS;
+
         $db = $this->dic->database();
-        $query = $db->query(
-            "SELECT items FROM " . self::SETTINGS_TABLE . " WHERE condition_id = " . $db->quote($this->condition_id, 'integer')
+        $query = $db->queryF(
+            <<<SQL
+            SELECT item_ref_id FROM $s
+            JOIN $i ON $s.condition_id = $i.condition_id
+            WHERE $s.condition_id = %s
+            SQL,
+            ['integer'],
+            [$this->condition_id]
         );
-        if ($row = $db->fetchAssoc($query)) {
-            $this->items = $row['items'];
+        while ($row = $db->fetchAssoc($query)) {
+            $this->items[] = $row['item_ref_id'];
         }
     }
 
     /**
-     * @return string
+     * @return array
      */
-    public function getItems(): string
+    public function getItems(): array
     {
         return $this->items;
     }
 
     /**
-     * @param string $items
+     * @param array $items
      * @return void
      */
-    public function setItems(string $items): void
+    public function setItems(array $items): void
     {
         $this->items = $items;
     }
 
     /**
-     * @return int[]
+     * @return string
      */
-    private function getItemsAsArray(): array
+    private function getItemsAsString(): string
     {
-        $items = preg_split('/\s*,\s*/', trim($this->items));
-        if ($items === false) {
-            return [];
-        }
-
-        return array_values(array_map(
-            'intval',
-            array_filter($items, static fn(string $item): bool => $item !== '')
-        ));
+        return implode(', ', $this->items);
     }
 
     /**
@@ -122,9 +124,16 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
-                    'items' => ['type' => 'text', 'length' => 4000, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
+            ),
+            new TableDefinition(
+                tableName: self::SETTINGS_TABLE_ITEMS,
+                fields: [
+                    'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    'item_ref_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                ],
+                primaryKeys: ['condition_id', 'item_ref_id']
             )
         ];
     }
@@ -217,7 +226,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
      */
     private function areAllItemsCompleted(): bool
     {
-        $items = $this->getItemsAsArray();
+        $items = $this->getItems();
 
         if (empty($items)) {
             return true;
@@ -237,7 +246,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     private function isAnyItemCompleted(): bool
     {
         return array_any(
-            $this->getItemsAsArray(),
+            $this->getItems(),
             fn($item_ref_id) => $this->isItemCompleted($item_ref_id)
         );
     }
@@ -291,8 +300,9 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             throw new \LogicException($this->lang->txt('lso_exception_logic_gate_condition_id_not_set'));
         }
 
+        $s = self::SETTINGS_TABLE;
         $res = $this->getDatabase()->queryF(
-            'SELECT subtype FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            "SELECT subtype FROM $s WHERE condition_id = %s",
             ['integer'],
             [$this->condition_id]
         );
@@ -325,7 +335,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         )->withByline($this->lang->txt($this->getSubtype() . '_byline'));
 
         if ($this->condition_id !== null) {
-            $input = $input->withValue($this->getItemsAsArray());
+            $input = $input->withValue($this->getItems());
         }
 
         return $this->ui_factory->input()->container()->form()->standard(
@@ -341,7 +351,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     {
         return array_map(
             fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
-            $this->getItemsAsArray()
+            $this->getItems()
         );
     }
 
@@ -362,8 +372,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
      */
     public function applyAdditionalFormData(array $data): void
     {
-        $items_string = implode(', ', array_filter($data[0] ?? []));
-        $this->setItems($items_string);
+        $this->setItems(array_filter(array_map('intval',    $data[0] ?? [])));
     }
 
     /**
@@ -375,8 +384,14 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
             'subtype' => ['text', $this->getSubtype()],
-            'items' => ['text', $this->getItems()],
         ]);
+
+        foreach ($this->items as $item) {
+            $this->getDatabase()->insert(self::SETTINGS_TABLE_ITEMS, [
+                'condition_id' => ['integer', $condition_id],
+                'item_ref_id' => ['integer', $item],
+            ]);
+        }
     }
 
     /**
@@ -387,10 +402,22 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
     {
         $this->getDatabase()->update(self::SETTINGS_TABLE, [
             'subtype' => ['text', $this->getSubtype()],
-            'items' => ['text', $this->getItems()],
         ], [
             'condition_id' => ['integer', $condition_id],
         ]);
+
+        $i = self::SETTINGS_TABLE_ITEMS;
+        $this->getDatabase()->manipulateF(
+            "DELETE FROM $i WHERE condition_id = %d",
+            ['integer'],
+            [$this->condition_id]
+        );
+        foreach ($this->items as $item) {
+            $this->getDatabase()->insert(self::SETTINGS_TABLE_ITEMS, [
+                'condition_id' => ['integer', $condition_id],
+                'item_ref_id' => ['integer', $item],
+            ]);
+        }
     }
 
     /**
@@ -402,6 +429,13 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
             ['integer'],
             [$condition_id]
+        );
+
+        $i = self::SETTINGS_TABLE_ITEMS;
+        $this->getDatabase()->manipulateF(
+            "DELETE FROM $i WHERE condition_id = %d",
+            ['integer'],
+            [$this->condition_id]
         );
     }
 
