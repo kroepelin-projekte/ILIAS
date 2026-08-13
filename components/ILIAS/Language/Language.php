@@ -23,6 +23,7 @@ namespace ILIAS;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\Activities\InstallLanguage;
 
 class Language implements Component\Component
@@ -52,13 +53,19 @@ class Language implements Component\Component
                 $internal[\ilSetupLanguage::class]
             );
 
+        $internal[InstallLanguage::class] = static fn() =>
+            new InstallLanguage(
+                $pull[\ILIAS\Refinery\Factory::class],
+                $use[\ILIAS\UI\Factory::class],
+                $internal[\ilLanguage::class]
+            );
+
         $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
-        new InstallLanguage(
-            $pull[\ILIAS\Refinery\Factory::class]
-        );
+            $internal[InstallLanguage::class];
 
         $internal[LanguageFileDirectoryManager::class] = static fn() =>
             new LanguageFileDirectoryManager(
+                new CustomizingLanguageFileDirectory(),
                 ...$seek[LanguageFileDirectory::class]
             );
 

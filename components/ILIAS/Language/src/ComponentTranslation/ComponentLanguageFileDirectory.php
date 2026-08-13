@@ -27,13 +27,12 @@ use ILIAS\Component\Component;
  */
 class ComponentLanguageFileDirectory implements LanguageFileDirectory
 {
-
     private string $base_directory;
 
     public function __construct(
-        private Component $component,
-        private string $prefix,
-        private string $path_inside_component = 'lang/'
+        private readonly Component $component,
+        private readonly string $prefix,
+        private readonly string $path_inside_component = 'lang/'
     ) {
     }
 

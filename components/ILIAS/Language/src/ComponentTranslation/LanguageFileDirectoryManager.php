@@ -28,22 +28,34 @@ use function ILIAS\UI\examples\Breadcrumbs\breadcrumbs;
  */
 class LanguageFileDirectoryManager
 {
-
     /**
      * @var LanguageFileDirectory[]
      */
     private array $directories;
 
     public function __construct(
-        LanguageFileDirectory ...$directory
+        private readonly LanguageFileDirectory $local_directory,
+        LanguageFileDirectory ...$global_directories
     ) {
-        $this->directories = $directory;
+        $this->directories = $global_directories;
         $this->check();
     }
 
     private function check(): void
     {
         // Basic checks
+        if ($this->local_directory instanceof CustomizingLanguageFileDirectory) {
+            if (!$this->local_directory->getPath()) {
+                throw new \InvalidArgumentException(
+                    "CustomizingLanguageFileDirectory must have a non-empty path"
+                );
+            }
+            if ($this->local_directory->getPrefix() !== '') {
+                throw new \InvalidArgumentException(
+                    "CustomizingLanguageFileDirectory must have an empty prefix"
+                );
+            }
+        }
         $main_files = 0;
         $prefixes = [];
         foreach ($this->directories as $d) {
@@ -84,5 +96,13 @@ class LanguageFileDirectoryManager
     public function getDirectories(): \Generator
     {
         yield from $this->directories;
+    }
+
+    /**
+     * @return \Generator|LanguageFileDirectory[]
+     */
+    public function getCustomizingDirectories(): \Generator
+    {
+        yield $this->local_directory;
     }
 }

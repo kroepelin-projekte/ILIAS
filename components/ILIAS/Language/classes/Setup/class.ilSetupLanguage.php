@@ -54,8 +54,8 @@ class ilSetupLanguage extends ilLanguage
 
     public function __construct(
         string $a_lang_key,
-        private LanguageFileDirectoryManager $language_file_directory_manager,
-    ){
+        private readonly LanguageFileDirectoryManager $language_file_directory_manager,
+    ) {
         $this->lang_key = $a_lang_key ?: $this->lang_default;
         $this->absolute_path = realpath(__DIR__ . "/../../../../../");
         $this->cust_lang_path = $this->absolute_path . "/lang/customizing";
@@ -265,53 +265,64 @@ class ilSetupLanguage extends ilLanguage
      */
     protected function checkLanguage(string $a_lang_key, string $scope = ""): bool
     {
-        $scopeExtension = "";
-        if (!empty($scope)) {
-            if ($scope === "global") {
-                $scope = "";
-            } else {
-                $scopeExtension = "." . $scope;
+        $normalized_scope = ($scope === 'global') ? '' : $scope;
+        $scope_extension = ($normalized_scope !== '') ? ('.' . $normalized_scope) : '';
+        $lang_file = "ilias_" . $a_lang_key . ".lang" . $scope_extension;
+
+        $working_dir = getcwd();
+
+        foreach ($this->getDirectoriesToValidate($normalized_scope) as $directory) {
+            $path = $this->getAbsoluteDirectoryPath($directory);
+
+            try {
+                chdir($path);
+
+                if (!is_file($lang_file)) {
+                    return false;
+                }
+
+                $content = $this->cut_header(file($lang_file));
+                if ($content === false) {
+                    return false;
+                }
+
+                $prefix = $directory->getPrefix();
+
+                foreach ($content as $line) {
+                    $parts = explode($this->separator, trim($line));
+
+                    if (!empty($prefix)) {
+                        // preprend $directory->getPrefix() as first element of the array
+                        array_unshift($parts, $prefix);
+                    }
+                    if (count($parts) !== 3) {
+                        return false;
+                    }
+                }
+            } finally {
+                chdir($working_dir);
             }
         }
 
-        $path = 'lang/'; // TODO this must be chnaged when we switch to full Component-dased language files
-        if ($scope === "local") {
-            $path = $this->cust_lang_path;
-        }
-
-        $tmpPath = getcwd();
-        chdir($path);
-
-        // compute lang-file name format
-        $lang_file = "ilias_" . $a_lang_key . ".lang" . $scopeExtension;
-
-        // file check
-        if (!is_file($lang_file)) {
-            chdir($tmpPath);
-            return false;
-        }
-
-        // header check
-        if (!$content = $this->cut_header(file($lang_file))) {
-            chdir($tmpPath);
-            return false;
-        }
-
-        // check (counting) elements of each lang-entry
-        foreach ($content as $key => $val) {
-            $separated = explode($this->separator, trim($val));
-            $num = count($separated);
-
-            if ($num !== 3) {
-                chdir($tmpPath);
-                return false;
-            }
-        }
-
-        chdir($tmpPath);
-
-        // no error occured
         return true;
+    }
+
+    /**
+     * @return \Generator|\ILIAS\Language\ComponentTranslation\LanguageFileDirectory[]
+     */
+    private function getDirectoriesToValidate(string $scope): \Generator
+    {
+        if ($scope === 'local') {
+            yield from $this->language_file_directory_manager->getCustomizingDirectories();
+        } else {
+            yield from $this->language_file_directory_manager->getDirectories();
+        }
+    }
+
+    private function getAbsoluteDirectoryPath(\ILIAS\Language\ComponentTranslation\LanguageFileDirectory $directory): string
+    {
+        $this->lang_path = rtrim($this->absolute_path, '/') . '/' . ltrim($directory->getPath(), '/');
+        return $this->lang_path;
     }
 
     /**
@@ -404,166 +415,173 @@ class ilSetupLanguage extends ilLanguage
         return $changes;
     }
 
-
-    //TODO: remove redundant checks here!
     /**
      * insert language data from file in database
      *
      * $lang_key   international language key (2 digits)
      * $scope      empty (global) or "local"
      */
-    protected function insertLanguage(string $lang_key, string $scope = ""): void
+    protected function insertLanguage(string $a_lang_key, string $scope = ""): void
     {
         global $ilDB;
 
-        $lang_array = array();
+        $normalized_scope = ($scope === 'global') ? '' : $scope;
+        $scope_extension = ($normalized_scope !== '') ? ('.' . $normalized_scope) : '';
+        $lang_file = "ilias_" . $a_lang_key . ".lang" . $scope_extension;
 
-        $scopeExtension = "";
-        if (!empty($scope)) {
-            if ($scope === "global") {
-                $scope = "";
-            } else {
-                $scopeExtension = "." . $scope;
-            }
-        }
+        $working_dir = getcwd();
 
-        foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
-            $this->lang_path = rtrim($this->absolute_path, '/') . '/' . ltrim($directory->getPath(), '/');
+        // initialize variables
+        $change_date = null;
+        $values_sql = [];
+        $lang_array = [];
+        $local_changes = [];
 
-            $path = $this->lang_path;
-            if ($scope === "local") { // TODO: Move this to another implementation of \ILIAS\Language\ComponentTranslation\LanguageFileDirectory
-                $path = $this->cust_lang_path;
-            }
+        foreach ($this->getDirectoriesToValidate($normalized_scope) as $directory) {
+            $path = $this->getAbsoluteDirectoryPath($directory);
 
-            $tmpPath = getcwd();
             chdir($path);
 
-            $lang_file = "ilias_" . $lang_key . ".lang" . $scopeExtension;
-            $change_date = null;
-
-            if (is_file($lang_file)) {
-                // initialize the array for updating lng_modules below
-                $lang_array = [];
-                $lang_array["common"] = [];
-
-                // remove header first
-                if ($content = $this->cut_header(file($lang_file))) {
-                    // get the local changes from the database
-                    if (empty($scope)) {
-                        $local_changes = $this->getLocalChanges($lang_key);
-                    } elseif ($scope === "local") {
-                        // set the change date to import time for a local file
-                        // get the modification date of the local file
-                        // get the newer local changes for a local file
-                        $change_date = gmdate("Y-m-d H:i:s", time());
-                        $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
-                        $local_changes = $this->getLocalChanges($lang_key, $min_date);
-                    }
-
-                    $query_check = false;
-                    $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES ";
-                    $prefix = $directory->getPrefix();
-                    foreach ($content as $key => $val) {
-                        // split the line of the language file
-                        // [0]: module
-                        // [1]: identifier
-                        // [2]: value
-                        // [3]: comment (optional)
-                        $separated = explode($this->separator, trim($val));
-
-                        if (!empty($prefix)) {
-                            // preprend $directory->getPrefix() as first element of the array
-                            array_unshift($separated, $prefix);
-                        }
-
-
-                        //get position of the comment_separator
-                        $pos = strpos($separated[2], $this->comment_separator);
-
-                        if ($pos !== false) {
-                            //cut comment of
-                            $separated[2] = substr($separated[2], 0, $pos);
-                        }
-
-                        // check if the value has a local change
-                        if (isset($local_changes[$separated[0]])) {
-                            $local_value = $local_changes[$separated[0]][$separated[1]] ?? "";
-                        } else {
-                            $local_value = "";
-                        }
-
-                        if (empty($scope)) {
-                            if ($local_value !== "" && $local_value !== $separated[2]) {
-                                // keep the locally changed value
-                                $lang_array[$separated[0]][$separated[1]] = $local_value;
-                                continue;
-                            }
-                        } elseif ($scope === "local") {
-                            if ($local_value !== "") {
-                                // keep a locally changed value that is newer than the local file
-                                $lang_array[$separated[0]][$separated[1]] = $local_value;
-                                continue;
-                            }
-                        }
-
-                        $query .= sprintf(
-                            "(%s,%s,%s,%s,%s,%s),",
-                            $ilDB->quote($separated[0], "text"),
-                            $ilDB->quote($separated[1], "text"),
-                            $ilDB->quote($lang_key, "text"),
-                            $ilDB->quote($separated[2], "text"),
-                            $ilDB->quote($change_date, "timestamp"),
-                            $ilDB->quote($separated[3] ?? null, "text")
-                        );
-                        $query_check = true;
-                        $lang_array[$separated[0]][$separated[1]] = $separated[2];
-                    }
-                    $query = rtrim($query, ",") . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);";
-                    if ($query_check) {
-                        $ilDB->manipulate($query);
-                    }
-                }
-
-                $query = "INSERT INTO lng_modules (module, lang_key, lang_array) VALUES ";
-                $modules_to_delete = [];
-                foreach ($lang_array as $module => $lang_arr) {
-                    if ($scope === "local") {
-                        $q = "SELECT * FROM lng_modules WHERE " .
-                            " lang_key = " . $ilDB->quote($lang_key, "text") .
-                            " AND module = " . $ilDB->quote($module, "text");
-                        $set = $ilDB->query($q);
-                        $row = $ilDB->fetchAssoc($set);
-                        if ($row === null) {
-                            continue;
-                        }
-                        $arr2 = unserialize($row["lang_array"], ["allowed_classes" => false]);
-                        if (is_array($arr2)) {
-                            $lang_arr = array_merge($arr2, $lang_arr);
-                        }
-                    }
-                    $query .= sprintf(
-                        "(%s,%s,%s),",
-                        $ilDB->quote($module, "text"),
-                        $ilDB->quote($lang_key, "text"),
-                        $ilDB->quote(serialize($lang_arr), "clob"),
-                    );
-                    $modules_to_delete[] = $module;
-                }
-
-                $inModulesToDelete = $ilDB->in('module', $modules_to_delete, false, 'text');
-                $ilDB->manipulate(sprintf(
-                    "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
-                    $ilDB->quote($lang_key, "text")
-                ));
-
-                $query = rtrim($query, ",") . ";";
-                $ilDB->manipulate($query);
+            if (!is_file($lang_file)) {
+                continue;
             }
 
-            chdir($tmpPath);
+            // remove header first
+            $content = $this->cut_header(file($lang_file));
+            if (!$content) {
+                continue;
+            }
+
+            // get the local changes from the database
+            if ($normalized_scope === '') {
+                $local_changes = $this->getLocalChanges($a_lang_key);
+            } elseif ($normalized_scope === 'local') {
+                $change_date = gmdate("Y-m-d H:i:s", time());
+                $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
+                $local_changes = $this->getLocalChanges($a_lang_key, $min_date);
+            }
+
+            $prefix = $directory->getPrefix();
+
+            foreach ($content as $line) {
+                // split the line of the language file
+                // [0]: module
+                // [1]: identifier
+                // [2]: value
+                // [3]: comment (optional)
+                $separated = explode($this->separator, trim($line));
+
+                if (!empty($prefix)) {
+                    // prepend $directory->getPrefix() as first element of the array
+                    array_unshift($separated, $prefix);
+                }
+
+                //get position of the comment_separator
+                $pos = strpos($separated[2], $this->comment_separator);
+
+                if ($pos !== false) {
+                    //cut comment of
+                    $separated[2] = substr($separated[2], 0, $pos);
+                }
+
+                $module = $separated[0];
+                $identifier = $separated[1];
+                $value = $separated[2];
+
+                // check if the value has a local change
+                $local_value = $local_changes[$module][$identifier] ?? "";
+
+                if ($normalized_scope === '') {
+                    if ($local_value !== "" && $local_value !== $value) {
+                        $lang_array[$module][$identifier] = $local_value;
+                        continue;
+                    }
+                } elseif ($normalized_scope === 'local') {
+                    if ($local_value !== "") {
+                        $lang_array[$module][$identifier] = $local_value;
+                        continue;
+                    }
+                }
+
+                $values_sql[] = sprintf(
+                    "(%s,%s,%s,%s,%s,%s)",
+                    $ilDB->quote($module, "text"),
+                    $ilDB->quote($identifier, "text"),
+                    $ilDB->quote($a_lang_key, "text"),
+                    $ilDB->quote($value, "text"),
+                    $ilDB->quote($change_date, "timestamp"),
+                    $ilDB->quote($separated[3] ?? null, "text")
+                );
+
+                $lang_array[$module][$identifier] = $value;
+            }
         }
 
+        if ($values_sql !== []) {
+            $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
+                . implode(',', $values_sql)
+                . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);";
+            $ilDB->manipulate($query);
+        }
 
+        if ($lang_array === []) {
+            return;
+        }
+
+        $modules = array_keys($lang_array);
+        if ($normalized_scope === 'local') {
+            $inModules = $ilDB->in('module', $modules, false, 'text');
+            $query = "SELECT module, lang_array FROM lng_modules WHERE lang_key = "
+                . $ilDB->quote($a_lang_key, "text")
+                . " AND $inModules";
+
+            $set = $ilDB->query($query);
+            $existing = [];
+            while ($row = $ilDB->fetchAssoc($set)) {
+                $existing[$row['module']] = $row['lang_array'];
+            }
+
+            foreach ($lang_array as $module => $lang_arr) {
+                if (!isset($existing[$module])) {
+                    unset($lang_array[$module]);
+                    continue;
+                }
+
+                $arr2 = unserialize($existing[$module], ["allowed_classes" => false]);
+                if (is_array($arr2)) {
+                    $lang_array[$module] = array_merge($arr2, $lang_arr);
+                }
+            }
+
+            if ($lang_array === []) {
+                return;
+            }
+
+            $modules = array_keys($lang_array);
+        }
+
+        $inModulesToDelete = $ilDB->in('module', $modules, false, 'text');
+        $ilDB->manipulate(sprintf(
+            "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
+            $ilDB->quote($a_lang_key, "text")
+        ));
+
+        $modulesValuesSql = [];
+        foreach ($lang_array as $module => $lang_arr) {
+            $modulesValuesSql[] = sprintf(
+                "(%s,%s,%s)",
+                $ilDB->quote($module, "text"),
+                $ilDB->quote($a_lang_key, "text"),
+                $ilDB->quote(serialize($lang_arr), "clob")
+            );
+        }
+
+        $query = "INSERT INTO lng_modules (module, lang_key, lang_array) VALUES "
+            . implode(',', $modulesValuesSql)
+            . ";";
+        $ilDB->manipulate($query);
+
+        chdir($working_dir);
     }
 
     /**
