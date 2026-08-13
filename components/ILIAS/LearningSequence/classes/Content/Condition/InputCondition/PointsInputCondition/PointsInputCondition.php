@@ -443,4 +443,12 @@ final class PointsInputCondition extends AbstractCondition implements
             ]);
         }
     }
+
+    /**
+     * @inheritDoc
+     */
+    public function allowMultipleConditionsOfSameType(): bool
+    {
+        return false;
+    }
 }

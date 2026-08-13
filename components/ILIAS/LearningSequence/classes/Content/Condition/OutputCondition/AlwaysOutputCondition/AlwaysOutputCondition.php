@@ -47,4 +47,12 @@ final class AlwaysOutputCondition extends AbstractCondition implements OutputCon
     {
         return true;
     }
+
+    /**
+     * @inheritDoc
+     */
+    public function allowMultipleConditionsOfSameType(): bool
+    {
+        return false;
+    }
 }

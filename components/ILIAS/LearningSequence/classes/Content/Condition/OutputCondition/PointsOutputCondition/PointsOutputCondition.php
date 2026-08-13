@@ -236,4 +236,12 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     {
         return ilObject::_lookupObjId((int) $this->obj_ref_id);
     }
+
+    /**
+     * @inheritDoc
+     */
+    public function allowMultipleConditionsOfSameType(): bool
+    {
+        return false;
+    }
 }

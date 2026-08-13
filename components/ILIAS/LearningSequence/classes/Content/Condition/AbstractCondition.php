@@ -252,10 +252,12 @@ abstract class AbstractCondition
     {
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('createConditionData');
-
         $type_id = $this->getTypeId();
-        $existing_id = $this->findConditionIdByContextAndType($type_id);
-        if ($existing_id !== null) {
+
+        if (
+            !$this->allowMultipleConditionsOfSameType()
+            && $this->conditionTypeExistsInContext($type_id)
+        ) {
             throw new LogicException($this->lang->txt('lso_exception_condition_exists'));
         }
 
@@ -285,8 +287,6 @@ abstract class AbstractCondition
     {
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('editConditionData');
-
-        $condition_id = $this->condition_id ?? $this->resolveConditionId();
         $type_id = $this->getTypeId();
 
         $this->getDatabase()->update(
@@ -297,12 +297,11 @@ abstract class AbstractCondition
                 'type_id' => ['integer', $type_id]
             ],
             [
-                'condition_id' => ['integer', $condition_id]
+                'condition_id' => ['integer', $this->condition_id]
             ]
         );
 
-        $this->condition_id = $condition_id;
-        $this->editConditionData($condition_id);
+        $this->editConditionData($this->condition_id);
     }
 
     /**
@@ -312,14 +311,13 @@ abstract class AbstractCondition
     public function delete(): void
     {
         $this->assertConditionDataHookImplemented('deleteConditionData');
-        $condition_id = $this->condition_id ?? $this->resolveConditionId();
 
-        $this->deleteConditionData($condition_id);
+        $this->deleteConditionData($this->condition_id);
 
         $this->getDatabase()->manipulateF(
             'DELETE FROM lso_conditions WHERE condition_id = %s',
             ['integer'],
-            [$condition_id]
+            [$this->condition_id]
         );
 
         $this->condition_id = null;
@@ -466,38 +464,7 @@ abstract class AbstractCondition
         return (int) $row['type_id'];
     }
 
-    /**
-     * Resolves the condition ID for this condition based on the context and type.
-     *
-     * @return int
-     * @throws LogicException if the condition does not exist or is ambiguous
-     */
-    protected function resolveConditionId(): int
-    {
-        if ($this->condition_id !== null) {
-            return $this->condition_id;
-        }
-
-        $this->assertContextSet();
-        $type_id = $this->getTypeId();
-        $condition_id = $this->findConditionIdByContextAndType($type_id);
-
-        if ($condition_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_condition_not_exists'));
-        }
-
-        $this->condition_id = $condition_id;
-        return $condition_id;
-    }
-
-    /**
-     * Finds the condition ID based on the context (lso_ref_id, obj_ref_id) and type.
-     *
-     * @param int $type_id
-     * @return int|null
-     * @throws LogicException if the lookup is ambiguous
-     */
-    protected function findConditionIdByContextAndType(int $type_id): ?int
+    protected function conditionTypeExistsInContext(int $type_id): bool
     {
         $res = $this->getDatabase()->queryF(
             'SELECT condition_id FROM lso_conditions WHERE lso_ref_id = %s AND obj_ref_id = %s AND type_id = %s',
@@ -505,16 +472,7 @@ abstract class AbstractCondition
             [$this->lso_ref_id, $this->obj_ref_id, $type_id]
         );
 
-        $row = $this->getDatabase()->fetchAssoc($res);
-        if ($row === null) {
-            return null;
-        }
-
-        if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new LogicException($this->lang->txt('lso_exception_condition_ambiguous'));
-        }
-
-        return (int) $row['condition_id'];
+        return $this->getDatabase()->fetchAssoc($res) !== null;
     }
 
     /**
@@ -605,6 +563,17 @@ abstract class AbstractCondition
     protected function requiresConfiguration(): bool
     {
         return false;
+    }
+
+    /**
+     * Determines whether multiple conditions of the same type are allowed for the same object.
+     * Override this method in child classes if multiple conditions of the same type are NOT allowed.
+     *
+     * @return bool
+     */
+    public function allowMultipleConditionsOfSameType(): bool
+    {
+        return true;
     }
 
     /**

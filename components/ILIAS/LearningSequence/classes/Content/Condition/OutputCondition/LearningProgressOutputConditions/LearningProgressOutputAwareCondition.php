@@ -161,32 +161,6 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
     /**
      * @inheritDoc
      */
-    protected function findConditionIdByContextAndType(int $type_id): ?int
-    {
-        $res = $this->getDatabase()->queryF(
-            'SELECT c.condition_id
-                FROM lso_conditions c
-                INNER JOIN ' . self::SETTINGS_TABLE . ' s ON s.condition_id = c.condition_id
-                WHERE c.lso_ref_id = %s AND c.obj_ref_id = %s AND c.type_id = %s AND s.subtype = %s',
-            ['integer', 'integer', 'integer', 'text'],
-            [$this->lso_ref_id, $this->obj_ref_id, $type_id, $this->requireSubtype()]
-        );
-
-        $row = $this->getDatabase()->fetchAssoc($res);
-        if ($row === null) {
-            return null;
-        }
-
-        if ($this->getDatabase()->fetchAssoc($res) !== null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_condition_ambiguous'));
-        }
-
-        return (int) $row['condition_id'];
-    }
-
-    /**
-     * @inheritDoc
-     */
     public function buildSubtypeStep(string $subtype): Bulky
     {
         return $this->buildStep(
