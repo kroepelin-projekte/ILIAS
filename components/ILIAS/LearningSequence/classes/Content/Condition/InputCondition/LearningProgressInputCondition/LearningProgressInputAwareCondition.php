@@ -112,7 +112,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                     'subtype' => ['type' => 'text', 'length' => 32, 'notnull' => true],
-                    'target_ref_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    'item_ref_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
             )
@@ -237,7 +237,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         }
 
         $res = $this->getDatabase()->queryF(
-            'SELECT target_ref_id FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            'SELECT item_ref_id FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
             ['integer'],
             [$this->condition_id]
         );
@@ -248,7 +248,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_stored'));
         }
 
-        $this->condition_target_ref_id = (int) $row['target_ref_id'];
+        $this->condition_target_ref_id = (int) $row['item_ref_id'];
         return $this->condition_target_ref_id;
     }
 
@@ -270,7 +270,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
             'subtype' => ['text', $this->requireSubtype()],
-            'target_ref_id' => ['integer', $this->getConditionTargetRefId()]
+            'item_ref_id' => ['integer', $this->getConditionTargetRefId()]
         ]);
     }
 
@@ -283,7 +283,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             self::SETTINGS_TABLE,
             [
                 'subtype' => ['text', $this->requireSubtype()],
-                'target_ref_id' => ['integer', $this->getConditionTargetRefId()]
+                'item_ref_id' => ['integer', $this->getConditionTargetRefId()]
             ],
             [
                 'condition_id' => ['integer', $condition_id]
