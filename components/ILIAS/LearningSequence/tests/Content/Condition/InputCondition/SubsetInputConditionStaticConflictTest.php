@@ -23,11 +23,30 @@ use PHPUnit\Framework\TestCase;
 
 class SubsetInputConditionStaticConflictTest extends TestCase
 {
+    public function testMigrationUsesNormalizedTargetTable(): void
+    {
+        $definitions = SubsetInputCondition::migrate();
+
+        $this->assertCount(2, $definitions);
+        $this->assertSame('lso_c_subset_tgt', $definitions[1]->tableName);
+        $this->assertArrayHasKey('item_ref_id', $definitions[1]->fields);
+    }
+
+    public function testSourceReferencesAreNormalized(): void
+    {
+        $condition = (new ReflectionClass(SubsetInputCondition::class))
+            ->newInstanceWithoutConstructor();
+        $condition->setObjRefId(152);
+        $condition->setSourceRefIds([151, 151, 152, 0]);
+
+        $this->assertSame([151], $condition->getSourceRefIds());
+    }
+
     public function testMissingReferencedObjectIsReportedAsStaticConflict(): void
     {
         $condition = (new ReflectionClass(SubsetInputCondition::class))
             ->newInstanceWithoutConstructor();
-        $condition->setObjectRefIds([151, 999]);
+        $condition->setSourceRefIds([151, 999]);
         $condition->setSubset(1);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict([

@@ -23,76 +23,61 @@ namespace ILIAS\LearningSequence\Content\Condition\InputCondition\SubsetInputCon
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
-use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 
-/**
- * Input condition that grants access to a learning sequence step once a configurable
- * subset of the selected objects has been completed by the current user.
- *
- * The condition stores a list of object references together with the minimum number
- * of them ("subset") that must be completed. When {@see self::check()} is evaluated,
- * the learning progress of the logged in user is inspected for each configured object
- * and access is granted as soon as the number of completed objects reaches the
- * required subset size.
- */
-class SubsetInputCondition extends AbstractCondition implements InputConditionInterface, InputConditionNavigationAwareInterface
+final class SubsetInputCondition extends AbstractCondition implements
+    InputConditionInterface,
+    InputConditionNavigationAwareInterface
 {
     protected const string NAME = 'subset';
     private const string SETTINGS_TABLE = 'lso_c_subset';
-    private const string OBJECT_IDS_FIELD = 'object_ids';
+    private const string TARGETS_TABLE = 'lso_c_subset_items';
     private const string SUBSET_FIELD = 'subset';
+    private const string SOURCE_REF_ID_FIELD = 'item_ref_id';
 
     /**
      * @var int[]|null
      */
-    private ?array $object_ref_ids = null;
+    private ?array $source_ref_ids = null;
     private ?int $subset = null;
+
     /**
-     * Provides the database table definitions required by this condition.
-     *
-     * The condition needs its own settings table ({@see self::SETTINGS_TABLE}) that
-     * stores, per condition, the serialized list of selected object references and the
-     * minimum amount of them that has to be completed. The returned definitions are
-     * created and kept up to date during the ILIAS setup/update process.
-     *
-     * @return TableDefinition[] the table definitions to be installed for this condition
+     * @inheritDoc
      */
     public static function migrate(): array
     {
-
         return [
             new TableDefinition(
                 tableName: self::SETTINGS_TABLE,
                 fields: [
                     'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
-                    self::OBJECT_IDS_FIELD => ['type' => 'text', 'length' => 4000, 'notnull' => false],
-                    self::SUBSET_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => false]
+                    self::SUBSET_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => true],
                 ],
                 primaryKeys: ['condition_id']
+            ),
+            new TableDefinition(
+                tableName: self::TARGETS_TABLE,
+                fields: [
+                    'condition_id' => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                    self::SOURCE_REF_ID_FIELD => ['type' => 'integer', 'length' => 4, 'notnull' => true],
+                ],
+                primaryKeys: ['condition_id', self::SOURCE_REF_ID_FIELD]
             )
         ];
     }
 
     /**
-     * Checks whether this condition is fulfilled for the current user and context.
-     *
-     * The configured list of objects and the required subset size are loaded from the
-     * settings table for the current condition. For every configured object the learning
-     * progress of the logged in user is inspected and completed objects are counted.
-     * The condition is fulfilled as soon as the number of completed objects reaches the
-     * required subset size.
-     *
-     * @return bool true if at least the required number of objects has been completed, false otherwise
+     * @inheritDoc
      */
     public function check(): bool
     {
         $user_id = $this->dic->user()->getId();
         $completed_counter = 0;
-        foreach ($this->getObjectRefIds() as $object_ref_id) {
-            $object_id = \ilObject::_lookupObjId($object_ref_id);
+        foreach ($this->getSourceRefIds() as $source_ref_id) {
+            $object_id = \ilObject::_lookupObjId($source_ref_id);
             if ($object_id > 0 && \ilLPStatus::_hasUserCompleted($object_id, $user_id)) {
                 $completed_counter++;
             }
@@ -108,7 +93,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
 
     public function getNavigationSourceRefIds(): array
     {
-        return $this->getObjectRefIds();
+        return $this->getSourceRefIds();
     }
 
     /**
@@ -116,36 +101,26 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
      */
     public function hasStaticInputConfigurationConflict(array $context = []): bool
     {
-        return $this->referencesMissingLsoItems($this->getObjectRefIds(), $context);
+        return $this->referencesMissingLsoItems($this->getSourceRefIds(), $context);
     }
 
     /**
-     * Builds the configuration form of this condition.
-     *
-     * The form offers a multi select ({@see LSOObjectPicker}) that lets the author pick
-     * the relevant objects, a numeric field for the minimum number of objects that have
-     * to be completed and a hidden field carrying the condition type id. The current
-     * context is validated via {@see self::assertContextSet()} before the form is built.
-     *
-     * @return FormStandard|null the configuration form, or null if no additional form is required
+     * @inheritDoc
      */
-    public function getAdditionalForm(): ?FormStandard
+    public function getAdditionalForm(): FormStandard
     {
-        $this->assertContextSet();
-
         $multi_select = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true
         );
-
         $required_amount = $this->ui_factory->input()->field()->numeric(
             $this->lang->txt('subset_amount'),
-            $this->lang->txt('subset_amount_byline'),
+            $this->lang->txt('subset_amount_byline')
         )->withRequired(true);
 
         if ($this->condition_id !== null) {
             $multi_select = $multi_select->withValue(
-                array_map(static fn(int $ref_id): string => (string) $ref_id, $this->getObjectRefIds())
+                array_map(static fn(int $ref_id): string => (string) $ref_id, $this->getSourceRefIds())
             );
             $required_amount = $required_amount->withValue($this->getSubset());
         }
@@ -171,39 +146,39 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     {
         return array_map(
             fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
-            $this->getObjectRefIds()
+            $this->getSourceRefIds()
         );
     }
 
     /**
-     * @param array $data
+     * @param array<mixed> $data
      */
     public function applyAdditionalFormData(array $data): void
     {
-        $object_ref_ids = array_values(array_filter(
+        $source_ref_ids = array_values(array_unique(array_filter(
             array_map(
                 static fn(mixed $value): int => (int) $value,
                 is_array($data[0] ?? null) ? $data[0] : []
             ),
             static fn(int $value): bool => $value > 0
-        ));
+        )));
 
         $subset = $data[1] ?? null;
         if (is_array($subset) || !is_numeric($subset)) {
             throw new \LogicException($this->lang->txt('lso_exception_subset_invalid'));
         }
 
-        $this->setObjectRefIds($object_ref_ids);
+        $this->setSourceRefIds($source_ref_ids);
         $this->setSubset((int) $subset);
     }
 
     /**
      * @return int[]
      */
-    public function getObjectRefIds(): array
+    public function getSourceRefIds(): array
     {
-        if ($this->object_ref_ids !== null) {
-            return $this->object_ref_ids;
+        if ($this->source_ref_ids !== null) {
+            return $this->source_ref_ids;
         }
 
         if ($this->condition_id === null) {
@@ -211,43 +186,43 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         }
 
         $res = $this->getDatabase()->queryF(
-            'SELECT ' . self::OBJECT_IDS_FIELD . ' FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
+            'SELECT ' . self::SOURCE_REF_ID_FIELD . ' FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
             ['integer'],
             [$this->condition_id]
         );
-        $row = $this->getDatabase()->fetchAssoc($res);
-        if ($row === null || !array_key_exists(self::OBJECT_IDS_FIELD, $row)) {
+
+        $source_ref_ids = [];
+        while ($row = $this->getDatabase()->fetchAssoc($res)) {
+            $source_ref_ids[] = (int) $row[self::SOURCE_REF_ID_FIELD];
+        }
+
+        $source_ref_ids = array_values(array_unique(array_filter(
+            $source_ref_ids,
+            static fn(int $value): bool => $value > 0
+        )));
+        if ($source_ref_ids === []) {
             throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_stored'));
         }
 
-        $object_ref_ids = @unserialize((string) $row[self::OBJECT_IDS_FIELD]);
-        if (!is_array($object_ref_ids)) {
-            throw new \LogicException($this->lang->txt('lso_exception_object_ids_invalid'));
-        }
-
-        $this->object_ref_ids = array_values(array_filter(
-            array_map(static fn(mixed $value): int => (int) $value, $object_ref_ids),
-            static fn(int $value): bool => $value > 0
-        ));
-
-        return $this->object_ref_ids;
+        $this->source_ref_ids = $source_ref_ids;
+        return $this->source_ref_ids;
     }
 
     /**
-     * @param int[] $object_ref_ids
+     * @param int[] $source_ref_ids
      */
-    public function setObjectRefIds(array $object_ref_ids): void
+    public function setSourceRefIds(array $source_ref_ids): void
     {
-        $object_ref_ids = array_values(array_filter(
-            array_map(static fn(mixed $value): int => (int) $value, $object_ref_ids),
-            static fn(int $value): bool => $value > 0
-        ));
-
-        if ($object_ref_ids === []) {
+        $current_ref_id = $this->obj_ref_id;
+        $source_ref_ids = array_values(array_unique(array_filter(
+            array_map(static fn(mixed $value): int => (int) $value, $source_ref_ids),
+            static fn(int $value): bool => $value > 0 && $value !== $current_ref_id
+        )));
+        if ($source_ref_ids === []) {
             throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
         }
 
-        $this->object_ref_ids = $object_ref_ids;
+        $this->source_ref_ids = $source_ref_ids;
     }
 
     /**
@@ -279,7 +254,6 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
 
     /**
      * @param int $subset
-     * @return void
      */
     public function setSubset(int $subset): void
     {
@@ -287,7 +261,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
             throw new \LogicException($this->lang->txt('lso_exception_subset_negative'));
         }
 
-        if ($this->object_ref_ids !== null && $subset > count($this->object_ref_ids)) {
+        if ($this->source_ref_ids !== null && $subset > count($this->source_ref_ids)) {
             throw new \LogicException($this->lang->txt('lso_exception_subset_exceeds_objects'));
         }
 
@@ -295,45 +269,49 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
-     * @param int $condition_id
-     * @return void
+     * @inheritDoc
      */
     protected function createConditionData(int $condition_id): void
     {
         $this->getDatabase()->insert(self::SETTINGS_TABLE, [
             'condition_id' => ['integer', $condition_id],
-            self::OBJECT_IDS_FIELD => ['text', serialize($this->requireObjectRefIds())],
             self::SUBSET_FIELD => ['integer', $this->requireSubset()]
         ]);
+        $this->storeSourceRefIds($condition_id, $this->requireSourceRefIds());
     }
 
     /**
-     * @param int $condition_id the id of the condition the data belongs to
+     * @inheritDoc
      */
     protected function editConditionData(int $condition_id): void
     {
         $this->getDatabase()->update(
             self::SETTINGS_TABLE,
             [
-                self::OBJECT_IDS_FIELD => ['text', serialize($this->requireObjectRefIds())],
                 self::SUBSET_FIELD => ['integer', $this->requireSubset()]
             ],
             [
                 'condition_id' => ['integer', $condition_id]
             ]
         );
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
+        $this->storeSourceRefIds($condition_id, $this->requireSourceRefIds());
     }
 
     /**
-     * Removes the stored configuration data of a condition.
-     *
-     * The row identified by the condition id and the referenced learning sequence object
-     * is deleted from the settings table.
-     *
-     * @param int $condition_id the id of the condition whose data should be removed
+     * @inheritDoc
      */
     protected function deleteConditionData(int $condition_id): void
     {
+        $this->getDatabase()->manipulateF(
+            'DELETE FROM ' . self::TARGETS_TABLE . ' WHERE condition_id = %s',
+            ['integer'],
+            [$condition_id]
+        );
         $this->getDatabase()->manipulateF(
             'DELETE FROM ' . self::SETTINGS_TABLE . ' WHERE condition_id = %s',
             ['integer'],
@@ -342,12 +320,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
-     * Indicates that this condition needs to be configured before it can be used.
-     *
-     * Because the author has to select the relevant objects and the required subset
-     * size, the configuration form has to be shown, hence this returns true.
-     *
-     * @return bool always true for this condition
+     * @inheritDoc
      */
     protected function requiresConfiguration(): bool
     {
@@ -355,9 +328,7 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     }
 
     /**
-     * Returns the glyph used to represent this condition in the user interface.
-     *
-     * @return Glyph the glyph symbol for this condition
+     * @inheritDoc
      */
     protected function getGlyphe(): Glyph
     {
@@ -367,13 +338,13 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
     /**
      * @return int[]
      */
-    private function requireObjectRefIds(): array
+    private function requireSourceRefIds(): array
     {
-        if ($this->object_ref_ids === null || $this->object_ref_ids === []) {
+        if ($this->source_ref_ids === null || $this->source_ref_ids === []) {
             throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_set'));
         }
 
-        return $this->object_ref_ids;
+        return $this->source_ref_ids;
     }
 
     /**
@@ -386,5 +357,18 @@ class SubsetInputCondition extends AbstractCondition implements InputConditionIn
         }
 
         return $this->subset;
+    }
+
+    /**
+     * @param int[] $source_ref_ids
+     */
+    private function storeSourceRefIds(int $condition_id, array $source_ref_ids): void
+    {
+        foreach ($source_ref_ids as $source_ref_id) {
+            $this->getDatabase()->insert(self::TARGETS_TABLE, [
+                'condition_id' => ['integer', $condition_id],
+                self::SOURCE_REF_ID_FIELD => ['integer', $source_ref_id]
+            ]);
+        }
     }
 }

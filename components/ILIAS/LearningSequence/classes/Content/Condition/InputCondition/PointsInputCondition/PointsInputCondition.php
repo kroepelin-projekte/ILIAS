@@ -37,7 +37,7 @@ final class PointsInputCondition extends AbstractCondition implements
 {
     protected const string NAME = 'points_input';
     private const string SETTINGS_TABLE = 'lso_c_points_input';
-    private const string TARGETS_TABLE = 'lso_c_points_input_tgt';
+    private const string TARGETS_TABLE = 'lso_c_points_input_items';
     private const string POINTS_FIELD = 'points';
     private const string SOURCE_REF_ID_FIELD = 'item_ref_id';
 
