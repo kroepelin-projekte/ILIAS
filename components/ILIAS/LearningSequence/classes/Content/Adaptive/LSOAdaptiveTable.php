@@ -215,6 +215,8 @@ readonly class LSOAdaptiveTable
         $content = function (\ilObjLearningSequenceContentData $record) {
             $input = $record->input_conditions;
             $output = $record->output_conditions;
+            $previous_objects = trim($record->previous_objects);
+            $next_objects = trim($record->next_objects);
 
             $html_conditions = '<div class="alp-cm-conditions">';
             $html_conditions .= '<h4 class="alp-cm-conditions__title">'
@@ -228,12 +230,12 @@ readonly class LSOAdaptiveTable
             $html_info = '<div class="alp-cm-info">';
             $html_info .= '<h4 class="alp-cm-info__title">'
                 . $this->lng->txt('lso_adaptive_information') . '</h4>';
-            $html_info .= '<div class="alp-cm-info__item"><strong>'
-                . $this->lng->txt('lso_adaptive_previous_object') . '</strong> '
-                . htmlspecialchars($record->previous_objects) . '</div>';
-            $html_info .= '<div class="alp-cm-info__item"><strong>'
-                . $this->lng->txt('lso_adaptive_next_object') . '</strong> '
-                . htmlspecialchars($record->next_objects) . '</div>';
+            $html_info .= '<div class="alp-cm-info__item"><span class="alp-cm-info__label">'
+                . $this->lng->txt('lso_adaptive_previous_object') . ':</span> '
+                . $this->renderInfoValue($previous_objects) . '</div>';
+            $html_info .= '<div class="alp-cm-info__item"><span class="alp-cm-info__label">'
+                . $this->lng->txt('lso_adaptive_next_object') . ':</span> '
+                . $this->renderInfoValue($next_objects) . '</div>';
             $html_info .= '</div>';
 
             return $this->ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(
@@ -309,5 +311,25 @@ readonly class LSOAdaptiveTable
         }
         $html .= '</ul>';
         return $html;
+    }
+
+    private function renderInfoValue(string $value): string
+    {
+        $no_conditions = trim($this->lng->txt('no_conditions'));
+        if ($value !== $no_conditions) {
+            return '<span class="alp-cm-info__value">' . htmlspecialchars($value) . '</span>';
+        }
+
+        if (!preg_match('/^([^\p{L}\p{N}]*)((?:[\p{L}\p{N}]+(?:\s+[\p{L}\p{N}]+)*)?)([^\p{L}\p{N}]*)$/u', $no_conditions, $matches)) {
+            return '<span class="alp-cm-info__value alp-cm-info__no-conditions">'
+                . htmlspecialchars($value)
+                . '</span>';
+        }
+
+        return '<span class="alp-cm-info__value">'
+            . htmlspecialchars($matches[1])
+            . '<span class="alp-cm-info__no-conditions">' . htmlspecialchars($matches[2]) . '</span>'
+            . htmlspecialchars($matches[3])
+            . '</span>';
     }
 }

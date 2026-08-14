@@ -101,16 +101,26 @@
 }
 
 .alp-cm-info {
-    background: #f2f2f2;
-    padding: 10px;
-    border-radius: 4px;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    padding: 10px 12px;
+    background: #fff;
+    border: 2px solid #888a;
+    color: #000;
 }
 
 .alp-cm-info__title {
     margin: 0 0 8px 0;
     font-size: 14px;
+    font-weight: bold;
 }
 
 .alp-cm-info__item {
     margin: 0 0 4px 0;
+}
+
+.alp-cm-info__no-conditions {
+    color: #444;
 }

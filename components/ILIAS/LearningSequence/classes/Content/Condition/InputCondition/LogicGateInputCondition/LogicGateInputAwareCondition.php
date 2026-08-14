@@ -466,13 +466,4 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             [$this->condition_id]
         );
     }
-
-    /**
-     * @return Glyph|Symbol
-     */
-    protected function getGlyphe(): Glyph|Symbol
-    {
-        return $this->ui_factory->symbol()->icon()->custom('', '');
-    }
-
 }
