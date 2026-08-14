@@ -40,4 +40,8 @@ interface LanguageFileDirectory
     public function getPrefix(): string;
 
     public function getPath(): string;
+
+    public function getSuffix(): string;
+
+    public function isLocal(): bool;
 }

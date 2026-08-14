@@ -95,8 +95,7 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
 
         $this->il_setup_language->setDbHandler($db);
         $this->il_setup_language->installLanguages(
-            $this->getInstallLanguages(),
-            $this->getInstallLocalLanguages()
+            $this->getInstallLanguages()
         );
 
         $GLOBALS["ilDB"] = $db_tmp;

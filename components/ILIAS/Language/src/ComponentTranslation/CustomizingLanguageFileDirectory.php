@@ -17,4 +17,14 @@ class CustomizingLanguageFileDirectory implements LanguageFileDirectory
     {
         return 'lang/customizing/';
     }
+
+    public function getSuffix(): string
+    {
+        return '.local';
+    }
+
+    public function isLocal(): bool
+    {
+        return true;
+    }
 }

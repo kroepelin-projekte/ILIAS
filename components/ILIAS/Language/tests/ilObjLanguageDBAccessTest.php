@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 /**
  * Class ilObjLanguageDBAccessTest
- * @author  Christian Knof <christian.knof@kroepelin-projekte.de>
  */
 class ilObjLanguageDBAccessTest extends ilLanguageBaseTestCase
 {

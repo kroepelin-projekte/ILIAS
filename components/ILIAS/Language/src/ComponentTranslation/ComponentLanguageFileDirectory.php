@@ -49,4 +49,14 @@ class ComponentLanguageFileDirectory implements LanguageFileDirectory
 
         return $this->base_directory . '/' . $this->path_inside_component;
     }
+
+    public function getSuffix(): string
+    {
+        return '';
+    }
+
+    public function isLocal(): bool
+    {
+        return false;
+    }
 }

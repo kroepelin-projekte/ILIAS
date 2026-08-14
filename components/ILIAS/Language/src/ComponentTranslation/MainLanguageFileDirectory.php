@@ -35,4 +35,14 @@ class MainLanguageFileDirectory implements LanguageFileDirectory
     {
         return 'lang/';
     }
+
+    public function getSuffix(): string
+    {
+        return '';
+    }
+
+    public function isLocal(): bool
+    {
+        return false;
+    }
 }

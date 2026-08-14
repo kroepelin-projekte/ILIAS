@@ -84,8 +84,7 @@ class ilLanguagesUpdatedObjective implements Setup\Objective
 
         $this->il_setup_language->setDbHandler($db);
         $this->il_setup_language->installLanguages(
-            $this->il_setup_language->getInstalledLanguages(),
-            $this->il_setup_language->getLocalLanguages()
+            $this->il_setup_language->getInstalledLanguages()
         );
 
         $GLOBALS["ilDB"] = $db_tmp;

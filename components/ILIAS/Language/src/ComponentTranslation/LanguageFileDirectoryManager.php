@@ -105,4 +105,13 @@ class LanguageFileDirectoryManager
     {
         yield $this->local_directory;
     }
+
+    /**
+     * @return \Generator|LanguageFileDirectory[]
+     */
+    public function getAllDirectories(): \Generator
+    {
+        yield from $this->getDirectories();
+        yield from $this->getCustomizingDirectories();
+    }
 }
