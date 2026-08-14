@@ -26,7 +26,6 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterf
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
-use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 
 final class SubsetInputCondition extends AbstractCondition implements
     InputConditionInterface,

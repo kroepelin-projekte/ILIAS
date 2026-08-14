@@ -29,7 +29,6 @@ use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
-use ILIAS\UI\Component\Symbol\Glyph\Glyph;
 use ilLPStatus;
 use ilObject;
 use LogicException;
