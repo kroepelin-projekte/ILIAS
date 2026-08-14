@@ -669,7 +669,7 @@ abstract class AbstractCondition
         $this->setTypeId((int) $row['type_id']);
         if ($this instanceof SubtypeAwareInterface) {
             $db = $this->dic->database();
-            $table_name = "lsp_c_{$this->getName()}";
+            $table_name = "lso_c_{$this->getName()}";
 
             if (
                 $db->tableExists($table_name)
@@ -677,9 +677,9 @@ abstract class AbstractCondition
                 && $db->tableColumnExists($table_name, 'subtype')
             ) {
                 $query = $this->dic->database()->queryF(
-                    'SELECT * FROM %s WHERE condition_id = %s',
-                    ['text', 'integer'],
-                    [$table_name, $this->condition_id]
+                    "SELECT * FROM $table_name WHERE condition_id = %s",
+                    ['integer'],
+                    [$this->condition_id]
                 );
                 if ($record = $db->fetchObject($query)) {
                     $this->setSubtype($record->subtype);
