@@ -540,18 +540,10 @@ abstract class AbstractCondition
         $this->dic->ctrl()->clearParametersByClass(ilObjLearningSequenceConditionsGUI::class);
 
         return $this->ui_factory->link()->bulky(
-            $this->getGlyphe(),
+            $this->ui_factory->symbol()->icon()->custom('', ''),
             $label ?? $this->lang->txt($this->getName()),
             $uri
         );
-    }
-
-    /**
-     * Returns the glyph representing this condition.
-     */
-    public function getGlyph(): Symbol
-    {
-        return $this->getGlyphe();
     }
 
     /**
@@ -617,19 +609,6 @@ abstract class AbstractCondition
 
         return false;
     }
-
-    /**
-     * Returns the glyphe for the condition.
-     * Override this method in child classes to provide a specific glyph.
-     *
-     * @return Glyph|Symbol
-     */
-    protected function getGlyphe(): Glyph|Symbol
-    {
-        return $this->ui_factory->symbol()->glyph()->apply();
-    }
-
-    // TODO: Prüfen, wohin wir diese beiden Helper auslagern können
 
     /**
      * Returns the learning sequence object associated with this condition.

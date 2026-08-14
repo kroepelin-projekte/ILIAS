@@ -328,14 +328,6 @@ final class SubsetInputCondition extends AbstractCondition implements
     }
 
     /**
-     * @inheritDoc
-     */
-    protected function getGlyphe(): Glyph
-    {
-        return $this->ui_factory->symbol()->glyph()->checked();
-    }
-
-    /**
      * @return int[]
      */
     private function requireSourceRefIds(): array

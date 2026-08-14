@@ -200,14 +200,6 @@ final class PointsOutputCondition extends AbstractCondition implements OutputCon
     /**
      * @inheritDoc
      */
-    protected function getGlyphe(): Glyph
-    {
-        return $this->ui_factory->symbol()->glyph()->settings();
-    }
-
-    /**
-     * @inheritDoc
-     */
     protected function requiresConfiguration(): bool
     {
         return true;
