@@ -18,20 +18,27 @@
 
 declare(strict_types=1);
 
+use ILIAS\Data\Factory;
+use ILIAS\ILIASObject\LocalDIC;
+use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\AvailabilityPeriod\AvailabilityPeriod;
 use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\CachedRepository as ReferencePropertiesRepository;
 use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\ObjectReferenceProperties;
-use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\AvailabilityPeriod\AvailabilityPeriod;
-use ILIAS\ILIASObject\LocalDIC;
+use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
+use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer;
 use ILIAS\LearningSequence\LearningMap\LSOLearningMapViewMode;
+use ILIAS\News\Service;
 
 class ilObjLearningSequence extends ilContainer
 {
-    public const OBJ_TYPE = 'lso';
+    public const string OBJ_TYPE = 'lso';
 
-    public const E_CREATE = 'create';
-    public const E_UPDATE = 'update';
-    public const E_DELETE = 'delete';
+    public const string E_CREATE = 'create';
+    public const string E_UPDATE = 'update';
+    public const string E_DELETE = 'delete';
 
     protected ?ilLSItemsDB $items_db = null;
     protected ?ilLSPostConditionDB $conditions_db = null;
@@ -41,17 +48,18 @@ class ilObjLearningSequence extends ilContainer
     protected ?ilLSStateDB $state_db = null;
     protected ?ilLearningSequenceRoles $ls_roles = null;
     protected ?ilLearningSequenceSettingsDB $settings_db = null;
-    protected ?ilLearningSequenceActivationDB $activation_db = null;
-    protected ?ilLearningSequenceActivation $ls_activation = null;
+
     protected ?ArrayAccess $di = null;
     protected ?ArrayAccess $local_di = null;
     protected ?ilObjLearningSequenceAccess $ls_access = null;
     protected ArrayAccess $dic;
     protected ilCtrl $ctrl;
-    protected \ILIAS\News\Service $il_news;
+    protected Service $il_news;
     protected ilConditionHandler $il_condition_handler;
     protected ReferencePropertiesRepository $repo_ref_props;
     protected ?ObjectReferenceProperties $ref_props = null;
+    private ilObjLearningSequenceConditionDiscover $discover;
+    private ConditionFactory $condition_factory;
 
     public function __construct(int $id = 0, bool $call_by_reference = true)
     {
@@ -71,9 +79,15 @@ class ilObjLearningSequence extends ilContainer
         parent::__construct($id, $call_by_reference);
 
         $this->lng->loadLanguageModule('rbac');
+
+        $this->discover = new ilObjLearningSequenceConditionDiscover();
+        $this->condition_factory = new ConditionFactory(
+            $this->discover,
+            $this->dic->database()
+        );
     }
 
-    public static function getInstanceByRefId(int $ref_id): ?\ilObject
+    public static function getInstanceByRefId(int $ref_id): ?ilObject
     {
         return ilObjectFactory::getInstanceByRefId($ref_id, false);
     }
@@ -84,7 +98,7 @@ class ilObjLearningSequence extends ilContainer
         $this->getLSSettings();
         try {
             $this->ref_props = $this->repo_ref_props->getFor($this->getRefId());
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->ref_props = $this->repo_ref_props->getFor(null);
             $this->repo_ref_props->storePropertyAvailabilityPeriod(
                 $this->ref_props->getPropertyAvailabilityPeriod()
@@ -130,7 +144,7 @@ class ilObjLearningSequence extends ilContainer
         ilLearningSequenceParticipants::_deleteAllEntries($this->getId());
         $this->getSettingsDB()->delete($this->getId());
         $this->getStateDB()->deleteFor($lso_ref_id);
-        (new \ILIAS\LearningSequence\Content\Condition\ConditionHandler())->deleteConditionsByLSORefId($lso_ref_id);
+        (new ConditionHandler())->deleteConditionsByLSORefId($lso_ref_id);
 
         // FIXME: Method doesn't exits
         // ilObjTaxonomy::deleteUsagesOfObject($this->getId());
@@ -191,6 +205,93 @@ class ilObjLearningSequence extends ilContainer
             $roles->getDefaultAdminRole()
         );
         return $new_obj;
+    }
+
+    /**
+     * @param int $target_id
+     * @param int $copy_id
+     * @return bool
+     * @throws ReflectionException
+     * @throws ilDatabaseException
+     * @throws ilException
+     * @throws ilObjectNotFoundException
+     */
+    public function cloneDependencies(int $target_id, int $copy_id): bool
+    {
+        $dependencies_cloned = parent::cloneDependencies($target_id, $copy_id);
+
+        /** @var ilObjLearningSequence $new_obj */
+        $new_obj = ilObjectFactory::getInstanceByRefId($target_id);
+
+        $settings = $new_obj->getLSSettings();
+        $settings = $settings->withMode($this->getLSSettings()->getMode());
+        $new_obj->updateSettings($settings);
+
+        $boundaries = new LSOAdaptiveBoundaries($this->dic->database());
+        ['start_ref_id' => $source_start_ref_id, 'end_ref_id' => $source_end_ref_id] = $boundaries
+            ->getBoundariesFor($this->getId());
+        $boundaries->setStartRefId($new_obj->getId(), $source_start_ref_id);
+        $boundaries->setEndRefId($new_obj->getId(), $source_end_ref_id);
+
+        return $dependencies_cloned && $this->cloneConditions($target_id, $copy_id);
+    }
+
+    /**
+     * @param int $target_id
+     * @param int $copy_id
+     * @return bool
+     * @throws ReflectionException
+     * @throws ilException
+     */
+    private function cloneConditions(int $target_id, int $copy_id): bool
+    {
+        $cp_options = ilCopyWizardOptions::_getInstance($copy_id);
+        $mapping = array_filter($cp_options->getMappings(), 'is_numeric', ARRAY_FILTER_USE_KEY);
+
+        foreach ($this->getLSItems() as $ls_item) {
+            $item_ref_id = $ls_item->getRefId();
+
+            if (!array_key_exists($item_ref_id, $mapping)) {
+                continue;
+            }
+
+            $new_item_ref_id = $mapping[$item_ref_id];
+
+            $conditions = $this->discover->getAllConditionIdsForItem($item_ref_id);
+            foreach ($conditions as $condition_id) {
+                $created = false;
+                $condition = $this->condition_factory->getConditionInstanceById($condition_id);
+                $condition_name = $condition->getIdentifierForClass($condition::class);
+
+                try {
+                    $new_condition = $this->condition_factory->getConditionInstanceByName($condition_name);
+                    $new_condition->setLsoRefId($target_id);
+                    $new_condition->setObjRefId($new_item_ref_id);
+                    if ($condition instanceof SubtypeAwareInterface) {
+                        $new_condition->setSubtype($condition->getSubtype());
+                    }
+                    $export_payload = $condition->export();
+
+                    $new_condition->create(true);
+                    $created = true;
+
+                    $new_condition_id = (int)$new_condition->getConditionId();
+                    if ($new_condition_id > 0) {
+                        $new_condition->setImportMapping($mapping);
+                        $new_condition->import($export_payload, $new_condition_id);
+                    }
+                } catch (Throwable $e) {
+                    if ($created && isset($new_condition)) {
+                        $new_condition->delete();
+                    }
+
+                    $this->log->warning(__METHOD__ . ': condition copy failed: ' . $e->getMessage());
+                    continue;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -256,8 +357,7 @@ class ilObjLearningSequence extends ilContainer
             ->withAbstract($source->getAbstract())
             ->withExtro($source->getExtro())
             ->withAbstractImage($source->getAbstractImage())
-            ->withExtroImage($source->getExtroImage())
-        ;
+            ->withExtroImage($source->getExtroImage());
 
         $new_obj->updateSettings($target);
     }
@@ -290,7 +390,7 @@ class ilObjLearningSequence extends ilContainer
             $di->init(
                 $this->getDIC(),
                 $this->getDI(),
-                new \ILIAS\Data\Factory(),
+                new Factory(),
                 $this
             );
             $this->local_di = $di;
@@ -345,7 +445,8 @@ class ilObjLearningSequence extends ilContainer
 
         return $this->ls_participants;
     }
-    public function getMembersObject(): \ilLearningSequenceParticipants //used by Services/Membership/classes/class.ilMembershipGUI.php
+
+    public function getMembersObject(): ilLearningSequenceParticipants //used by Services/Membership/classes/class.ilMembershipGUI.php
     {
         return $this->getLSParticipants();
     }
@@ -370,7 +471,7 @@ class ilObjLearningSequence extends ilContainer
 
     /**
      * Update LSItems
-     * @param LSItem[]
+     * @param LSItem[] $ls_items
      */
     public function storeLSItems(array $ls_items): void
     {
@@ -379,8 +480,9 @@ class ilObjLearningSequence extends ilContainer
     }
 
     /**
-     * Delete post conditions for ref ids.
-     * @param int[]
+     * Delete post-conditions for ref ids.
+     * @param int[] $ref_ids
+     * @throws ilRepositoryException
      */
     public function deletePostConditionsForSubObjects(array $ref_ids): void
     {
@@ -519,6 +621,7 @@ class ilObjLearningSequence extends ilContainer
         $item->setContent("lso_news_online_txt");
         $ns->data()->save($item);
     }
+
     public function announceLSOOffline(): void
     {
         //NYI
@@ -567,8 +670,8 @@ class ilObjLearningSequence extends ilContainer
 
 
     /***************************************************************************
-    * Role Stuff
-    ***************************************************************************/
+     * Role Stuff
+     ***************************************************************************/
     /**
      * @return array<string, int>
      */
@@ -643,7 +746,7 @@ class ilObjLearningSequence extends ilContainer
     public function createContentPage(LSOPageType $page_type): void
     {
         if ($this->hasContentPage($page_type)) {
-            throw new \LogicException('will not create content page - it already exists.');
+            throw new LogicException('will not create content page - it already exists.');
         }
         $new_page_object = $page_type === LSOPageType::INTRO ? new ilLSOIntroPage() : new ilLSOExtroPage();
         $new_page_object->setId($this->getContentPageId());

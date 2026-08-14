@@ -249,7 +249,11 @@ class ilLearningSequenceImporter extends ilXmlImporter
 
                     $new_condition_id = (int) $condition->getConditionId();
                     if ($new_condition_id > 0) {
-                        $condition->setImportMapping($mapping->getAllMappings());
+                        $mapping = array_map(
+                            'intval',
+                                $mapping->getAllMappings()['components/ILIAS/Container']['refs'] ?? []
+                        );
+                        $condition->setImportMapping($mapping);
                         $condition->import($payload, $new_condition_id);
                     }
                 } catch (\Throwable $e) {

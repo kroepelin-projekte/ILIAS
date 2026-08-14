@@ -909,6 +909,6 @@ abstract class AbstractCondition
 
     public function setImportMapping(array $mapping): void
     {
-        $this->import_mapping = array_map('intval', $mapping['components/ILIAS/Container']['refs'] ?? []);
+        $this->import_mapping = $mapping;
     }
 }
