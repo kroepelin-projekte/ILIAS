@@ -660,9 +660,7 @@ class ilLSPlayer
                 . htmlspecialchars($this->txt('lso_player_dead_end_line_3'))
                 . '</p>'
                 . '<div class="lso-player-dead-end__illustration" aria-hidden="true">'
-                . '<img class="lso-player-dead-end__image" src="'
-                . htmlspecialchars($this->getAdaptiveDeadEndImagePath())
-                . '" alt="">'
+                . $this->getAdaptiveDeadEndSvg()
                 . '</div>'
                 . '</div>'
             )
@@ -744,8 +742,13 @@ class ilLSPlayer
         return $DIC->language()->txt($key);
     }
 
-    protected function getAdaptiveDeadEndImagePath(): string
+    protected function getAdaptiveDeadEndSvg(): string
     {
-        return ilUtil::getHtmlPath('./assets/lso_player/dead_end.svg');
+        $svg = file_get_contents(dirname(__DIR__, 2) . '/resources/images/player/dead_end.svg');
+        if ($svg === false) {
+            throw new \RuntimeException('Unable to load dead-end SVG asset.');
+        }
+
+        return $svg;
     }
 }

@@ -33,6 +33,10 @@ $lso-dark-bg: $il-main-dark-bg;
 }
 
 .ilLSOKioskModeContent {
+	--lso-player-dead-end-main-color: #{$il-main-color};
+	--lso-player-dead-end-warning-color: #{$il-warning-color};
+	--lso-player-dead-end-border-color: #{$il-main-border-color};
+
 	.panel-primary {
 		.panel-heading {
 			display: none;
