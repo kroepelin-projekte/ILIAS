@@ -15949,11 +15949,6 @@ div#right_bottom_area iframe {
   float: none;
 }
 
-.ilLSOKioskModeContent {
-  --lso-player-dead-end-main-color: #4c6586;
-  --lso-player-dead-end-warning-color: #B54F00;
-  --lso-player-dead-end-border-color: #dddddd;
-}
 .ilLSOKioskModeContent .panel-primary .panel-heading {
   display: none;
 }
