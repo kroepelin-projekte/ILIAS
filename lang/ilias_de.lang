@@ -11248,6 +11248,10 @@ lso#:#lso_adaptive_output_conditions#:#Ausgangsbedingungen
 lso#:#lso_adaptive_previous_object#:#Vorheriges Objekt
 lso#:#lso_adaptive_start#:#Start
 lso#:#lso_adaptive_start_end_not_same#:#Ein Objekt kann nicht gleichzeitig Start- und Endobjekt sein.
+lso#:#lso_player_dead_end_line_1#:#Hey, hier ist der Pfad zu Ende.
+lso#:#lso_player_dead_end_line_2#:#Schaue in die Map, um deinen
+lso#:#lso_player_dead_end_line_3#:#Weg fortzusetzen.
+lso#:#lso_player_dead_end_title#:#Pfad zu Ende
 lso#:#lso_at_least_one_admin#:#Dieser Lernsequenz muss mindestens eine Person mit der Rolle „Lernsequenzadministration“ zugeordnet sein.
 lso#:#lso_condition_simple_choice_target#:#Einzelnes Objekt auswählen
 lso#:#lso_condition_simple_multi_target#:#Mehrere Objekte auswählen

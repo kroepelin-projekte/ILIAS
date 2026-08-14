@@ -1,0 +1,18 @@
+.lso-player-dead-end {
+    padding-left: 56px;
+}
+
+.lso-player-dead-end__message {
+    margin: 0;
+}
+
+.lso-player-dead-end__illustration {
+    padding-top: 24px;
+    padding-left: 88px;
+}
+
+.lso-player-dead-end__image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}

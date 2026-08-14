@@ -11220,6 +11220,10 @@ lso#:#lso_adaptive_output_conditions#:#Output Conditions
 lso#:#lso_adaptive_previous_object#:#Previous Object
 lso#:#lso_adaptive_start#:#Start
 lso#:#lso_adaptive_start_end_not_same#:#An object cannot be the start and end object at the same time.
+lso#:#lso_player_dead_end_line_1#:#Hey, the path ends here.
+lso#:#lso_player_dead_end_line_2#:#Check the map to continue
+lso#:#lso_player_dead_end_line_3#:#your path.
+lso#:#lso_player_dead_end_title#:#Path ended
 lso#:#lso_at_least_one_admin#:#There has to be at least one learning sequence administrator.
 lso#:#lso_condition_simple_choice_target#:#Select Single Object
 lso#:#lso_condition_simple_multi_target#:#Select Multiple Objects
