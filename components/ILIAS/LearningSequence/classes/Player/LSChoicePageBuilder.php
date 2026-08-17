@@ -97,7 +97,9 @@ class LSChoicePageBuilder
         );
         $description = preg_replace('/\s+/u', ' ', trim($item->getDescription())) ?? '';
         $sections[] = $this->ui_factory->legacy()->content(
-            '<p class="lso-choice-card__description">'
+            '<p class="lso-choice-card__description"'
+            . ($description !== '' ? ' title="' . htmlspecialchars($description, ENT_QUOTES) . '"' : '')
+            . '>'
             . ($description !== '' ? htmlspecialchars($description) : '&nbsp;')
             . '</p>'
         );
@@ -132,8 +134,11 @@ class LSChoicePageBuilder
                 . '" alt="">';
         }
 
+        $title = htmlspecialchars($item->getTitle());
+        $title_attribute = htmlspecialchars($item->getTitle(), ENT_QUOTES);
+
         return '<div class="lso-choice-card__title-row">'
-            . '<span class="lso-choice-card__title">' . htmlspecialchars($item->getTitle()) . '</span>'
+            . '<span class="lso-choice-card__title" title="' . $title_attribute . '">' . $title . '</span>'
             . $icon
             . '</div>';
     }
