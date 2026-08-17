@@ -32,7 +32,7 @@ class LogicGateInputAwareConditionTest extends TestCase
         $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
         $condition->setSubtype('logic_gate_or');
-        $condition->setItems('151,152');
+        $condition->setItems([151, 152]);
 
         $this->injectDependencies(
             $condition,
@@ -76,7 +76,7 @@ class LogicGateInputAwareConditionTest extends TestCase
         $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
         $condition->setSubtype('logic_gate_not');
-        $condition->setItems('151, 152');
+        $condition->setItems([151, 152]);
 
         $constraints = $condition->getStaticInputConditionConstraints();
 
@@ -90,7 +90,7 @@ class LogicGateInputAwareConditionTest extends TestCase
         $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
         $condition->setSubtype('logic_gate_not');
-        $condition->setItems('151, 152');
+        $condition->setItems([151, 152]);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 151]));
         $this->assertFalse($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 999]));
@@ -101,7 +101,7 @@ class LogicGateInputAwareConditionTest extends TestCase
         $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
         $condition->setSubtype('logic_gate_and');
-        $condition->setItems('151, 999');
+        $condition->setItems([151, 999]);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict([
             'valid_ref_ids' => [151, 152],

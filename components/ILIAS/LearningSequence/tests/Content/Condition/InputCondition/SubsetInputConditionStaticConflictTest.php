@@ -28,7 +28,7 @@ class SubsetInputConditionStaticConflictTest extends TestCase
         $definitions = SubsetInputCondition::migrate();
 
         $this->assertCount(2, $definitions);
-        $this->assertSame('lso_c_subset_tgt', $definitions[1]->tableName);
+        $this->assertSame('lso_c_subset_items', $definitions[1]->tableName);
         $this->assertArrayHasKey('item_ref_id', $definitions[1]->fields);
     }
 
