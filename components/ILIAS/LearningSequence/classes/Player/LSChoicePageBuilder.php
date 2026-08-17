@@ -23,6 +23,7 @@ namespace ILIAS\LearningSequence\Player;
 use ILIAS\UI\Factory;
 use ILIAS\UI\Component\Component;
 use ILIAS\UI\Component\Card\Card;
+use ILIAS\UI\Component\Image\Image;
 
 /**
  * Reusable "template" for the adaptive branch-selection page.
@@ -76,9 +77,10 @@ class LSChoicePageBuilder
 
         return [
             $this->ui_factory->legacy()->content(
-                '<p class="lead">' . htmlspecialchars(self::SUBLINE) . '</p>'
+                '<div class="lso-choice-page"><p class="lead">' . htmlspecialchars(self::SUBLINE) . '</p>'
             ),
-            $deck
+            $deck,
+            $this->ui_factory->legacy()->content('</div>')
         ];
     }
 
@@ -88,13 +90,17 @@ class LSChoicePageBuilder
     public function buildCard(\LSLearnerItem $item): Card
     {
         $sections = [];
+        $tile_image = $this->getTileImage($item);
 
+        $sections[] = $this->ui_factory->legacy()->content(
+            $this->buildTitleSection($item, $tile_image !== null)
+        );
         $description = trim($item->getDescription());
-        if ($description !== '') {
-            $sections[] = $this->ui_factory->legacy()->content(
-                '<p>' . nl2br(htmlspecialchars($description)) . '</p>'
-            );
-        }
+        $sections[] = $this->ui_factory->legacy()->content(
+            '<p class="lso-choice-card__description">'
+            . ($description !== '' ? nl2br(htmlspecialchars($description)) : '&nbsp;')
+            . '</p>'
+        );
 
         $sections[] = $this->ui_factory->button()->standard(
             self::START_LABEL,
@@ -106,12 +112,51 @@ class LSChoicePageBuilder
 
         $card = $this->ui_factory->card()->standard($item->getTitle());
 
-        $icon_path = $item->getIconPath();
-        if ($icon_path !== '') {
-            $image = $this->ui_factory->image()->standard($icon_path, $item->getTitle());
-            $card = $card->withImage($image);
+        if ($tile_image !== null) {
+            $card = $card->withImage($tile_image);
+        } elseif ($item->getIconPath() !== '') {
+            $card = $card->withImage(
+                $this->ui_factory->image()->standard($item->getIconPath(), $item->getTitle())
+            );
         }
 
         return $card->withSections($sections);
+    }
+
+    protected function buildTitleSection(\LSLearnerItem $item, bool $has_tile_image): string
+    {
+        $icon = '';
+        if ($has_tile_image && $item->getIconPath() !== '') {
+            $icon = '<img class="lso-choice-card__title-icon" src="'
+                . htmlspecialchars($item->getIconPath(), ENT_QUOTES)
+                . '" alt="">';
+        }
+
+        return '<div class="lso-choice-card__title-row">'
+            . '<span class="lso-choice-card__title">' . htmlspecialchars($item->getTitle()) . '</span>'
+            . $icon
+            . '</div>';
+    }
+
+    protected function getTileImage(\LSLearnerItem $item): ?Image
+    {
+        $obj_id = \ilObject::_lookupObjId($item->getRefId());
+        if ($obj_id <= 0) {
+            return null;
+        }
+
+        $object = \ilObjectFactory::getInstanceByObjId($obj_id, false);
+        if ($object === null) {
+            return null;
+        }
+
+        $tile_image = $object->getObjectProperties()
+            ->getPropertyTileImage()
+            ->getTileImage();
+        if ($tile_image === null || $tile_image->getRid() === null || $tile_image->getRid() === '') {
+            return null;
+        }
+
+        return $tile_image->getImage($this->ui_factory->image())->withAlt($item->getTitle());
     }
 }
