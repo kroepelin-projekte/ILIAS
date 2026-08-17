@@ -104,6 +104,39 @@ class AdaptiveNavigatorPointsTest extends TestCase
         $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 137));
     }
 
+    public function testPointsOutputRefIdsAreTakenFromPreloadedNavigatorState(): void
+    {
+        $items = $this->buildItems([135, 137, 139, 140]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockPointsReward(10, true)],
+            137 => [$this->mockOtherReward()],
+            139 => [$this->mockPointsInput(10, true)],
+            140 => [$this->mockBrokenPointsReward()],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([135, 140], $navigator->getPointsOutputRefIds($items));
+    }
+
+    public function testMixedPointsSourcesOnlyUnlockWithConfiguredPointsOutputs(): void
+    {
+        $items = $this->buildItems([135, 137, 139, 140]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockPointsReward(5, true)],
+            137 => [],
+            139 => [$this->mockBrokenPointsReward()],
+            140 => [$this->mockPointsInput(6, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 137));
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 139));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 140));
+    }
+
     /**
      * @param int[] $ref_ids
      * @return LSLearnerItem[]
@@ -239,6 +272,32 @@ class AdaptiveNavigatorPointsTest extends TestCase
             public function getAccumulatedValue(): int
             {
                 return $this->points;
+            }
+        };
+    }
+
+    private function mockOtherReward(): AbstractCondition
+    {
+        return new class () extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface {
+            protected const string NAME = 'other_output';
+
+            public function __construct()
+            {
+            }
+
+            public function check(): bool
+            {
+                return true;
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'other';
+            }
+
+            public function getAccumulatedValue(): int
+            {
+                return 10;
             }
         };
     }
