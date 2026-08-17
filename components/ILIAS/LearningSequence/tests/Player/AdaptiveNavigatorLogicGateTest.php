@@ -30,7 +30,7 @@ class AdaptiveNavigatorLogicGateTest extends TestCase
     public function testStructuralSuccessorsAcceptRepositoryItems(): void
     {
         $items = array_map(function (int $ref_id): LSItem {
-            $item = $this->createMock(LSItem::class);
+            $item = $this->createStub(LSItem::class);
             $item->method('getRefId')->willReturn($ref_id);
             return $item;
         }, [149, 151]);
@@ -84,7 +84,7 @@ class AdaptiveNavigatorLogicGateTest extends TestCase
     private function buildItems(array $ref_ids): array
     {
         return array_map(function (int $ref_id): LSLearnerItem {
-            $item = $this->createMock(LSLearnerItem::class);
+            $item = $this->createStub(LSLearnerItem::class);
             $item->method('getRefId')->willReturn($ref_id);
             return $item;
         }, $ref_ids);

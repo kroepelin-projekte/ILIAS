@@ -84,7 +84,7 @@ class AdaptiveNavigatorPointsTest extends TestCase
     private function buildItems(array $ref_ids): array
     {
         return array_map(function (int $ref_id): LSLearnerItem {
-            $item = $this->createMock(LSLearnerItem::class);
+            $item = $this->createStub(LSLearnerItem::class);
             $item->method('getRefId')->willReturn($ref_id);
             return $item;
         }, $ref_ids);
