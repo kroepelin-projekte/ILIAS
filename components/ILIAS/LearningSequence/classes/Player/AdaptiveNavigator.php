@@ -606,7 +606,11 @@ class AdaptiveNavigator implements LSNavigator
                 $condition instanceof AccruedValueOutputConditionInterface
                 && $condition->getAccumulationIdentifier() === 'points'
             ) {
-                $points += $condition->getAccumulatedValue();
+                try {
+                    $points += $condition->getAccumulatedValue();
+                } catch (\Throwable $t) {
+                    continue;
+                }
             }
         }
 

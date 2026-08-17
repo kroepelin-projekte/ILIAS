@@ -348,6 +348,7 @@
     const BACKWARD_SEARCH_LIMIT = 12;
     const FORWARD_LANE_SPACING = 44;
     const FORWARD_GAP_PADDING = 56;
+    const HORIZONTAL_ARROW_SPACING = 18;
 
     /**
      * Orthogonal route of a backward edge: the line leaves the object through a
@@ -505,6 +506,24 @@
     function positions() {
       backwardRoutes.clear();
       const w = function (n) { return n.dummy ? DUMMY_WIDTH : ALONG; };
+      const nodeCenter = function (n) { return n.x + (w(n) / 2); };
+      const horizontalGap = function (currentLayer, index) {
+        if (!currentLayer[index] || !currentLayer[index + 1]) { return M.hGap; }
+        const border = (
+          currentLayer[index].x + w(currentLayer[index]) + currentLayer[index + 1].x
+        ) / 2;
+        const currentRank = currentLayer[index].rank;
+        let gapCrossings = 0;
+        segments.forEach((s) => {
+          if (s.from.rank !== currentRank && s.to.rank !== currentRank) { return; }
+          const fromX = nodeCenter(s.from);
+          const toX = nodeCenter(s.to);
+          if (Math.min(fromX, toX) < border && Math.max(fromX, toX) > border) {
+            gapCrossings += 1;
+          }
+        });
+        return M.hGap + (gapCrossings * HORIZONTAL_ARROW_SPACING);
+      };
       layers.forEach((l, r) => {
         let total = 0;
         l.forEach((n) => { total += w(n) + M.hGap; });
@@ -526,11 +545,11 @@
           });
           const l = layers[r];
           for (let i = 1; i < l.length; i += 1) {
-            const min = l[i - 1].x + w(l[i - 1]) + M.hGap;
+            const min = l[i - 1].x + w(l[i - 1]) + horizontalGap(l, i - 1);
             if (l[i].x < min) { l[i].x = min; }
           }
           for (let j = l.length - 2; j >= 0; j -= 1) {
-            const max = l[j + 1].x - w(l[j]) - M.hGap;
+            const max = l[j + 1].x - w(l[j]) - horizontalGap(l, j);
             if (l[j].x > max) { l[j].x = max; }
           }
         }
@@ -677,8 +696,15 @@
           }
         });
         const balance = Math.abs(planned.counts.right - planned.counts.left);
+        let detour = 0;
+        planned.plan.forEach((route, edge) => {
+          const source = nodes[edge.from];
+          const target = nodes[edge.to];
+          const sideX = route.side === 'right' ? contentRight : contentLeft;
+          detour += Math.abs(nodeCenter(source) - sideX) + Math.abs(nodeCenter(target) - sideX);
+        });
         return {
-          score: (objectHits * 1000) + (lineCrossings * 10) + balance,
+          score: (objectHits * 1000) + (lineCrossings * 10) + balance + (detour / 100),
           plan: planned.plan,
           counts: planned.counts,
         };

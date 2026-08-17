@@ -20,9 +20,10 @@ declare(strict_types=1);
 
 use ILIAS\DI\Container;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
-use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -242,6 +243,19 @@ class ilObjLearningSequenceConditionConfigurationGUI
         }
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'), true);
+        if ($condition instanceof PointsInputCondition) {
+            $titles_without_points_output = $condition->getSourceObjectTitlesWithoutPointsOutput();
+            if ($titles_without_points_output !== []) {
+                $this->tpl->setOnScreenMessage(
+                    'info',
+                    sprintf(
+                        $this->lng->txt('lso_points_input_source_without_points_output'),
+                        implode(', ', $titles_without_points_output)
+                    ),
+                    true
+                );
+            }
+        }
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
         $this->ctrl->redirectByClass(
