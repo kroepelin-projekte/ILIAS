@@ -77,6 +77,66 @@ class AdaptiveNavigatorPointsTest extends TestCase
         $this->assertSame([137, 139], $this->getPredecessorRefs($navigator, $items, 140));
     }
 
+    public function testPointsStructuralCalculationTreatsBrokenPointsOutputAsZero(): void
+    {
+        $items = $this->buildItems([135, 137]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockBrokenPointsReward()],
+            137 => [$this->mockPointsInput(1, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 137));
+    }
+
+    public function testPointsStructuralCalculationTreatsMissingPointsOutputAsZero(): void
+    {
+        $items = $this->buildItems([135, 137]);
+        $navigator = $this->buildNavigator([
+            137 => [$this->mockPointsInput(1, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 137));
+    }
+
+    public function testPointsOutputRefIdsAreTakenFromPreloadedNavigatorState(): void
+    {
+        $items = $this->buildItems([135, 137, 139, 140]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockPointsReward(10, true)],
+            137 => [$this->mockOtherReward()],
+            139 => [$this->mockPointsInput(10, true)],
+            140 => [$this->mockBrokenPointsReward()],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([135, 140], $navigator->getPointsOutputRefIds($items));
+    }
+
+    public function testMixedPointsSourcesOnlyUnlockWithConfiguredPointsOutputs(): void
+    {
+        $items = $this->buildItems([135, 137, 139, 140]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockPointsReward(5, true)],
+            137 => [],
+            139 => [$this->mockBrokenPointsReward()],
+            140 => [$this->mockPointsInput(6, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 137));
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 139));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 140));
+    }
+
     /**
      * @param int[] $ref_ids
      * @return LSLearnerItem[]
@@ -103,11 +163,40 @@ class AdaptiveNavigatorPointsTest extends TestCase
             public function preload(array $items): void
             {
                 $this->conditions_cache = $this->seed_conditions;
+                foreach ($items as $item) {
+                    $this->conditions_cache[$item->getRefId()] ??= [];
+                }
                 $this->buildNavigationSourceCaches(array_map(
                     static fn(LSLearnerItem $item): int => $item->getRefId(),
                     $items
                 ));
                 $this->buildPointsNavigationCaches($items);
+            }
+        };
+    }
+
+    private function mockBrokenPointsReward(): AbstractCondition
+    {
+        return new class () extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface {
+            protected const string NAME = 'points_output';
+
+            public function __construct()
+            {
+            }
+
+            public function check(): bool
+            {
+                return true;
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'points';
+            }
+
+            public function getAccumulatedValue(): int
+            {
+                throw new LogicException('Points are not stored.');
             }
         };
     }
@@ -183,6 +272,32 @@ class AdaptiveNavigatorPointsTest extends TestCase
             public function getAccumulatedValue(): int
             {
                 return $this->points;
+            }
+        };
+    }
+
+    private function mockOtherReward(): AbstractCondition
+    {
+        return new class () extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface {
+            protected const string NAME = 'other_output';
+
+            public function __construct()
+            {
+            }
+
+            public function check(): bool
+            {
+                return true;
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'other';
+            }
+
+            public function getAccumulatedValue(): int
+            {
+                return 10;
             }
         };
     }

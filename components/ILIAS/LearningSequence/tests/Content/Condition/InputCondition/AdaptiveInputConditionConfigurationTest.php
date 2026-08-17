@@ -83,6 +83,17 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
         $this->assertTrue($condition->hasStaticInputConfigurationConflict(['valid_ref_ids' => [149, 150]]));
     }
 
+    public function testPointsInputReportsSourceRefsWithoutPointsOutputFromContext(): void
+    {
+        $condition = $this->newCondition(PointsInputCondition::class);
+        $condition->setSourceRefIds([149, 150, 151]);
+
+        $this->assertSame(
+            [150],
+            $condition->getSourceRefIdsWithoutPointsOutput(['points_output_ref_ids' => [149, '151']])
+        );
+    }
+
     public function testSubsetInputNormalizesFormDataAndExposesDependencyNavigation(): void
     {
         $condition = $this->newCondition(SubsetInputCondition::class);

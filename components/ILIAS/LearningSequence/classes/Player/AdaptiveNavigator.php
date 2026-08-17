@@ -357,6 +357,30 @@ class AdaptiveNavigator implements LSNavigator
     }
 
     /**
+     * Returns the reference identifiers of items with a configured points output condition.
+     *
+     * @param \LSItem[] $items
+     * @return int[]
+     */
+    public function getPointsOutputRefIds(array $items): array
+    {
+        $ref_ids = [];
+        foreach ($items as $item) {
+            foreach ($this->getConditionsFor($item->getRefId()) as $condition) {
+                if (
+                    $condition instanceof AccruedValueOutputConditionInterface
+                    && $condition->getAccumulationIdentifier() === 'points'
+                ) {
+                    $ref_ids[] = $item->getRefId();
+                    break;
+                }
+            }
+        }
+
+        return array_values(array_unique($ref_ids));
+    }
+
+    /**
      * @return AbstractCondition[]
      */
     public function getInputConditions(\LSItem $item): array
@@ -606,7 +630,11 @@ class AdaptiveNavigator implements LSNavigator
                 $condition instanceof AccruedValueOutputConditionInterface
                 && $condition->getAccumulationIdentifier() === 'points'
             ) {
-                $points += $condition->getAccumulatedValue();
+                try {
+                    $points += $condition->getAccumulatedValue();
+                } catch (\Throwable $t) {
+                    continue;
+                }
             }
         }
 

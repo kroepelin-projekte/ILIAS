@@ -38,6 +38,7 @@ class ilLSPlayer
 {
     public const PARAM_LSO_COMMAND = 'lsocmd';
     public const PARAM_LSO_PARAMETER = 'lsov';
+    private const string PLAYER_CSS = 'assets/css/lso_player.css';
 
     public const LSO_CMD_NEXT = 'lsonext'; //with param directions
     public const LSO_CMD_GOTO = 'lsogoto'; //with param ref_id
@@ -215,11 +216,10 @@ class ilLSPlayer
                 $obj_description = '';
                 $content = $this->buildAdaptiveChoiceContent($items, $item);
             } elseif ($situation === 'deadend') {
-                $obj_title = 'Pfad zu Ende';
+                $obj_title = $this->txt('lso_player_dead_end_title');
                 $obj_description = '';
-                $content = [$this->ui_factory->messageBox()->info(
-                    'Hey, hier ist der Pfad zu Ende. Schaue in die Map, um deinen Weg fortzusetzen.'
-                )];
+                $this->page_renderer->addCss(self::PLAYER_CSS);
+                $content = $this->buildAdaptiveDeadEndContent();
             } else {
                 $show_choice = false;
                 $content = $this->amendAdaptiveContent($content, $items, $item);
@@ -248,9 +248,6 @@ class ilLSPlayer
             $obj_type = ilObject::_lookupType($obj_id);
             ilRating::preloadListGUIData([$obj_id]);
             if ($obj_type !== '' && ilRating::hasRatingInListGUI($obj_id, $obj_type)) {
-                global $DIC;
-                $lng = $DIC->language();
-
                 $parent_ref_id = (int) $ls_ref_id;
                 $rating_container_id = 'lg_div_' . $next_item->getRefId() . '_pref_' . $parent_ref_id;
 
@@ -267,7 +264,7 @@ class ilLSPlayer
                     ilCommonActionDispatcherGUI::class,
                     ilRatingGUI::class
                 ]);
-                $rating_gui->setYourRatingText($lng->txt('rating_your_rating'));
+                $rating_gui->setYourRatingText($this->txt('rating_your_rating'));
 
                 $rating_content = $rating_gui->getListGUIProperty(
                     $next_item->getRefId(),
@@ -477,7 +474,7 @@ class ilLSPlayer
         LSLearnerItem $item,
         int $item_position,
         array $items
-    ): ControlBuilder {
+    ): LSControlBuilder {
         $is_first = $item_position === 0;
         $is_last = $item_position === count($items) - 1;
 
@@ -650,6 +647,27 @@ class ilLSPlayer
     }
 
     /**
+     * @return Component[]
+     */
+    protected function buildAdaptiveDeadEndContent(): array
+    {
+        return [
+            $this->ui_factory->legacy()->content(
+                '<div class="lso-player-dead-end">'
+                . '<p class="lso-player-dead-end__message">'
+                . htmlspecialchars($this->txt('lso_player_dead_end_line_1')) . '<br>'
+                . htmlspecialchars($this->txt('lso_player_dead_end_line_2')) . '<br>'
+                . htmlspecialchars($this->txt('lso_player_dead_end_line_3'))
+                . '</p>'
+                . '<div class="lso-player-dead-end__illustration" aria-hidden="true">'
+                . $this->getAdaptiveDeadEndSvg()
+                . '</div>'
+                . '</div>'
+            )
+        ];
+    }
+
+    /**
      * Builds the navigation controls for adaptive mode based on the situation
      * and the length of the walked path.
      *
@@ -716,5 +734,21 @@ class ilLSPlayer
     {
         $item = $this->getCurrentItem($this->ls_items->getItems());
         return $item->getLearningProgressStatus();
+    }
+
+    protected function txt(string $key): string
+    {
+        global $DIC;
+        return $DIC->language()->txt($key);
+    }
+
+    protected function getAdaptiveDeadEndSvg(): string
+    {
+        $svg = file_get_contents(dirname(__DIR__, 2) . '/resources/images/player/dead_end.svg');
+        if ($svg === false) {
+            throw new \RuntimeException('Unable to load dead-end SVG asset.');
+        }
+
+        return $svg;
     }
 }

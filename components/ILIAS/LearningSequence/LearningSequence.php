@@ -45,5 +45,7 @@ class LearningSequence implements Component\Component
             new Component\Resource\ComponentCSS($this, "css/alp_content_management_presentation.css");
         $contribute[Component\Resource\PublicAsset::class] = fn() =>
             new Component\Resource\ComponentCSS($this, "css/lso_learning_map.css");
+        $contribute[Component\Resource\PublicAsset::class] = fn() =>
+            new Component\Resource\ComponentCSS($this, "css/lso_player.css");
     }
 }

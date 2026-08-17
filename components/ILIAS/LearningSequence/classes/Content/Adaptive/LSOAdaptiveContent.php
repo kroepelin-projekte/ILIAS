@@ -25,6 +25,7 @@ use ilDBInterface;
 use ilGlobalTemplateInterface;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
@@ -156,6 +157,13 @@ class LSOAdaptiveContent implements LSOContentController
         if ((int) $boundary_data['end_ref_id'] === 0) {
             $missing_hints[] = $this->lng->txt('lso_adaptive_missing_end_object');
         }
+        $points_titles_without_output = $this->getPointsInputSourceTitlesWithoutPointsOutput($items, $navigator);
+        if ($points_titles_without_output !== []) {
+            $missing_hints[] = sprintf(
+                $this->lng->txt('lso_points_input_source_without_points_output_table'),
+                implode(', ', $points_titles_without_output)
+            );
+        }
         if ($missing_hints !== []) {
             $this->tpl->setOnScreenMessage('info', implode('<br>', $missing_hints));
         }
@@ -178,6 +186,30 @@ class LSOAdaptiveContent implements LSOContentController
         $this->parent_gui->setContent(
             $table->render()
         );
+    }
+
+    /**
+     * @param \LSItem[] $items Learning sequence items.
+     * @return string[]
+     */
+    protected function getPointsInputSourceTitlesWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
+    {
+        $titles = [];
+        $context = ['points_output_ref_ids' => $navigator->getPointsOutputRefIds($items)];
+        foreach ($items as $item) {
+            foreach ($navigator->getInputConditions($item) as $condition) {
+                if (!$condition instanceof PointsInputCondition) {
+                    continue;
+                }
+                foreach ($condition->getSourceRefIdsWithoutPointsOutput($context) as $ref_id) {
+                    $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
+                    $titles[$title] = $title;
+                }
+            }
+        }
+        sort($titles);
+
+        return array_values($titles);
     }
 
     /**
@@ -214,8 +246,7 @@ class LSOAdaptiveContent implements LSOContentController
         ?array $filter_data,
         array $structural_successors,
         AdaptiveNavigator $navigator
-    ): array
-    {
+    ): array {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
         $start_ref_id = $boundary_data['start_ref_id'];
