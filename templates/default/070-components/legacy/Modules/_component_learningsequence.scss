@@ -3,6 +3,9 @@
 @use "../../../050-layout/basics" as *;
 
 $lso-dark-bg: $il-main-dark-bg;
+$lso-player-dead-end-main-color: $il-main-color !default;
+$lso-player-dead-end-warning-color: $il-warning-color !default;
+$lso-player-dead-end-border-color: $il-main-border-color !default;
 
 .ilLSOLearnerView { /*ILIAS-GUI, "startpage" of LSO*/
     background-color: $il-main-bg;
@@ -33,9 +36,9 @@ $lso-dark-bg: $il-main-dark-bg;
 }
 
 .ilLSOKioskModeContent {
-	--lso-player-dead-end-main-color: #{$il-main-color};
-	--lso-player-dead-end-warning-color: #{$il-warning-color};
-	--lso-player-dead-end-border-color: #{$il-main-border-color};
+	--lso-player-dead-end-main-color: $lso-player-dead-end-main-color;
+	--lso-player-dead-end-warning-color: $lso-player-dead-end-warning-color;
+	--lso-player-dead-end-border-color: $lso-player-dead-end-border-color;
 
 	.panel-primary {
 		.panel-heading {
