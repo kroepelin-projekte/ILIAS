@@ -346,6 +346,8 @@
     const backwardBounds = { left: 0, right: 0 };
     const BACKWARD_LANE_SPACING = M.hGap + 12;
     const BACKWARD_SEARCH_LIMIT = 12;
+    const FORWARD_LANE_SPACING = 44;
+    const FORWARD_GAP_PADDING = 56;
 
     /**
      * Orthogonal route of a backward edge: the line leaves the object through a
@@ -408,6 +410,98 @@
       return head.concat(tail);
     }
 
+    function dockX(node, count, index) {
+      if (node.dummy) { return node.x + DUMMY_WIDTH / 2; }
+      const span = Math.max(ALONG * 0.7, ALONG - (FORWARD_LANE_SPACING * 2));
+      const left = node.x + ((ALONG - span) / 2);
+      return left + ((span * (index + 1)) / (count + 1));
+    }
+
+    function centerX(node) {
+      return node.x + ((node.dummy ? DUMMY_WIDTH : ALONG) / 2);
+    }
+
+    function assignPorts(group, direction) {
+      group.sort((a, b) => {
+        const ac = direction === 'out' ? centerX(a.to) : centerX(a.from);
+        const bc = direction === 'out' ? centerX(b.to) : centerX(b.from);
+        if (Math.round(ac) !== Math.round(bc)) { return ac - bc; }
+        const ar = direction === 'out' ? a.to.rank : a.from.rank;
+        const br = direction === 'out' ? b.to.rank : b.from.rank;
+        return ar - br;
+      });
+      group.forEach((s, i) => {
+        if (direction === 'out') {
+          s.outIndex = i;
+          s.outCount = group.length;
+        } else {
+          s.inIndex = i;
+          s.inCount = group.length;
+        }
+      });
+    }
+
+    function exitPoint(s) {
+      const node = s.from;
+      if (node.dummy) { return [dockX(node), node.y + DEPTH]; }
+      return [dockX(node, s.outCount || 1, s.outIndex || 0), node.y + DEPTH];
+    }
+
+    function entryPoint(s) {
+      const node = s.to;
+      if (node.dummy) { return [dockX(node), node.y]; }
+      return [dockX(node, s.inCount || 1, s.inIndex || 0), node.y];
+    }
+
+    function assignForwardLanes() {
+      const outSegs = {};
+      const inSegs = {};
+      const gaps = {};
+      segments.forEach((s) => {
+        if (backwardRoutes.has(s.edge)) { return; }
+        (outSegs[s.from.id] = outSegs[s.from.id] || []).push(s);
+        (inSegs[s.to.id] = inSegs[s.to.id] || []).push(s);
+      });
+      Object.keys(outSegs).forEach((k) => {
+        assignPorts(outSegs[k], 'out');
+      });
+      Object.keys(inSegs).forEach((k) => {
+        assignPorts(inSegs[k], 'in');
+      });
+      segments.forEach((s) => {
+        if (backwardRoutes.has(s.edge)) { return; }
+        s.exit = exitPoint(s);
+        s.entry = entryPoint(s);
+        const r = s.from.rank;
+        (gaps[r] = gaps[r] || []).push(s);
+      });
+      Object.keys(gaps).forEach((r) => {
+        const hs = [];
+        gaps[r].forEach((s) => {
+          s.lane = 0;
+          if (Math.round(s.exit[0]) !== Math.round(s.entry[0])) {
+            s.lo = Math.min(s.exit[0], s.entry[0]);
+            s.hi = Math.max(s.exit[0], s.entry[0]);
+            hs.push(s);
+          }
+        });
+        hs.sort((a, b) => {
+          if (Math.round(a.lo) !== Math.round(b.lo)) { return a.lo - b.lo; }
+          if (Math.round(a.hi) !== Math.round(b.hi)) { return b.hi - a.hi; }
+          return (a.outIndex || 0) - (b.outIndex || 0);
+        });
+        hs.forEach((s, i) => { s.lane = i; });
+        const lane = Math.max(1, hs.length);
+        gaps[r].forEach((s) => { s.laneCount = Math.max(1, lane); });
+      });
+
+      const laneCounts = {};
+      Object.keys(gaps).forEach((r) => {
+        laneCounts[r] = gaps[r].reduce((max, s) => Math.max(max, s.laneCount || 1), 1);
+      });
+      return laneCounts;
+    }
+
     function positions() {
       backwardRoutes.clear();
       const w = function (n) { return n.dummy ? DUMMY_WIDTH : ALONG; };
@@ -441,6 +535,14 @@
           }
         }
       }
+      const laneCounts = assignForwardLanes();
+      let y = 0;
+      layers.forEach((l, r) => {
+        l.forEach((n) => { n.y = y; });
+        const lanes = laneCounts[r] || 1;
+        y += DEPTH + Math.max(M.vGap, FORWARD_GAP_PADDING + (lanes * FORWARD_LANE_SPACING));
+      });
+      assignForwardLanes();
       let minX = Infinity;
       layers.forEach((l) => {
         l.forEach((n) => { minX = Math.min(minX, n.x); });
@@ -609,6 +711,7 @@
       const shift = 40 - minX + leftReserve;
       const vReserve = backwardRoutes.size > 0 ? M.vGap : 0;
       layers.forEach((l) => { l.forEach((n) => { n.x += shift; n.y += 20 + vReserve; }); });
+      assignForwardLanes();
       let right = 0;
       let bottom = 0;
       layers.forEach((l) => {
@@ -802,13 +905,16 @@
             ];
           }
         }
-        let d = `M ${Math.round(sp[0][0])} ${Math.round(sp[0][1])}`;
+        const clean = [sp[0]];
         for (let i = 1; i < sp.length; i += 1) {
-          const same = Math.round(sp[i][0]) === Math.round(sp[i - 1][0])
-            && Math.round(sp[i][1]) === Math.round(sp[i - 1][1]);
-          if (!same) {
-            d += ` L ${Math.round(sp[i][0])} ${Math.round(sp[i][1])}`;
-          }
+          const prev = clean[clean.length - 1];
+          const same = Math.round(sp[i][0]) === Math.round(prev[0])
+            && Math.round(sp[i][1]) === Math.round(prev[1]);
+          if (!same) { clean.push(sp[i]); }
+        }
+        let d = `M ${Math.round(clean[0][0])} ${Math.round(clean[0][1])}`;
+        for (let i = 1; i < clean.length; i += 1) {
+          d += ` L ${Math.round(clean[i][0])} ${Math.round(clean[i][1])}`;
         }
 
         const kind = edgeKind(e);
@@ -831,103 +937,6 @@
         byEdge.get(s.edge).push(s);
       });
 
-      const outSegs = {};
-      const inSegs = {};
-      segments.forEach((s) => {
-        if (backwardRoutes.has(s.edge)) { return; }
-        (outSegs[s.from.id] = outSegs[s.from.id] || []).push(s);
-        (inSegs[s.to.id] = inSegs[s.to.id] || []).push(s);
-      });
-      Object.keys(outSegs).forEach((k) => {
-        outSegs[k].sort((a, b) => a.to.x - b.to.x);
-        outSegs[k].forEach((s, i) => {
-          s.outIndex = i;
-          s.outCount = outSegs[k].length;
-        });
-      });
-      Object.keys(inSegs).forEach((k) => {
-        inSegs[k].sort((a, b) => a.from.x - b.from.x);
-        inSegs[k].forEach((s, i) => {
-          s.inIndex = i;
-          s.inCount = inSegs[k].length;
-        });
-      });
-      function dockX(node, count, index) {
-        if (node.dummy) { return node.x + DUMMY_WIDTH / 2; }
-        const span = ALONG * 0.7;
-        const left = node.x + ((ALONG - span) / 2);
-        return left + ((span * (index + 1)) / (count + 1));
-      }
-      function exitPoint(s) {
-        const node = s.from;
-        if (node.dummy) { return [dockX(node), node.y + DEPTH]; }
-        return [dockX(node, s.outCount || 1, s.outIndex || 0), node.y + DEPTH];
-      }
-      function entryPoint(s) {
-        const node = s.to;
-        if (node.dummy) { return [dockX(node), node.y]; }
-        return [dockX(node, s.inCount || 1, s.inIndex || 0), node.y];
-      }
-
-      const gaps = {};
-      segments.forEach((s) => {
-        s.exit = exitPoint(s);
-        s.entry = entryPoint(s);
-        const r = s.from.rank;
-        (gaps[r] = gaps[r] || []).push(s);
-      });
-      Object.keys(gaps).forEach((r) => {
-        const hs = [];
-        gaps[r].forEach((s) => {
-          s.lane = 0;
-          if (Math.round(s.exit[0]) !== Math.round(s.entry[0])) {
-            s.lo = Math.min(s.exit[0], s.entry[0]);
-            s.hi = Math.max(s.exit[0], s.entry[0]);
-            hs.push(s);
-          }
-        });
-        const n = hs.length;
-        const adj = [];
-        const deg = [];
-        let i;
-        let j;
-        for (i = 0; i < n; i += 1) { adj[i] = []; deg[i] = 0; }
-        const inside = (s, x) => x > s.lo + 1 && x < s.hi - 1;
-        const link = (a, b) => { adj[a].push(b); deg[b] += 1; };
-        for (i = 0; i < n; i += 1) {
-          for (j = 0; j < n; j += 1) {
-            if (i !== j) {
-              if (inside(hs[i], hs[j].entry[0])) { link(i, j); }
-              if (inside(hs[i], hs[j].exit[0])) { link(j, i); }
-            }
-          }
-        }
-        const queue = [];
-        let placed = 0;
-        let lane = 0;
-        for (i = 0; i < n; i += 1) { if (deg[i] === 0) { queue.push(i); } }
-        while (queue.length) {
-          const k = queue.shift();
-          hs[k].lane = lane;
-          lane += 1;
-          placed += 1;
-          adj[k].forEach((t) => {
-            deg[t] -= 1;
-            if (deg[t] === 0) { queue.push(t); }
-          });
-        }
-        if (placed < n) {
-          const rest = [];
-          for (i = 0; i < n; i += 1) { if (deg[i] > 0) { rest.push(hs[i]); } }
-          rest.sort((a, b) => (a.hi - a.lo) - (b.hi - b.lo));
-          rest.forEach((s) => {
-            s.lane = lane;
-            lane += 1;
-          });
-        }
-        gaps[r].forEach((s) => { s.laneCount = Math.max(1, lane); });
-      });
-
       byEdge.forEach((segs, e) => {
         segs.sort((a, b) => a.from.rank - b.from.rank);
         const pts = [];
@@ -941,8 +950,8 @@
           }
           if (Math.round(a[0]) !== Math.round(b[0])) {
             const gap = b[1] - a[1];
-            const n = s.laneCount || 1;
-            const my = a[1] + Math.max(8, Math.min(gap - 8, (gap * (s.lane + 1)) / (n + 1)));
+            const laneOffset = FORWARD_GAP_PADDING + (s.lane * FORWARD_LANE_SPACING);
+            const my = b[1] - Math.max(8, Math.min(gap - 8, laneOffset));
             pts.push([a[0], my]);
             pts.push([b[0], my]);
           }
