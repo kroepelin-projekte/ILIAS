@@ -24,6 +24,7 @@ use ILIAS\UI\Factory;
 use ILIAS\UI\Component\Component;
 use ILIAS\UI\Component\Card\Card;
 use ILIAS\UI\Component\Image\Image;
+use ilLanguage;
 
 /**
  * Reusable "template" for the adaptive branch-selection page.
@@ -40,15 +41,21 @@ use ILIAS\UI\Component\Image\Image;
  */
 class LSChoicePageBuilder
 {
-    public const HEADLINE = 'Welches Objekt möchten Sie als Nächstes bearbeiten?';
-    public const SUBLINE = 'Wählen Sie eines der folgenden Objekte aus, um Ihren Weg fortzusetzen.';
-    public const START_LABEL = 'Objekt starten';
+    public const HEADLINE = 'lso_choice_page_headline';
+    public const SUBLINE = 'lso_choice_page_subline';
+    public const START_LABEL = 'lso_choice_page_start_label';
+
+    protected ilLanguage $lang;
 
     public function __construct(
         protected Factory $ui_factory,
         protected \LSUrlBuilder $url_builder,
         protected string $goto_command
     ) {
+        global $DIC;
+
+        /** @var \ILIAS\DI\Container $DIC */
+        $this->lang = $DIC->language();
     }
 
     /**
@@ -56,7 +63,7 @@ class LSChoicePageBuilder
      */
     public function getHeadline(): string
     {
-        return self::HEADLINE;
+        return $this->lang->txt(self::HEADLINE);
     }
 
     /**
@@ -77,7 +84,8 @@ class LSChoicePageBuilder
 
         return [
             $this->ui_factory->legacy()->content(
-                '<div class="lso-choice-page"><p class="lead">' . htmlspecialchars(self::SUBLINE) . '</p>'
+                '<div class="lso-choice-page"><p class="lead">'
+                . htmlspecialchars($this->lang->txt(self::SUBLINE)) . '</p>'
             ),
             $deck,
             $this->ui_factory->legacy()->content('</div>')
@@ -105,7 +113,7 @@ class LSChoicePageBuilder
         );
 
         $sections[] = $this->ui_factory->button()->standard(
-            self::START_LABEL,
+            $this->lang->txt(self::START_LABEL),
             $this->url_builder->getHref(
                 $this->goto_command,
                 \ilObject::_lookupObjId($item->getRefId())
