@@ -507,6 +507,7 @@
       backwardRoutes.clear();
       const w = function (n) { return n.dummy ? DUMMY_WIDTH : ALONG; };
       const nodeCenter = function (n) { return n.x + (w(n) / 2); };
+      assignForwardLanes();
       const horizontalGap = function (currentLayer, index) {
         if (!currentLayer[index] || !currentLayer[index + 1]) { return M.hGap; }
         const border = (
@@ -515,11 +516,13 @@
         const currentRank = currentLayer[index].rank;
         let gapCrossings = 0;
         segments.forEach((s) => {
-          if (s.from.rank !== currentRank && s.to.rank !== currentRank) { return; }
+          const minRank = Math.min(s.from.rank, s.to.rank);
+          const maxRank = Math.max(s.from.rank, s.to.rank);
+          if (currentRank < minRank || currentRank > maxRank) { return; }
           const fromX = nodeCenter(s.from);
           const toX = nodeCenter(s.to);
           if (Math.min(fromX, toX) < border && Math.max(fromX, toX) > border) {
-            gapCrossings += 1;
+            gapCrossings += Math.max(1, s.laneCount || 1);
           }
         });
         return M.hGap + (gapCrossings * HORIZONTAL_ARROW_SPACING);

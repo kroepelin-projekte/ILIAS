@@ -195,12 +195,14 @@ class LSOAdaptiveContent implements LSOContentController
     protected function getPointsInputSourceTitlesWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
     {
         $titles = [];
+        $context = ['points_output_ref_ids' => $navigator->getPointsOutputRefIds($items)];
         foreach ($items as $item) {
             foreach ($navigator->getInputConditions($item) as $condition) {
                 if (!$condition instanceof PointsInputCondition) {
                     continue;
                 }
-                foreach ($condition->getSourceObjectTitlesWithoutPointsOutput() as $title) {
+                foreach ($condition->getSourceRefIdsWithoutPointsOutput($context) as $ref_id) {
+                    $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
                     $titles[$title] = $title;
                 }
             }
