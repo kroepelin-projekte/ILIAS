@@ -41,10 +41,10 @@ class LSOLearningMapRenderer
      * @var array<string, string>
      */
     public const STATE_GLYPHS = [
-        'current' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::NEXT,
+        // 'current' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::NEXT,
         'done' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::CHECKED,
-        'open' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::UNCHECKED,
-        'blocked' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::CLOSE
+        // 'open' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::UNCHECKED,
+        // 'blocked' => \ILIAS\UI\Component\Symbol\Glyph\Glyph::CLOSE
     ];
 
     private const NODE_WIDTH = 190;
@@ -264,12 +264,12 @@ class LSOLearningMapRenderer
     protected function getLegend(): array
     {
         $legend = [
-            'open' => $this->txt('lso_learning_map_open'),
-            'blocked' => $this->txt('lso_learning_map_blocked'),
-            'path' => $this->txt('lso_learning_map_path'),
+            //'open' => $this->txt('lso_learning_map_open'),
+            //'blocked' => $this->txt('lso_learning_map_blocked'),
+            //'path' => $this->txt('lso_learning_map_path'),
             'node_open' => $this->txt('lso_learning_map_node_open'),
             'node_blocked' => $this->txt('lso_learning_map_node_blocked'),
-            'done' => $this->txt('lso_learning_map_done'),
+            //'done' => $this->txt('lso_learning_map_done'),
             'current' => $this->txt('lso_learning_map_current')
         ];
 
