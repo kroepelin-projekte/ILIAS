@@ -113,6 +113,39 @@ final class PointsInputCondition extends AbstractCondition implements
     }
 
     /**
+     * @param array<string, mixed> $context
+     * @return int[]
+     */
+    public function getSourceRefIdsWithoutPointsOutput(array $context = []): array
+    {
+        $configured_output_ref_ids = $context['points_output_ref_ids'] ?? null;
+        if (is_array($configured_output_ref_ids)) {
+            $configured_output_ref_ids = array_values(array_unique(array_map('intval', $configured_output_ref_ids)));
+
+            return array_values(array_filter(
+                $this->getSourceRefIds(),
+                static fn(int $ref_id): bool => !in_array($ref_id, $configured_output_ref_ids, true)
+            ));
+        }
+
+        return array_values(array_filter(
+            $this->getSourceRefIds(),
+            fn(int $ref_id): bool => $this->getOutputConditionIdForItem($ref_id) === null
+        ));
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getSourceObjectTitlesWithoutPointsOutput(): array
+    {
+        return array_map(
+            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
+            $this->getSourceRefIdsWithoutPointsOutput()
+        );
+    }
+
+    /**
      * @inheritDoc
      */
     public function getAdditionalForm(): FormStandard

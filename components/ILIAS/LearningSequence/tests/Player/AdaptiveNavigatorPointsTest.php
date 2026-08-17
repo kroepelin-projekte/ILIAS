@@ -77,6 +77,33 @@ class AdaptiveNavigatorPointsTest extends TestCase
         $this->assertSame([137, 139], $this->getPredecessorRefs($navigator, $items, 140));
     }
 
+    public function testPointsStructuralCalculationTreatsBrokenPointsOutputAsZero(): void
+    {
+        $items = $this->buildItems([135, 137]);
+        $navigator = $this->buildNavigator([
+            135 => [$this->mockBrokenPointsReward()],
+            137 => [$this->mockPointsInput(1, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 137));
+    }
+
+    public function testPointsStructuralCalculationTreatsMissingPointsOutputAsZero(): void
+    {
+        $items = $this->buildItems([135, 137]);
+        $navigator = $this->buildNavigator([
+            137 => [$this->mockPointsInput(1, false)],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([], $this->getSuccessorRefs($navigator, $items, 135));
+        $this->assertSame([], $this->getPredecessorRefs($navigator, $items, 137));
+    }
+
     /**
      * @param int[] $ref_ids
      * @return LSLearnerItem[]
@@ -103,11 +130,40 @@ class AdaptiveNavigatorPointsTest extends TestCase
             public function preload(array $items): void
             {
                 $this->conditions_cache = $this->seed_conditions;
+                foreach ($items as $item) {
+                    $this->conditions_cache[$item->getRefId()] ??= [];
+                }
                 $this->buildNavigationSourceCaches(array_map(
                     static fn(LSLearnerItem $item): int => $item->getRefId(),
                     $items
                 ));
                 $this->buildPointsNavigationCaches($items);
+            }
+        };
+    }
+
+    private function mockBrokenPointsReward(): AbstractCondition
+    {
+        return new class () extends AbstractCondition implements OutputConditionInterface, AccruedValueOutputConditionInterface {
+            protected const string NAME = 'points_output';
+
+            public function __construct()
+            {
+            }
+
+            public function check(): bool
+            {
+                return true;
+            }
+
+            public function getAccumulationIdentifier(): string
+            {
+                return 'points';
+            }
+
+            public function getAccumulatedValue(): int
+            {
+                throw new LogicException('Points are not stored.');
             }
         };
     }
