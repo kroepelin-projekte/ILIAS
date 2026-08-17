@@ -24,6 +24,13 @@
     --lso-learning-map-node-width: 190px;
     --lso-learning-map-node-height: 86px;
     position: relative;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.lso-learning-map * {
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Learning map styling. */
