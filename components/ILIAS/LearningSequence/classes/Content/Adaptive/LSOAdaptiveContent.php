@@ -209,7 +209,7 @@ class LSOAdaptiveContent implements LSOContentController
         }
         sort($titles);
 
-        return array_values($titles);
+        return $titles;
     }
 
     /**
@@ -406,6 +406,7 @@ class LSOAdaptiveContent implements LSOContentController
                     $navigator->getInputConditions($item),
                     $input_conflict_context
                 ),
+                ($structural_predecessors[$ref_id] ?? []) !== [],
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions
             );
@@ -434,10 +435,10 @@ class LSOAdaptiveContent implements LSOContentController
 
             foreach ($condition->getStaticInputConditionConstraints() as $constraint) {
                 $has_constraints = true;
-                $kind = (string) ($constraint['kind'] ?? '');
+                $kind = (string) $constraint['kind'];
                 $ref_ids = array_values(array_unique(array_map(
                     'intval',
-                    (array) ($constraint['ref_ids'] ?? [])
+                    $constraint['ref_ids']
                 )));
 
                 if ($kind === 'all_completed') {

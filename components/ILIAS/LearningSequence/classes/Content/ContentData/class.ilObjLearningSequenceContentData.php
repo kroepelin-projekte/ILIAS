@@ -38,9 +38,10 @@ final readonly class ilObjLearningSequenceContentData
      * @param string $end_object End object label.
      * @param string $previous_objects Previous object label.
      * @param string $next_objects Next object label.
-     * @param array $input_conditions Input conditions.
-     * @param array $output_conditions Output conditions.
+     * @param ilObjLearningSequenceConditionData[] $input_conditions Input conditions.
+     * @param ilObjLearningSequenceConditionData[] $output_conditions Output conditions.
      * @param bool $has_conflicting_input_configuration Whether the input conditions contradict each other.
+     * @param bool $has_structural_predecessor Whether a structural predecessor exists.
      * @param bool $has_structural_successor Whether a structural successor exists.
      * @param ilObjLearningSequenceActionData[] $actions Available actions.
      */
@@ -69,12 +70,14 @@ final readonly class ilObjLearningSequenceContentData
         public string $previous_objects,
         /** Next object label. */
         public string $next_objects,
-        /** Input conditions. */
+        /** @var ilObjLearningSequenceConditionData[] Input conditions. */
         public array $input_conditions,
-        /** Output conditions. */
+        /** @var ilObjLearningSequenceConditionData[] Output conditions. */
         public array $output_conditions,
         /** Whether the input conditions contradict each other. */
         public bool $has_conflicting_input_configuration,
+        /** Whether a structural predecessor exists. */
+        public bool $has_structural_predecessor,
         /** Whether a structural successor exists. */
         public bool $has_structural_successor,
         /** Available actions. */
