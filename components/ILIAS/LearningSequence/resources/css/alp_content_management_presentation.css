@@ -6,8 +6,8 @@
     font-size: 12px;
     line-height: 1.2;
     vertical-align: middle;
-    background: #f2f2f2;
-    color: #111;
+    border: 1px solid #888a;
+    color: #000;
 }
 
 .alp-cm-badge--online {
@@ -18,31 +18,6 @@
 .alp-cm-badge--offline {
     background: #c62828;
     color: #fff;
-}
-
-.alp-cm-badge--start {
-    background: #e6f2ff;
-    color: #111;
-}
-
-.alp-cm-badge--end {
-    background: #f2f2f2;
-    color: #111;
-}
-
-.alp-cm-badge--dead-end {
-    background: #fce4e4;
-    color: #8b0000;
-}
-
-.alp-cm-badge--misconfigured {
-    background: #c62828;
-    color: #fff;
-}
-
-.alp-cm-badge--entry-point {
-    background: #fff4cc;
-    color: #5c4700;
 }
 
 .alp-cm-conditions {
