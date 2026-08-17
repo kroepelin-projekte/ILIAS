@@ -95,10 +95,10 @@ class LSChoicePageBuilder
         $sections[] = $this->ui_factory->legacy()->content(
             $this->buildTitleSection($item, $tile_image !== null)
         );
-        $description = trim($item->getDescription());
+        $description = preg_replace('/\s+/u', ' ', trim($item->getDescription())) ?? '';
         $sections[] = $this->ui_factory->legacy()->content(
             '<p class="lso-choice-card__description">'
-            . ($description !== '' ? nl2br(htmlspecialchars($description)) : '&nbsp;')
+            . ($description !== '' ? htmlspecialchars($description) : '&nbsp;')
             . '</p>'
         );
 
