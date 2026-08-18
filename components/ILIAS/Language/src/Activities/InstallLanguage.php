@@ -26,18 +26,19 @@ use ILIAS\Data\Description;
 use ILIAS\Data\Result;
 use ILIAS\Data\Text;
 use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
+use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 
 final class InstallLanguage extends ActivityImpl
 {
-    private \ilLanguage $lng;
+    private Language $lng;
 
     public function __construct(
         private readonly RefineryFactory $refinery,
+        Language $language,
     ) {
-        global $DIC;
-        $this->lng = $DIC->language();
+        $this->lng = $language;
     }
 
     public function getType(): ActivityType

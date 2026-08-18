@@ -41,6 +41,8 @@ class Language implements Component\Component
         $define[] = \ILIAS\Language\Language::class;
         $contribute[LanguageFileDirectory::class] = static fn() => new MainLanguageFileDirectory();
 
+        // Setup and runtime each select their implementation through their
+        // entry-point-specific dependency resolution.
         $implement[\ILIAS\Language\Language::class] = static fn() =>
             $internal[\ilSetupLanguage::class];
 
@@ -56,8 +58,7 @@ class Language implements Component\Component
         $internal[InstallLanguage::class] = static fn() =>
             new InstallLanguage(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
-                $internal[\ilLanguage::class]
+                $use[\ILIAS\Language\Language::class]
             );
 
         $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>

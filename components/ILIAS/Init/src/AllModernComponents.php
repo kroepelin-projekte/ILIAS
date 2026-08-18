@@ -175,6 +175,7 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         $DIC['ui.factory.navigation'] = fn() => $this->ui_factory_input_field;
         $DIC[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class] = fn() =>
             $this->language_file_directory_manager;
+        $DIC[\ILIAS\Language\Language::class] = fn() => $DIC->language();
     }
 
     public function getName(): string
