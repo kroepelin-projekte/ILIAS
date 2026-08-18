@@ -23,6 +23,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNaviga
 use ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions\LearningProgressInputAwareCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\SubsetInputCondition\SubsetInputCondition;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
 use PHPUnit\Framework\TestCase;
 
 class AdaptiveInputConditionConfigurationTest extends TestCase
@@ -94,6 +95,27 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
         );
     }
 
+    public function testPointsInputReportsReferencedObjectIssueForMissingPointsOutput(): void
+    {
+        $condition = $this->newCondition(PointsInputCondition::class);
+        $condition->setSourceRefIds([149, 150, 151]);
+        $condition->setPoints(0);
+
+        $issues = $condition->getStaticInputConfigurationIssues([
+            'points_output_ref_ids' => [149, '151'],
+            'configured_points_outputs_by_ref_id' => [149 => 0, 150 => 0, 151 => 0],
+        ]);
+
+        $this->assertCount(1, $issues);
+        $this->assertContainsOnlyInstancesOf(StaticInputConfigurationIssue::class, $issues);
+        $this->assertSame('points_input_source_without_points_output', $issues[0]->kind);
+        $this->assertSame([150], $issues[0]->affected_ref_ids);
+        $this->assertSame(
+            'lso_points_input_source_without_points_output_table',
+            $issues[0]->summary_message_language_var
+        );
+    }
+
     public function testSubsetInputNormalizesFormDataAndExposesDependencyNavigation(): void
     {
         $condition = $this->newCondition(SubsetInputCondition::class);
@@ -131,10 +153,15 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
     public function testSubsetInputReportsMissingSourceRefsAsStaticConflict(): void
     {
         $condition = $this->newCondition(SubsetInputCondition::class);
+        $condition->setObjRefId(151);
         $condition->setSourceRefIds([149, 999]);
         $condition->setSubset(1);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict(['valid_ref_ids' => [149, 150]]));
+        $this->assertSame(
+            [151],
+            $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [149, 150]])[0]->affected_ref_ids
+        );
     }
 
     public function testSubsetInputWithoutMissingSourceRefsHasNoStaticConflict(): void

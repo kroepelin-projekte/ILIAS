@@ -23,10 +23,10 @@ namespace ILIAS\LearningSequence\Content\Adaptive;
 use ilCtrl;
 use ilDBInterface;
 use ilGlobalTemplateInterface;
-use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
-use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationAnalyzer;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
 use ILIAS\LearningSequence\Player\AdaptiveNavigator;
@@ -145,7 +145,12 @@ class LSOAdaptiveContent implements LSOContentController
         )->withRequest($this->request);
 
         $filter_data = $filter->getData();
-        $data = $this->getTableData($items, $filter_data, $structural_successors, $navigator);
+        $static_input_configuration_issues = $this->getStaticInputConfigurationIssues($items, $navigator);
+        $misconfigured_ref_ids = array_fill_keys(
+            (new StaticInputConfigurationAnalyzer())->getAffectedRefIds($static_input_configuration_issues),
+            true
+        );
+        $data = $this->getTableData($items, $filter_data, $structural_successors, $misconfigured_ref_ids);
 
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -157,13 +162,7 @@ class LSOAdaptiveContent implements LSOContentController
         if ((int) $boundary_data['end_ref_id'] === 0) {
             $missing_hints[] = $this->lng->txt('lso_adaptive_missing_end_object');
         }
-        $points_titles_without_output = $this->getPointsInputSourceTitlesWithoutPointsOutput($items, $navigator);
-        if ($points_titles_without_output !== []) {
-            $missing_hints[] = sprintf(
-                $this->lng->txt('lso_points_input_source_without_points_output_table'),
-                implode(', ', $points_titles_without_output)
-            );
-        }
+        $missing_hints = [...$missing_hints, ...$this->getStaticInputConfigurationMessages($static_input_configuration_issues)];
         if ($missing_hints !== []) {
             $this->tpl->setOnScreenMessage('info', implode('<br>', $missing_hints));
         }
@@ -190,44 +189,62 @@ class LSOAdaptiveContent implements LSOContentController
 
     /**
      * @param \LSItem[] $items Learning sequence items.
-     * @return string[]
+     * @return StaticInputConfigurationIssue[]
      */
-    protected function getPointsInputSourceTitlesWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
+    protected function getStaticInputConfigurationIssues(array $items, AdaptiveNavigator $navigator): array
     {
-        $titles = [];
-        foreach ($this->getPointsInputSourceRefIdsWithoutPointsOutput($items, $navigator) as $ref_id) {
-            $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
-            $titles[$title] = $title;
+        $conditions_by_ref_id = [];
+        foreach ($items as $item) {
+            $conditions_by_ref_id[$item->getRefId()] = $navigator->getInputConditions($item);
         }
-        sort($titles);
 
-        return $titles;
+        return (new StaticInputConfigurationAnalyzer())->getIssues($conditions_by_ref_id);
     }
 
     /**
-     * @param \LSItem[] $items Learning sequence items.
-     * @return int[]
+     * @param StaticInputConfigurationIssue[] $issues
+     * @return string[]
      */
-    protected function getPointsInputSourceRefIdsWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
+    protected function getStaticInputConfigurationMessages(array $issues): array
     {
-        $ref_ids = [];
-        $context = ['points_output_ref_ids' => $navigator->getPointsOutputRefIds($items)];
+        $message_ref_ids = [];
+        foreach ($issues as $issue) {
+            if ($issue->summary_message_language_var === null) {
+                continue;
+            }
 
-        foreach ($items as $item) {
-            foreach ($navigator->getInputConditions($item) as $condition) {
-                if (!$condition instanceof PointsInputCondition) {
-                    continue;
-                }
-
-                foreach ($condition->getSourceRefIdsWithoutPointsOutput($context) as $ref_id) {
-                    $ref_ids[$ref_id] = $ref_id;
-                }
+            foreach ($issue->affected_ref_ids as $ref_id) {
+                $message_ref_ids[$issue->summary_message_language_var][$ref_id] = $ref_id;
             }
         }
 
-        sort($ref_ids);
+        if ($message_ref_ids === []) {
+            return [];
+        }
 
-        return array_values($ref_ids);
+        ksort($message_ref_ids);
+
+        $messages = [];
+        foreach ($message_ref_ids as $message_language_var => $ref_ids) {
+            if ($ref_ids === []) {
+                continue;
+            }
+
+            $messages[] = sprintf(
+                $this->lng->txt($message_language_var),
+                $this->getObjectTitleList(array_values($ref_ids))
+            );
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @param array<int, bool> $misconfigured_ref_ids
+     */
+    protected function isMisconfiguredRefId(int $ref_id, array $misconfigured_ref_ids): bool
+    {
+        return isset($misconfigured_ref_ids[$ref_id]);
     }
 
     /**
@@ -256,14 +273,14 @@ class LSOAdaptiveContent implements LSOContentController
      * @param \LSItem[] $items Learning sequence items.
      * @param array<string, mixed>|null $filter_data Filter data.
      * @param array<int, int[]> $structural_successors Ref ids of the structural successors per item.
-     * @param AdaptiveNavigator $navigator Navigator with preloaded conditions.
+     * @param array<int, bool> $misconfigured_ref_ids
      * @return ilObjLearningSequenceContentData[]
      */
     protected function getTableData(
         array $items,
         ?array $filter_data,
         array $structural_successors,
-        AdaptiveNavigator $navigator
+        array $misconfigured_ref_ids
     ): array {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -282,17 +299,6 @@ class LSOAdaptiveContent implements LSOContentController
         $output_filter = $filter_data['output_conditions'] ?? [];
         $online_filter = $filter_data['online_status'] ?? null;
         $position_filter = $filter_data['position'] ?? [];
-        $input_conflict_context = [
-            'start_ref_id' => (int) $start_ref_id,
-            'valid_ref_ids' => array_map(
-                static fn(\LSItem $item): int => $item->getRefId(),
-                $items
-            ),
-        ];
-        $points_input_source_ref_ids_without_output = array_fill_keys(
-            $this->getPointsInputSourceRefIdsWithoutPointsOutput($items, $navigator),
-            true
-        );
 
         usort($items, function ($a, $b) use ($start_ref_id, $end_ref_id) {
             if ($a->getRefId() === $start_ref_id) {
@@ -424,10 +430,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $next_title,
                 $input_conditions,
                 $output_conditions,
-                $this->hasConflictingInputConfiguration(
-                    $navigator->getInputConditions($item),
-                    $input_conflict_context
-                ) || isset($points_input_source_ref_ids_without_output[$ref_id]),
+                $this->isMisconfiguredRefId($ref_id, $misconfigured_ref_ids),
                 ($structural_predecessors[$ref_id] ?? []) !== [],
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions
@@ -437,73 +440,6 @@ class LSOAdaptiveContent implements LSOContentController
         }
 
         return $data;
-    }
-
-    /**
-     * @param AbstractCondition[] $conditions
-     * @param array<string, mixed> $context
-     */
-    protected function hasConflictingInputConfiguration(array $conditions, array $context): bool
-    {
-        $requires_completed = [];
-        $requires_not_completed = [];
-        $any_completed_clauses = [];
-        $has_constraints = false;
-
-        foreach ($conditions as $condition) {
-            if ($condition->hasStaticInputConfigurationConflict($context)) {
-                return true;
-            }
-
-            foreach ($condition->getStaticInputConditionConstraints() as $constraint) {
-                $has_constraints = true;
-                $kind = (string) $constraint['kind'];
-                $ref_ids = array_values(array_unique(array_map(
-                    'intval',
-                    $constraint['ref_ids']
-                )));
-
-                if ($kind === 'all_completed') {
-                    foreach ($ref_ids as $ref_id) {
-                        $requires_completed[$ref_id] = true;
-                    }
-                    continue;
-                }
-
-                if ($kind === 'none_completed') {
-                    foreach ($ref_ids as $ref_id) {
-                        $requires_not_completed[$ref_id] = true;
-                    }
-                    continue;
-                }
-
-                if ($kind === 'any_completed') {
-                    $any_completed_clauses[] = $ref_ids;
-                }
-            }
-        }
-
-        if (!$has_constraints) {
-            return false;
-        }
-
-        if (array_intersect_key($requires_completed, $requires_not_completed) !== []) {
-            return true;
-        }
-
-        foreach ($any_completed_clauses as $clause) {
-            if (
-                $clause === []
-                || array_all(
-                    $clause,
-                    static fn(int $ref_id): bool => isset($requires_not_completed[$ref_id])
-                )
-            ) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

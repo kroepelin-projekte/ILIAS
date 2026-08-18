@@ -23,7 +23,6 @@ use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
-use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -243,18 +242,8 @@ class ilObjLearningSequenceConditionConfigurationGUI
         }
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'), true);
-        if ($condition instanceof PointsInputCondition) {
-            $titles_without_points_output = $condition->getSourceObjectTitlesWithoutPointsOutput();
-            if ($titles_without_points_output !== []) {
-                $this->tpl->setOnScreenMessage(
-                    'info',
-                    sprintf(
-                        $this->lng->txt('lso_points_input_source_without_points_output'),
-                        implode(', ', $titles_without_points_output)
-                    ),
-                    true
-                );
-            }
+        foreach ($this->getStaticInputConfigurationMessages($condition) as $message) {
+            $this->tpl->setOnScreenMessage('info', $message, true);
         }
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
         $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
@@ -284,5 +273,38 @@ class ilObjLearningSequenceConditionConfigurationGUI
             $this->type_id,
             $this->subtype,
         );
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getStaticInputConfigurationMessages(AbstractCondition $condition): array
+    {
+        $grouped_titles = [];
+
+        foreach ($condition->getStaticInputConfigurationIssues() as $issue) {
+            if ($issue->summary_message_language_var === null) {
+                continue;
+            }
+
+            foreach ($issue->affected_ref_ids as $ref_id) {
+                $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
+                $grouped_titles[$issue->summary_message_language_var][$title] = $title;
+            }
+        }
+
+        if ($grouped_titles === []) {
+            return [];
+        }
+
+        ksort($grouped_titles);
+
+        $messages = [];
+        foreach ($grouped_titles as $lang_var => $titles) {
+            sort($titles);
+            $messages[] = sprintf($this->lng->txt($lang_var), implode(', ', $titles));
+        }
+
+        return $messages;
     }
 }

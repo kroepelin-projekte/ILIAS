@@ -46,11 +46,16 @@ class SubsetInputConditionStaticConflictTest extends TestCase
     {
         $condition = (new ReflectionClass(SubsetInputCondition::class))
             ->newInstanceWithoutConstructor();
+        $condition->setObjRefId(200);
         $condition->setSourceRefIds([151, 999]);
         $condition->setSubset(1);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict([
             'valid_ref_ids' => [151, 152],
         ]));
+        $this->assertSame(
+            [200],
+            $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [151, 152]])[0]->affected_ref_ids
+        );
     }
 }

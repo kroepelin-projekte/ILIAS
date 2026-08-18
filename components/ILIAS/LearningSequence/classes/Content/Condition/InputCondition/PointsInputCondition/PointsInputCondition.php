@@ -26,6 +26,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNaviga
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
@@ -114,6 +115,33 @@ final class PointsInputCondition extends AbstractCondition implements
 
     /**
      * @param array<string, mixed> $context
+     * @return StaticInputConfigurationIssue[]
+     */
+    public function getStaticInputConfigurationIssues(array $context = []): array
+    {
+        $issues = [];
+
+        if ($this->hasStaticInputConfigurationConflict($context)) {
+            $issues[] = new StaticInputConfigurationIssue(
+                'points_input_configuration_conflict',
+                $this->getStaticInputConfigurationConflictAffectedRefIds()
+            );
+        }
+
+        $source_ref_ids_without_points_output = $this->getSourceRefIdsWithoutPointsOutput($context);
+        if ($source_ref_ids_without_points_output !== []) {
+            $issues[] = new StaticInputConfigurationIssue(
+                'points_input_source_without_points_output',
+                $source_ref_ids_without_points_output,
+                'lso_points_input_source_without_points_output_table'
+            );
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<string, mixed> $context
      * @return int[]
      */
     public function getSourceRefIdsWithoutPointsOutput(array $context = []): array
@@ -132,17 +160,6 @@ final class PointsInputCondition extends AbstractCondition implements
             $this->getSourceRefIds(),
             fn(int $ref_id): bool => $this->getOutputConditionIdForItem($ref_id) === null
         ));
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getSourceObjectTitlesWithoutPointsOutput(): array
-    {
-        return array_map(
-            fn(int $ref_id): string => $this->getObjectTitleByRefId($ref_id),
-            $this->getSourceRefIdsWithoutPointsOutput()
-        );
     }
 
     /**

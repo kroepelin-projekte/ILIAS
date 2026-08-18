@@ -40,6 +40,7 @@ class PointsInputConditionStaticConflictTest extends TestCase
     {
         $condition = (new ReflectionClass(PointsInputCondition::class))
             ->newInstanceWithoutConstructor();
+        $condition->setObjRefId(200);
         $condition->setSourceRefIds([151, 999]);
         $condition->setPoints(3);
 
@@ -47,6 +48,14 @@ class PointsInputConditionStaticConflictTest extends TestCase
             'valid_ref_ids' => [151, 152],
             'configured_points_outputs_by_ref_id' => [151 => 5, 999 => 5],
         ]));
+        $this->assertSame(
+            [200],
+            $condition->getStaticInputConfigurationIssues([
+                'valid_ref_ids' => [151, 152],
+                'configured_points_outputs_by_ref_id' => [151 => 5, 999 => 5],
+                'points_output_ref_ids' => [151, 999],
+            ])[0]->affected_ref_ids
+        );
     }
 
     public function testReachablePointsThresholdIsNotReportedAsConflict(): void

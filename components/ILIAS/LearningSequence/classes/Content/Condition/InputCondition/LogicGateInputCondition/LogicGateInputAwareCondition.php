@@ -201,7 +201,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             return true;
         }
 
-        $start_ref_id = (int) ($context['start_ref_id'] ?? 0);
+        $start_ref_id = $this->getConfiguredStartRefId($context);
 
         return $start_ref_id > 0
             && $this->getSubtype() === self::SUBTYPE_NOT

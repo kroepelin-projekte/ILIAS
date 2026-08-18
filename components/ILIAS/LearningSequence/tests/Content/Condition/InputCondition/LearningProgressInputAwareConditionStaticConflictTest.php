@@ -27,11 +27,16 @@ class LearningProgressInputAwareConditionStaticConflictTest extends TestCase
     {
         $condition = (new ReflectionClass(LearningProgressInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
+        $condition->setObjRefId(200);
         $condition->setConditionTargetRefId(999);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict([
             'valid_ref_ids' => [151, 152],
         ]));
+        $this->assertSame(
+            [200],
+            $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [151, 152]])[0]->affected_ref_ids
+        );
     }
 
     public function testExistingReferencedObjectIsNotReportedAsConflict(): void

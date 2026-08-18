@@ -24,6 +24,7 @@ use ilCtrlException;
 use ilDBInterface;
 use ILIAS\Data\URI;
 use ILIAS\DI\Container;
+use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
 use ILIAS\UI\Component\Symbol\Glyph\Glyph;
@@ -590,24 +591,109 @@ abstract class AbstractCondition
     }
 
     /**
+     * Returns static input-configuration issues contributed by this condition.
+     *
+     * @param array<string, mixed> $context
+     * @return StaticInputConfigurationIssue[]
+     */
+    public function getStaticInputConfigurationIssues(array $context = []): array
+    {
+        if (!$this->hasStaticInputConfigurationConflict($context)) {
+            return [];
+        }
+
+        $affected_ref_ids = $this->getStaticInputConfigurationConflictAffectedRefIds();
+        if ($affected_ref_ids === []) {
+            return [];
+        }
+
+        return [new StaticInputConfigurationIssue(
+            'static_input_configuration_conflict',
+            $affected_ref_ids
+        )];
+    }
+
+    /**
      * @param int[] $referenced_ref_ids
      * @param array<string, mixed> $context
      */
     protected function referencesMissingLsoItems(array $referenced_ref_ids, array $context = []): bool
     {
-        $valid_ref_ids = $context['valid_ref_ids'] ?? [];
-        if (!is_array($valid_ref_ids) || $valid_ref_ids === []) {
+        $valid_ref_ids = $this->getValidLsoRefIds($context);
+        if ($valid_ref_ids === []) {
             return false;
         }
 
-        $normalized_valid_ref_ids = array_values(array_unique(array_map('intval', $valid_ref_ids)));
         foreach (array_values(array_unique(array_map('intval', $referenced_ref_ids))) as $ref_id) {
-            if (!in_array($ref_id, $normalized_valid_ref_ids, true)) {
+            if (!in_array($ref_id, $valid_ref_ids, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * @return int[]
+     */
+    protected function getStaticInputConfigurationConflictAffectedRefIds(): array
+    {
+        $ref_id = (int) $this->getObjRefId();
+
+        return $ref_id > 0 ? [$ref_id] : [];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return int[]
+     */
+    protected function getValidLsoRefIds(array $context = []): array
+    {
+        $valid_ref_ids = $context['valid_ref_ids'] ?? null;
+        if (is_array($valid_ref_ids) && $valid_ref_ids !== []) {
+            return array_values(array_unique(array_filter(
+                array_map('intval', $valid_ref_ids),
+                static fn(int $ref_id): bool => $ref_id > 0
+            )));
+        }
+
+        if ($this->getLsoRefId() === null) {
+            return [];
+        }
+
+        try {
+            return array_values(array_unique(array_filter(
+                array_map(
+                    static fn(\LSItem $item): int => $item->getRefId(),
+                    $this->getLsoItems()
+                ),
+                static fn(int $ref_id): bool => $ref_id > 0
+            )));
+        } catch (LogicException) {
+            return [];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    protected function getConfiguredStartRefId(array $context = []): int
+    {
+        $start_ref_id = (int) ($context['start_ref_id'] ?? 0);
+        if ($start_ref_id > 0) {
+            return $start_ref_id;
+        }
+
+        if ($this->getLsoRefId() === null) {
+            return 0;
+        }
+
+        try {
+            return (new LSOAdaptiveBoundaries($this->getDatabase()))
+                ->getBoundariesFor($this->getLso()->getId())['start_ref_id'] ?? 0;
+        } catch (LogicException) {
+            return 0;
+        }
     }
 
     /**

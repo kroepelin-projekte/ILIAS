@@ -89,11 +89,16 @@ class LogicGateInputAwareConditionTest extends TestCase
     {
         $condition = (new ReflectionClass(LogicGateInputAwareCondition::class))
             ->newInstanceWithoutConstructor();
+        $condition->setObjRefId(200);
         $condition->setSubtype('logic_gate_not');
         $condition->setItems([151, 152]);
 
         $this->assertTrue($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 151]));
         $this->assertFalse($condition->hasStaticInputConfigurationConflict(['start_ref_id' => 999]));
+        $this->assertSame(
+            [200],
+            $condition->getStaticInputConfigurationIssues(['start_ref_id' => 151])[0]->affected_ref_ids
+        );
     }
 
     public function testMissingReferencedObjectIsReportedAsStaticConflict(): void
