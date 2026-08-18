@@ -8,14 +8,19 @@ Language Service
 ## Guidelines
 There are a couple of guidelines defined in the [language.md](../../docs/development/language.md) that have to be respected when adding language variables to the lang files of ILIAS or editing them.
 
-## Using the Global Language Object
-The global language object can be retrieved from the dependency injection container by using/calling `$DIC['lng']` or
-`$DIC->language()`. This is an instance of class `ilLanguage` and provides methods to access these strings in the 
-language of the user within the current authentication process. This is done by using the functions
- `loadLanguageModule()` and `txt()`.
+## Using the Language Service
+Component-revision code should depend on `ILIAS\Language\Language`. During the legacy bootstrap this interface is
+provided lazily, so early component construction does not access the language service before the legacy container has
+been initialised. After initialisation it delegates to the active `ilLanguage` runtime instance.
 
-        $lng->loadLanguageModule("frm");
-        $tpl->setVariable("TEXT", $lng->txt("frm_new_posting"));    
+For components which have not yet been migrated, the active runtime language remains available through `$DIC['lng']`
+or `$DIC->language()`. These access paths are a temporary compatibility layer and must not be used for new code.
+
+Setup code has a separate language implementation, `ilSetupLanguage`, which is constructed without runtime user,
+session, or container state. It must not be used as the runtime language service.
+
+        $language->loadLanguageModule("frm");
+        $tpl->setVariable("TEXT", $language->txt("frm_new_posting"));
 
 
 ## Supported HTML Tags in Language Files
