@@ -26,8 +26,8 @@
   const instances = {};
 
   /**
-   * Escapes text for use in generated markup.
-   */
+     * Escapes text for use in generated markup.
+     */
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -36,8 +36,8 @@
   }
 
   /**
-   * Formats translated labels with positional placeholders.
-   */
+     * Formats translated labels with positional placeholders.
+     */
 
   function fmt(template, args) {
     let i = 0;
@@ -53,8 +53,8 @@
   }
 
   /**
-   * Creates and registers a learning map in a container.
-   */
+     * Creates and registers a learning map in a container.
+     */
 
   function create(root, data) {
     const viewport = root.querySelector('.lso-learning-map__viewport');
@@ -109,8 +109,8 @@
     });
 
     /**
-     * Marks edges closing a cycle so the ranking always works on a DAG.
-     */
+         * Marks edges closing a cycle so the ranking always works on a DAG.
+         */
     function markBackEdges() {
       const state = {};
       const roots = order.filter((k) => nodes[k].in.length === 0);
@@ -202,7 +202,7 @@
         outdegForward[e.from] += 1;
       });
       const detached = order.filter((k) => !nodes[k].raw.terminal
-        && indegForward[k] === 0 && outdegForward[k] === 0);
+                && indegForward[k] === 0 && outdegForward[k] === 0);
       if (detached.length) {
         detached.forEach((k) => {
           nodes[k].rank = max + 1;
@@ -214,8 +214,8 @@
     const segments = [];
 
     /**
-     * Builds layout layers and routing segments.
-     */
+         * Builds layout layers and routing segments.
+         */
     function build() {
       let max = 0;
       order.forEach((k) => {
@@ -261,8 +261,8 @@
     let adjDown = {};
 
     /**
-     * Builds adjacency indexes for graph traversal.
-     */
+         * Builds adjacency indexes for graph traversal.
+         */
     function buildAdj() {
       adjUp = {};
       adjDown = {};
@@ -416,15 +416,21 @@
     let contentBottom = 0;
     const backwardRoutes = new Map();
     const backwardBounds = { left: 0, right: 0 };
-    const BACKWARD_LANE_SPACING = M.hGap + 12;
+    // Kept in the same order of magnitude as the aisle step used for the
+    // horizontal parts of these routes (see `aisle` in backwardPolyline,
+    // 8px per lane) — before this was M.hGap + 12 (~38px), roughly 5x
+    // wider than the horizontal spacing, which is why parallel vertical
+    // line segments looked far more spread out than parallel horizontal
+    // ones even though both represent one "lane" of separation.
+    const BACKWARD_LANE_SPACING = 16;
     const BACKWARD_SEARCH_LIMIT = 12;
 
     /**
-     * Orthogonal route of a backward edge: the line leaves the object through a
-     * free channel beside it, runs in the aisle between two layers and only
-     * then goes outwards. Each lane uses its own aisle height, so lines
-     * starting at the same object height never overlap each other.
-     */
+         * Orthogonal route of a backward edge: the line leaves the object through a
+         * free channel beside it, runs in the aisle between two layers and only
+         * then goes outwards. Each lane uses its own aisle height, so lines
+         * starting at the same object height never overlap each other.
+         */
     function backwardPolyline(edge, route, bounds) {
       const source = nodes[edge.from];
       const target = nodes[edge.to];
@@ -560,6 +566,10 @@
       function planRoutes(sides) {
         const plan = new Map();
         const counts = { left: 0, right: 0 };
+        // Vertical margin kept around a lane's occupied y-range so two
+        // routes sharing a lane never visually touch, even though they
+        // don't overlap.
+        const LANE_MARGIN = DEPTH * 0.4;
         ['left', 'right'].forEach((side) => {
           const sideEdges = backwardEdges.filter((unused, index) => sides[index] === side);
           sideEdges.sort((first, second) => {
@@ -567,9 +577,27 @@
             const secondSpan = Math.abs(nodes[second.from].y - nodes[second.to].y);
             return firstSpan - secondSpan;
           });
-          sideEdges.forEach((edge, lane) => {
+          // Reuse a lane whenever an edge's y-range doesn't overlap the
+          // range already occupied by that lane, instead of handing every
+          // backward edge its own lane. This is the same idea already used
+          // for the forward-edge gap lanes further down (interval reuse),
+          // just applied to the side channels.
+          const laneRanges = [];
+          sideEdges.forEach((edge) => {
+            const lo = Math.min(nodes[edge.from].y, nodes[edge.to].y);
+            const hi = Math.max(nodes[edge.from].y, nodes[edge.to].y);
+            let lane = laneRanges.findIndex(
+              (r) => hi + LANE_MARGIN < r.lo || lo - LANE_MARGIN > r.hi,
+            );
+            if (lane === -1) {
+              lane = laneRanges.length;
+              laneRanges.push({ lo, hi });
+            } else {
+              laneRanges[lane].lo = Math.min(laneRanges[lane].lo, lo);
+              laneRanges[lane].hi = Math.max(laneRanges[lane].hi, hi);
+            }
             plan.set(edge, { side, lane });
-            counts[side] += 1;
+            counts[side] = Math.max(counts[side], lane + 1);
           });
         });
         const ports = {};
@@ -601,7 +629,7 @@
         const third = turn(c, d, a);
         const fourth = turn(c, d, b);
         return ((first > 0 && second < 0) || (first < 0 && second > 0))
-          && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0));
+                    && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0));
       }
 
       function hitsNodes(a, b) {
@@ -620,7 +648,7 @@
             [[left, bottom], [left, top]],
           ];
           const touched = inside(a) || inside(b)
-            || borders.some((border) => crossesLines(a, b, border[0], border[1]));
+                        || borders.some((border) => crossesLines(a, b, border[0], border[1]));
           return count + (touched ? 1 : 0);
         }, 0);
       }
@@ -733,7 +761,7 @@
       backwardBounds.left = contentLeft + shift;
       backwardBounds.right = right;
       alongExtent = right + 40
-        + (lanes.right > 0 ? M.hGap + (lanes.right * BACKWARD_LANE_SPACING) : 0);
+                + (lanes.right > 0 ? M.hGap + (lanes.right * BACKWARD_LANE_SPACING) : 0);
       depthExtent = bottom + 20 + vReserve;
     }
 
@@ -905,9 +933,9 @@
         const descId = `${id}_n_${o.id}_desc`;
         const overlay = o.href
           ? `<a class="lso-learning-map__node-link-overlay" href="${escapeHtml(o.href)}"`
-          + ' draggable="false"'
-          + ` aria-label="${escapeHtml(`${labels.openObject}: ${o.title}`)}"`
-          + ` aria-describedby="${escapeHtml(descId)}"></a>`
+                    + ' draggable="false"'
+                    + ` aria-label="${escapeHtml(`${labels.openObject}: ${o.title}`)}"`
+                    + ` aria-describedby="${escapeHtml(descId)}"></a>`
           : '';
 
         html += `<li class="${cls.join(' ')}" id="${escapeHtml(`${id}_n_${o.id}`)}"
@@ -941,11 +969,11 @@
       let defs = '';
       ['open', 'blocked', 'path'].forEach((key) => {
         defs += `<marker id="${id}_arrow_${key}" viewBox="0 0 10 10" refX="0" refY="5"`
-          + ` markerWidth="${ARROW_SIZE}" markerHeight="${ARROW_SIZE}" markerUnits="userSpaceOnUse"`
-          + ' orient="auto-start-reverse">'
-          + `<path class="lso-learning-map__arrow${
-            key === 'open' ? '' : ` lso-learning-map__arrow--${key}`
-          }" d="M 0 0 L 10 5 L 0 10 z"/></marker>`;
+                    + ` markerWidth="${ARROW_SIZE}" markerHeight="${ARROW_SIZE}" markerUnits="userSpaceOnUse"`
+                    + ' orient="auto-start-reverse">'
+                    + `<path class="lso-learning-map__arrow${
+                      key === 'open' ? '' : ` lso-learning-map__arrow--${key}`
+                    }" d="M 0 0 L 10 5 L 0 10 z"/></marker>`;
       });
       parts.push(`<defs>${defs}</defs>`);
 
@@ -982,7 +1010,7 @@
         let d = `M ${Math.round(sp[0][0])} ${Math.round(sp[0][1])}`;
         for (let i = 1; i < sp.length; i += 1) {
           const same = Math.round(sp[i][0]) === Math.round(sp[i - 1][0])
-            && Math.round(sp[i][1]) === Math.round(sp[i - 1][1]);
+                        && Math.round(sp[i][1]) === Math.round(sp[i - 1][1]);
           if (!same) {
             d += ` L ${Math.round(sp[i][0])} ${Math.round(sp[i][1])}`;
           }
@@ -1040,7 +1068,11 @@
         if (node.dummy) {
           return node.x + DUMMY_WIDTH / 2;
         }
-        const span = ALONG * 0.7;
+        // Keep the fan-out of connection points narrower for nodes with
+        // many edges, so ports don't spread across the whole node width
+        // (which otherwise forces bigger x-offsets and thus more/deeper
+        // staircase jogs between layers).
+        const span = ALONG * Math.max(0.35, 0.7 - (Math.max(0, count - 2) * 0.05));
         const left = node.x + ((ALONG - span) / 2);
         return left + ((span * (index + 1)) / (count + 1));
       }
@@ -1068,11 +1100,16 @@
         const r = s.from.rank;
         (gaps[r] = gaps[r] || []).push(s);
       });
+      // Edges whose exit/entry x only differ by a small amount don't need a
+      // dedicated horizontal lane in the gap between layers — routing them
+      // as a (near-)straight line avoids the unnecessary "staircase" detour
+      // and keeps small, harmless offsets from eating vertical space.
+      const DIAGONAL_THRESHOLD = Math.max(16, M.hGap * 0.6);
       Object.keys(gaps).forEach((r) => {
         const hs = [];
         gaps[r].forEach((s) => {
           s.lane = 0;
-          if (Math.round(s.exit[0]) !== Math.round(s.entry[0])) {
+          if (Math.abs(s.exit[0] - s.entry[0]) > DIAGONAL_THRESHOLD) {
             s.lo = Math.min(s.exit[0], s.entry[0]);
             s.hi = Math.max(s.exit[0], s.entry[0]);
             hs.push(s);
@@ -1156,7 +1193,14 @@
           if (Math.round(a[0]) !== Math.round(b[0])) {
             const gap = b[1] - a[1];
             const n = s.laneCount || 1;
-            const my = a[1] + Math.max(8, Math.min(gap - 8, (gap * (s.lane + 1)) / (n + 1)));
+            // Cap how much of the layer gap a jog is allowed to use: with
+            // the diagonal threshold above, fewer edges need a lane at all,
+            // so the remaining ones can be packed into a narrower band
+            // instead of spreading across the entire vGap.
+            const usable = Math.min(gap - 16, Math.max(16, M.vGap * 0.5));
+            const center = gap / 2;
+            const spread = usable * (n > 1 ? (s.lane / (n - 1)) - 0.5 : 0);
+            const my = a[1] + center + spread;
             pts.push([a[0], my]);
             pts.push([b[0], my]);
           }
