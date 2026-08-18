@@ -11238,6 +11238,7 @@ lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Informationen
 lso#:#lso_adaptive_input_conditions#:#Eingangsbedingungen
 lso#:#lso_adaptive_misconfigured#:#Fehlkonfiguration
+lso#:#lso_adaptive_misconfigured_details#:#Details zur Fehlkonfiguration anzeigen
 lso#:#lso_adaptive_missing_end_object#:#Um die Lernsequenz zu beenden, wird ein End Objekt benötigt.
 lso#:#lso_adaptive_missing_start_object#:#Um die Lernsequenz zu starten, wird ein Start Objekt benötigt.
 lso#:#lso_adaptive_next_object#:#Nächstes Objekt
@@ -11332,6 +11333,7 @@ lso#:#lso_learning_map_zoom_in_symbol#:#+
 lso#:#lso_learning_map_zoom_out#:#Verkleinern
 lso#:#lso_learning_map_zoom_out_symbol#:#–
 lso#:#lso_legacy_info#:#Das Objekt öffnet sich in einem neuen Tab Ihres Browsers. Bitte kommen Sie nach Bearbeitung des Inhalts in diesen Tab zurück. Laden Sie die Seite neu, wenn sie den Inhalt bearbeitet haben, aber die „Weiter“-Schaltfläche weiterhin deaktiviert bleibt.
+lso#:#lso_logic_gate_input_not_start_reference#:#Ein NOT-Logikgatter darf das Startobjekt nicht referenzieren.
 lso#:#lso_mail_admission_new_bod#:#Sie sind in die Lernsequenz „%s“ als Mitglied aufgenommen worden.
 lso#:#lso_mail_admission_new_sub#:#Mitgliedschaft in der Lernsequenz „%s“
 lso#:#lso_mail_dismiss_bod#:#Ihre Mitgliedschaft in der Lernsequenz „%s“ wurde beendet.
@@ -11387,17 +11389,10 @@ lso#:#lso_player_review#:#Lernsequenz überarbeiten
 lso#:#lso_player_start#:#Lernsequenz starten
 lso#:#lso_player_suspend#:#Unterbrechen
 lso#:#lso_player_viewmodelabel#:#Bearbeitung der Lernsequenz
+lso#:#lso_points_input_missing_output_on_object#:#Dieses Objekt wird von einer Punkte-Input-Condition referenziert, hat aber keine Punkte-Output-Condition.
 lso#:#lso_points_input_source_without_points_output#:#Für folgende referenzierte Objekte ist keine Punktevergabe gesetzt: %s. In dieser Punkte-Bedingung werden sie mit 0 Punkten berücksichtigt.
 lso#:#lso_points_input_source_without_points_output_table#:#Folgende Objekte werden in Punkte-Input-Conditions referenziert, haben aber keine Punktevergabe gesetzt: %s. In diesen Punkte-Bedingungen werden sie mit 0 Punkten berücksichtigt.
-lso#:#lso_adaptive_misconfigured_details#:#Details zur Fehlkonfiguration anzeigen
-lso#:#lso_static_input_configuration_conflict_detail#:#Dieses Objekt hat eine statische Fehlkonfiguration in seinen Input-Conditions.
-lso#:#lso_static_input_configuration_contradictory_constraints#:#Die Input-Conditions auf diesem Objekt widersprechen sich.
-lso#:#lso_static_input_configuration_missing_references#:#Diese Input-Condition referenziert Objekte, die nicht Teil dieser Lernsequenz sind.
-lso#:#lso_static_input_configuration_referenced_objects#:#Referenzierte Objekte
-lso#:#lso_static_input_configuration_referenced_by_objects#:#Referenziert von Objekten
 lso#:#lso_points_input_unreachable_threshold#:#Die erforderliche Punktzahl kann mit den derzeit konfigurierten Punktevergaben nicht erreicht werden.
-lso#:#lso_points_input_missing_output_on_object#:#Dieses Objekt wird von einer Punkte-Input-Condition referenziert, hat aber keine Punkte-Output-Condition.
-lso#:#lso_logic_gate_input_not_start_reference#:#Ein NOT-Logikgatter darf das Startobjekt nicht referenzieren.
 lso#:#lso_print_list#:#Liste erstellen
 lso#:#lso_read#:#Lesezugriff auf Learning Sequence
 lso#:#lso_search_users#:#Benutzer suchen
@@ -11408,6 +11403,11 @@ lso#:#lso_settings_old_extro#:#Alte Abschlussseite ansehen
 lso#:#lso_settings_old_intro#:#Alte Einleitungsseite ansehen
 lso#:#lso_show_members_info#:#Galerie für Benutzer sichtbar
 lso#:#lso_start_item#:#%s öffnen
+lso#:#lso_static_input_configuration_conflict_detail#:#Dieses Objekt hat eine statische Fehlkonfiguration in seinen Input-Conditions.
+lso#:#lso_static_input_configuration_contradictory_constraints#:#Die Input-Conditions auf diesem Objekt widersprechen sich.
+lso#:#lso_static_input_configuration_missing_references#:#Diese Input-Condition referenziert Objekte, die nicht Teil dieser Lernsequenz sind.
+lso#:#lso_static_input_configuration_referenced_by_objects#:#Referenziert von Objekten
+lso#:#lso_static_input_configuration_referenced_objects#:#Referenzierte Objekte
 lso#:#lso_toast_completed_desc#:#Sie haben diese Lernsequenz abgeschlossen. Natürlich können Sie den Inhalt noch weiter durchsehen.
 lso#:#lso_toast_completed_title#:#Herzlichen Glückwunsch
 lso#:#lso_users_already_assigned#:#Ein Benutzer ist bereits Mitglied dieser Lernsequenz
