@@ -195,21 +195,39 @@ class LSOAdaptiveContent implements LSOContentController
     protected function getPointsInputSourceTitlesWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
     {
         $titles = [];
+        foreach ($this->getPointsInputSourceRefIdsWithoutPointsOutput($items, $navigator) as $ref_id) {
+            $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
+            $titles[$title] = $title;
+        }
+        sort($titles);
+
+        return $titles;
+    }
+
+    /**
+     * @param \LSItem[] $items Learning sequence items.
+     * @return int[]
+     */
+    protected function getPointsInputSourceRefIdsWithoutPointsOutput(array $items, AdaptiveNavigator $navigator): array
+    {
+        $ref_ids = [];
         $context = ['points_output_ref_ids' => $navigator->getPointsOutputRefIds($items)];
+
         foreach ($items as $item) {
             foreach ($navigator->getInputConditions($item) as $condition) {
                 if (!$condition instanceof PointsInputCondition) {
                     continue;
                 }
+
                 foreach ($condition->getSourceRefIdsWithoutPointsOutput($context) as $ref_id) {
-                    $title = ilObject::_lookupTitle(ilObject::_lookupObjId($ref_id));
-                    $titles[$title] = $title;
+                    $ref_ids[$ref_id] = $ref_id;
                 }
             }
         }
-        sort($titles);
 
-        return $titles;
+        sort($ref_ids);
+
+        return array_values($ref_ids);
     }
 
     /**
@@ -271,6 +289,10 @@ class LSOAdaptiveContent implements LSOContentController
                 $items
             ),
         ];
+        $points_input_source_ref_ids_without_output = array_fill_keys(
+            $this->getPointsInputSourceRefIdsWithoutPointsOutput($items, $navigator),
+            true
+        );
 
         usort($items, function ($a, $b) use ($start_ref_id, $end_ref_id) {
             if ($a->getRefId() === $start_ref_id) {
@@ -405,7 +427,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $this->hasConflictingInputConfiguration(
                     $navigator->getInputConditions($item),
                     $input_conflict_context
-                ),
+                ) || isset($points_input_source_ref_ids_without_output[$ref_id]),
                 ($structural_predecessors[$ref_id] ?? []) !== [],
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions

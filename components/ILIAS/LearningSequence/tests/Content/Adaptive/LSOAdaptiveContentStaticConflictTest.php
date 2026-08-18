@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveContent;
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
+use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
+use ILIAS\LearningSequence\Player\AdaptiveNavigator;
 use PHPUnit\Framework\TestCase;
 
 class LSOAdaptiveContentStaticConflictTest extends TestCase
@@ -77,6 +79,50 @@ class LSOAdaptiveContentStaticConflictTest extends TestCase
                 ['kind' => 'none_completed', 'ref_ids' => [152]],
             ]),
         ], []));
+    }
+
+    public function testCollectsReferencedObjectsWithoutPointsOutput(): void
+    {
+        $content = new class () extends LSOAdaptiveContent {
+            public function __construct()
+            {
+            }
+
+            /**
+             * @param \LSItem[] $items
+             * @return int[]
+             */
+            public function missingPointsOutputs(array $items, AdaptiveNavigator $navigator): array
+            {
+                return $this->getPointsInputSourceRefIdsWithoutPointsOutput($items, $navigator);
+            }
+        };
+
+        $item_a = $this->createStub(\LSItem::class);
+        $item_a->method('getRefId')->willReturn(201);
+        $item_b = $this->createStub(\LSItem::class);
+        $item_b->method('getRefId')->willReturn(202);
+        $points_condition = (new ReflectionClass(PointsInputCondition::class))
+            ->newInstanceWithoutConstructor();
+        $points_condition->setSourceRefIds([150, 151, 150]);
+        $other_condition = $this->mockCondition([]);
+
+        $navigator = $this->createMock(AdaptiveNavigator::class);
+        $navigator->expects($this->once())
+            ->method('getPointsOutputRefIds')
+            ->with([$item_a, $item_b])
+            ->willReturn([151]);
+        $navigator->expects($this->exactly(2))
+            ->method('getInputConditions')
+            ->willReturnCallback(
+                static fn(\LSItem $item): array => match ($item->getRefId()) {
+                    201 => [$points_condition],
+                    202 => [$other_condition],
+                    default => [],
+                }
+            );
+
+        $this->assertSame([150], $content->missingPointsOutputs([$item_a, $item_b], $navigator));
     }
 
     /**
