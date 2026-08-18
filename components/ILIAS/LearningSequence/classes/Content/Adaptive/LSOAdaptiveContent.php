@@ -171,7 +171,6 @@ class LSOAdaptiveContent implements LSOContentController
         if ((int) $boundary_data['end_ref_id'] === 0) {
             $missing_hints[] = $this->lng->txt('lso_adaptive_missing_end_object');
         }
-        $missing_hints = [...$missing_hints, ...$this->getStaticInputConfigurationMessages($static_input_configuration_issues)];
         if ($missing_hints !== []) {
             $this->tpl->setOnScreenMessage('info', implode('<br>', $missing_hints));
         }
@@ -208,44 +207,6 @@ class LSOAdaptiveContent implements LSOContentController
         }
 
         return (new StaticInputConfigurationAnalyzer())->getIssues($conditions_by_ref_id);
-    }
-
-    /**
-     * @param StaticInputConfigurationIssue[] $issues
-     * @return string[]
-     */
-    protected function getStaticInputConfigurationMessages(array $issues): array
-    {
-        $message_ref_ids = [];
-        foreach ($issues as $issue) {
-            if ($issue->summary_message_language_var === null) {
-                continue;
-            }
-
-            foreach ($issue->affected_ref_ids as $ref_id) {
-                $message_ref_ids[$issue->summary_message_language_var][$ref_id] = $ref_id;
-            }
-        }
-
-        if ($message_ref_ids === []) {
-            return [];
-        }
-
-        ksort($message_ref_ids);
-
-        $messages = [];
-        foreach ($message_ref_ids as $message_language_var => $ref_ids) {
-            if ($ref_ids === []) {
-                continue;
-            }
-
-            $messages[] = sprintf(
-                $this->lng->txt($message_language_var),
-                $this->getObjectTitleList(array_values($ref_ids))
-            );
-        }
-
-        return $messages;
     }
 
     /**
