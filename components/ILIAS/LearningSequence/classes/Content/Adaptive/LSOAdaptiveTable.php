@@ -259,21 +259,22 @@ readonly class LSOAdaptiveTable
         }
 
         $items = [];
-        foreach ($record->static_input_configuration_issue_details as $detail) {
+        $issue_details = $record->static_input_configuration_issue_details;
+        foreach ($issue_details as $index => $detail) {
             $item = $this->ui_factory->item()->standard(
                 $this->lng->txt($detail->title_language_var)
             );
 
-            if ($detail->description_language_var !== null) {
-                $item = $item->withDescription($this->lng->txt($detail->description_language_var));
-            }
-
-            $properties = $this->buildIssueDetailProperties($detail);
-            if ($properties !== []) {
-                $item = $item->withProperties($properties);
+            $description = $this->buildIssueDetailDescription($detail);
+            if ($description !== null && $description !== '') {
+                $item = $item->withDescription($description);
             }
 
             $items[] = $item;
+
+            if ($index < count($issue_details) - 1) {
+                $items[] = $this->ui_factory->divider()->horizontal();
+            }
         }
 
         $popover = $this->ui_factory->popover()
@@ -290,20 +291,30 @@ readonly class LSOAdaptiveTable
     }
 
     /**
-     * @return array<string, string>
+     * @return string|null
      */
-    private function buildIssueDetailProperties(
+    private function buildIssueDetailDescription(
         \ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail $detail
-    ): array {
-        $properties = [];
+    ): ?string {
+        $parts = [];
 
-        foreach ($detail->properties_by_language_var as $language_var => $value) {
-            $properties[$this->lng->txt($language_var)] = is_array($value)
-                ? $this->renderIssueDetailPropertyList($value)
-                : $value;
+        if ($detail->description_language_var !== null) {
+            $parts[] = $this->lng->txt($detail->description_language_var);
         }
 
-        return $properties;
+        foreach ($detail->properties_by_language_var as $language_var => $value) {
+            $parts[] = sprintf(
+                '%s: %s',
+                $this->lng->txt($language_var),
+                is_array($value) ? $this->renderIssueDetailPropertyList($value) : $value
+            );
+        }
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
