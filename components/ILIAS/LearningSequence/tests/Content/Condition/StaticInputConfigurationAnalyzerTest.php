@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationAnalyzer;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail;
 use PHPUnit\Framework\TestCase;
 
 class StaticInputConfigurationAnalyzerTest extends TestCase
@@ -86,6 +87,47 @@ class StaticInputConfigurationAnalyzerTest extends TestCase
         ]);
 
         $this->assertSame([150, 151, 200], $analyzer->getAffectedRefIds($issues));
+    }
+
+    public function testMergesIssueDetailsByAffectedRefId(): void
+    {
+        $analyzer = new StaticInputConfigurationAnalyzer();
+
+        $details_by_ref_id = $analyzer->getIssueDetailsByRefId([
+            new StaticInputConfigurationIssue(
+                'points_input_source_without_points_output',
+                [150],
+                details: [
+                    new StaticInputConfigurationIssueDetail(
+                        150,
+                        'lso_points_input_missing_output_on_object',
+                        properties_by_language_var: [
+                            'lso_static_input_configuration_referenced_by_objects' => [201]
+                        ]
+                    )
+                ]
+            ),
+            new StaticInputConfigurationIssue(
+                'points_input_source_without_points_output',
+                [150],
+                details: [
+                    new StaticInputConfigurationIssueDetail(
+                        150,
+                        'lso_points_input_missing_output_on_object',
+                        properties_by_language_var: [
+                            'lso_static_input_configuration_referenced_by_objects' => [202]
+                        ]
+                    )
+                ]
+            ),
+        ]);
+
+        $this->assertSame([150], array_keys($details_by_ref_id));
+        $this->assertCount(1, $details_by_ref_id[150]);
+        $this->assertSame(
+            [201, 202],
+            $details_by_ref_id[150][0]->properties_by_language_var['lso_static_input_configuration_referenced_by_objects']
+        );
     }
 
     /**

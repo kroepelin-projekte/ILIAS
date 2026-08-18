@@ -49,7 +49,14 @@ final class StaticInputConfigurationAnalyzer
 
             $issues[] = new StaticInputConfigurationIssue(
                 'contradictory_static_input_constraints',
-                $affected_ref_ids
+                $affected_ref_ids,
+                details: array_map(
+                    static fn(int $ref_id): StaticInputConfigurationIssueDetail => new StaticInputConfigurationIssueDetail(
+                        $ref_id,
+                        'lso_static_input_configuration_contradictory_constraints'
+                    ),
+                    $affected_ref_ids
+                )
             );
         }
 
@@ -72,6 +79,40 @@ final class StaticInputConfigurationAnalyzer
         sort($ref_ids);
 
         return array_values($ref_ids);
+    }
+
+    /**
+     * @param StaticInputConfigurationIssue[] $issues
+     * @return array<int, StaticInputConfigurationIssueDetail[]>
+     */
+    public function getIssueDetailsByRefId(array $issues): array
+    {
+        $details_by_ref_id = [];
+
+        foreach ($issues as $issue) {
+            foreach ($issue->details as $detail) {
+                $ref_id = $detail->affected_ref_id;
+                $signature = $detail->title_language_var . '|' . ($detail->description_language_var ?? '');
+
+                if (!isset($details_by_ref_id[$ref_id][$signature])) {
+                    $details_by_ref_id[$ref_id][$signature] = $detail;
+                    continue;
+                }
+
+                $details_by_ref_id[$ref_id][$signature] = $this->mergeIssueDetails(
+                    $details_by_ref_id[$ref_id][$signature],
+                    $detail
+                );
+            }
+        }
+
+        ksort($details_by_ref_id);
+        foreach ($details_by_ref_id as $ref_id => $details) {
+            ksort($details);
+            $details_by_ref_id[$ref_id] = array_values($details);
+        }
+
+        return $details_by_ref_id;
     }
 
     /**
@@ -154,5 +195,39 @@ final class StaticInputConfigurationAnalyzer
         sort($ref_ids);
 
         return array_values($ref_ids);
+    }
+
+    protected function mergeIssueDetails(
+        StaticInputConfigurationIssueDetail $left,
+        StaticInputConfigurationIssueDetail $right
+    ): StaticInputConfigurationIssueDetail {
+        $properties = $left->properties_by_language_var;
+
+        foreach ($right->properties_by_language_var as $language_var => $value) {
+            if (!isset($properties[$language_var])) {
+                $properties[$language_var] = $value;
+                continue;
+            }
+
+            $current_value = $properties[$language_var];
+            if (is_array($current_value) || is_array($value)) {
+                $properties[$language_var] = array_values(array_unique(array_merge(
+                    is_array($current_value) ? $current_value : [$current_value],
+                    is_array($value) ? $value : [$value]
+                ), SORT_REGULAR));
+                continue;
+            }
+
+            if ($current_value !== $value) {
+                $properties[$language_var] = array_values(array_unique([$current_value, $value], SORT_REGULAR));
+            }
+        }
+
+        return new StaticInputConfigurationIssueDetail(
+            $left->affected_ref_id,
+            $left->title_language_var,
+            $left->description_language_var,
+            $properties
+        );
     }
 }

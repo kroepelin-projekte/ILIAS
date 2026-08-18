@@ -11389,6 +11389,15 @@ lso#:#lso_player_suspend#:#Unterbrechen
 lso#:#lso_player_viewmodelabel#:#Bearbeitung der Lernsequenz
 lso#:#lso_points_input_source_without_points_output#:#Für folgende referenzierte Objekte ist keine Punktevergabe gesetzt: %s. In dieser Punkte-Bedingung werden sie mit 0 Punkten berücksichtigt.
 lso#:#lso_points_input_source_without_points_output_table#:#Folgende Objekte werden in Punkte-Input-Conditions referenziert, haben aber keine Punktevergabe gesetzt: %s. In diesen Punkte-Bedingungen werden sie mit 0 Punkten berücksichtigt.
+lso#:#lso_adaptive_misconfigured_details#:#Details zur Fehlkonfiguration anzeigen
+lso#:#lso_static_input_configuration_conflict_detail#:#Dieses Objekt hat eine statische Fehlkonfiguration in seinen Input-Conditions.
+lso#:#lso_static_input_configuration_contradictory_constraints#:#Die Input-Conditions auf diesem Objekt widersprechen sich.
+lso#:#lso_static_input_configuration_missing_references#:#Diese Input-Condition referenziert Objekte, die nicht Teil dieser Lernsequenz sind.
+lso#:#lso_static_input_configuration_referenced_objects#:#Referenzierte Objekte
+lso#:#lso_static_input_configuration_referenced_by_objects#:#Referenziert von Objekten
+lso#:#lso_points_input_unreachable_threshold#:#Die erforderliche Punktzahl kann mit den derzeit konfigurierten Punktevergaben nicht erreicht werden.
+lso#:#lso_points_input_missing_output_on_object#:#Dieses Objekt wird von einer Punkte-Input-Condition referenziert, hat aber keine Punkte-Output-Condition.
+lso#:#lso_logic_gate_input_not_start_reference#:#Ein NOT-Logikgatter darf das Startobjekt nicht referenzieren.
 lso#:#lso_print_list#:#Liste erstellen
 lso#:#lso_read#:#Lesezugriff auf Learning Sequence
 lso#:#lso_search_users#:#Benutzer suchen

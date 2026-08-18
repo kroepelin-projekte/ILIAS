@@ -25,6 +25,8 @@ use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
@@ -98,6 +100,38 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
     public function hasStaticInputConfigurationConflict(array $context = []): bool
     {
         return $this->referencesMissingLsoItems([$this->getConditionTargetRefId()], $context);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return StaticInputConfigurationIssue[]
+     */
+    public function getStaticInputConfigurationIssues(array $context = []): array
+    {
+        $missing_ref_ids = $this->getMissingReferencedLsoRefIds([$this->getConditionTargetRefId()], $context);
+        if ($missing_ref_ids === []) {
+            return [];
+        }
+
+        $affected_ref_ids = $this->getStaticInputConfigurationConflictAffectedRefIds();
+        if ($affected_ref_ids === []) {
+            return [];
+        }
+
+        return [new StaticInputConfigurationIssue(
+            'learning_progress_input_missing_reference',
+            $affected_ref_ids,
+            details: array_map(
+                static fn(int $affected_ref_id): StaticInputConfigurationIssueDetail => new StaticInputConfigurationIssueDetail(
+                    $affected_ref_id,
+                    'lso_static_input_configuration_missing_references',
+                    properties_by_language_var: [
+                        'lso_static_input_configuration_referenced_objects' => $missing_ref_ids
+                    ]
+                ),
+                $affected_ref_ids
+            )
+        )];
     }
 
     /**

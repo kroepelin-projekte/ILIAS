@@ -114,6 +114,11 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
             'lso_points_input_source_without_points_output_table',
             $issues[0]->summary_message_language_var
         );
+        $this->assertSame('lso_points_input_missing_output_on_object', $issues[0]->details[0]->title_language_var);
+        $this->assertSame(
+            [150],
+            [$issues[0]->details[0]->affected_ref_id]
+        );
     }
 
     public function testSubsetInputNormalizesFormDataAndExposesDependencyNavigation(): void
@@ -161,6 +166,12 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
         $this->assertSame(
             [151],
             $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [149, 150]])[0]->affected_ref_ids
+        );
+        $this->assertSame(
+            [999],
+            $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [149, 150]])[0]
+                ->details[0]
+                ->properties_by_language_var['lso_static_input_configuration_referenced_objects']
         );
     }
 

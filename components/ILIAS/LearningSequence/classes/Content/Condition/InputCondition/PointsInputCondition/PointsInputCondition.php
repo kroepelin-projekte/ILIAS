@@ -25,6 +25,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputCon
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\PointsOutputCondition\PointsOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
@@ -120,11 +121,35 @@ final class PointsInputCondition extends AbstractCondition implements
     public function getStaticInputConfigurationIssues(array $context = []): array
     {
         $issues = [];
+        $conflict_details = [];
 
-        if ($this->hasStaticInputConfigurationConflict($context)) {
+        $missing_ref_ids = $this->getMissingReferencedLsoRefIds($this->getSourceRefIds(), $context);
+        if ($missing_ref_ids !== []) {
+            foreach ($this->getStaticInputConfigurationConflictAffectedRefIds() as $affected_ref_id) {
+                $conflict_details[] = new StaticInputConfigurationIssueDetail(
+                    $affected_ref_id,
+                    'lso_static_input_configuration_missing_references',
+                    properties_by_language_var: [
+                        'lso_static_input_configuration_referenced_objects' => $missing_ref_ids
+                    ]
+                );
+            }
+        }
+
+        if ($this->getMaximumReachablePoints($context) < $this->getPoints()) {
+            foreach ($this->getStaticInputConfigurationConflictAffectedRefIds() as $affected_ref_id) {
+                $conflict_details[] = new StaticInputConfigurationIssueDetail(
+                    $affected_ref_id,
+                    'lso_points_input_unreachable_threshold'
+                );
+            }
+        }
+
+        if ($conflict_details !== []) {
             $issues[] = new StaticInputConfigurationIssue(
                 'points_input_configuration_conflict',
-                $this->getStaticInputConfigurationConflictAffectedRefIds()
+                $this->getStaticInputConfigurationConflictAffectedRefIds(),
+                details: $conflict_details
             );
         }
 
@@ -133,7 +158,17 @@ final class PointsInputCondition extends AbstractCondition implements
             $issues[] = new StaticInputConfigurationIssue(
                 'points_input_source_without_points_output',
                 $source_ref_ids_without_points_output,
-                'lso_points_input_source_without_points_output_table'
+                'lso_points_input_source_without_points_output_table',
+                details: array_map(
+                    fn(int $ref_id): StaticInputConfigurationIssueDetail => new StaticInputConfigurationIssueDetail(
+                        $ref_id,
+                        'lso_points_input_missing_output_on_object',
+                        properties_by_language_var: [
+                            'lso_static_input_configuration_referenced_by_objects' => $this->getRefIdsReferencingMissingPointsOutput($ref_id)
+                        ]
+                    ),
+                    $source_ref_ids_without_points_output
+                )
             );
         }
 
@@ -496,6 +531,19 @@ final class PointsInputCondition extends AbstractCondition implements
         }
 
         return (int) $row['condition_id'];
+    }
+
+    /**
+     * @return int[]
+     */
+    private function getRefIdsReferencingMissingPointsOutput(int $source_ref_id): array
+    {
+        $ref_id = (int) $this->getObjRefId();
+        if ($ref_id <= 0 || !in_array($source_ref_id, $this->getSourceRefIds(), true)) {
+            return [];
+        }
+
+        return [$ref_id];
     }
 
     /**

@@ -149,7 +149,8 @@ readonly class LSOAdaptiveTable
             }
             if ($record->has_conflicting_input_configuration) {
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--misconfigured">'
-                    . $this->lng->txt('lso_adaptive_misconfigured') . '</span>';
+                    . $this->lng->txt('lso_adaptive_misconfigured') . '</span>'
+                    . $this->renderMisconfigurationPopoverTrigger($record);
             }
             if ($record->start_object === '' && !$record->has_structural_predecessor) {
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--entry-point">'
@@ -249,6 +250,81 @@ readonly class LSOAdaptiveTable
             'actions' => $actions,
             'content' => $content,
         ];
+    }
+
+    private function renderMisconfigurationPopoverTrigger(\ilObjLearningSequenceContentData $record): string
+    {
+        if ($record->static_input_configuration_issue_details === []) {
+            return '';
+        }
+
+        $items = [];
+        foreach ($record->static_input_configuration_issue_details as $detail) {
+            $item = $this->ui_factory->item()->standard(
+                $this->lng->txt($detail->title_language_var)
+            );
+
+            if ($detail->description_language_var !== null) {
+                $item = $item->withDescription($this->lng->txt($detail->description_language_var));
+            }
+
+            $properties = $this->buildIssueDetailProperties($detail);
+            if ($properties !== []) {
+                $item = $item->withProperties($properties);
+            }
+
+            $items[] = $item;
+        }
+
+        $popover = $this->ui_factory->popover()
+            ->listing($items)
+            ->withTitle($this->lng->txt('lso_adaptive_misconfigured'))
+            ->withVerticalPosition();
+        $trigger = $this->ui_factory->button()
+            ->shy('', '')
+            ->withSymbol($this->ui_factory->symbol()->glyph()->help())
+            ->withAriaLabel($this->lng->txt('lso_adaptive_misconfigured_details'))
+            ->withOnClick($popover->getShowSignal());
+
+        return ' ' . $this->ui_renderer->render([$popover, $trigger]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildIssueDetailProperties(
+        \ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail $detail
+    ): array {
+        $properties = [];
+
+        foreach ($detail->properties_by_language_var as $language_var => $value) {
+            $properties[$this->lng->txt($language_var)] = is_array($value)
+                ? $this->renderIssueDetailPropertyList($value)
+                : $value;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<int, int|string> $values
+     */
+    private function renderIssueDetailPropertyList(array $values): string
+    {
+        $items = [];
+
+        foreach ($values as $value) {
+            if (is_int($value)) {
+                $items[] = \ilObject::_lookupTitle(\ilObject::_lookupObjId($value));
+                continue;
+            }
+
+            $items[] = $value;
+        }
+
+        sort($items);
+
+        return implode(', ', $items);
     }
 
     /**

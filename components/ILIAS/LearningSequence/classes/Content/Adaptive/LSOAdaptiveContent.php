@@ -27,6 +27,7 @@ use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationAnalyzer;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail;
 use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
 use ILIAS\LearningSequence\Player\AdaptiveNavigator;
@@ -145,12 +146,20 @@ class LSOAdaptiveContent implements LSOContentController
         )->withRequest($this->request);
 
         $filter_data = $filter->getData();
+        $analyzer = new StaticInputConfigurationAnalyzer();
         $static_input_configuration_issues = $this->getStaticInputConfigurationIssues($items, $navigator);
         $misconfigured_ref_ids = array_fill_keys(
-            (new StaticInputConfigurationAnalyzer())->getAffectedRefIds($static_input_configuration_issues),
+            $analyzer->getAffectedRefIds($static_input_configuration_issues),
             true
         );
-        $data = $this->getTableData($items, $filter_data, $structural_successors, $misconfigured_ref_ids);
+        $issue_details_by_ref_id = $analyzer->getIssueDetailsByRefId($static_input_configuration_issues);
+        $data = $this->getTableData(
+            $items,
+            $filter_data,
+            $structural_successors,
+            $misconfigured_ref_ids,
+            $issue_details_by_ref_id
+        );
 
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -274,13 +283,15 @@ class LSOAdaptiveContent implements LSOContentController
      * @param array<string, mixed>|null $filter_data Filter data.
      * @param array<int, int[]> $structural_successors Ref ids of the structural successors per item.
      * @param array<int, bool> $misconfigured_ref_ids
+     * @param array<int, StaticInputConfigurationIssueDetail[]> $issue_details_by_ref_id
      * @return ilObjLearningSequenceContentData[]
      */
     protected function getTableData(
         array $items,
         ?array $filter_data,
         array $structural_successors,
-        array $misconfigured_ref_ids
+        array $misconfigured_ref_ids,
+        array $issue_details_by_ref_id
     ): array {
         $boundaries_db = new LSOAdaptiveBoundaries($this->db);
         $boundary_data = $boundaries_db->getBoundariesFor($this->obj_id);
@@ -431,6 +442,7 @@ class LSOAdaptiveContent implements LSOContentController
                 $input_conditions,
                 $output_conditions,
                 $this->isMisconfiguredRefId($ref_id, $misconfigured_ref_ids),
+                $issue_details_by_ref_id[$ref_id] ?? [],
                 ($structural_predecessors[$ref_id] ?? []) !== [],
                 ($structural_successors[$ref_id] ?? []) !== [],
                 $actions

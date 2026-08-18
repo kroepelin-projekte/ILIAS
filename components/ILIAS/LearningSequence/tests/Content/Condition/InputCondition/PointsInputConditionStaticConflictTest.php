@@ -56,6 +56,14 @@ class PointsInputConditionStaticConflictTest extends TestCase
                 'points_output_ref_ids' => [151, 999],
             ])[0]->affected_ref_ids
         );
+        $this->assertSame(
+            [999],
+            $condition->getStaticInputConfigurationIssues([
+                'valid_ref_ids' => [151, 152],
+                'configured_points_outputs_by_ref_id' => [151 => 5, 999 => 5],
+                'points_output_ref_ids' => [151, 999],
+            ])[0]->details[0]->properties_by_language_var['lso_static_input_configuration_referenced_objects']
+        );
     }
 
     public function testReachablePointsThresholdIsNotReportedAsConflict(): void

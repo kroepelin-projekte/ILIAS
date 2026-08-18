@@ -28,14 +28,20 @@ final readonly class StaticInputConfigurationIssue
      */
     public array $affected_ref_ids;
     public ?string $summary_message_language_var;
+    /**
+     * @var StaticInputConfigurationIssueDetail[]
+     */
+    public array $details;
 
     /**
      * @param int[] $affected_ref_ids
+     * @param StaticInputConfigurationIssueDetail[] $details
      */
     public function __construct(
         string $kind,
         array $affected_ref_ids,
-        ?string $summary_message_language_var = null
+        ?string $summary_message_language_var = null,
+        array $details = []
     ) {
         $this->kind = $kind;
         $this->affected_ref_ids = array_values(array_unique(array_filter(
@@ -43,5 +49,9 @@ final readonly class StaticInputConfigurationIssue
             static fn(int $ref_id): bool => $ref_id > 0
         )));
         $this->summary_message_language_var = $summary_message_language_var;
+        $this->details = array_values(array_filter(
+            $details,
+            static fn(mixed $detail): bool => $detail instanceof StaticInputConfigurationIssueDetail
+        ));
     }
 }

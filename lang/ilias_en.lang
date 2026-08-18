@@ -11361,6 +11361,15 @@ lso#:#lso_player_suspend#:#Suspend
 lso#:#lso_player_viewmodelabel#:#Learning Sequence
 lso#:#lso_points_input_source_without_points_output#:#No points output is set for the following referenced objects: %s. They will count as 0 points in this points condition.
 lso#:#lso_points_input_source_without_points_output_table#:#The following objects are referenced by points input conditions but do not define a points output: %s. They will count as 0 points in these points conditions.
+lso#:#lso_adaptive_misconfigured_details#:#Show misconfiguration details
+lso#:#lso_static_input_configuration_conflict_detail#:#This object has a static input-condition misconfiguration.
+lso#:#lso_static_input_configuration_contradictory_constraints#:#The input conditions on this object contradict each other.
+lso#:#lso_static_input_configuration_missing_references#:#This input condition references objects that are not part of this learning sequence.
+lso#:#lso_static_input_configuration_referenced_objects#:#Referenced objects
+lso#:#lso_static_input_configuration_referenced_by_objects#:#Referenced by objects
+lso#:#lso_points_input_unreachable_threshold#:#The required points cannot be reached with the currently configured points outputs.
+lso#:#lso_points_input_missing_output_on_object#:#This object is referenced by a points input condition but does not define a points output condition.
+lso#:#lso_logic_gate_input_not_start_reference#:#A NOT logic gate must not reference the start object.
 lso#:#lso_print_list#:#Generate list
 lso#:#lso_read#:#User has read access to Learning Sequence
 lso#:#lso_search_users#:#Look Up Users

@@ -41,6 +41,7 @@ final readonly class ilObjLearningSequenceContentData
      * @param ilObjLearningSequenceConditionData[] $input_conditions Input conditions.
      * @param ilObjLearningSequenceConditionData[] $output_conditions Output conditions.
      * @param bool $has_conflicting_input_configuration Whether the input conditions contradict each other.
+     * @param \ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail[] $static_input_configuration_issue_details
      * @param bool $has_structural_predecessor Whether a structural predecessor exists.
      * @param bool $has_structural_successor Whether a structural successor exists.
      * @param ilObjLearningSequenceActionData[] $actions Available actions.
@@ -76,6 +77,8 @@ final readonly class ilObjLearningSequenceContentData
         public array $output_conditions,
         /** Whether the input conditions contradict each other. */
         public bool $has_conflicting_input_configuration,
+        /** @var \ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail[] */
+        public array $static_input_configuration_issue_details,
         /** Whether a structural predecessor exists. */
         public bool $has_structural_predecessor,
         /** Whether a structural successor exists. */

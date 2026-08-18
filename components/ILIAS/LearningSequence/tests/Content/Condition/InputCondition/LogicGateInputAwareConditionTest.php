@@ -99,6 +99,10 @@ class LogicGateInputAwareConditionTest extends TestCase
             [200],
             $condition->getStaticInputConfigurationIssues(['start_ref_id' => 151])[0]->affected_ref_ids
         );
+        $this->assertSame(
+            'lso_logic_gate_input_not_start_reference',
+            $condition->getStaticInputConfigurationIssues(['start_ref_id' => 151])[0]->details[0]->title_language_var
+        );
     }
 
     public function testMissingReferencedObjectIsReportedAsStaticConflict(): void

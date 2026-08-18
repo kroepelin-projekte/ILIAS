@@ -609,7 +609,14 @@ abstract class AbstractCondition
 
         return [new StaticInputConfigurationIssue(
             'static_input_configuration_conflict',
-            $affected_ref_ids
+            $affected_ref_ids,
+            details: array_map(
+                static fn(int $ref_id): StaticInputConfigurationIssueDetail => new StaticInputConfigurationIssueDetail(
+                    $ref_id,
+                    'lso_static_input_configuration_conflict_detail'
+                ),
+                $affected_ref_ids
+            )
         )];
     }
 
@@ -619,18 +626,7 @@ abstract class AbstractCondition
      */
     protected function referencesMissingLsoItems(array $referenced_ref_ids, array $context = []): bool
     {
-        $valid_ref_ids = $this->getValidLsoRefIds($context);
-        if ($valid_ref_ids === []) {
-            return false;
-        }
-
-        foreach (array_values(array_unique(array_map('intval', $referenced_ref_ids))) as $ref_id) {
-            if (!in_array($ref_id, $valid_ref_ids, true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->getMissingReferencedLsoRefIds($referenced_ref_ids, $context) !== [];
     }
 
     /**
@@ -694,6 +690,24 @@ abstract class AbstractCondition
         } catch (LogicException) {
             return 0;
         }
+    }
+
+    /**
+     * @param int[] $referenced_ref_ids
+     * @param array<string, mixed> $context
+     * @return int[]
+     */
+    protected function getMissingReferencedLsoRefIds(array $referenced_ref_ids, array $context = []): array
+    {
+        $valid_ref_ids = $this->getValidLsoRefIds($context);
+        if ($valid_ref_ids === []) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_values(array_unique(array_map('intval', $referenced_ref_ids))),
+            static fn(int $ref_id): bool => !in_array($ref_id, $valid_ref_ids, true)
+        ));
     }
 
     /**

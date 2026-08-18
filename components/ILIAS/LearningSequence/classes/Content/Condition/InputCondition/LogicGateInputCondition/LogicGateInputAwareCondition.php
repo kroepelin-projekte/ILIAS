@@ -29,6 +29,8 @@ use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\LSOObjectPicker;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
+use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssueDetail;
 use ILIAS\LearningSequence\Content\Condition\TableDefinition;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
@@ -206,6 +208,56 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         return $start_ref_id > 0
             && $this->getSubtype() === self::SUBTYPE_NOT
             && in_array($start_ref_id, $this->getNavigationSourceRefIds(), true);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return StaticInputConfigurationIssue[]
+     */
+    public function getStaticInputConfigurationIssues(array $context = []): array
+    {
+        $details = [];
+        $affected_ref_ids = $this->getStaticInputConfigurationConflictAffectedRefIds();
+        if ($affected_ref_ids === []) {
+            return [];
+        }
+
+        $missing_ref_ids = $this->getMissingReferencedLsoRefIds($this->getNavigationSourceRefIds(), $context);
+        if ($missing_ref_ids !== []) {
+            foreach ($affected_ref_ids as $affected_ref_id) {
+                $details[] = new StaticInputConfigurationIssueDetail(
+                    $affected_ref_id,
+                    'lso_static_input_configuration_missing_references',
+                    properties_by_language_var: [
+                        'lso_static_input_configuration_referenced_objects' => $missing_ref_ids
+                    ]
+                );
+            }
+        }
+
+        $start_ref_id = $this->getConfiguredStartRefId($context);
+        if (
+            $start_ref_id > 0
+            && $this->getSubtype() === self::SUBTYPE_NOT
+            && in_array($start_ref_id, $this->getNavigationSourceRefIds(), true)
+        ) {
+            foreach ($affected_ref_ids as $affected_ref_id) {
+                $details[] = new StaticInputConfigurationIssueDetail(
+                    $affected_ref_id,
+                    'lso_logic_gate_input_not_start_reference'
+                );
+            }
+        }
+
+        if ($details === []) {
+            return [];
+        }
+
+        return [new StaticInputConfigurationIssue(
+            'logic_gate_input_configuration_conflict',
+            $affected_ref_ids,
+            details: $details
+        )];
     }
 
     /**

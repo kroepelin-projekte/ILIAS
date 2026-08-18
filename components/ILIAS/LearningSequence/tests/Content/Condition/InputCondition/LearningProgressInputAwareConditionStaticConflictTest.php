@@ -37,6 +37,12 @@ class LearningProgressInputAwareConditionStaticConflictTest extends TestCase
             [200],
             $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [151, 152]])[0]->affected_ref_ids
         );
+        $this->assertSame(
+            [999],
+            $condition->getStaticInputConfigurationIssues(['valid_ref_ids' => [151, 152]])[0]
+                ->details[0]
+                ->properties_by_language_var['lso_static_input_configuration_referenced_objects']
+        );
     }
 
     public function testExistingReferencedObjectIsNotReportedAsConflict(): void
