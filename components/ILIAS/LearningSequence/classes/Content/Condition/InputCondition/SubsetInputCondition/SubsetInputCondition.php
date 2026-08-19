@@ -145,7 +145,16 @@ final class SubsetInputCondition extends AbstractCondition implements
         $multi_select = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true
-        );
+        )
+            ->withRequired(false)
+            ->withAdditionalTransformation(
+                $this->dic->refinery()->custom()->constraint(
+                    static fn($value): bool => is_array($value)
+                        && count($value) >= 1,
+                    $this->lang->txt('lso_subset_msg_choose_at_least_one')
+                )
+            );
+
         $required_amount = $this->ui_factory->input()->field()->numeric(
             $this->lang->txt('subset_amount'),
             $this->lang->txt('subset_amount_byline')

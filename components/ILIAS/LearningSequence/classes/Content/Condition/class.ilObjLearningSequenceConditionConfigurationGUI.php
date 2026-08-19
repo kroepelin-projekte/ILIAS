@@ -239,7 +239,6 @@ class ilObjLearningSequenceConditionConfigurationGUI
         $data = $form->getData();
 
         if (!$data) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('err_check_input'), false);
             $this->tpl->setContent($this->ui_renderer->render($form));
             return;
         }

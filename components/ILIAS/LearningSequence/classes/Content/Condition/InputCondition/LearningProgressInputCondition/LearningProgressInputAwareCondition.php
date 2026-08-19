@@ -179,7 +179,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
                         && count($value) === 1
                         && isset($value[0])
                         && $value[0] !== '',
-                    'Learning progress target ref id is invalid.'
+                    $this->lang->txt('lso_msg_choose_one_object')
                 )
             );
 
