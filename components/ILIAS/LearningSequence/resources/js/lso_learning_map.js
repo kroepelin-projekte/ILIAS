@@ -1219,9 +1219,27 @@
     let panX = 0;
     let panY = 0;
 
+    // will-change: transform is only needed while the canvas is actually
+    // being panned/zoomed. Keeping it on at rest forces Chrome to keep node
+    // text on a composited GPU layer, which renders it slightly blurred
+    // (sharpening only briefly on repaint, e.g. node hover). So it's added
+    // right before a transform change and removed again shortly after the
+    // last one settles.
+    let settleTimer = null;
+
     function apply() {
       clampPan();
-      canvas.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+
+      const tx = Math.round(panX);
+      const ty = Math.round(panY);
+
+      canvas.classList.add('is-transforming');
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        canvas.classList.remove('is-transforming');
+      }, 200);
+
+      canvas.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${zoom})`;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       // Dot-grid background lives on .viewport (a static element — it never

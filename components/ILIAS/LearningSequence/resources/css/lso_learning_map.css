@@ -168,6 +168,14 @@
     top: 0;
     left: 0;
     transform-origin: 0 0;
+    /* will-change: transform is toggled on/off in JS (see apply()) only
+       while actively panning/zooming. Leaving it on permanently forces
+       Chrome to keep the whole canvas — including node text — on a
+       composited GPU layer at rest, which renders text slightly blurred
+       and only briefly sharpens on repaint (e.g. on node hover). */
+}
+
+.lso-learning-map__canvas.is-transforming {
     will-change: transform;
 }
 
@@ -245,11 +253,22 @@
     border-radius: 4px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+    transition: box-shadow .2s ease-in-out;
 }
 
 .lso-learning-map__node:hover,
 .lso-learning-map__node:focus-within {
     z-index: 20;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
+}
+
+.lso-learning-map__node-link-overlay:hover {
+    box-shadow: none;
+}
+
+.lso-learning-map__node {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 .lso-learning-map__node-body {
@@ -287,6 +306,17 @@
     border-color: var(--lso-learning-map-current);
     border-width: 2px;
     box-shadow: 0 0 0 4px rgba(49, 112, 143, .22);
+}
+
+/* .lso-learning-map__node:hover (5. Nodes, above) sets its own box-shadow,
+   which — box-shadow does not stack across rules — would otherwise replace
+   the current-node ring above instead of adding to it, since :hover already
+   outranks a plain modifier class on specificity alone. The compound
+   selector here (class + modifier class + pseudo-class) outranks both, so
+   the ring survives hover/focus, layered under the hover elevation shadow. */
+.lso-learning-map__node.lso-learning-map__node--current:hover,
+.lso-learning-map__node.lso-learning-map__node--current:focus-within {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .14), 0 0 0 4px rgba(49, 112, 143, .22);
 }
 
 
