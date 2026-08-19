@@ -11210,7 +11210,7 @@ lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Information
 lso#:#lso_adaptive_input_conditions#:#Input Conditions
 lso#:#lso_adaptive_misconfigured#:#Misconfigured
-lso#:#lso_adaptive_misconfigured_details#:#Show misconfiguration details
+lso#:#lso_adaptive_missing_boundaries_online#:#The Learning Sequence cannot be set online because no start or end object has been selected.
 lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
 lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a start object is required.
 lso#:#lso_adaptive_next_object#:#Next Object
@@ -11339,6 +11339,13 @@ lso#:#lso_members_deleted#:#Selected members were successfully removed from lear
 lso#:#lso_members_gallery#:#Learning Sequence Members Gallery
 lso#:#lso_members_print_title#:#Learning sequence members
 lso#:#lso_min_one_admin#:#There has to be at least one administrator assigned to this learning sequence.
+lso#:#lso_mode#:#Learning Mode
+lso#:#lso_mode_adaptive#:#Adaptive Mode
+lso#:#lso_mode_adaptive_info#:#The learning path dynamically adapts to progress or prior knowledge.
+lso#:#lso_mode_byline#:#Determines whether the content is offered one after another in a fixed order or dynamically based on user interactions.
+lso#:#lso_mode_info#:#Choose how the Learning Sequence should be controlled.
+lso#:#lso_mode_linear#:#Linear Mode
+lso#:#lso_mode_linear_info#:#Content is processed one after another in a fixed, predefined order.
 lso#:#lso_msg_member_assigned#:#User(s) assigned as learning sequence member(s)
 lso#:#lso_multidownload_not_available#:#Downloading multiple objects is currently not available for Learning Sequence Objects.
 lso#:#lso_new_status#:#Your new status is:
@@ -11354,6 +11361,7 @@ lso#:#lso_player_dead_end_title#:#Path ended
 lso#:#lso_player_extro#:#Show Final Page
 lso#:#lso_player_finish#:#Finish
 lso#:#lso_player_next#:#Next
+lso#:#lso_player_next_object_blocked#:#To start the next object, a condition must be fulfilled.
 lso#:#lso_player_noitems#:#There are no available items in this Learning Sequence.
 lso#:#lso_player_previous#:#Previous
 lso#:#lso_player_resume#:#Resume Learning Sequence

@@ -148,10 +148,18 @@ class ilObjLearningSequenceSettingsGUI
         );
 
         // LSO Mode
-        $lso_mode = $if->field()->radio("Lernmodus", "Wählen Sie aus, wie die Lernsequenz gesteuert werden soll.") // #ToDo Sprachvariable hinzufügen
-            ->withOption((string) ilLearningSequenceSettings::MODE_LINEAR, "Linearer Modus (Sequential Mode)", "Inhalte werden in einer festen, vorgegebenen Reihenfolge nacheinander bearbeitet.") // #ToDo Sprachvariable hinzufügen
-            ->withOption((string) ilLearningSequenceSettings::MODE_ADAPTIVE, "Adaptiver Modus (Adaptive Mode)", "Der Lernpfad passt sich dynamisch an den Fortschritt oder das Vorwissen an.") // #ToDo Sprachvariable hinzufügen
-            ->withByline("Bestimmt, ob die Inhalte starr nacheinander oder dynamisch basierend auf Nutzerinteraktionen (Adaptivität) angeboten werden.") // #ToDo Sprachvariable hinzufügen
+        $lso_mode = $if->field()->radio($txt('lso_mode'), $txt('lso_mode_info'))
+            ->withOption(
+                (string) ilLearningSequenceSettings::MODE_LINEAR,
+                $txt('lso_mode_linear'),
+                $txt('lso_mode_linear_info')
+            )
+            ->withOption(
+                (string) ilLearningSequenceSettings::MODE_ADAPTIVE,
+                $txt('lso_mode_adaptive'),
+                $txt('lso_mode_adaptive_info')
+            )
+            ->withByline($txt('lso_mode_byline'))
             ->withValue((string) $settings->getLSOMod())
             ->withAdditionalTransformation(
                 $this->refinery->kindlyTo()->int()
@@ -287,7 +295,7 @@ class ilObjLearningSequenceSettingsGUI
         ) {
             $this->tpl->setOnScreenMessage(
                 'failure',
-                'Da kein Start oder End Objekt ausgewählt wurde, kann das Objekt nicht online geschaltet werden',
+                $this->lng->txt('lso_adaptive_missing_boundaries_online'),
                 true
             );
             $this->ctrl->redirect($this);
@@ -328,7 +336,7 @@ class ilObjLearningSequenceSettingsGUI
         if ($forced_offline) {
             $this->tpl->setOnScreenMessage(
                 'info',
-                'Weil kein Start/End Objekt ausgewählt ist, wurde die Lernsequence offline geschaltet.',
+                $this->lng->txt('lso_adaptive_offline_due_to_missing_boundaries'),
                 true
             );
         }
