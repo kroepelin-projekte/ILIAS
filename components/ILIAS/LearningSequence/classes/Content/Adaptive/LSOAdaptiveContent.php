@@ -330,7 +330,6 @@ class LSOAdaptiveContent implements LSOContentController
                 $input_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
-                    glyph: $db_cond['glyph'],
                     internal_name: $db_cond['internal_name']
                 );
             }
@@ -341,7 +340,6 @@ class LSOAdaptiveContent implements LSOContentController
                 $output_conditions[] = new ilObjLearningSequenceConditionData(
                     title: $db_cond['title'],
                     value: $db_cond['value'],
-                    glyph: $db_cond['glyph'],
                     internal_name: $db_cond['internal_name']
                 );
             }

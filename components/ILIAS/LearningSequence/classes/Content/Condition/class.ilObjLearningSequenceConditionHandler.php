@@ -187,7 +187,6 @@ class ConditionHandler
                             'value' => $condition instanceof SubtypeAwareInterface
                                 ? $condition->getSubtypeLabel($condition->getSubtype())
                                 : '',
-                            'glyph' => $condition->getGlyph(),
                             'internal_name' => $row['condition_name']
                         ];
                     } catch (\Throwable $e) {
