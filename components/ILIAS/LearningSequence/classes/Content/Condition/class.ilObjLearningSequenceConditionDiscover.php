@@ -70,30 +70,12 @@ class ilObjLearningSequenceConditionDiscover
         ));
     }
 
-    /**
-     * @param string $class
-     * @return string
-     */
-    public function getConditionNameByClass(string $class): string
-    {
-        $parts = explode('\\', $class);
-        $className = end($parts);
-        if (str_ends_with($className, 'Condition')) {
-            return substr($className, 0, -9);
-        }
-        return $className;
-    }
-
-    public function getConditionTitleByClass(string $class): string
-    {
-        $name = $this->getConditionNameByClass($class);
-        // CamelCase to Space separated
-        return preg_replace('/(?<!^)[A-Z]/', ' $0', $name);
-    }
-
     public function getConditionByName(string $name_to_find): ?string
     {
-        return array_find($this->getAllConditions(), fn($class) => $this->getConditionNameByClass($class) === $name_to_find);
+        return array_find(
+            $this->getAllConditions(),
+            static fn(string $class): bool => AbstractCondition::getIdentifierForClass($class) === $name_to_find
+        );
     }
 
     /**
