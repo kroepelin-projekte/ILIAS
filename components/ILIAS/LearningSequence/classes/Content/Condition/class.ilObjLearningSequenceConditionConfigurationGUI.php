@@ -71,6 +71,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
     public function executeCommand(): void
     {
         $this->initCondition();
+        $this->assertWriteAccess();
         $this->initBackTab();
 
         $cmd = $this->ctrl->getCmd();
@@ -82,6 +83,18 @@ class ilObjLearningSequenceConditionConfigurationGUI
                 break;
             default:
                 throw new ilException("ilObjLearningSequenceConditionGUI: Command not supported: $cmd");
+        }
+    }
+
+    private function assertWriteAccess(): void
+    {
+        if (!$this->access->checkAccess('write', '', $this->lso_ref_id)) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'), true);
+            $this->ctrl->setParameterByClass(ilObjLearningSequenceGUI::class, 'ref_id', $this->lso_ref_id);
+            $this->ctrl->redirectByClass(
+                [ilRepositoryGUI::class, ilObjLearningSequenceGUI::class],
+                ilObjLearningSequenceGUI::CMD_VIEW
+            );
         }
     }
 
