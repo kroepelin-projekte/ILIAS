@@ -680,10 +680,18 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
         if ($form instanceof StandardForm) {
             global $DIC;
             $if = $DIC->ui()->factory()->input();
-            $lso_mode = $if->field()->radio("Lernmodus", "Wählen Sie aus, wie die Lernsequenz gesteuert werden soll.") // #ToDo Sprachvariable hinzufügen
-                ->withOption((string) ilLearningSequenceSettings::MODE_LINEAR, "Linearer Modus (Sequential Mode)", "Inhalte werden in einer festen, vorgegebenen Reihenfolge nacheinander bearbeitet.") // #ToDo Sprachvariable hinzufügen
-                ->withOption((string) ilLearningSequenceSettings::MODE_ADAPTIVE, "Adaptiver Modus (Adaptive Mode)", "Der Lernpfad passt sich dynamisch an den Fortschritt oder das Vorwissen an.") // #ToDo Sprachvariable hinzufügen
-                ->withByline("Bestimmt, ob die Inhalte starr nacheinander oder dynamisch basierend auf Nutzerinteraktionen (Adaptivität) angeboten werden.") // #ToDo Sprachvariable hinzufügen
+            $lso_mode = $if->field()->radio($this->lng->txt('lso_mode'), $this->lng->txt('lso_mode_info'))
+                ->withOption(
+                    (string) ilLearningSequenceSettings::MODE_LINEAR,
+                    $this->lng->txt('lso_mode_linear'),
+                    $this->lng->txt('lso_mode_linear_info')
+                )
+                ->withOption(
+                    (string) ilLearningSequenceSettings::MODE_ADAPTIVE,
+                    $this->lng->txt('lso_mode_adaptive'),
+                    $this->lng->txt('lso_mode_adaptive_info')
+                )
+                ->withByline($this->lng->txt('lso_mode_byline'))
                 ->withValue((string) ilLearningSequenceSettings::MODE_LINEAR);
 
             $inputs = $form->getInputs();

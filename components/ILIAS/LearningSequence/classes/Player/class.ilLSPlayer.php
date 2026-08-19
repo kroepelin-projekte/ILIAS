@@ -621,7 +621,7 @@ class ilLSPlayer
         switch ($this->getAdaptiveSituation($items, $item)) {
             case 'blocked':
                 $content[] = $this->ui_factory->messageBox()->info(
-                    'Um das nächste Objekt zu beginnen, muss eine Bedingung erfüllt sein.'
+                    $this->txt('lso_player_next_object_blocked')
                 );
                 break;
             default:
