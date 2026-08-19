@@ -153,9 +153,25 @@ class ilObjLearningSequenceConditionConfigurationGUI
      */
     protected function configure(): void
     {
-        $condition = $this->buildCondition();
+        try {
+            $condition = $this->buildCondition();
+        } catch (\Exception $e) {
+            // condition not found - redirect
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->lng->txt('lso_exception_condition_not_exists'),
+                true
+            );
 
-        $this->checkIfConditionExistsInItem($condition);
+            $this->ctrl->setParameterByClass(ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
+            $this->ctrl->redirectByClass(
+                ilObjLearningSequenceConditionsGUI::class,
+                ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
+            );
+            return;
+        }
+
+        $this->checkIfConditionAlreadyExistsInItem($condition);
 
         $this->tpl->setContent(
             $this->ui_renderer->render(
@@ -171,7 +187,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
      * @throws ilCtrlException
      * @throws ilException
      */
-    private function checkIfConditionExistsInItem(AbstractCondition $condition): void
+    private function checkIfConditionAlreadyExistsInItem(AbstractCondition $condition): void
     {
         if (!$this->create) {
             return;

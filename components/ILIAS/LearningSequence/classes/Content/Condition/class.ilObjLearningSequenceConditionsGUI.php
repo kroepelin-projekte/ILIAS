@@ -339,10 +339,14 @@ class ilObjLearningSequenceConditionsGUI
 
         $affected_items = [];
         foreach ($conditions_to_delete as $condition_id) {
-            $affected_items[] = $this->ui_factory->modal()->interruptiveItem()->standard(
-                'condition_' . $condition_id,
-                $this->lng->txt($this->condition_factory->getConditionInstanceById($condition_id)->getName()),
-            );
+            try {
+                $affected_items[] = $this->ui_factory->modal()->interruptiveItem()->standard(
+                    'condition_' . $condition_id,
+                    $this->lng->txt($this->condition_factory->getConditionInstanceById($condition_id)->getName()),
+                );
+            } catch (Exception $e) {
+                // condition not found
+            }
         }
 
         $modal = $this->ui_factory->modal()->interruptive(
