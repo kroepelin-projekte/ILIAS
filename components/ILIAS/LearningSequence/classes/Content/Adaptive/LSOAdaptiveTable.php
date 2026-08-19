@@ -380,9 +380,6 @@ readonly class LSOAdaptiveTable
         $html = '<ul class="alp-cm-kv-list">';
         foreach ($conditions as $condition) {
             $html .= '<li class="alp-cm-kv-list__item">'
-                . '<span class="alp-cm-kv-list__glyph">'
-                . $this->ui_renderer->render($condition->glyph)
-                . '</span>'
                 . '<span class="alp-cm-kv-list__condition">'
                 . htmlspecialchars($condition->title)
                 . '</span>';
