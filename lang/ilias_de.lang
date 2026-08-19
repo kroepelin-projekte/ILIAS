@@ -11238,6 +11238,7 @@ lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Informationen
 lso#:#lso_adaptive_input_conditions#:#Eingangsbedingungen
 lso#:#lso_adaptive_misconfigured#:#Fehlkonfiguration
+lso#:#lso_adaptive_missing_boundaries_online#:#Da kein Start- oder Endobjekt ausgewählt wurde, kann die Lernsequenz nicht online geschaltet werden.
 lso#:#lso_adaptive_missing_end_object#:#Um die Lernsequenz zu beenden, wird ein End Objekt benötigt.
 lso#:#lso_adaptive_missing_start_object#:#Um die Lernsequenz zu starten, wird ein Start Objekt benötigt.
 lso#:#lso_adaptive_next_object#:#Nächstes Objekt
@@ -11365,6 +11366,13 @@ lso#:#lso_members_deleted#:#Die ausgewählten Mitglieder sind aus der Lernsequen
 lso#:#lso_members_gallery#:#Galerie
 lso#:#lso_members_print_title#:#Lernsequenzmitglieder
 lso#:#lso_min_one_admin#:#Dieser Lernsequenz muss mindestens ein Konto mit der Rolle „Lernsequenzadministration“ zugeordnet sein.
+lso#:#lso_mode#:#Lernmodus
+lso#:#lso_mode_adaptive#:#Adaptiver Modus (Adaptive Mode)
+lso#:#lso_mode_adaptive_info#:#Der Lernpfad passt sich dynamisch an den Fortschritt oder das Vorwissen an.
+lso#:#lso_mode_byline#:#Bestimmt, ob die Inhalte starr nacheinander oder dynamisch basierend auf Nutzerinteraktionen (Adaptivität) angeboten werden.
+lso#:#lso_mode_info#:#Wählen Sie aus, wie die Lernsequenz gesteuert werden soll.
+lso#:#lso_mode_linear#:#Linearer Modus (Sequential Mode)
+lso#:#lso_mode_linear_info#:#Inhalte werden in einer festen, vorgegebenen Reihenfolge nacheinander bearbeitet.
 lso#:#lso_msg_member_assigned#:#Benutzer wurde(n) in die Lernsequenz aufgenommen
 lso#:#lso_multidownload_not_available#:#Das Herunterladen verschiedener Objekte ist für Lernsequenz-Objekte derzeit nicht verfügbar.
 lso#:#lso_new_status#:#Ihr neuer Status:
@@ -11380,6 +11388,7 @@ lso#:#lso_player_dead_end_title#:#Pfad zu Ende
 lso#:#lso_player_extro#:#Zur Abschlussseite
 lso#:#lso_player_finish#:#Beenden
 lso#:#lso_player_next#:#Weiter
+lso#:#lso_player_next_object_blocked#:#Um das nächste Objekt zu beginnen, muss eine Bedingung erfüllt sein.
 lso#:#lso_player_noitems#:#Keine verfügbaren Inhalte in der Lernsequenz
 lso#:#lso_player_previous#:#Zurück
 lso#:#lso_player_resume#:#Lernsequenz wieder aufnehmen
