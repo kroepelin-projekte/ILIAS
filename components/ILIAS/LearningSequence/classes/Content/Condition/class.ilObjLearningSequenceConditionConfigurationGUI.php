@@ -215,7 +215,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
             ) {
                 $this->tpl->setOnScreenMessage(
                     'failure',
-                    $this->lng->txt('lso_exception_condition_already_exists'),
+                    $this->lng->txt('condition_already_exists'),
                     true
                 );
 
@@ -241,6 +241,7 @@ class ilObjLearningSequenceConditionConfigurationGUI
     protected function createCondition(): void
     {
         $condition = $this->buildCondition();
+        $condition->clearValidationMessages();
 
         $form = $condition->getAdditionalForm();
 
@@ -256,15 +257,20 @@ class ilObjLearningSequenceConditionConfigurationGUI
             return;
         }
 
-        try {
-            $condition->applyAdditionalFormData($data);
-            if ($this->create) {
-                $condition->create();
-            } else {
-                $condition->edit();
-            }
-        } catch (\LogicException $e) {
-            $this->tpl->setOnScreenMessage('failure', $e->getMessage(), false);
+        $condition->applyAdditionalFormData($data);
+        if ($condition->hasValidationMessages()) {
+            $this->showValidationMessages($condition);
+            $this->tpl->setContent($this->ui_renderer->render($form));
+            return;
+        }
+
+        if ($this->create) {
+            $condition->create();
+        } else {
+            $condition->edit();
+        }
+        if ($condition->hasValidationMessages()) {
+            $this->showValidationMessages($condition);
             $this->tpl->setContent($this->ui_renderer->render($form));
             return;
         }
@@ -301,6 +307,13 @@ class ilObjLearningSequenceConditionConfigurationGUI
             $this->type_id,
             $this->subtype,
         );
+    }
+
+    private function showValidationMessages(AbstractCondition $condition): void
+    {
+        foreach ($condition->getValidationMessages() as $message) {
+            $this->tpl->setOnScreenMessage('failure', $message, false);
+        }
     }
 
     /**

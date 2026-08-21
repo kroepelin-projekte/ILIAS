@@ -218,7 +218,7 @@ class LSOSequentialContent implements LSOContentController
     {
         $specific_actions = [];
         $specific_actions['condition_always'] = new ilObjLearningSequenceActionData(
-            label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('condition_always'),
+            label: $this->lng->txt('table_may_proceed') . ': ' . $this->lng->txt('always'),
             link: ilObjLearningSequenceContentGUI::CMD_SET_CONDITION_ALWAYS
         );
         $specific_actions['condition_lp'] = new ilObjLearningSequenceActionData(

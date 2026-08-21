@@ -93,8 +93,8 @@ class LSOAdaptiveFilter
             'position' => $this->ui_factory->input()->field()->multiselect(
                 $this->lng->txt('position'),
                 [
-                    'start' => $this->lng->txt('lso_adaptive_filter_start'),
-                    'end' => $this->lng->txt('lso_adaptive_filter_end'),
+                    'start' => $this->lng->txt('lso_adaptive_start'),
+                    'end' => $this->lng->txt('lso_adaptive_end'),
                 ]
             ),
         ];

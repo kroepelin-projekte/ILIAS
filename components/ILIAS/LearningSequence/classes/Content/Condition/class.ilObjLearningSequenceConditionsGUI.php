@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Data\Factory;
 use ILIAS\HTTP\Wrapper\RequestWrapper;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\UI\Component\Menu\Drilldown;
@@ -287,16 +288,17 @@ class ilObjLearningSequenceConditionsGUI
         $type_id = (int) $this->request->getQueryParams()['type_id'] ?? '';
         $subtype = $this->request->getQueryParams()['subtype'] ?? null;
 
-        try {
-            $condition = $this->condition_factory->getNewConditionInstance(
-                $this->lso_ref_id,
-                $this->item_ref_id,
-                $type_id,
-                $subtype,
-            );
-            $condition->create();
-        } catch (LogicException $e) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('condition_already_exists'), true);
+        $condition = $this->condition_factory->getNewConditionInstance(
+            $this->lso_ref_id,
+            $this->item_ref_id,
+            $type_id,
+            $subtype,
+        );
+        $condition->clearValidationMessages();
+        $condition->create();
+
+        if ($condition->hasValidationMessages()) {
+            $this->showValidationMessages($condition);
             $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'ref_id', $this->lso_ref_id);
             $this->ctrl->setParameterByClass(\ilObjLearningSequenceConditionsGUI::class, 'item_ref_id', $this->item_ref_id);
             $this->ctrl->redirectByClass(
@@ -308,6 +310,7 @@ class ilObjLearningSequenceConditionsGUI
                 ],
                 ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
             );
+            return;
         }
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'), true);
@@ -321,6 +324,13 @@ class ilObjLearningSequenceConditionsGUI
             ],
             ilObjLearningSequenceConditionsGUI::CMD_MANAGE_CONDITIONS
         );
+    }
+
+    private function showValidationMessages(AbstractCondition $condition): void
+    {
+        foreach ($condition->getValidationMessages() as $message) {
+            $this->tpl->setOnScreenMessage('failure', $message, true);
+        }
     }
 
     /**

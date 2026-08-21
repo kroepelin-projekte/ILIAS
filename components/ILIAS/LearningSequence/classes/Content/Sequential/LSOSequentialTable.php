@@ -89,7 +89,7 @@ class LSOSequentialTable implements OrderingRetrieval
             $current_op = $item->getPostCondition()->getConditionOperator();
             $condition_label = $current_op;
             if ($current_op === \ilLSPostCondition::OPERATOR_ALWAYS) {
-                $condition_label = $this->lng->txt('condition_always');
+                $condition_label = $this->lng->txt('always');
             } elseif ($current_op === \ilLSPostCondition::OPERATOR_LP) {
                 $condition_label = $this->lng->txt('condition_learning_progress');
             }

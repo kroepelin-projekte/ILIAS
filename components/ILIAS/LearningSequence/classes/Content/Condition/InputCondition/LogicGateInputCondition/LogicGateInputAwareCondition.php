@@ -104,6 +104,11 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
      */
     public function setItems(array $items): void
     {
+        if ($items === []) {
+            $this->addValidationMessage($this->lang->txt('lso_subset_msg_choose_at_least_one'));
+            return;
+        }
+
         $this->items = $items;
     }
 
@@ -168,15 +173,21 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             self::SUBTYPE_AND => $this->areAllItemsCompleted(),
             self::SUBTYPE_OR => $this->isAnyItemCompleted(),
             self::SUBTYPE_NOT => $this->areNoItemsCompleted(),
-            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gate_subtype'))
+            default => throw new \LogicException("Unknown logic gate subtype.")
         };
     }
 
+    /**
+     * @return string
+     */
     public function getNavigationMode(): string
     {
         return InputConditionNavigationAwareInterface::NAVIGATION_MODE_DEPENDENCY;
     }
 
+    /**
+     * @return int[]
+     */
     public function getNavigationSourceRefIds(): array
     {
         return $this->getItems();
@@ -351,7 +362,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             self::SUBTYPE_AND => $this->lang->txt('logic_gate_and'),
             self::SUBTYPE_OR => $this->lang->txt('logic_gate_or'),
             self::SUBTYPE_NOT => $this->lang->txt('logic_gate_not'),
-            default => throw new \LogicException($this->lang->txt('lso_exception_unknown_logic_gate_subtype'))
+            default => throw new \LogicException("Unknown logic gate subtype.")
         };
     }
 
@@ -377,7 +388,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         }
 
         if ($this->condition_id === null) {
-            throw new \LogicException($this->lang->txt('lso_exception_logic_gate_condition_id_not_set'));
+            throw new \LogicException("Cannot get subtype for a condition that has not been created yet.");
         }
 
         $s = self::SETTINGS_TABLE;
@@ -389,7 +400,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new \LogicException($this->lang->txt('lso_exception_logic_gate_subtype_not_stored'));
+            throw new \LogicException("Could not retrieve subtype for condition with ID {$this->condition_id}.");
         }
 
         $this->setSubtype($row['subtype']);
@@ -412,7 +423,16 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
         $input = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true,
-        )->withByline($this->lang->txt($this->getSubtype() . '_byline'));
+        )
+            ->withRequired(false)
+            ->withAdditionalTransformation(
+                $this->dic->refinery()->custom()->constraint(
+                    static fn($value): bool => is_array($value)
+                        && count($value) >= 1,
+                    $this->lang->txt('lso_subset_msg_choose_at_least_one')
+                )
+            )
+            ->withByline($this->lang->txt($this->getSubtype() . '_byline'));
 
         if ($this->condition_id !== null) {
             $input = $input->withValue($this->getItems());
@@ -452,7 +472,7 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
      */
     public function applyAdditionalFormData(array $data): void
     {
-        $this->setItems(array_filter(array_map('intval',    $data[0] ?? [])));
+        $this->setItems(array_filter(array_map('intval', $data[0] ?? [])));
     }
 
     /**

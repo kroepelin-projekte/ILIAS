@@ -207,10 +207,14 @@ final class SubsetInputCondition extends AbstractCondition implements
 
         $subset = $data[1] ?? null;
         if (is_array($subset) || !is_numeric($subset)) {
-            throw new \LogicException($this->lang->txt('lso_exception_subset_invalid'));
+            $this->addValidationMessage($this->lang->txt('lso_exception_subset_invalid'));
+            return;
         }
 
         $this->setSourceRefIds($source_ref_ids);
+        if ($this->hasValidationMessages()) {
+            return;
+        }
         $this->setSubset((int) $subset);
     }
 
@@ -243,7 +247,7 @@ final class SubsetInputCondition extends AbstractCondition implements
             static fn(int $value): bool => $value > 0
         )));
         if ($source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_stored'));
+            throw new \LogicException("No source ref ids found for condition id {$this->condition_id}");
         }
 
         $this->source_ref_ids = $source_ref_ids;
@@ -261,7 +265,8 @@ final class SubsetInputCondition extends AbstractCondition implements
             static fn(int $value): bool => $value > 0 && $value !== $current_ref_id
         )));
         if ($source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
+            $this->addValidationMessage($this->lang->txt('lso_subset_msg_choose_at_least_one'));
+            return;
         }
 
         $this->source_ref_ids = $source_ref_ids;
@@ -287,7 +292,7 @@ final class SubsetInputCondition extends AbstractCondition implements
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !isset($row[self::SUBSET_FIELD])) {
-            throw new \LogicException($this->lang->txt('lso_exception_subset_not_stored'));
+            throw new \LogicException("No subset value found for condition id {$this->condition_id}");
         }
 
         $this->subset = (int) $row[self::SUBSET_FIELD];
@@ -300,11 +305,13 @@ final class SubsetInputCondition extends AbstractCondition implements
     public function setSubset(int $subset): void
     {
         if ($subset < 0) {
-            throw new \LogicException($this->lang->txt('lso_exception_subset_negative'));
+            $this->addValidationMessage($this->lang->txt('lso_exception_subset_negative'));
+            return;
         }
 
         if ($this->source_ref_ids !== null && $subset > count($this->source_ref_ids)) {
-            throw new \LogicException($this->lang->txt('lso_exception_subset_exceeds_objects'));
+            $this->addValidationMessage($this->lang->txt('lso_exception_subset_exceeds_objects'));
+            return;
         }
 
         $this->subset = $subset;
@@ -375,7 +382,7 @@ final class SubsetInputCondition extends AbstractCondition implements
     private function requireSourceRefIds(): array
     {
         if ($this->source_ref_ids === null || $this->source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_set'));
+            throw new \LogicException('Source object ids are not set.');
         }
 
         return $this->source_ref_ids;
@@ -387,7 +394,7 @@ final class SubsetInputCondition extends AbstractCondition implements
     private function requireSubset(): int
     {
         if ($this->subset === null) {
-            throw new \LogicException($this->lang->txt('lso_exception_subset_not_set'));
+            throw new \LogicException('Subset is not set.');
         }
 
         return $this->subset;

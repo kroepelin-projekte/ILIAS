@@ -205,7 +205,15 @@ final class PointsInputCondition extends AbstractCondition implements
         $multi_select = new LSOObjectPicker((int) $this->lso_ref_id, (int) $this->getObjRefId())->getPicker(
             $this->lang->txt('lso_condition_simple_multi_target'),
             true
-        );
+        )
+            ->withRequired(false)
+            ->withAdditionalTransformation(
+                $this->dic->refinery()->custom()->constraint(
+                    static fn($value): bool => is_array($value)
+                        && count($value) >= 1,
+                    $this->lang->txt('lso_subset_msg_choose_at_least_one')
+                )
+            );
         $points_input = $this->ui_factory->input()->field()->numeric(
             $this->lang->txt('points_input'),
             $this->lang->txt('points_input_byline')
@@ -256,15 +264,20 @@ final class PointsInputCondition extends AbstractCondition implements
             static fn(int $value): bool => $value > 0
         )));
         if ($source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
+            $this->addValidationMessage($this->lang->txt('lso_subset_msg_choose_at_least_one'));
+            return;
         }
 
         $points = $data[1] ?? null;
         if (is_array($points) || !is_numeric($points)) {
-            throw new \LogicException($this->lang->txt('lso_exception_points_invalid'));
+            $this->addValidationMessage($this->lang->txt('lso_exception_points_invalid'));
+            return;
         }
 
         $this->setSourceRefIds($source_ref_ids);
+        if ($this->hasValidationMessages()) {
+            return;
+        }
         $this->setPoints((int) $points);
     }
 
@@ -297,7 +310,7 @@ final class PointsInputCondition extends AbstractCondition implements
             static fn(int $value): bool => $value > 0
         )));
         if ($source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_stored'));
+            throw new \LogicException("No source objects found for this condition.");
         }
 
         $this->source_ref_ids = $source_ref_ids;
@@ -315,7 +328,8 @@ final class PointsInputCondition extends AbstractCondition implements
             static fn(int $value): bool => $value > 0 && $value !== $current_ref_id
         )));
         if ($source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_at_least_one_object'));
+            $this->addValidationMessage($this->lang->txt('lso_subset_msg_choose_at_least_one'));
+            return;
         }
 
         $this->source_ref_ids = $source_ref_ids;
@@ -343,7 +357,7 @@ final class PointsInputCondition extends AbstractCondition implements
         );
         $row = $this->getDatabase()->fetchAssoc($res);
         if ($row === null || !isset($row[self::POINTS_FIELD])) {
-            throw new \LogicException($this->lang->txt('lso_exception_points_not_stored'));
+            throw new \LogicException("Points not stored for this condition.");
         }
 
         $this->points = (int) $row[self::POINTS_FIELD];
@@ -357,8 +371,9 @@ final class PointsInputCondition extends AbstractCondition implements
      */
     public function setPoints(int $points): void
     {
-        if ($points < 0) {
-            throw new \LogicException($this->lang->txt('lso_exception_points_negative'));
+        if ($points <= 0) {
+            $this->addValidationMessage($this->lang->txt('lso_points_input_points_must_be_greater_zero'));
+            return;
         }
 
         $this->points = $points;
@@ -555,7 +570,7 @@ final class PointsInputCondition extends AbstractCondition implements
     private function requirePoints(): int
     {
         if ($this->points === null) {
-            throw new \LogicException($this->lang->txt('lso_exception_points_not_set'));
+            throw new \LogicException('Points are not set.');
         }
 
         return $this->points;
@@ -567,7 +582,7 @@ final class PointsInputCondition extends AbstractCondition implements
     private function requireSourceRefIds(): array
     {
         if ($this->source_ref_ids === null || $this->source_ref_ids === []) {
-            throw new \LogicException($this->lang->txt('lso_exception_object_ids_not_set'));
+            throw new \LogicException('Source objects are not set.');
         }
 
         return $this->source_ref_ids;

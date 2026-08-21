@@ -522,7 +522,7 @@ class ilObjLearningSequence extends ilContainer
     {
         $condition_types = $this->il_condition_handler->getOperatorsByTriggerType($type);
         $conditions = [
-            $this->getPostConditionDB()::STD_ALWAYS_OPERATOR => $this->lng->txt('condition_always')
+            $this->getPostConditionDB()::STD_ALWAYS_OPERATOR => $this->lng->txt('always')
         ];
         foreach ($condition_types as $cond_type) {
             $conditions[$cond_type] = $this->lng->txt('condition_' . $cond_type);

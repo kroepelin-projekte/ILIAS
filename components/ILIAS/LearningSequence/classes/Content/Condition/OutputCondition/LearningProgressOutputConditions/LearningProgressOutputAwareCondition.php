@@ -67,7 +67,7 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress(),
             self::SUBTYPE_COMPLETED => $this->isCompleted(),
             self::SUBTYPE_FAILED => $this->isFailed(),
-            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -101,7 +101,7 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         $res = $this->getDatabase()->queryF(
@@ -112,7 +112,7 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_stored'));
+            throw new LogicException('Learning progress subtype is not stored.');
         }
 
         $this->setSubtype($row['subtype']);
@@ -183,8 +183,8 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
             self::SUBTYPE_NOT_ATTEMPTED => $this->lang->txt('learning_progress_not_attempted'),
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
-            self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
+            self::SUBTYPE_FAILED => $this->lang->txt('failed'),
+            default => throw new LogicException('Unknown learning progress subtype.')
         };
     }
 
@@ -210,7 +210,7 @@ final class LearningProgressOutputAwareCondition extends AbstractCondition imple
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
+            throw new LogicException('Learning progress subtype is not set.');
         }
 
         return $this->subtype;

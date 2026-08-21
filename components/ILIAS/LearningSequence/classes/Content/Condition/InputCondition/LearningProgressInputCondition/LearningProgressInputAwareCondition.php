@@ -80,7 +80,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             self::SUBTYPE_IN_PROGRESS => $this->isInProgress($target_obj_id),
             self::SUBTYPE_COMPLETED => $this->isCompleted($target_obj_id),
             self::SUBTYPE_FAILED => $this->isFailed($target_obj_id),
-            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
+            default => throw new LogicException("Unknown learning progress subtype.")
         };
     }
 
@@ -205,7 +205,8 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             || !isset($target_ref_ids[0])
             || $target_ref_ids[0] === ''
         ) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_invalid'));
+            $this->addValidationMessage($this->lang->txt('lso_msg_choose_one_object'));
+            return;
         }
 
         $this->setConditionTargetRefId((int) $target_ref_ids[0]);
@@ -235,7 +236,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
+            throw new LogicException("Learning progress subtype is not set.");
         }
 
         $res = $this->getDatabase()->queryF(
@@ -246,7 +247,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null || !is_string($row['subtype'])) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_stored'));
+            throw new LogicException("Learning progress subtype is not stored.");
         }
 
         $this->setSubtype($row['subtype']);
@@ -266,7 +267,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         }
 
         if ($this->condition_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_set'));
+            throw new LogicException("Learning progress target ref id is not set.");
         }
 
         $res = $this->getDatabase()->queryF(
@@ -278,7 +279,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_target_ref_id_not_stored'));
+            throw new LogicException("Learning progress target ref id is not stored.");
         }
 
         $this->condition_target_ref_id = (int) $row['item_ref_id'];
@@ -361,8 +362,8 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
             self::SUBTYPE_NOT_ATTEMPTED => $this->lang->txt('learning_progress_not_attempted'),
             self::SUBTYPE_IN_PROGRESS => $this->lang->txt('learning_progress_in_progress'),
             self::SUBTYPE_COMPLETED => $this->lang->txt('learning_progress_completed'),
-            self::SUBTYPE_FAILED => $this->lang->txt('learning_progress_failed'),
-            default => throw new LogicException($this->lang->txt('lso_exception_unknown_learning_progress_subtype'))
+            self::SUBTYPE_FAILED => $this->lang->txt('failed'),
+            default => throw new LogicException("Unknown learning progress subtype.")
         };
     }
 
@@ -388,7 +389,7 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
     private function requireSubtype(): string
     {
         if ($this->subtype === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lp_subtype_not_set'));
+            throw new LogicException("Learning progress subtype is not set.");
         }
 
         return $this->subtype;

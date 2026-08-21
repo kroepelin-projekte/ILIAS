@@ -75,7 +75,7 @@ class LSOLearningMapRenderer
         if ($graph['nodes'] === []) {
             return $this->ui_renderer->render(
                 $this->ui_factory->panel()->standard(
-                    $this->txt('lso_learning_map_title'),
+                    $this->txt('learning_map'),
                     $this->ui_factory->messageBox()->info($this->getEmptyMessage())
                 )
             );
@@ -83,7 +83,7 @@ class LSOLearningMapRenderer
 
         return $this->ui_renderer->render(
             $this->ui_factory->panel()->standard(
-                $this->txt('lso_learning_map_title'),
+                $this->txt('learning_map'),
                 $this->ui_factory->legacy()->content($this->buildMarkup($graph))
             )
         );

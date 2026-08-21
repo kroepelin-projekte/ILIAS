@@ -63,7 +63,7 @@ class LSOSequentialFilter
             'condition' => $this->ui_factory->input()->field()->select(
                 $this->lng->txt('table_may_proceed'),
                 [
-                    'always' => $this->lng->txt('condition_always'),
+                    'always' => $this->lng->txt('always'),
                     'lp' => $this->lng->txt('condition_learning_progress'),
                 ]
             ),

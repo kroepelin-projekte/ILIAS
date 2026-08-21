@@ -97,7 +97,7 @@ readonly class LSOAdaptiveTable
         };
 
         $table = $this->ui_factory->table()->presentation(
-            $this->lng->txt('lso_adaptive_content_management'),
+            $this->lng->txt('table_sequence_content'),
             $view_controls,
             $mapping
         )
@@ -129,7 +129,7 @@ readonly class LSOAdaptiveTable
             $badges_html = '';
             if ($record->is_online) {
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--online">'
-                    . $this->lng->txt('lso_adaptive_online') . '</span>';
+                    . $this->lng->txt('table_online') . '</span>';
             } else {
                 $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--offline">'
                     . $this->lng->txt('lso_adaptive_offline') . '</span>';
@@ -221,10 +221,10 @@ readonly class LSOAdaptiveTable
 
             $html_conditions = '<div class="alp-cm-conditions">';
             $html_conditions .= '<h4 class="alp-cm-conditions__title">'
-                . $this->lng->txt('lso_adaptive_input_conditions') . '</h4>';
+                . $this->lng->txt('input_conditions') . '</h4>';
             $html_conditions .= $this->renderKeyValueList($input);
             $html_conditions .= '<h4 class="alp-cm-conditions__title alp-cm-conditions__title--spaced">'
-                . $this->lng->txt('lso_adaptive_output_conditions') . '</h4>';
+                . $this->lng->txt('output_conditions') . '</h4>';
             $html_conditions .= $this->renderKeyValueList($output);
             $html_conditions .= '</div>';
 
@@ -373,7 +373,7 @@ readonly class LSOAdaptiveTable
     {
         if ($conditions === []) {
             return '<div class="alp-cm-conditions__empty">'
-                . $this->lng->txt('lso_adaptive_conditions_empty')
+                . $this->lng->txt('no_conditions')
                 . '</div>';
         }
 

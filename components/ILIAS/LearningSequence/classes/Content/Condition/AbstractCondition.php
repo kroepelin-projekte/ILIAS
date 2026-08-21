@@ -27,8 +27,6 @@ use ILIAS\DI\Container;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\UI\Component\Input\Container\Form\Standard as FormStandard;
 use ILIAS\UI\Component\Link\Bulky;
-use ILIAS\UI\Component\Symbol\Glyph\Glyph;
-use ILIAS\UI\Component\Symbol\Symbol;
 use ILIAS\UI\Factory;
 use ilLanguage;
 use ilObjectFactory;
@@ -62,10 +60,17 @@ abstract class AbstractCondition
      * @var array<string, string>
      */
     protected array $import_mapping = [];
+    /**
+     * User-facing validation messages collected during form handling.
+     *
+     * @var string[]
+     */
+    private array $validation_messages = [];
 
     public function __construct(?int $condition_id = null)
     {
         global $DIC;
+        /** @var \ILIAS\DI\Container $DIC */
         $this->dic = $DIC;
         $this->lang = $this->dic->language();
         $this->ui_factory = $this->dic->ui()->factory();
@@ -113,6 +118,33 @@ abstract class AbstractCondition
     }
 
     /**
+     * @return string[]
+     */
+    public function getValidationMessages(): array
+    {
+        return $this->validation_messages;
+    }
+
+    public function hasValidationMessages(): bool
+    {
+        return $this->validation_messages !== [];
+    }
+
+    public function clearValidationMessages(): void
+    {
+        $this->validation_messages = [];
+    }
+
+    protected function addValidationMessage(string $message): void
+    {
+        if ($message === '' || in_array($message, $this->validation_messages, true)) {
+            return;
+        }
+
+        $this->validation_messages[] = $message;
+    }
+
+    /**
      * Returns condition-specific object titles for table overviews.
      *
      * @return string[]
@@ -157,11 +189,11 @@ abstract class AbstractCondition
     public function setSubtype(string $subtype): void
     {
         if (!$this instanceof SubtypeAwareInterface) {
-            throw new LogicException(sprintf($this->lang->txt('lso_exception_no_subtype_support'), static::class));
+            throw new LogicException(sprintf("This Condition doesn't support Subtypes: %s", static::class));
         }
 
         if (!in_array($subtype, $this->getSupportedSubtypes(), true)) {
-            throw new LogicException(sprintf($this->lang->txt('lso_exception_unsupported_subtype'), $subtype));
+            throw new LogicException(sprintf("The subtype %s isn't supported by the condition", $subtype));
         }
 
         $this->subtype = $subtype;
@@ -171,7 +203,7 @@ abstract class AbstractCondition
      * Returns an array of steps to configure the condition.
      * Has to be implemented by the child class if additional steps are needed.
      *
-     * @return Bulky[]
+     * @return array
      * @throws ilCtrlException
      */
     public function setupSteps(): array
@@ -251,6 +283,10 @@ abstract class AbstractCondition
      */
     public function create(bool $is_import = false): void
     {
+        if ($this->hasValidationMessages()) {
+            return;
+        }
+
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('createConditionData');
         $type_id = $this->getTypeId();
@@ -259,7 +295,8 @@ abstract class AbstractCondition
             !$this->allowMultipleConditionsOfSameType()
             && $this->conditionTypeExistsInContext($type_id)
         ) {
-            throw new LogicException($this->lang->txt('lso_exception_condition_exists'));
+            $this->addValidationMessage($this->lang->txt('condition_already_exists'));
+            return;
         }
 
         $db = $this->getDatabase();
@@ -272,7 +309,7 @@ abstract class AbstractCondition
         ]);
 
         $this->condition_id = $condition_id;
-        
+
         // Only call createConditionData if this is NOT an import
         // (during import, data will be filled by importPayload())
         if (!$is_import) {
@@ -286,6 +323,10 @@ abstract class AbstractCondition
      */
     public function edit(): void
     {
+        if ($this->hasValidationMessages()) {
+            return;
+        }
+
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('editConditionData');
         $type_id = $this->getTypeId();
@@ -373,7 +414,9 @@ abstract class AbstractCondition
     protected function assertContextSet(): void
     {
         if ($this->lso_ref_id === null || $this->obj_ref_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_context_incomplete'));
+            throw new LogicException(
+                "Context not set: lso_ref_id and obj_ref_id must be set before calling this method."
+            );
         }
     }
 
@@ -415,7 +458,7 @@ abstract class AbstractCondition
         if ($method->getDeclaringClass()->getName() === self::class) {
             throw new LogicException(
                 sprintf(
-                    $this->lang->txt('lso_exception_migration_no_hook_override'),
+                    "%s defines additional migration tables but does not override %s().",
                     static::class,
                     $hook_method
                 )
@@ -459,14 +502,17 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException($this->lang->txt('lso_exception_type_not_registered'));
+            throw new LogicException("Condition type is not registered.");
         }
 
         return (int) $row['type_id'];
     }
 
-    protected function conditionTypeExistsInContext(int $type_id): bool
+    protected function conditionTypeExistsInContext(?int $type_id): bool
     {
+        if ($type_id === null) {
+            throw new LogicException('Condition type ID is not set.');
+        }
         $res = $this->getDatabase()->queryF(
             'SELECT condition_id FROM lso_conditions WHERE lso_ref_id = %s AND obj_ref_id = %s AND type_id = %s',
             ['integer', 'integer', 'integer'],
@@ -720,13 +766,12 @@ abstract class AbstractCondition
     {
         $lso_ref_id = $this->getLsoRefId();
         if ($lso_ref_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_lso_ref_id_not_set'));
+            throw new LogicException("LSO ref id is not set.");
         }
 
-        /** @var ilObjLearningSequence $object */
         $object = ilObjectFactory::getInstanceByRefId($lso_ref_id);
         if (!$object instanceof ilObjLearningSequence) {
-            throw new LogicException($this->lang->txt('lso_exception_not_lso_object'));
+            throw new LogicException("Object is not an ilObjLearningSequence.");
         }
 
         return $object;
@@ -735,7 +780,7 @@ abstract class AbstractCondition
     /**
      * Returns the items of the learning sequence associated with this condition.
      *
-     * @return array
+     * @return \LSItem[]
      */
     protected function getLsoItems(): array
     {
@@ -750,7 +795,7 @@ abstract class AbstractCondition
     public function read(): void
     {
         if ($this->condition_id === null) {
-            throw new LogicException($this->lang->txt('lso_exception_condition_id_not_set'));
+            throw new LogicException("Condition id is not set.");
         }
 
         $res = $this->getDatabase()->queryF(
@@ -761,7 +806,7 @@ abstract class AbstractCondition
         $row = $this->getDatabase()->fetchAssoc($res);
 
         if ($row === null) {
-            throw new LogicException($this->lang->txt('lso_exception_condition_not_exists'));
+            throw new LogicException("Condition does not exist.");
         }
 
         $this->setLsoRefId((int) $row['lso_ref_id']);
@@ -894,8 +939,8 @@ abstract class AbstractCondition
         $ref_mapping = $this->import_mapping;
 
         foreach ($payload as $tableData) {
-            $table = (string)($tableData['table'] ?? '');
-            $fields = (array)($tableData['fields'] ?? []);
+            $table = (string) ($tableData['table'] ?? '');
+            $fields = (array) ($tableData['fields'] ?? []);
             $rows = is_array($tableData['rows'] ?? null) ? $tableData['rows'] : [];
 
             $field_map = [];

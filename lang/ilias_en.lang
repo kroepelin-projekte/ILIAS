@@ -11158,7 +11158,6 @@ lso#:#always#:#Always
 lso#:#avail_time_period#:#Period
 lso#:#completed_steps#:#Passed Steps
 lso#:#condition_already_exists#:#Condition already exists for this object.
-lso#:#condition_always#:#Always
 lso#:#condition_learning_progress#:#Based on Learning Progress
 lso#:#condition_name#:#Name
 lso#:#condition_points#:#Points
@@ -11187,7 +11186,6 @@ lso#:#last_visited_step#:#Last Visited Step
 lso#:#learner_view#:#Overview
 lso#:#learning_map#:#Learning Map
 lso#:#learning_progress_completed#:#Completed
-lso#:#learning_progress_failed#:#Failed
 lso#:#learning_progress_in_progress#:#In progress
 lso#:#learning_progress_input#:#Learning Progress
 lso#:#learning_progress_not_attempted#:#Not attempted
@@ -11201,15 +11199,10 @@ lso#:#logic_gate_or#:#OR
 lso#:#logic_gate_or_byline#:#At least one of the selected objects must be completed.
 lso#:#lp_not_relevant_post_cond#:#currently not relevant for continuation
 lso#:#lso_activation_online_info#:#Set the Learning Sequence online to make it visible and available for Learning Sequence members. If not, only administrators and tutors will have access to it.
-lso#:#lso_adaptive_conditions_empty#:#(none)
-lso#:#lso_adaptive_content_management#:#Content Management
 lso#:#lso_adaptive_dead_end#:#Dead End
 lso#:#lso_adaptive_end#:#End
 lso#:#lso_adaptive_entry_point#:#Entry Point
-lso#:#lso_adaptive_filter_end#:#End
-lso#:#lso_adaptive_filter_start#:#Start
 lso#:#lso_adaptive_information#:#Information
-lso#:#lso_adaptive_input_conditions#:#Input Conditions
 lso#:#lso_adaptive_misconfigured#:#Misconfigured
 lso#:#lso_adaptive_missing_boundaries_online#:#The Learning Sequence cannot be set online because no start or end object has been selected.
 lso#:#lso_adaptive_missing_end_object#:#To end the learning sequence, an end object is required.
@@ -11217,8 +11210,6 @@ lso#:#lso_adaptive_missing_start_object#:#To start the learning sequence, a star
 lso#:#lso_adaptive_next_object#:#Next Object
 lso#:#lso_adaptive_offline#:#Offline
 lso#:#lso_adaptive_offline_due_to_missing_boundaries#:#The Learning Sequence was taken offline because it no longer has a start or end object.
-lso#:#lso_adaptive_online#:#Online
-lso#:#lso_adaptive_output_conditions#:#Output Conditions
 lso#:#lso_adaptive_previous_object#:#Previous Object
 lso#:#lso_adaptive_start#:#Start
 lso#:#lso_adaptive_start_end_not_same#:#An object cannot be the start and end object at the same time.
@@ -11231,42 +11222,20 @@ lso#:#lso_condition_simple_multi_target#:#Select Multiple Objects
 lso#:#lso_edit_permission#:#User can change permission settings
 lso#:#lso_exception_additional_form_no_override#:#%s defines an additional configuration form but does not override applyAdditionalFormData().
 lso#:#lso_exception_at_least_one_object#:#At least one object must be selected.
-lso#:#lso_exception_condition_already_exists#:#Condition already exists for this object.
 lso#:#lso_exception_condition_ambiguous#:#Condition lookup is ambiguous.
-lso#:#lso_exception_condition_exists#:#Condition already exists for this item and type.
-lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
 lso#:#lso_exception_condition_not_exists#:#Condition does not exist.
-lso#:#lso_subset_msg_choose_at_least_one#:#Please choose at least one object.
-lso#:#lso_msg_choose_one_object#:#Please choose one object.
-lso#:#lso_exception_context_incomplete#:#Condition context is incomplete.
 lso#:#lso_exception_logic_gate_condition_id_not_set#:#Logic gate condition_id is not set.
 lso#:#lso_exception_logic_gate_subtype_not_stored#:#Logic gate subtype is not stored.
 lso#:#lso_exception_lp_condition_ambiguous#:#Learning progress condition lookup is ambiguous.
-lso#:#lso_exception_lp_subtype_not_set#:#Learning progress subtype is not set.
-lso#:#lso_exception_lp_subtype_not_stored#:#Learning progress subtype is not stored.
-lso#:#lso_exception_lp_target_ref_id_invalid#:#Learning progress target ref id is invalid.
 lso#:#lso_exception_lp_target_ref_id_not_set#:#Learning progress target ref id is not set.
 lso#:#lso_exception_lp_target_ref_id_not_stored#:#Learning progress target ref id is not stored.
-lso#:#lso_exception_lso_ref_id_not_set#:#LSO ref id is not set.
-lso#:#lso_exception_migration_no_hook_override#:#%s defines additional migration tables but does not override %s().
-lso#:#lso_exception_no_subtype_support#:#%s does not support subtypes.
-lso#:#lso_exception_not_lso_object#:#Object is not an ilObjLearningSequence.
 lso#:#lso_exception_object_ids_invalid#:#Object ids are invalid.
-lso#:#lso_exception_object_ids_not_set#:#Object ids are not set.
 lso#:#lso_exception_object_ids_not_stored#:#Object ids are not stored.
 lso#:#lso_exception_points_invalid#:#Points are invalid.
 lso#:#lso_exception_points_negative#:#Points must not be negative.
-lso#:#lso_exception_points_not_set#:#Points are not set.
-lso#:#lso_exception_points_not_stored#:#Points are not stored.
 lso#:#lso_exception_subset_exceeds_objects#:#Subset must not exceed the number of selected objects.
 lso#:#lso_exception_subset_invalid#:#Subset is invalid.
 lso#:#lso_exception_subset_negative#:#Subset must not be negative.
-lso#:#lso_exception_subset_not_set#:#Subset is not set.
-lso#:#lso_exception_subset_not_stored#:#Subset is not stored.
-lso#:#lso_exception_type_not_registered#:#Condition type is not registered.
-lso#:#lso_exception_unknown_learning_progress_subtype#:#Unknown learning progress subtype.
-lso#:#lso_exception_unknown_logic_gate_subtype#:#Unknown logic gate subtype.
-lso#:#lso_exception_unsupported_subtype#:#Unsupported subtype "%s".
 lso#:#lso_header_delete_members#:#Would you like to remove the following members from this learning sequence?
 lso#:#lso_header_edit_members#:#Edit Members
 lso#:#lso_intropages_deprecationhint#:#You can edit the abstract and exit page in the tab "Content".
@@ -11301,7 +11270,6 @@ lso#:#lso_learning_map_sr_summary_current#:#Your current position: %s.
 lso#:#lso_learning_map_sr_summary_end#:#End: %s.
 lso#:#lso_learning_map_sr_summary_start#:#Start: %s.
 lso#:#lso_learning_map_sr_zoom#:#Zoom %s percent.
-lso#:#lso_learning_map_title#:#Learning Map
 lso#:#lso_learning_map_viewport#:#Learning map: display of objects and their order
 lso#:#lso_learning_map_zoom_in#:#Zoom in
 lso#:#lso_learning_map_zoom_in_symbol#:#+
@@ -11349,6 +11317,7 @@ lso#:#lso_mode_byline#:#Determines whether the content is offered one after anot
 lso#:#lso_mode_info#:#Choose how the Learning Sequence should be controlled.
 lso#:#lso_mode_linear#:#Linear Mode
 lso#:#lso_mode_linear_info#:#Content is processed one after another in a fixed, predefined order.
+lso#:#lso_msg_choose_one_object#:#Please choose one object.
 lso#:#lso_msg_member_assigned#:#User(s) assigned as learning sequence member(s)
 lso#:#lso_multidownload_not_available#:#Downloading multiple objects is currently not available for Learning Sequence Objects.
 lso#:#lso_new_status#:#Your new status is:
@@ -11373,6 +11342,7 @@ lso#:#lso_player_start#:#Start Learning Sequence
 lso#:#lso_player_suspend#:#Suspend
 lso#:#lso_player_viewmodelabel#:#Learning Sequence
 lso#:#lso_points_input_missing_output_on_object#:#This object is referenced by a points input condition but does not define a points output condition.
+lso#:#lso_points_input_points_must_be_greater_zero#:#Points must be greater than 0.
 lso#:#lso_points_input_source_without_points_output#:#No points output is set for the following referenced objects: %s. They will count as 0 points in this points condition.
 lso#:#lso_points_input_source_without_points_output_table#:#The following objects are referenced by points input conditions but do not define a points output: %s. They will count as 0 points in these points conditions.
 lso#:#lso_points_input_unreachable_threshold#:#The required points cannot be reached with the currently configured points outputs.
@@ -11391,6 +11361,7 @@ lso#:#lso_static_input_configuration_contradictory_constraints#:#The input condi
 lso#:#lso_static_input_configuration_missing_references#:#This input condition references objects that are not part of this learning sequence.
 lso#:#lso_static_input_configuration_referenced_by_objects#:#Referenced by objects
 lso#:#lso_static_input_configuration_referenced_objects#:#Referenced objects
+lso#:#lso_subset_msg_choose_at_least_one#:#Please choose at least one object.
 lso#:#lso_toast_completed_desc#:#You have completed this Learning Sequence. You might still keep looking through the content.
 lso#:#lso_toast_completed_title#:#Congratulations
 lso#:#lso_users_already_assigned#:#The user is already assigned to this learning sequence
