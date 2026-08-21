@@ -230,8 +230,10 @@ class ilObjLearningSequence extends ilContainer
         $boundaries = new LSOAdaptiveBoundaries($this->dic->database());
         ['start_ref_id' => $source_start_ref_id, 'end_ref_id' => $source_end_ref_id] = $boundaries
             ->getBoundariesFor($this->getId());
-        $boundaries->setStartRefId($new_obj->getId(), $source_start_ref_id);
-        $boundaries->setEndRefId($new_obj->getId(), $source_end_ref_id);
+        if ($source_start_ref_id > 0 || $source_end_ref_id > 0) {
+            $boundaries->setStartRefId($new_obj->getId(), $source_start_ref_id);
+            $boundaries->setEndRefId($new_obj->getId(), $source_end_ref_id);
+        }
 
         return $dependencies_cloned && $this->cloneConditions($target_id, $copy_id);
     }

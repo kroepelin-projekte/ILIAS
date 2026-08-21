@@ -279,7 +279,6 @@ class ilLearningSequenceImporter extends ilXmlImporter
         $this->obj->updateSettings($settings);
 
         // boundaries
-        $boundaries = new LSOAdaptiveBoundaries($DIC->database());
         $start_ref_id = (string) ($ls_settings["start_ref_id"] ?? '');
         $end_ref_id = (string) ($ls_settings["end_ref_id"] ?? '');
         $new_start_ref_id = $mapping->getMapping("components/ILIAS/Container", "refs", $start_ref_id);
@@ -287,8 +286,11 @@ class ilLearningSequenceImporter extends ilXmlImporter
 
         $new_start_ref_id = (!empty($new_start_ref_id)) ? (int) $new_start_ref_id : 0;
         $new_end_ref_id   = (!empty($new_end_ref_id))   ? (int) $new_end_ref_id   : 0;
-        $boundaries->setStartRefId($this->obj->getId(), $new_start_ref_id);
-        $boundaries->setEndRefId($this->obj->getId(), $new_end_ref_id);
+        if ($new_start_ref_id > 0 || $new_end_ref_id > 0) {
+            $boundaries = new LSOAdaptiveBoundaries($DIC->database());
+            $boundaries->setStartRefId($this->obj->getId(), $new_start_ref_id);
+            $boundaries->setEndRefId($this->obj->getId(), $new_end_ref_id);
+        }
     }
 
     protected function buildLPSettings(array $lp_settings, ilImportMapping $mapping): void
