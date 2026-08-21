@@ -29,7 +29,7 @@ use ILIAS\GlobalScreen\Scope\Layout\MetaContent\MetaContent;
 
 class ilKioskPageRenderer
 {
-    public const LEARNING_MAP_LABEL = 'Learning Map'; // #ToDo Sprachvariable
+    public const LEARNING_MAP_LABEL = 'learning_map';
 
     protected MetaContent $layout_meta_content;
     protected Factory $ui_factory;
@@ -75,7 +75,7 @@ class ilKioskPageRenderer
         // onto the dialog element (see sizeModal() in lso_learning_map.js).
         // The wrapper is only the marker the script and the css look for.
         $modal = $f->modal()->roundtrip(
-            self::LEARNING_MAP_LABEL,
+            $this->lng->txt(self::LEARNING_MAP_LABEL),
             [
                 $f->legacy()->content(
                     '<div class="lso-learning-map-modal">' . $map_html . '</div>'
@@ -83,8 +83,8 @@ class ilKioskPageRenderer
             ]
         );
         $button = $f->button()->bulky(
-            $f->symbol()->icon()->standard('lso', self::LEARNING_MAP_LABEL),
-            self::LEARNING_MAP_LABEL,
+            $f->symbol()->icon()->standard('lso', $this->lng->txt(self::LEARNING_MAP_LABEL)),
+            $this->lng->txt(self::LEARNING_MAP_LABEL),
             '#'
         )->withOnClick($modal->getShowSignal());
 

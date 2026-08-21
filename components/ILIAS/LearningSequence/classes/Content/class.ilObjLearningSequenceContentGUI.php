@@ -129,7 +129,7 @@ class ilObjLearningSequenceContentGUI
      */
     public function executeCommand(): void
     {
-        $this->assertReadAccess();
+        $this->assertWriteAccess();
 
         if ($this->forwardToConditionsGUI()) {
             return;
@@ -139,13 +139,13 @@ class ilObjLearningSequenceContentGUI
     }
 
     /**
-     * Guards the whole gui: without read permission the user is sent back to
+     * Guards the whole gui: without write permission the user is sent back to
      * the object view.
      */
-    private function assertReadAccess(): void
+    private function assertWriteAccess(): void
     {
-        if (!$this->access->checkAccess("read", '', $this->parent_gui->getRefId())) {
-            $this->tpl->setOnScreenMessage('info', $this->lng->txt('msg_no_perm_read_item'), true);
+        if (!$this->access->checkAccess("write", '', $this->parent_gui->getRefId())) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'), true);
             $this->ctrl->redirect($this->parent_gui, self::CMD_VIEW);
         }
     }

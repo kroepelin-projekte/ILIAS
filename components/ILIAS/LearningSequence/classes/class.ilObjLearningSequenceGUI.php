@@ -304,11 +304,8 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
                 break;
             case "ilobjlearningsequencecontentgui":
 
-                if (!$this->checkAccess("read", '', $this->ref_id)) {
-                    $this->tpl->setOnScreenMessage('failure', sprintf(
-                        $this->lng->txt('msg_no_perm_read_item'),
-                        $this->object->getTitle()
-                    ), true);
+                if (!$this->checkAccess("write", '', $this->ref_id)) {
+                    $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'), true);
 
                     $this->ctrl->redirect($this, 'view');
                 }
@@ -320,6 +317,7 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
                 break;
             case "ilobjlearningsequenceconditionsgui":
                 if (!$this->checkAccess("write", '', $this->ref_id)) {
+                    $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_no_perm_write'), true);
                     $this->ctrl->redirect($this, 'view');
                 }
                 $this->tabs->activateTab(self::TAB_CONTENT_MAIN);

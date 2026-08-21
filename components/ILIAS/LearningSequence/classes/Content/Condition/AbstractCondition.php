@@ -454,7 +454,7 @@ abstract class AbstractCondition
         $res = $this->getDatabase()->queryF(
             'SELECT type_id FROM lso_condition_types WHERE condition_name = %s',
             ['text'],
-            [$this->getIdentifierForClass(static::class)]
+            [self::getIdentifierForClass(static::class)]
         );
         $row = $this->getDatabase()->fetchAssoc($res);
 
@@ -482,7 +482,7 @@ abstract class AbstractCondition
      * @param string $class
      * @return string
      */
-    public function getIdentifierForClass(string $class): string
+    public static function getIdentifierForClass(string $class): string
     {
         $parts = explode('\\', $class);
         $short_name = end($parts);

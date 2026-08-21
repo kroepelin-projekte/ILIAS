@@ -118,6 +118,10 @@ class ilLSPlayer
         // own interstitial page instead of being appended below the object.
         $show_choice = ($command === self::LSO_CMD_CHOICE) && $this->isAdaptive();
 
+        if (!$this->isAdaptive() && $this->position !== null) {
+            $this->position->recordVisit($current_item->getRefId());
+        }
+
         switch ($command) {
             case self::LSO_CMD_SUSPEND:
             case self::LSO_CMD_FINISH:
@@ -129,7 +133,7 @@ class ilLSPlayer
                     break;
                 }
                 $next_item = $this->getNextItem($items, $current_item, $param);
-                if ($next_item->getAvailability() !== Step::AVAILABLE) {
+                if (!$this->isItemAvailableForSequenceNavigation($items, $current_item, $next_item, $param)) {
                     $next_item = $current_item;
                 }
                 break;
@@ -165,6 +169,10 @@ class ilLSPlayer
         if ($next_item != $current_item) {
             $view = $this->view_factory->getViewFor($next_item);
             $state = $this->ls_items->getStateFor($next_item, $view);
+        }
+
+        if (!$this->isAdaptive() && $this->position !== null) {
+            $this->position->recordVisit($next_item->getRefId());
         }
 
         //content
@@ -409,6 +417,13 @@ class ilLSPlayer
         if ($current_item->getAvailability() === Step::AVAILABLE) {
             return $current_item;
         }
+        $position = $this->getPosition();
+        if ($position !== null) {
+            $current_obj_id = ilObject::_lookupObjId($current_item->getRefId());
+            if ($position->hasVisited($current_obj_id)) {
+                return $current_item;
+            }
+        }
 
         $new_next_item = null;
         $idx = array_search($current_item, $items);
@@ -457,6 +472,38 @@ class ilLSPlayer
     }
 
     /**
+     * @param LSLearnerItem[] $items
+     */
+    protected function isItemAvailableForSequenceNavigation(
+        array $items,
+        LSLearnerItem $current_item,
+        LSLearnerItem $target_item,
+        int $direction
+    ): bool {
+        if ($target_item->getAvailability() === Step::AVAILABLE) {
+            return true;
+        }
+        $position = $this->getPosition();
+        if ($position === null) {
+            return false;
+        }
+        if ($target_item->getRefId() === $current_item->getRefId()) {
+            return true;
+        }
+        $target_obj_id = ilObject::_lookupObjId($target_item->getRefId());
+        if ($direction < 0) {
+            return $position->hasVisited($target_obj_id);
+        }
+        $current_obj_id = ilObject::_lookupObjId($current_item->getRefId());
+        return $position->hasCompleted($items, $current_obj_id);
+    }
+
+    protected function getPosition(): ?LSOLearningMapPosition
+    {
+        return $this->position ?? null;
+    }
+
+    /**
      * @return array <int, LSLearnerItem> position=>item
      */
     protected function findItemByRefId(array $items, int $ref_id): array
@@ -491,8 +538,12 @@ class ilLSPlayer
             $cmd = ''; //disables control
 
             if (!$is_first) {
-                $available = $this->getNextItem($items, $item, $direction_prev)
-                    ->getAvailability() === Step::AVAILABLE;
+                $available = $this->isItemAvailableForSequenceNavigation(
+                    $items,
+                    $item,
+                    $this->getNextItem($items, $item, $direction_prev),
+                    $direction_prev
+                );
 
                 if ($available) {
                     $cmd = self::LSO_CMD_NEXT;
@@ -512,8 +563,12 @@ class ilLSPlayer
                 $cmd = self::LSO_CMD_FINISH;
                 $param = null;
             } else {
-                $available = $this->getNextItem($items, $item, $direction_next)
-                    ->getAvailability() === Step::AVAILABLE;
+                $available = $this->isItemAvailableForSequenceNavigation(
+                    $items,
+                    $item,
+                    $this->getNextItem($items, $item, $direction_next),
+                    $direction_next
+                );
 
                 if ($available) {
                     $cmd = self::LSO_CMD_NEXT;

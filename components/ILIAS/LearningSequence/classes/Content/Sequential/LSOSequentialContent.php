@@ -24,6 +24,7 @@ use ILIAS\LearningSequence\Content\LSOContentController;
 use ILIAS\LearningSequence\Content\LSOContentDeletion;
 use ILIAS\UI\Factory;
 use ILIAS\UI\Renderer;
+use ilConfirmationGUI;
 use ilLanguage;
 use ilObject;
 use ilObjLearningSequence;

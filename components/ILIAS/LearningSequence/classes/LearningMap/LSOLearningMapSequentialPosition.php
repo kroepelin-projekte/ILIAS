@@ -65,21 +65,4 @@ class LSOLearningMapSequentialPosition extends LSOLearningMapPosition
         return $this->last_ref_id;
     }
 
-    /**
-     * Determines whether an item has been completed.
-     *
-     * @param \LSLearnerItem[] $items
-     */
-    public function hasCompleted(array $items, int $obj_id): bool
-    {
-        if ($obj_id === 0) {
-            return false;
-        }
-        foreach ($items as $item) {
-            if ($this->lookupObjId($item->getRefId()) === $obj_id) {
-                return $this->navigator->canLeave($item);
-            }
-        }
-        return false;
-    }
 }

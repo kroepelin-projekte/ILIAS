@@ -298,16 +298,17 @@ class ilLSLocalDI extends Container
             // learner (e.g. a future tutor view over all participants), while
             // the default (current) user stays $c["usr.id"].
             $position_factory = static function (int $usr_id) use ($is_adaptive, $navigator, $item_path, $boundaries, $lso_obj_id, $db): LSOLearningMapPosition {
-                // The sequential mode has neither a visit log nor a walked path,
-                // so no database is handed over; start and end are derived from
-                // the order of the items instead.
+                // The sequential mode derives start and end from the order of
+                // the items, but still needs the visit log to determine when an
+                // "always" post-condition has actually been fulfilled.
                 if (!$is_adaptive) {
                     return new LSOLearningMapSequentialPosition(
                         $navigator,
                         $item_path,
                         $boundaries,
                         $lso_obj_id,
-                        $usr_id
+                        $usr_id,
+                        $db
                     );
                 }
                 return new LSOLearningMapPosition(

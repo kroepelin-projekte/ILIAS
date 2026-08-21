@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\LearningMap;
 
+use ILIAS\LearningSequence\Player\AdaptiveNavigator;
 use ILIAS\LearningSequence\Player\LSNavigator;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
@@ -72,7 +73,7 @@ class LSOLearningMapPosition
     /**
      * Records a visit to an item.
      */
-    protected function recordVisit(int $ref_id): void
+    public function recordVisit(int $ref_id): void
     {
         if ($this->db === null) {
             return;
@@ -107,7 +108,7 @@ class LSOLearningMapPosition
     protected function getStartRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
-        return (int) ($boundaries['start_ref_id'] ?? 0);
+        return $boundaries['start_ref_id'];
     }
     /**
      * Returns the configured end reference ID.
@@ -115,7 +116,7 @@ class LSOLearningMapPosition
     protected function getEndRefId(): int
     {
         $boundaries = $this->boundaries->getBoundariesFor($this->lso_obj_id);
-        return (int) ($boundaries['end_ref_id'] ?? 0);
+        return $boundaries['end_ref_id'];
     }
     /**
      * Returns the configured start object ID.
@@ -239,7 +240,9 @@ class LSOLearningMapPosition
      */
     public function getStructuralSuccessors(array $items, \LSLearnerItem $item): array
     {
-        return $this->navigator->getStructuralSuccessors($items, $item);
+        /** @var \LSLearnerItem[] $successors */
+        $successors = $this->navigator->getStructuralSuccessors($items, $item);
+        return $successors;
     }
     /**
      * Advances from the current item in a direction.
@@ -311,8 +314,10 @@ class LSOLearningMapPosition
             return true;
         }
         foreach ($predecessors as $predecessor) {
+            $predecessor_obj_id = $this->lookupObjId($predecessor->getRefId());
             if (
                 $this->navigator->canLeave($predecessor)
+                && $this->hasCompleted($items, $predecessor_obj_id)
                 && $this->navigator->canEnterFrom($predecessor, $item)
             ) {
                 return true;
@@ -541,8 +546,18 @@ class LSOLearningMapPosition
             if ($this->lookupObjId($item->getRefId()) !== $obj_id) {
                 continue;
             }
+            if ($this->navigator instanceof LSOLearningMapSequentialNavigator
+                && $item->getPostCondition()->getConditionOperator() === \ilLSPostCondition::OPERATOR_ALWAYS
+            ) {
+                return $this->hasVisited($obj_id);
+            }
             if ($this->navigator->getOutputConditionIds($item) === []) {
-                return $this->hasLearningProgressCompleted($item, $obj_id);
+                return $this->hasVisited($obj_id);
+            }
+            if ($this->navigator instanceof AdaptiveNavigator
+                && $this->navigator->requiresVisitForCompletion($item)
+            ) {
+                return $this->hasVisited($obj_id);
             }
             return $this->navigator->canLeave($item);
         }

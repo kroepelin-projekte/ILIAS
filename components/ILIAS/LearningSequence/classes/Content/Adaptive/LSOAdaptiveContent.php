@@ -23,6 +23,7 @@ namespace ILIAS\LearningSequence\Content\Adaptive;
 use ilCtrl;
 use ilDBInterface;
 use ilGlobalTemplateInterface;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationAnalyzer;
@@ -455,11 +456,11 @@ class LSOAdaptiveContent implements LSOContentController
      */
     private function buildConditionOptions(array $condition_classes): array
     {
-        $discover = $this->getConditionDiscover();
         $options = [];
         foreach ($condition_classes as $class) {
-            $name = $discover->getConditionNameByClass($class);
-            $options[$name] = $discover->getConditionTitleByClass($class);
+            /** @var AbstractCondition $condition */
+            $condition = new $class();
+            $options[AbstractCondition::getIdentifierForClass($class)] = $this->lng->txt((string) $condition->getName());
         }
         return $options;
     }

@@ -23,6 +23,7 @@ namespace ILIAS\LearningSequence\Content\Condition;
 class ConditionHandler
 {
     protected ?\ilDBInterface $db = null;
+    protected ?\ilLanguage $lng = null;
     protected ilObjLearningSequenceConditionDiscover $discoverer;
     private ConditionFactory $condition_factory;
 
@@ -32,6 +33,9 @@ class ConditionHandler
         $this->db = $db;
         if ($this->db === null && isset($DIC) && $DIC instanceof \ILIAS\DI\Container) {
             $this->db = $DIC->database();
+        }
+        if (isset($DIC) && $DIC instanceof \ILIAS\DI\Container) {
+            $this->lng = $DIC->language();
         }
         $this->discoverer = new ilObjLearningSequenceConditionDiscover();
         $this->condition_factory = new ConditionFactory(
@@ -183,7 +187,7 @@ class ConditionHandler
                     try {
                         $condition = $condition_factory->getConditionInstanceById((int) $db_cond['condition_id']);
                         $result[] = [
-                            'title' => $this->discoverer->getConditionTitleByClass($class),
+                            'title' => $this->lng->txt((string) $condition->getName()),
                             'value' => $condition instanceof SubtypeAwareInterface
                                 ? $condition->getSubtypeLabel($condition->getSubtype())
                                 : '',
@@ -212,7 +216,7 @@ class ConditionHandler
             try {
                 $reflection = new \ReflectionClass($class);
                 if ($reflection->isInstantiable()) {
-                    $names[] = $this->discoverer->getConditionNameByClass($class);
+                    $names[] = AbstractCondition::getIdentifierForClass($class);
                 }
             } catch (\Throwable $e) {
                 continue;

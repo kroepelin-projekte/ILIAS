@@ -73,7 +73,7 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
         $expected_tables = [];
 
         foreach ($conditions as $class) {
-            $name = $discoverer->getConditionNameByClass($class);
+            $name = AbstractCondition::getIdentifierForClass($class);
             if ($name === '') {
                 continue;
             }
@@ -175,7 +175,7 @@ class ilLearningSequenceConditionsSyncedObjective implements Objective
         $expected_tables = [];
 
         foreach ($conditions as $class) {
-            $name = $discoverer->getConditionNameByClass($class);
+            $name = AbstractCondition::getIdentifierForClass($class);
             if ($name === '') {
                 continue;
             }
