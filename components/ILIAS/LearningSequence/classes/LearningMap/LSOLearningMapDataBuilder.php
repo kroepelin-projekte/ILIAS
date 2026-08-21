@@ -130,12 +130,12 @@ class LSOLearningMapDataBuilder
     ): array {
         $nodes = [];
         $depth = [$start_obj_id => 0];
-        $queue = [[$start_item, $start_obj_id]];
+        $queue = $start_obj_id === 0 ? [] : [[$start_item, $start_obj_id]];
         $visited = [$start_obj_id => true];
         $roots = $this->collectAdditionalRoots($items, $visited);
 
-        while ($queue !== [] || $roots !== []) {
-            if ($queue === [] && $roots !== []) {
+        while (count($queue) > 0 || count($roots) > 0) {
+            if (count($queue) === 0) {
                 [$root_item, $root_obj_id] = array_shift($roots);
                 if (isset($visited[$root_obj_id])) {
                     continue;
@@ -149,7 +149,7 @@ class LSOLearningMapDataBuilder
             $successor_items = $position->getStructuralSuccessors($items, $item);
             $successor_obj_ids = [];
             $passable_successor_obj_ids = [];
-            $can_leave = $this->navigator->canLeave($item);
+            $can_leave = $position->hasCompleted($items, $obj_id) && $this->navigator->canLeave($item);
             foreach ($successor_items as $successor) {
                 $successor_obj_id = $this->lookupObjId($successor->getRefId());
                 $successor_obj_ids[] = $successor_obj_id;
@@ -280,7 +280,9 @@ class LSOLearningMapDataBuilder
             return true;
         }
         foreach ($predecessors as $predecessor) {
+            $predecessor_obj_id = $this->lookupObjId($predecessor->getRefId());
             if ($this->navigator->canLeave($predecessor)
+                && $position->hasCompleted($items, $predecessor_obj_id)
                 && $this->navigator->canEnterFrom($predecessor, $item)
             ) {
                 return true;

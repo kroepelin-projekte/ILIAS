@@ -27,6 +27,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\AccruedValueInputCon
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNavigationAwareInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\AccruedValueOutputConditionInterface;
+use ILIAS\LearningSequence\Content\Condition\OutputCondition\AlwaysOutputCondition\AlwaysOutputCondition;
 use ILIAS\LearningSequence\Content\Condition\OutputCondition\OutputConditionInterface;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions\LearningProgressInputAwareCondition;
 
@@ -354,6 +355,24 @@ class AdaptiveNavigator implements LSNavigator
             }
         }
         return $ids;
+    }
+
+    /**
+     * Determines whether completion is only proven by visiting the item.
+     */
+    public function requiresVisitForCompletion(\LSLearnerItem $item): bool
+    {
+        $has_output_condition = false;
+        foreach ($this->getConditionsFor($item->getRefId()) as $condition) {
+            if (!$condition instanceof OutputConditionInterface) {
+                continue;
+            }
+            $has_output_condition = true;
+            if ($condition instanceof AlwaysOutputCondition) {
+                return true;
+            }
+        }
+        return !$has_output_condition;
     }
 
     /**
