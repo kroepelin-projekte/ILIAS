@@ -11263,6 +11263,8 @@ lso#:#lso_exception_condition_ambiguous#:#Bedingungssuche ist mehrdeutig.
 lso#:#lso_exception_condition_exists#:#Bedingung existiert bereits für dieses Element und diesen Typ.
 lso#:#lso_exception_condition_id_not_set#:#Bedingungs-ID ist nicht gesetzt.
 lso#:#lso_exception_condition_not_exists#:#Bedingung existiert nicht.
+lso#:#lso_subset_msg_choose_at_least_one#:#Bitte wählen Sie mindestens ein Objekt aus.
+lso#:#lso_msg_choose_one_object#:#Bitte wählen Sie ein Objekt aus.
 lso#:#lso_exception_context_incomplete#:#Bedingungskontext ist unvollständig.
 lso#:#lso_exception_logic_gate_condition_id_not_set#:#Logik-Gatter condition_id ist nicht gesetzt.
 lso#:#lso_exception_logic_gate_subtype_not_stored#:#Logik-Gatter-Subtyp ist nicht gespeichert.

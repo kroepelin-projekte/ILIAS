@@ -11235,6 +11235,8 @@ lso#:#lso_exception_condition_ambiguous#:#Condition lookup is ambiguous.
 lso#:#lso_exception_condition_exists#:#Condition already exists for this item and type.
 lso#:#lso_exception_condition_id_not_set#:#Condition id is not set.
 lso#:#lso_exception_condition_not_exists#:#Condition does not exist.
+lso#:#lso_subset_msg_choose_at_least_one#:#Please choose at least one object.
+lso#:#lso_msg_choose_one_object#:#Please choose one object.
 lso#:#lso_exception_context_incomplete#:#Condition context is incomplete.
 lso#:#lso_exception_logic_gate_condition_id_not_set#:#Logic gate condition_id is not set.
 lso#:#lso_exception_logic_gate_subtype_not_stored#:#Logic gate subtype is not stored.
