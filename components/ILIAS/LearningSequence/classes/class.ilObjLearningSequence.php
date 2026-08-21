@@ -222,6 +222,7 @@ class ilObjLearningSequence extends ilContainer
 
         /** @var ilObjLearningSequence $new_obj */
         $new_obj = ilObjectFactory::getInstanceByRefId($target_id);
+        $mapping = self::getCopyWizardRefIdMapping($copy_id);
 
         $settings = $new_obj->getLSSettings();
         $settings = $settings->withMode($this->getLSSettings()->getMode());
@@ -230,9 +231,11 @@ class ilObjLearningSequence extends ilContainer
         $boundaries = new LSOAdaptiveBoundaries($this->dic->database());
         ['start_ref_id' => $source_start_ref_id, 'end_ref_id' => $source_end_ref_id] = $boundaries
             ->getBoundariesFor($this->getId());
-        if ($source_start_ref_id > 0 || $source_end_ref_id > 0) {
-            $boundaries->setStartRefId($new_obj->getId(), $source_start_ref_id);
-            $boundaries->setEndRefId($new_obj->getId(), $source_end_ref_id);
+        $new_start_ref_id = self::mapCopiedRefId($source_start_ref_id, $mapping);
+        $new_end_ref_id = self::mapCopiedRefId($source_end_ref_id, $mapping);
+        if ($new_start_ref_id > 0 || $new_end_ref_id > 0) {
+            $boundaries->setStartRefId($new_obj->getId(), $new_start_ref_id);
+            $boundaries->setEndRefId($new_obj->getId(), $new_end_ref_id);
         }
 
         return $dependencies_cloned && $this->cloneConditions($target_id, $copy_id);
@@ -247,17 +250,14 @@ class ilObjLearningSequence extends ilContainer
      */
     private function cloneConditions(int $target_id, int $copy_id): bool
     {
-        $cp_options = ilCopyWizardOptions::_getInstance($copy_id);
-        $mapping = array_filter($cp_options->getMappings(), 'is_numeric', ARRAY_FILTER_USE_KEY);
+        $mapping = self::getCopyWizardRefIdMapping($copy_id);
 
         foreach ($this->getLSItems() as $ls_item) {
             $item_ref_id = $ls_item->getRefId();
-
-            if (!array_key_exists($item_ref_id, $mapping)) {
+            $new_item_ref_id = self::mapCopiedRefId($item_ref_id, $mapping);
+            if ($new_item_ref_id === 0) {
                 continue;
             }
-
-            $new_item_ref_id = $mapping[$item_ref_id];
 
             $conditions = $this->discover->getAllConditionIdsForItem($item_ref_id);
             foreach ($conditions as $condition_id) {
@@ -294,6 +294,27 @@ class ilObjLearningSequence extends ilContainer
         }
 
         return true;
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    protected static function getCopyWizardRefIdMapping(int $copy_id): array
+    {
+        $cp_options = ilCopyWizardOptions::_getInstance($copy_id);
+        return array_filter($cp_options->getMappings(), 'is_numeric', ARRAY_FILTER_USE_KEY);
+    }
+
+    /**
+     * @param array<int|string, mixed> $mapping
+     */
+    protected static function mapCopiedRefId(int $source_ref_id, array $mapping): int
+    {
+        if ($source_ref_id <= 0) {
+            return 0;
+        }
+
+        return (int) ($mapping[$source_ref_id] ?? 0);
     }
 
     /**
