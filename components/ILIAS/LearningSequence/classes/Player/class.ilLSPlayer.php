@@ -417,9 +417,10 @@ class ilLSPlayer
         if ($current_item->getAvailability() === Step::AVAILABLE) {
             return $current_item;
         }
-        if ($this->position !== null) {
+        $position = $this->getPosition();
+        if ($position !== null) {
             $current_obj_id = ilObject::_lookupObjId($current_item->getRefId());
-            if ($this->position->hasVisited($current_obj_id)) {
+            if ($position->hasVisited($current_obj_id)) {
                 return $current_item;
             }
         }
@@ -482,7 +483,8 @@ class ilLSPlayer
         if ($target_item->getAvailability() === Step::AVAILABLE) {
             return true;
         }
-        if ($this->position === null) {
+        $position = $this->getPosition();
+        if ($position === null) {
             return false;
         }
         if ($target_item->getRefId() === $current_item->getRefId()) {
@@ -490,10 +492,15 @@ class ilLSPlayer
         }
         $target_obj_id = ilObject::_lookupObjId($target_item->getRefId());
         if ($direction < 0) {
-            return $this->position->hasVisited($target_obj_id);
+            return $position->hasVisited($target_obj_id);
         }
         $current_obj_id = ilObject::_lookupObjId($current_item->getRefId());
-        return $this->position->hasCompleted($items, $current_obj_id);
+        return $position->hasCompleted($items, $current_obj_id);
+    }
+
+    protected function getPosition(): ?LSOLearningMapPosition
+    {
+        return $this->position ?? null;
     }
 
     /**
