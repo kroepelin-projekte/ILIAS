@@ -23,6 +23,7 @@ namespace ILIAS\LearningSequence\LearningMap;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
 use ILIAS\LearningSequence\Content\Adaptive\LSOItemPath;
 use ILIAS\LearningSequence\Player\LSNavigator;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class LearningMapAccessibilityTest extends TestCase
@@ -33,7 +34,7 @@ class LearningMapAccessibilityTest extends TestCase
         $navigator->method('canEnterIgnoringEdges')->willReturn(false);
 
         $position = $this->createMock(LSOLearningMapPosition::class);
-        $position->method('hasVisited')->with(2001)->willReturn(true);
+        $position->expects($this->any())->method('hasVisited')->with(2001)->willReturn(true);
 
         $item = $this->createMock(\LSLearnerItem::class);
         $url_builder = $this->createStub(\LSUrlBuilder::class);
@@ -52,6 +53,9 @@ class LearningMapAccessibilityTest extends TestCase
                 );
             }
 
+            /**
+             * @param \LSLearnerItem[] $items
+             */
             public function exposeCanAccess(
                 LSOLearningMapPosition $position,
                 array $items,
@@ -75,13 +79,10 @@ class LearningMapAccessibilityTest extends TestCase
         $predecessor = $this->mockItem(151);
 
         $navigator->method('getPredecessors')->willReturn([$predecessor]);
-        $navigator->method('canLeave')->with($predecessor)->willReturn(true);
-        $navigator->method('canEnterFrom')->with($predecessor, $target)->willReturn(false);
+        $navigator->expects($this->any())->method('canLeave')->with($predecessor)->willReturn(true);
+        $navigator->expects($this->any())->method('canEnterFrom')->with($predecessor, $target)->willReturn(false);
 
-        $item_path = $this->createStub(LSOItemPath::class);
-        $boundaries = $this->createStub(LSOAdaptiveBoundaries::class);
-
-        $position = new class ($navigator, $item_path, $boundaries) extends LSOLearningMapPosition {
+        $position = new class ($navigator, $this->createStub(LSOItemPath::class), $this->createStub(LSOAdaptiveBoundaries::class)) extends LSOLearningMapPosition {
             public function __construct(
                 LSNavigator $navigator,
                 LSOItemPath $item_path,
@@ -96,6 +97,9 @@ class LearningMapAccessibilityTest extends TestCase
                 );
             }
 
+            /**
+             * @param \LSLearnerItem[] $items
+             */
             public function exposeMayAccess(array $items, \LSLearnerItem $item): bool
             {
                 return $this->mayAccess($items, $item);
@@ -105,9 +109,108 @@ class LearningMapAccessibilityTest extends TestCase
             {
                 return 149;
             }
+
+            protected function lookupObjId(int $ref_id): int
+            {
+                return match ($ref_id) {
+                    151 => 2001,
+                    153 => 2003,
+                    default => 0
+                };
+            }
+
+            public function hasCompleted(array $items, int $obj_id): bool
+            {
+                return $obj_id === 2001;
+            }
         };
 
         $this->assertFalse($position->exposeMayAccess([$target, $predecessor], $target));
+    }
+
+    public function testSequentialAlwaysPostConditionRequiresVisitForCompletion(): void
+    {
+        $navigator = new LSOLearningMapSequentialNavigator();
+        $item = $this->mockItem(151);
+        $item->method('getPostCondition')->willReturn(
+            new \ilLSPostCondition(151, \ilLSPostCondition::OPERATOR_ALWAYS)
+        );
+
+        $position = $this->createPosition($navigator, [151 => 2001], []);
+
+        $this->assertFalse($position->hasCompleted([$item], 2001));
+    }
+
+    public function testSequentialPositionUsesVisitBasedCompletionForAlwaysPostCondition(): void
+    {
+        $navigator = new LSOLearningMapSequentialNavigator();
+        $item = $this->mockItem(151);
+        $item->method('getPostCondition')->willReturn(
+            new \ilLSPostCondition(151, \ilLSPostCondition::OPERATOR_ALWAYS)
+        );
+
+        $position = new class ($navigator, $this->createStub(LSOItemPath::class), $this->createStub(LSOAdaptiveBoundaries::class)) extends LSOLearningMapSequentialPosition {
+            public function __construct(
+                LSNavigator $navigator,
+                LSOItemPath $item_path,
+                LSOAdaptiveBoundaries $boundaries
+            ) {
+                parent::__construct($navigator, $item_path, $boundaries, 421, 6);
+            }
+
+            protected function lookupObjId(int $ref_id): int
+            {
+                return $ref_id === 151 ? 2001 : 0;
+            }
+
+            public function hasVisited(int $obj_id): bool
+            {
+                return false;
+            }
+        };
+
+        $position->prepareForItems([$item]);
+
+        $this->assertFalse($position->hasCompleted([$item], 2001));
+    }
+
+    public function testItemWithoutOutputConditionsRequiresVisitForCompletion(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+        $navigator->method('getOutputConditionIds')->willReturn([]);
+        $item = $this->mockItem(151);
+
+        $position = $this->createPosition($navigator, [151 => 2001], []);
+
+        $this->assertFalse($position->hasCompleted([$item], 2001));
+    }
+
+    public function testLearningProgressOutputConditionCanCompleteWithoutVisit(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+        $navigator->method('getOutputConditionIds')->willReturn([1]);
+        $navigator->method('canLeave')->willReturn(true);
+        $item = $this->mockItem(151);
+
+        $position = $this->createPosition($navigator, [151 => 2001], []);
+
+        $this->assertTrue($position->hasCompleted([$item], 2001));
+    }
+
+    public function testAdaptiveAlwaysOutputConditionRequiresVisitForCompletion(): void
+    {
+        $navigator = $this->getMockBuilder(\ILIAS\LearningSequence\Player\AdaptiveNavigator::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['getOutputConditionIds', 'requiresVisitForCompletion', 'canLeave'])
+            ->getMock();
+        $navigator->method('getOutputConditionIds')->willReturn([1]);
+        $navigator->method('requiresVisitForCompletion')->willReturn(true);
+        $navigator->method('canLeave')->willReturn(true);
+        $item = $this->mockItem(151);
+
+        $position = $this->createPosition($navigator, [151 => 2001], []);
+
+        $this->assertFalse($position->hasCompleted([$item], 2001));
     }
 
     public function testFallbackSuccessorsUseNearestPreviousBranchNode(): void
@@ -217,11 +320,53 @@ class LearningMapAccessibilityTest extends TestCase
         $this->assertSame(LSOLearningMapPosition::SIT_DEADEND, $position->exposeSituation($items, $current));
     }
 
+    /**
+     * @return \LSLearnerItem&MockObject
+     */
     private function mockItem(int $ref_id): \LSLearnerItem
     {
         $item = $this->createMock(\LSLearnerItem::class);
         $item->method('getRefId')->willReturn($ref_id);
 
         return $item;
+    }
+
+    /**
+     * @param array<int, int> $obj_ids_by_ref_id
+     * @param int[] $visited_obj_ids
+     */
+    private function createPosition(
+        LSNavigator $navigator,
+        array $obj_ids_by_ref_id,
+        array $visited_obj_ids
+    ): LSOLearningMapPosition {
+        $item_path = $this->createStub(LSOItemPath::class);
+        $boundaries = $this->createStub(LSOAdaptiveBoundaries::class);
+
+        return new class ($navigator, $item_path, $boundaries, $obj_ids_by_ref_id, $visited_obj_ids) extends LSOLearningMapPosition {
+            /**
+             * @param array<int, int> $obj_ids_by_ref_id
+             * @param int[] $visited_obj_ids
+             */
+            public function __construct(
+                LSNavigator $navigator,
+                LSOItemPath $item_path,
+                LSOAdaptiveBoundaries $boundaries,
+                private array $obj_ids_by_ref_id,
+                private array $visited_obj_ids
+            ) {
+                parent::__construct($navigator, $item_path, $boundaries, 421, 6);
+            }
+
+            protected function lookupObjId(int $ref_id): int
+            {
+                return $this->obj_ids_by_ref_id[$ref_id] ?? 0;
+            }
+
+            public function hasVisited(int $obj_id): bool
+            {
+                return in_array($obj_id, $this->visited_obj_ids, true);
+            }
+        };
     }
 }
