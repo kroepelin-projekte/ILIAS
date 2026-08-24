@@ -23,6 +23,7 @@ use ILIAS\LearningSequence\Content\Condition\InputCondition\InputConditionNaviga
 use ILIAS\LearningSequence\Content\Condition\InputCondition\LearningProgressInputConditions\LearningProgressInputAwareCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\PointsInputCondition\PointsInputCondition;
 use ILIAS\LearningSequence\Content\Condition\InputCondition\SubsetInputCondition\SubsetInputCondition;
+use ILIAS\LearningSequence\Content\Condition\AbstractCondition;
 use ILIAS\LearningSequence\Content\Condition\StaticInputConfigurationIssue;
 use PHPUnit\Framework\TestCase;
 
@@ -250,6 +251,13 @@ class AdaptiveInputConditionConfigurationTest extends TestCase
      */
     private function newCondition(string $class_name): object
     {
-        return (new ReflectionClass($class_name))->newInstanceWithoutConstructor();
+        $condition = (new ReflectionClass($class_name))->newInstanceWithoutConstructor();
+        $language = $this->createMock(ilLanguage::class);
+        $language->method('txt')->willReturnArgument(0);
+
+        $lang_property = new ReflectionProperty(AbstractCondition::class, 'lang');
+        $lang_property->setValue($condition, $language);
+
+        return $condition;
     }
 }
