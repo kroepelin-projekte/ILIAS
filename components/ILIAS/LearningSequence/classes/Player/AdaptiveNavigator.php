@@ -286,6 +286,8 @@ class AdaptiveNavigator implements LSNavigator
             fn(AbstractCondition $condition): bool => $this->isAlternativeEdgeCondition($condition)
         );
         $matches_alternative_edge_condition = false;
+        $has_dependency_condition = false;
+        $matches_dependency_condition = false;
 
         foreach ($conditions as $condition) {
             if (!$condition instanceof InputConditionInterface) {
@@ -303,12 +305,11 @@ class AdaptiveNavigator implements LSNavigator
                 continue;
             }
 
-            if (
-                !$has_alternative_edge_condition
-                && $this->isDependencyCondition($condition)
-                && !$this->conditionReferencesCurrent($condition, $current->getRefId())
-            ) {
-                return false;
+            if ($this->isDependencyCondition($condition)) {
+                $has_dependency_condition = true;
+                if ($this->conditionReferencesCurrent($condition, $current->getRefId())) {
+                    $matches_dependency_condition = true;
+                }
             }
 
             if (!$this->checkCondition($condition)) {
@@ -316,7 +317,15 @@ class AdaptiveNavigator implements LSNavigator
             }
         }
 
-        return !$has_alternative_edge_condition || $matches_alternative_edge_condition;
+        if ($has_alternative_edge_condition) {
+            return $matches_alternative_edge_condition;
+        }
+
+        if ($has_dependency_condition && !$matches_dependency_condition) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

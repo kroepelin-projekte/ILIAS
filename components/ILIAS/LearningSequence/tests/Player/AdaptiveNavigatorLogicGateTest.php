@@ -77,6 +77,24 @@ class AdaptiveNavigatorLogicGateTest extends TestCase
         $this->assertSame([153, 154], $this->getPredecessorRefs($navigator, $items, 150));
     }
 
+    public function testMultipleDependencyConditionsOnSameTargetCanBeEnteredFromEachMatchingSource(): void
+    {
+        $items = $this->buildItems([201, 202, 203]);
+        $navigator = $this->buildNavigator([
+            201 => [],
+            202 => [],
+            203 => [
+                $this->mockDependencyInput([201], true),
+                $this->mockDependencyInput([202], true),
+            ],
+        ]);
+
+        $navigator->preload($items);
+
+        $this->assertSame([203], $this->getSuccessorRefs($navigator, $items, 201));
+        $this->assertSame([203], $this->getSuccessorRefs($navigator, $items, 202));
+    }
+
     /**
      * @param int[] $ref_ids
      * @return LSLearnerItem[]
