@@ -267,6 +267,83 @@ class LearningMapAccessibilityTest extends TestCase
         $this->assertSame([152, 153], $refs);
     }
 
+    public function testSuccessorsExcludeItemsWithFulfilledOutputConditions(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+
+        $current = $this->mockItem(149);
+        $completed = $this->mockItem(151);
+        $open = $this->mockItem(152);
+        $items = [$current, $completed, $open];
+
+        $navigator->method('getSuccessors')
+            ->willReturnCallback(
+                static fn(array $items, \LSLearnerItem $item): array => $item->getRefId() === 149 ? [$completed, $open] : []
+            );
+        $navigator->method('getOutputConditionIds')
+            ->willReturnCallback(
+                static fn(\LSLearnerItem $item): array => $item->getRefId() === 151 ? [1] : []
+            );
+        $navigator->method('canLeave')
+            ->willReturnCallback(
+                static fn(\LSLearnerItem $item): bool => $item->getRefId() === 149 || $item->getRefId() === 151
+            );
+
+        $position = $this->createPosition($navigator, [149 => 2000, 151 => 2001, 152 => 2002], []);
+
+        $successors = $position->getSuccessors($items, $current);
+        $refs = array_map(static fn(\LSLearnerItem $item): int => $item->getRefId(), $successors);
+
+        $this->assertSame([152], $refs);
+    }
+
+    public function testSuccessorsIgnoreLearningProgressWhenNoOutputConditionExists(): void
+    {
+        $navigator = $this->createMock(LSNavigator::class);
+
+        $current = $this->mockItem(149);
+        $lp_completed = $this->mockItem(151);
+        $items = [$current, $lp_completed];
+
+        $navigator->method('getSuccessors')
+            ->willReturnCallback(
+                static fn(array $items, \LSLearnerItem $item): array => $item->getRefId() === 149 ? [$lp_completed] : []
+            );
+        $navigator->method('getOutputConditionIds')->willReturn([]);
+        $navigator->method('canLeave')->willReturn(true);
+
+        $item_path = $this->createStub(LSOItemPath::class);
+        $boundaries = $this->createStub(LSOAdaptiveBoundaries::class);
+        $position = new class ($navigator, $item_path, $boundaries) extends LSOLearningMapPosition {
+            public function __construct(
+                LSNavigator $navigator,
+                LSOItemPath $item_path,
+                LSOAdaptiveBoundaries $boundaries
+            ) {
+                parent::__construct($navigator, $item_path, $boundaries, 421, 6);
+            }
+
+            protected function lookupObjId(int $ref_id): int
+            {
+                return match ($ref_id) {
+                    149 => 2000,
+                    151 => 2001,
+                    default => 0
+                };
+            }
+
+            protected function hasLearningProgressCompleted(\LSLearnerItem $item, int $obj_id): bool
+            {
+                return true;
+            }
+        };
+
+        $successors = $position->getSuccessors($items, $current);
+        $refs = array_map(static fn(\LSLearnerItem $item): int => $item->getRefId(), $successors);
+
+        $this->assertSame([151], $refs);
+    }
+
     public function testItemWithoutStructuralSuccessorIsDeadEndDespiteFallbackSuccessors(): void
     {
         $navigator = $this->createMock(LSNavigator::class);

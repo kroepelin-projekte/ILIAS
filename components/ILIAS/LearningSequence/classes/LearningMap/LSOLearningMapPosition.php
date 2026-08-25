@@ -226,11 +226,14 @@ class LSOLearningMapPosition
     public function getSuccessors(array $items, \LSLearnerItem $item): array
     {
         $successors = $this->navigator->getSuccessors($items, $item);
-        if ($successors !== []) {
-            return $successors;
+        if ($successors === []) {
+            $successors = $this->getFallbackSuccessorsFromPath($items, $item);
         }
 
-        return $this->getFallbackSuccessorsFromPath($items, $item);
+        return array_values(array_filter(
+            $successors,
+            fn(\LSLearnerItem $successor): bool => !$this->isCompletedSuccessor($successor)
+        ));
     }
     /**
      * Returns the structural successors of an item.
@@ -579,6 +582,19 @@ class LSOLearningMapPosition
         } catch (\Throwable $t) {
             return false;
         }
+    }
+
+    /**
+     * Determines whether a successor should be suppressed because all of its
+     * output conditions are already fulfilled.
+     */
+    protected function isCompletedSuccessor(\LSLearnerItem $successor): bool
+    {
+        if ($this->navigator->getOutputConditionIds($successor) === []) {
+            return false;
+        }
+
+        return $this->navigator->canLeave($successor);
     }
 
     /**
