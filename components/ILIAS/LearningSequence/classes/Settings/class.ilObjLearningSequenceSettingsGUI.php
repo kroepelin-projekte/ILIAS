@@ -188,31 +188,6 @@ class ilObjLearningSequenceSettingsGUI
                     $this->refinery->always(false)
                 ])
             );
-        //Taxonomies
-        $taxonomies = $if->field()->checkbox($this->lng->txt('obj_tool_setting_taxonomies'))
-            ->withValue((bool) ilContainer::_lookupContainerSetting(
-                $lso->getId(),
-                ilObjectServiceSettingsGUI::TAXONOMIES,
-                '0'
-            ))
-            ->withAdditionalTransformation(
-                $this->refinery->byTrying([
-                    $this->refinery->kindlyTo()->bool(),
-                    $this->refinery->always(false)
-                ])
-            );
-
-        $section_additional = $if->field()->section(
-            [
-                self::PROP_LSO_MODE => $lso_mode,
-                self::PROP_GALLERY => $gallery,
-                ilObjectServiceSettingsGUI::CUSTOM_METADATA => $custom_md,
-                ilObjectServiceSettingsGUI::TAXONOMIES => $taxonomies
-            ],
-            $txt('obj_features')
-        );
-        $formElements['additional'] = $section_additional;
-
         // Common properties
         $title_icon = $props->getPropertyTitleAndIconVisibility()->toForm(
             $this->lng,
@@ -244,6 +219,16 @@ class ilObjLearningSequenceSettingsGUI
             $txt('cont_presentation')
         );
         $formElements['common'] = $section_common;
+
+        $section_additional = $if->field()->section(
+            [
+                self::PROP_LSO_MODE => $lso_mode,
+                self::PROP_GALLERY => $gallery,
+                ilObjectServiceSettingsGUI::CUSTOM_METADATA => $custom_md
+            ],
+            $txt('obj_features')
+        );
+        $formElements['additional'] = $section_additional;
 
         return $formElements;
     }
@@ -324,11 +309,6 @@ class ilObjLearningSequenceSettingsGUI
             $lso->getId(),
             ilObjectServiceSettingsGUI::CUSTOM_METADATA,
             ($data['additional'][ilObjectServiceSettingsGUI::CUSTOM_METADATA] ?? false) ? '1' : '0'
-        );
-        ilContainer::_writeContainerSetting(
-            $lso->getId(),
-            ilObjectServiceSettingsGUI::TAXONOMIES,
-            ($data['additional'][ilObjectServiceSettingsGUI::TAXONOMIES] ?? false) ? '1' : '0'
         );
 
         $obj_props->storePropertyIsOnline($online_property);
