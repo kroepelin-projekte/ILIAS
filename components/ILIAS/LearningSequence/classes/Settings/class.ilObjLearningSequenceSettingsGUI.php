@@ -103,9 +103,6 @@ class ilObjLearningSequenceSettingsGUI
         ILIAS\UI\Component\Input\Factory $if
     ): array {
         $txt = fn($id) => $this->lng->txt($id);
-        $shift_trafo = $this->refinery->custom()->transformation(
-            static fn(array $v) => current($v)
-        );
         $date_format = $this->data_factory->dateFormat()->withTime24(
             $this->user->getDateFormat()
         );
@@ -113,17 +110,36 @@ class ilObjLearningSequenceSettingsGUI
         $ref_props = $lso->getObjectReferenceProperties();
         $settings = $lso->getLSSettings();
 
+        // LSO Mode
+        $lso_mode = $if->field()->radio($txt('lso_mode'), $txt('lso_mode_info'))
+            ->withOption(
+                (string) ilLearningSequenceSettings::MODE_LINEAR,
+                $txt('lso_mode_linear'),
+                $txt('lso_mode_linear_info')
+            )
+            ->withOption(
+                (string) ilLearningSequenceSettings::MODE_ADAPTIVE,
+                $txt('lso_mode_adaptive'),
+                $txt('lso_mode_adaptive_info')
+            )
+            ->withByline($txt('lso_mode_byline'))
+            ->withValue((string) $settings->getLSOMod())
+            ->withAdditionalTransformation(
+                $this->refinery->kindlyTo()->int()
+            );
+
         $formElements = [];
         $formElements['object'] = $if->field()->section(
             [
-                $props->getPropertyTitleAndDescription()->toForm(
+                'title_and_description' => $props->getPropertyTitleAndDescription()->toForm(
                     $this->lng,
                     $if->field(),
                     $this->refinery
-                )
+                ),
+                self::PROP_LSO_MODE => $lso_mode
             ],
             $txt('lso_edit')
-        )->withAdditionalTransformation($shift_trafo);
+        );
 
         $formElements['online'] = $if->field()->section(
             [
@@ -146,24 +162,6 @@ class ilObjLearningSequenceSettingsGUI
             ],
             $txt('lso_settings_availability')
         );
-
-        // LSO Mode
-        $lso_mode = $if->field()->radio($txt('lso_mode'), $txt('lso_mode_info'))
-            ->withOption(
-                (string) ilLearningSequenceSettings::MODE_LINEAR,
-                $txt('lso_mode_linear'),
-                $txt('lso_mode_linear_info')
-            )
-            ->withOption(
-                (string) ilLearningSequenceSettings::MODE_ADAPTIVE,
-                $txt('lso_mode_adaptive'),
-                $txt('lso_mode_adaptive_info')
-            )
-            ->withByline($txt('lso_mode_byline'))
-            ->withValue((string) $settings->getLSOMod())
-            ->withAdditionalTransformation(
-                $this->refinery->kindlyTo()->int()
-            );
 
         // Member gallery
         $gallery = $if->field()->checkbox($txt("members_gallery"), $txt('lso_show_members_info'))
@@ -222,7 +220,6 @@ class ilObjLearningSequenceSettingsGUI
 
         $section_additional = $if->field()->section(
             [
-                self::PROP_LSO_MODE => $lso_mode,
                 self::PROP_GALLERY => $gallery,
                 ilObjectServiceSettingsGUI::CUSTOM_METADATA => $custom_md
             ],
@@ -253,7 +250,7 @@ class ilObjLearningSequenceSettingsGUI
         // An adaptive learning sequence requires a start AND an end object.
         // Missing either one has consequences for the online state.
         $old_mode = $lso->getLSSettings()->getMode();
-        $new_mode = (int) ($data['additional'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR);
+        $new_mode = (int) ($data['object'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR);
 
         $online_property = $data['online']['online'] ?? $obj_props->getPropertyIsOnline()->withOffline();
         $was_online = $obj_props->getPropertyIsOnline()->getIsOnline();
@@ -300,7 +297,7 @@ class ilObjLearningSequenceSettingsGUI
             $forced_offline = true;
         }
 
-        $title_and_description = $data['object'] ?? null;
+        $title_and_description = $data['object']['title_and_description'] ?? null;
         if ($title_and_description instanceof TitleAndDescription) {
             $obj_props->storePropertyTitleAndDescription($title_and_description);
         }
@@ -335,7 +332,7 @@ class ilObjLearningSequenceSettingsGUI
 
         $settings = $lso->getLSSettings()
             ->withMembersGallery($data['additional'][self::PROP_GALLERY] ?? false)
-            ->withLSOMod((int) ($data['additional'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR));
+            ->withLSOMod((int) ($data['object'][self::PROP_LSO_MODE] ?? ilLearningSequenceSettings::MODE_LINEAR));
         $lso->updateSettings($settings);
 
         $obj_props->storePropertyTitleAndIconVisibility($data['common']['icon']);
