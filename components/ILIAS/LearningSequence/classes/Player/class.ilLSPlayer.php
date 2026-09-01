@@ -63,6 +63,8 @@ class ilLSPlayer
         protected Factory $ui_factory,
         protected ScreenContext $current_context,
         protected Refinery\Factory $refinery,
+        protected ilLanguage $lng,
+        protected ilCtrlInterface $ctrl,
         protected ?LSNavigator $navigator = null,
         protected int $mode = ilLearningSequenceSettings::MODE_LINEAR,
         protected ?LSOItemPath $item_path = null,
@@ -250,6 +252,20 @@ class ilLSPlayer
             $control_builder = $this->buildDefaultControls($control_builder, $item, $item_position, $items);
         }
 
+        $mainbar_controls = [];
+
+        // The learning map lives in the main bar and opens in a modal; the
+        // modal itself has to be part of the page, so it is appended to the
+        // content before the body is rendered.
+        $map_html = $this->getLearningMapHtml($ls_ref_id);
+        if ($map_html !== '') {
+            list($map_button, $map_modal) = $this->page_renderer->buildLearningMapEntry($map_html);
+            $mainbar_controls['learning_map'] = $map_button;
+            $content[] = $map_modal;
+        }
+
+        // Keep a stable header layout: reserve the rating slot even if rating is not available.
+        // Otherwise the navigation/buttons would shift vertically.
         $obj_rating_html = '&nbsp;';
         $obj_id = ilObject::_lookupObjId($next_item->getRefId());
         if ($obj_id > 0 && !$show_choice) {
@@ -272,11 +288,13 @@ class ilLSPlayer
                     ilCommonActionDispatcherGUI::class,
                     ilRatingGUI::class
                 ]);
-                $rating_gui->setYourRatingText($this->txt('rating_your_rating'));
+                $rating_gui->setYourRatingText($this->lng->txt('rating_your_rating'));
+
+                global $DIC;
 
                 $rating_content = $rating_gui->getListGUIProperty(
                     $next_item->getRefId(),
-                    true,
+                    $DIC->access()->checkAccess('read', '', $next_item->getRefId()),
                     $ajax_hash,
                     $parent_ref_id
                 );
@@ -293,8 +311,7 @@ class ilLSPlayer
                 $tpl->setVariable('RATING_CONTENT', $rating_content);
                 $obj_rating_html = $tpl->get();
 
-                $ilCtrl = $DIC->ctrl();
-                $redraw_url = $ilCtrl->getLinkTargetByClass(
+                $redraw_url = $this->ctrl->getLinkTargetByClass(
                     ilObjLearningSequenceLearnerGUI::class,
                     ilObjLearningSequenceLearnerGUI::CMD_REDRAW_LIST_ITEM,
                     '',
@@ -302,7 +319,7 @@ class ilLSPlayer
                     false
                 );
 
-                $rating_url = $ilCtrl->getLinkTargetByClass(
+                $rating_url = $this->ctrl->getLinkTargetByClass(
                     [
                         ilCommonActionDispatcherGUI::class,
                         ilRatingGUI::class
@@ -319,28 +336,7 @@ class ilLSPlayer
                     " if (typeof window.il.Object.setRatingUrl === 'function') { window.il.Object.setRatingUrl(" . json_encode($rating_url, JSON_THROW_ON_ERROR) . "); }" .
                     "}"
                 );
-
-                $this->page_renderer->addJs(
-                    'assets/js/lso_kiosk_rating.js',
-                    true
-                );
-                $this->page_renderer->addOnLoadCode(
-                    "if (window.il && window.il.LSO && window.il.LSO.KioskRating && " .
-                    "typeof window.il.LSO.KioskRating.init === 'function') { window.il.LSO.KioskRating.init(); }"
-                );
             }
-        }
-
-        $mainbar_controls = [];
-
-        // The learning map lives in the main bar and opens in a modal; the
-        // modal itself has to be part of the page, so it is appended to the
-        // content before the body is rendered.
-        $map_html = $this->getLearningMapHtml($ls_ref_id);
-        if ($map_html !== '') {
-            list($map_button, $map_modal) = $this->page_renderer->buildLearningMapEntry($map_html);
-            $mainbar_controls['learning_map'] = $map_button;
-            $content[] = $map_modal;
         }
 
         $rendered_body = $this->page_renderer->render(

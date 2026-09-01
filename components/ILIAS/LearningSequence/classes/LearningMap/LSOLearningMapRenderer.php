@@ -313,12 +313,17 @@ class LSOLearningMapRenderer
 
     protected function bindToApi(string $button_id, string $map_id, string $call): string
     {
-        return 'document.getElementById("' . $button_id . '").addEventListener("click", function (event) {'
+        // The button is not necessarily on the page when this runs: an async
+        // re-render elsewhere (e.g. the rating box of the kiosk player) ships
+        // the whole accumulated onload buffer with its snippet, and a hard
+        // reference would throw there and kill every handler after it.
+        return 'var el = document.getElementById("' . $button_id . '");'
+            . 'if (el) { el.addEventListener("click", function (event) {'
             . 'event.preventDefault();'
             . 'var map = window.il && window.il.LSO && window.il.LSO.LearningMap'
             . ' ? window.il.LSO.LearningMap.get("' . $map_id . '") : null;'
             . 'if (map) { map.' . $call . '; }'
-            . '});';
+            . '}); }';
     }
 
     private function txt(string $key): string

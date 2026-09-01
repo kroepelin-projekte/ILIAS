@@ -103,20 +103,6 @@ class ilLearningSequenceImporter extends ilXmlImporter
             $new_obj_id = $this->obj->getId();
             ilPageObject::_writeParentId($pg_type, (int) $new_pg_id, (int) $new_obj_id);
         }
-
-        // taxonomy usages
-        $maps = $a_mapping->getMappingsOfEntity("components/ILIAS/LearningSequence", "lso");
-        foreach ($maps as $old => $new) {
-            if ($old !== "new_id" && (int) $old > 0) {
-                $new_tax_ids = $a_mapping->getMapping("components/ILIAS/Taxonomy", "tax_usage_of_obj", (string) $old);
-                if ($new_tax_ids !== "") {
-                    $tax_ids = explode(":", (string) $new_tax_ids);
-                    foreach ($tax_ids as $tid) {
-                        ilObjTaxonomy::saveUsage((int) $tid, (int) $new);
-                    }
-                }
-            }
-        }
     }
 
     public function afterContainerImportProcessing(ilImportMapping $mapping): void
@@ -251,7 +237,7 @@ class ilLearningSequenceImporter extends ilXmlImporter
                     if ($new_condition_id > 0) {
                         $ref_mappings = array_map(
                             'intval',
-                                $mapping->getAllMappings()['components/ILIAS/Container']['refs'] ?? []
+                            $mapping->getAllMappings()['components/ILIAS/Container']['refs'] ?? []
                         );
                         $condition->setImportMapping($ref_mappings);
                         $condition->import($payload, $new_condition_id);
@@ -282,10 +268,10 @@ class ilLearningSequenceImporter extends ilXmlImporter
         $start_ref_id = (string) ($ls_settings["start_ref_id"] ?? '');
         $end_ref_id = (string) ($ls_settings["end_ref_id"] ?? '');
         $new_start_ref_id = $mapping->getMapping("components/ILIAS/Container", "refs", $start_ref_id);
-        $new_end_ref_id   = $mapping->getMapping("components/ILIAS/Container", "refs", $end_ref_id);
+        $new_end_ref_id = $mapping->getMapping("components/ILIAS/Container", "refs", $end_ref_id);
 
         $new_start_ref_id = (!empty($new_start_ref_id)) ? (int) $new_start_ref_id : 0;
-        $new_end_ref_id   = (!empty($new_end_ref_id))   ? (int) $new_end_ref_id   : 0;
+        $new_end_ref_id = (!empty($new_end_ref_id)) ? (int) $new_end_ref_id : 0;
         if ($new_start_ref_id > 0 || $new_end_ref_id > 0) {
             $boundaries = new LSOAdaptiveBoundaries($DIC->database());
             $boundaries->setStartRefId($this->obj->getId(), $new_start_ref_id);
