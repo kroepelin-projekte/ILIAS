@@ -244,11 +244,33 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
         $value = $result->value();
 
+        // Both of these are "success" messages, but setOnScreenMessage()
+        // only keeps one message per type (a second call for the same type
+        // would silently overwrite the first) - so if both buckets are
+        // non-empty in the same request (e.g. installing several languages
+        // at once, some plain, some with a custom file), they are combined
+        // into a single message instead of two separate calls.
+        $success_messages = [];
+
         if (($lang_installed = $value['installed_language_keys']) !== []) {
-            $message = $this->languageKeysToLocalizedList($lang_installed) . " " . strtolower($this->lng->txt("installed")) . ".";
+            $success_messages[] = $this->languageKeysToLocalizedList($lang_installed)
+                . " " . strtolower($this->lng->txt("installed")) . ".";
+        }
+
+        // A language with a customizing/local file gets that file
+        // (re-)applied on every install run, regardless of whether the
+        // language itself was already installed before - so this must be
+        // reported explicitly rather than disappearing into "already
+        // installed", which would wrongly suggest nothing happened.
+        if (($lang_installed_with_local_file = $value['installed_with_local_language_keys']) !== []) {
+            $success_messages[] = $this->languageKeysToLocalizedList($lang_installed_with_local_file)
+                . ": " . $this->lng->txt("installed_local") . ".";
+        }
+
+        if ($success_messages !== []) {
             $this->tpl->setOnScreenMessage(
                 'success',
-                $message,
+                implode('<br />', $success_messages),
                 true
             );
         }

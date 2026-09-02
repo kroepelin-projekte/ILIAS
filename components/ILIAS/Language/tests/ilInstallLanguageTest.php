@@ -16,6 +16,7 @@ declare(strict_types=1);
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\UI\Factory as UIFactory;
+use PHPUnit\Framework\MockObject\MockObject;
 
 class ilInstallLanguageTest extends ilLanguageBaseTestCase
 {
@@ -34,6 +35,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         ]);
 
         $this->assertSame(['de'], $result['installed_language_keys']);
+        $this->assertSame([], $result['installed_with_local_language_keys']);
         $this->assertSame([], $result['already_installed_language_keys']);
         $this->assertSame([], $result['invalid_local_language_files']);
     }
@@ -59,8 +61,37 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         ]);
 
         $this->assertSame(['fr'], $result['installed_language_keys']);
+        $this->assertSame([], $result['installed_with_local_language_keys']);
         $this->assertSame(['de'], $result['already_installed_language_keys']);
         $this->assertSame([], $result['invalid_local_language_files']);
+    }
+
+    public function testNewLanguageWithCustomFileIsReportedAsInstalledWithLocalFile(): void
+    {
+        // Even a language that was not installed before must be classified
+        // by "has a customizing/local file", not "was newly installed" - a
+        // fresh language that already ships a local file is still more
+        // accurately described as "installed with custom file" than as a
+        // plain install.
+        $setup_language = $this->createSetupLanguageMock(
+            [],
+            ['de'],
+            []
+        );
+        $setup_language->expects($this->once())
+            ->method('checkLanguageForInstallation')
+            ->with('de')
+            ->willReturn(true);
+        $setup_language->expects($this->once())->method('flushLanguageForInstallation')->with('de');
+        $setup_language->expects($this->once())->method('insertLanguageForInstallation')->with('de');
+
+        $result = $this->createActivity($setup_language, $this->createDatabaseMock())->perform([
+            'language_keys' => 'de',
+        ]);
+
+        $this->assertSame([], $result['installed_language_keys']);
+        $this->assertSame(['de'], $result['installed_with_local_language_keys']);
+        $this->assertSame([], $result['already_installed_language_keys']);
     }
 
     public function testInstalledLanguageCanBeReinstalledWithCustomLanguageFile(): void
@@ -97,8 +128,13 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
             'language_keys' => 'de',
         ]);
 
+        // 'de' has a customizing/local file, which is (re-)applied on every
+        // run regardless of the language object's own install status -
+        // "already installed" alone would be misleading feedback since
+        // something did change, so it must land in its own bucket instead.
         $this->assertSame([], $result['installed_language_keys']);
-        $this->assertSame(['de'], $result['already_installed_language_keys']);
+        $this->assertSame(['de'], $result['installed_with_local_language_keys']);
+        $this->assertSame([], $result['already_installed_language_keys']);
         $this->assertSame([], $result['invalid_local_language_files']);
     }
 
@@ -132,6 +168,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         ]);
 
         $this->assertSame(['de'], $result['installed_language_keys']);
+        $this->assertSame([], $result['installed_with_local_language_keys']);
         $this->assertSame([], $result['already_installed_language_keys']);
         $this->assertSame([], $result['invalid_local_language_files']);
     }
@@ -296,7 +333,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         array $local_language_keys,
         array $installed_language_keys,
         array $invalid_local_language_files = []
-    ): ilSetupLanguage {
+    ): MockObject&ilSetupLanguage {
         $setup_language = $this->createMock(ilSetupLanguage::class);
         $setup_language->method('getAvailableLanguagesForInstallation')->willReturn($available_languages);
         $setup_language->method('getLocalLanguages')->willReturn($local_language_keys);
@@ -306,7 +343,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         return $setup_language;
     }
 
-    private function createDatabaseMock(): ilDBInterface
+    private function createDatabaseMock(): MockObject&ilDBInterface
     {
         $db = $this->createMock(ilDBInterface::class);
         $db->method('nextId')->willReturn(1);

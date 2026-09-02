@@ -95,11 +95,21 @@ MARKDOWN
             $this->markdown('Ergebnis der Sprachinstallation.'),
             [
                 'installed_language_keys' => $f->list(
-                    $this->markdown('Neu installierte Sprachen.'),
+                    $this->markdown('Neu installierte Sprachen ohne Custom-Sprachdatei.'),
                     $f->string($this->markdown('Sprachschlüssel einer neu installierten Sprache.'))
                 ),
+                'installed_with_local_language_keys' => $f->list(
+                    $this->markdown(
+                        'Sprachen, für die eine Custom-Sprachdatei (neu) installiert wurde - ' .
+                        'unabhängig davon, ob die Sprache selbst bereits installiert war.'
+                    ),
+                    $f->string($this->markdown('Sprachschlüssel einer Sprache mit installierter Custom-Sprachdatei.'))
+                ),
                 'already_installed_language_keys' => $f->list(
-                    $this->markdown('Sprachen, die bereits installiert waren.'),
+                    $this->markdown(
+                        'Sprachen, die bereits installiert waren und für die keine Custom-Sprachdatei ' .
+                        '(neu) installiert wurde - hier hat dieser Lauf nichts verändert.'
+                    ),
                     $f->string($this->markdown('Sprachschlüssel einer bereits installierten Sprache.'))
                 ),
                 'invalid_local_language_files' => $f->list(
@@ -163,17 +173,29 @@ MARKDOWN
             $this->setup_language->registerInstalledLanguage($db, $language_key, $db_languages, $local_language_keys);
         }
 
-        $already_installed_language_keys = array_values(array_filter(
-            $language_keys,
-            static fn(string $key): bool => in_array($key, $currently_installed_language_keys, true)
-        ));
-        $installed_language_keys = array_values(array_filter(
-            $language_keys,
-            static fn(string $key): bool => !in_array($key, $currently_installed_language_keys, true)
-        ));
+        // A language with a customizing/local file has that file
+        // (re-)applied on every run, regardless of whether the language
+        // object itself was already installed - so "already installed" on
+        // its own would be misleading feedback for it: something did change.
+        // That case therefore gets its own bucket instead of being folded
+        // into either of the other two.
+        $installed_language_keys = [];
+        $installed_with_local_language_keys = [];
+        $already_installed_language_keys = [];
+
+        foreach ($language_keys as $language_key) {
+            if (in_array($language_key, $local_language_keys, true)) {
+                $installed_with_local_language_keys[] = $language_key;
+            } elseif (in_array($language_key, $currently_installed_language_keys, true)) {
+                $already_installed_language_keys[] = $language_key;
+            } else {
+                $installed_language_keys[] = $language_key;
+            }
+        }
 
         return [
             'installed_language_keys' => $installed_language_keys,
+            'installed_with_local_language_keys' => $installed_with_local_language_keys,
             'already_installed_language_keys' => $already_installed_language_keys,
             'invalid_local_language_files' => $invalid_local_language_files,
         ];
