@@ -90,7 +90,7 @@ class LanguageInstallationManager
         foreach ($lang_keys as $lang_key) {
             if ($this->repository->checkLanguage($lang_key)) {
                 $this->flushLanguage($lang_key, "keep_local");
-                $this->insertLanguage($lang_key);
+                $this->insertLanguage($lang_key, true);
 
                 // register language first time install; an already-known
                 // language's status is (re-)synced below instead.
@@ -212,127 +212,167 @@ class LanguageInstallationManager
 
     public function insertLanguageForInstallation(string $lang_key): void
     {
-        $this->insertLanguage($lang_key);
+        $this->insertLanguage($lang_key, true);
+    }
+
+    /**
+     * Re-seed a language purely from the global/component language files,
+     * deliberately leaving out the customizing/local directory.
+     *
+     * This is the write path behind "remove local changes": that action
+     * flushes all data for the language and must reinstall a clean copy -
+     * if it went through insertLanguageForInstallation() instead, the
+     * customizing directory's file would immediately be re-applied (and
+     * re-marked with a fresh local_change timestamp), silently undoing the
+     * removal it was just asked to perform.
+     */
+    public function insertLanguageForRemovingLocalChanges(string $lang_key): void
+    {
+        $this->insertLanguage($lang_key, false);
     }
 
     /**
      * insert language data from file in database
+     *
+     * $include_customizing_directory controls whether the customizing/local
+     * directory is considered at all: true preserves/merges local overrides
+     * (installation and refresh), false re-seeds the language purely from
+     * the global/component files (removing local changes).
      */
-    private function insertLanguage(string $lang_key): void
+    private function insertLanguage(string $lang_key, bool $include_customizing_directory): void
     {
         $ilDB = $this->db();
         $working_dir = getcwd();
 
-        // initialize variables
-        $values_sql = [];
-        $lang_array = $this->repository->getLocalChanges($lang_key); // Start with local changes from DB
+        // Every exit path below - including an exception thrown out of a DB
+        // call - must restore the working directory. This method chdir()s
+        // into each language directory in turn to read its file with a
+        // relative path; PHP-FPM/mod_php worker processes are long-lived and
+        // reused across unrelated requests, so a cwd left dangling here (e.g.
+        // inside lang/customizing/ after an error) would silently corrupt
+        // relative-path filesystem checks - such as this same class'
+        // checkLanguageFile() - for every later request handled by that
+        // worker, for any language, not just this one. This is why a
+        // language check can spuriously fail for a file that is perfectly
+        // valid on disk.
+        try {
+            // initialize variables
+            $values_sql = [];
+            // Start with local changes from DB - but only when those changes
+            // are meant to be preserved; when removing local changes we want
+            // a clean slate instead.
+            $lang_array = $include_customizing_directory ? $this->repository->getLocalChanges($lang_key) : [];
 
-        foreach ($this->language_file_directory_manager->getAllDirectories() as $directory) {
-            $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
-            $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
+            $directories = $include_customizing_directory
+                ? $this->language_file_directory_manager->getAllDirectories()
+                : $this->language_file_directory_manager->getDirectories();
 
-            if (!is_dir($path)) {
-                continue;
-            }
-            chdir($path);
+            foreach ($directories as $directory) {
+                $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
+                $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
 
-            if (!is_file($lang_file)) {
-                continue;
-            }
-
-            // remove header first
-            $content = $this->cutHeader(file($lang_file));
-            if (!$content) {
-                continue;
-            }
-
-            $prefix = $directory->getPrefix();
-
-            foreach ($content as $line) {
-                $line = trim($line);
-                if ($line === '') {
+                if (!is_dir($path)) {
                     continue;
                 }
-                $separated = explode(self::SEPARATOR, $line);
+                chdir($path);
 
-                if (!empty($prefix)) {
-                    array_unshift($separated, $prefix);
+                if (!is_file($lang_file)) {
+                    continue;
                 }
 
-                $pos = strpos($separated[2], self::COMMENT_SEPARATOR);
-                if ($pos !== false) {
-                    $separated[2] = substr($separated[2], 0, $pos);
+                // remove header first
+                $content = $this->cutHeader(file($lang_file));
+                if (!$content) {
+                    continue;
                 }
 
-                $module = $separated[0];
-                $identifier = $separated[1];
-                $value = $separated[2];
+                $prefix = $directory->getPrefix();
 
-                // Respect DB local changes if this is a global file
-                if (!$directory->isLocal()) {
-                    if (isset($lang_array[$module][$identifier])) {
+                foreach ($content as $line) {
+                    $line = trim($line);
+                    if ($line === '') {
                         continue;
                     }
-                    $change_date = null;
-                } else {
-                    // Local file source: it overwrites, but we should check if DB has an EVEN NEWER change
-                    $min_date = $this->utcTimestamp(filemtime($lang_file));
-                    $newer_db_change = $this->repository->getLocalChanges($lang_key, $min_date);
-                    if (isset($newer_db_change[$module][$identifier])) {
-                        $lang_array[$module][$identifier] = $newer_db_change[$module][$identifier];
-                        continue;
+                    $separated = explode(self::SEPARATOR, $line);
+
+                    if (!empty($prefix)) {
+                        array_unshift($separated, $prefix);
                     }
-                    $change_date = $this->utcTimestamp();
+
+                    $pos = strpos($separated[2], self::COMMENT_SEPARATOR);
+                    if ($pos !== false) {
+                        $separated[2] = substr($separated[2], 0, $pos);
+                    }
+
+                    $module = $separated[0];
+                    $identifier = $separated[1];
+                    $value = $separated[2];
+
+                    // Respect DB local changes if this is a global file
+                    if (!$directory->isLocal()) {
+                        if (isset($lang_array[$module][$identifier])) {
+                            continue;
+                        }
+                        $change_date = null;
+                    } else {
+                        // Local file source: it overwrites, but we should check if DB has an EVEN NEWER change
+                        $min_date = $this->utcTimestamp(filemtime($lang_file));
+                        $newer_db_change = $this->repository->getLocalChanges($lang_key, $min_date);
+                        if (isset($newer_db_change[$module][$identifier])) {
+                            $lang_array[$module][$identifier] = $newer_db_change[$module][$identifier];
+                            continue;
+                        }
+                        $change_date = $this->utcTimestamp();
+                    }
+
+                    $values_sql[] = sprintf(
+                        "(%s,%s,%s,%s,%s,%s)",
+                        $ilDB->quote($module, "text"),
+                        $ilDB->quote($identifier, "text"),
+                        $ilDB->quote($lang_key, "text"),
+                        $ilDB->quote($value, "text"),
+                        $ilDB->quote($change_date, "timestamp"),
+                        $ilDB->quote($separated[3] ?? null, "text")
+                    );
+
+                    $lang_array[$module][$identifier] = $value;
                 }
-
-                $values_sql[] = sprintf(
-                    "(%s,%s,%s,%s,%s,%s)",
-                    $ilDB->quote($module, "text"),
-                    $ilDB->quote($identifier, "text"),
-                    $ilDB->quote($lang_key, "text"),
-                    $ilDB->quote($value, "text"),
-                    $ilDB->quote($change_date, "timestamp"),
-                    $ilDB->quote($separated[3] ?? null, "text")
-                );
-
-                $lang_array[$module][$identifier] = $value;
             }
-        }
 
-        if ($values_sql !== []) {
-            $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
-                . implode(',', $values_sql)
-                . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
+            if ($values_sql !== []) {
+                $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
+                    . implode(',', $values_sql)
+                    . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
+                $ilDB->manipulate($query);
+            }
+
+            if ($lang_array === []) {
+                return;
+            }
+
+            $modules = array_keys($lang_array);
+            $inModulesToDelete = $ilDB->in('module', $modules, false, 'text');
+            $ilDB->manipulate(sprintf(
+                "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
+                $ilDB->quote($lang_key, "text")
+            ));
+
+            $modulesValuesSql = [];
+            foreach ($lang_array as $module => $lang_arr) {
+                $modulesValuesSql[] = sprintf(
+                    "(%s,%s,%s)",
+                    $ilDB->quote($module, "text"),
+                    $ilDB->quote($lang_key, "text"),
+                    $ilDB->quote(serialize($lang_arr), "clob")
+                );
+            }
+
+            $query = "INSERT INTO lng_modules (module, lang_key, lang_array) VALUES "
+                . implode(',', $modulesValuesSql)
+                . ";";
             $ilDB->manipulate($query);
-        }
-
-        if ($lang_array === []) {
+        } finally {
             chdir($working_dir);
-            return;
         }
-
-        $modules = array_keys($lang_array);
-        $inModulesToDelete = $ilDB->in('module', $modules, false, 'text');
-        $ilDB->manipulate(sprintf(
-            "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
-            $ilDB->quote($lang_key, "text")
-        ));
-
-        $modulesValuesSql = [];
-        foreach ($lang_array as $module => $lang_arr) {
-            $modulesValuesSql[] = sprintf(
-                "(%s,%s,%s)",
-                $ilDB->quote($module, "text"),
-                $ilDB->quote($lang_key, "text"),
-                $ilDB->quote(serialize($lang_arr), "clob")
-            );
-        }
-
-        $query = "INSERT INTO lng_modules (module, lang_key, lang_array) VALUES "
-            . implode(',', $modulesValuesSql)
-            . ";";
-        $ilDB->manipulate($query);
-
-        chdir($working_dir);
     }
 }

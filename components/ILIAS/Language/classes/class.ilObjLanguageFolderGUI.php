@@ -331,12 +331,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $langObj = new ilObjLanguage((int) $id, false);
 
             if ($langObj->isInstalled()) {
-                if ($langObj->check()) {
-                    $langObj->flush("all");
-                    $langObj->insert();
-                    $langObj->setTitle($langObj->getKey());
-                    $langObj->setDescription("installed");
-                    $langObj->update();
+                if ($langObj->removeLocalChanges()) {
                     $refreshed[] = $langObj->getKey();
                     $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
                 } else {

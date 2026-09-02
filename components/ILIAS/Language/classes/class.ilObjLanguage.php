@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -65,9 +66,15 @@ class ilObjLanguage extends ilObject
         global $DIC;
         $lng = $DIC->language();
 
+        // Fallback for when neither an explicit manager is injected nor the
+        // DIC provides one. The constructor's first argument is the
+        // local/customizing directory, not a global one - passing
+        // MainLanguageFileDirectory there (as before) mislabeled the global
+        // lang/ directory as "local" and left no global directory at all,
+        // which would make every entry in it look like a local override.
         $this->language_file_directory_manager = $language_file_directory_manager
             ?? ($DIC[LanguageFileDirectoryManager::class] ?? null)
-            ?? new LanguageFileDirectoryManager(new MainLanguageFileDirectory());
+            ?? new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory());
 
         $this->type = "lng";
         parent::__construct($a_id, $a_call_by_reference);
@@ -81,7 +88,15 @@ class ilObjLanguage extends ilObject
         $this->cust_lang_path = $lng->getCustomLangPath();
         $this->separator = $lng->separator;
         $this->comment_separator = $lng->comment_separator;
-        $this->absolute_path = realpath(__DIR__ . "/../../../../../");
+        // This file lives at components/ILIAS/Language/classes/ - four
+        // levels below the ILIAS root, not five. The extra "../" here used
+        // to point one directory too high (e.g. /var/www instead of
+        // /var/www/html), so the "Main" language directory (lang/) was never
+        // found - check()/refresh()/removeLocalChanges() would then always
+        // fail with "file not valid", for every language, even though the
+        // file itself was fine. Compare Language.php's own (correct)
+        // 3-level "../../../ " from components/ILIAS/Language/.
+        $this->absolute_path = realpath(__DIR__ . "/../../../../");
 
         // Single source of truth for file-based language check/insert
         // operations - see check()/insert() below. This avoids duplicating
@@ -473,6 +488,35 @@ class ilObjLanguage extends ilObject
     public function insert(string $scope = ""): void
     {
         $this->manager->insertLanguageForInstallation($this->key);
+    }
+
+    /**
+     * Remove all local changes of this language - both entries edited
+     * directly via the "adjust language variables" table and any override
+     * coming from a customizing/local language file - and reinstall the
+     * language purely from the global/component language files.
+     *
+     * This must go through insertLanguageForRemovingLocalChanges() rather
+     * than insert()/insertLanguageForInstallation(): the latter always
+     * merges the customizing directory back in, which would immediately
+     * reinstate the very data this method is supposed to remove (see
+     * LanguageInstallationManager::insertLanguageForRemovingLocalChanges()).
+     *
+     * Return true if the language was installed and could be reinstalled
+     */
+    public function removeLocalChanges(): bool
+    {
+        if (!$this->isInstalled() || !$this->check()) {
+            return false;
+        }
+
+        $this->flush("all");
+        $this->manager->insertLanguageForRemovingLocalChanges($this->key);
+        $this->setTitle($this->getKey());
+        $this->setDescription("installed");
+        $this->update();
+
+        return true;
     }
 
     /**

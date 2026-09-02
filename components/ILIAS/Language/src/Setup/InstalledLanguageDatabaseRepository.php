@@ -128,19 +128,27 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $local_langs = [];
         $working_dir = getcwd();
 
-        foreach ($this->language_file_directory_manager->getCustomizingDirectories() as $directory) {
-            $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
-            if (is_dir($path)) {
-                $d = dir($path);
-                chdir($path);
-                while ($entry = $d->read()) {
-                    if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
-                        $lang_key = substr($entry, 6, 2);
-                        $local_langs[] = $lang_key;
+        // See LanguageInstallationManager::insertLanguage() for why every
+        // chdir() here must be undone even if something throws in between -
+        // a long-lived worker process would otherwise leak a broken cwd into
+        // unrelated later requests.
+        try {
+            foreach ($this->language_file_directory_manager->getCustomizingDirectories() as $directory) {
+                $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
+                if (is_dir($path)) {
+                    $d = dir($path);
+                    chdir($path);
+                    while ($entry = $d->read()) {
+                        if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                            $lang_key = substr($entry, 6, 2);
+                            $local_langs[] = $lang_key;
+                        }
                     }
+                    chdir($working_dir);
                 }
-                chdir($working_dir);
             }
+        } finally {
+            chdir($working_dir);
         }
 
         return array_unique($local_langs);
@@ -151,19 +159,25 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $installableLanguages = [];
         $working_dir = getcwd();
 
-        foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
-            $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
-            if (is_dir($path)) {
-                $d = dir($path);
-                chdir($path);
-                while ($entry = $d->read()) {
-                    if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
-                        $lang_key = substr($entry, 6, 2);
-                        $installableLanguages[] = $lang_key;
+        // See LanguageInstallationManager::insertLanguage() for why every
+        // chdir() here must be undone even if something throws in between.
+        try {
+            foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
+                $path = $this->absoluteDirectoryPath($this->absolute_path, $directory);
+                if (is_dir($path)) {
+                    $d = dir($path);
+                    chdir($path);
+                    while ($entry = $d->read()) {
+                        if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                            $lang_key = substr($entry, 6, 2);
+                            $installableLanguages[] = $lang_key;
+                        }
                     }
+                    chdir($working_dir);
                 }
-                chdir($working_dir);
             }
+        } finally {
+            chdir($working_dir);
         }
 
         return array_unique($installableLanguages);
