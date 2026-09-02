@@ -21,6 +21,7 @@ declare(strict_types=1);
 class ilLanguageExtTableGUI extends ilTable2GUI
 {
     private int $inputsize = 40;
+    private int $commentsize = 30;
     private array $params;
 
     public function __construct(object $a_parent_obj, string $a_parent_cmd, array $a_params = array())
@@ -71,18 +72,30 @@ class ilLanguageExtTableGUI extends ilTable2GUI
         $a_set["name"] = str_replace(".", "_POSTDOT_", $a_set["name"]);
         $a_set["name"] = str_replace(" ", "_POSTSPACE_", $a_set["name"]);
 
-        // This table must not show a comment input field (comments are not
-        // relevant for adjusting language variables here) - but the
-        // existing remark for an entry must not be lost on save either, so
-        // it is still round-tripped via a hidden field, same as it already
-        // was outside of langmode.
-        $this->tpl->setCurrentBlock("hidden_comment");
-        $this->tpl->setVariable(
-            "COM_NAME",
-            ilLegacyFormElementsUtil::prepareFormOutput($a_set["name"] . $lng->separator . "comment")
-        );
-        $this->tpl->setVariable("COM_VALUE", ilLegacyFormElementsUtil::prepareFormOutput($a_set["comment"] ?? ""));
-        $this->tpl->parseCurrentBlock();
+        if ($this->params["langmode"]) {
+            $this->tpl->setCurrentBlock("comment");
+            $this->tpl->setVariable(
+                "COM_ID",
+                ilLegacyFormElementsUtil::prepareFormOutput($a_set["name"] . $lng->separator . "comment")
+            );
+            $this->tpl->setVariable(
+                "COM_NAME",
+                ilLegacyFormElementsUtil::prepareFormOutput($a_set["name"] . $lng->separator . "comment")
+            );
+            $this->tpl->setVariable("COM_VALUE", ilLegacyFormElementsUtil::prepareFormOutput($a_set["comment"]));
+            $this->tpl->setVariable("COM_SIZE", $this->commentsize);
+            $this->tpl->setVariable("COM_MAX", 250);
+            $this->tpl->setVariable("TXT_COMMENT", $lng->txt("comment"));
+            $this->tpl->parseCurrentBlock();
+        } else {
+            $this->tpl->setCurrentBlock("hidden_comment");
+            $this->tpl->setVariable(
+                "COM_NAME",
+                ilLegacyFormElementsUtil::prepareFormOutput($a_set["name"] . $lng->separator . "comment")
+            );
+            $this->tpl->setVariable("COM_VALUE", ilLegacyFormElementsUtil::prepareFormOutput($a_set["comment"] ?? ""));
+            $this->tpl->parseCurrentBlock();
+        }
 
         $this->tpl->setVariable("T_ROWS", ceil(strlen($a_set["translation"] ?? " ") / $this->inputsize));
         $this->tpl->setVariable("T_SIZE", $this->inputsize);
