@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Setup;
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
@@ -36,8 +37,8 @@ class LanguageInstallationManager
 {
     use LanguageFileParsing;
 
-    private const SEPARATOR = "#:#";
-    private const COMMENT_SEPARATOR = "###";
+    private const string SEPARATOR = "#:#";
+    private const string COMMENT_SEPARATOR = "###";
 
     /**
      * @param \ilDBInterface|\Closure():\ilDBInterface $db see
@@ -90,7 +91,7 @@ class LanguageInstallationManager
         foreach ($lang_keys as $lang_key) {
             if ($this->repository->checkLanguage($lang_key)) {
                 $this->flushLanguage($lang_key, "keep_local");
-                $this->insertLanguage($lang_key, true);
+                $this->insertLanguageForInstallation($lang_key);
 
                 // register language first time install; an already-known
                 // language's status is (re-)synced below instead.
@@ -212,7 +213,15 @@ class LanguageInstallationManager
 
     public function insertLanguageForInstallation(string $lang_key): void
     {
-        $this->insertLanguage($lang_key, true);
+        // Every directory the LanguageFileDirectoryManager knows about,
+        // including the customizing/local one - so an existing custom
+        // language file is (re-)applied automatically - merged on top of
+        // whatever local changes are already recorded in the DB.
+        $this->insertLanguage(
+            $lang_key,
+            $this->language_file_directory_manager->getAllDirectories(),
+            $this->repository->getLocalChanges($lang_key)
+        );
     }
 
     /**
@@ -228,18 +237,32 @@ class LanguageInstallationManager
      */
     public function insertLanguageForRemovingLocalChanges(string $lang_key): void
     {
-        $this->insertLanguage($lang_key, false);
+        // Global/component directories only, and an empty seed - a clean
+        // slate with nothing to preserve or merge.
+        $this->insertLanguage(
+            $lang_key,
+            $this->language_file_directory_manager->getDirectories(),
+            []
+        );
     }
 
     /**
-     * insert language data from file in database
+     * Insert language data from file into the database.
      *
-     * $include_customizing_directory controls whether the customizing/local
-     * directory is considered at all: true preserves/merges local overrides
-     * (installation and refresh), false re-seeds the language purely from
-     * the global/component files (removing local changes).
+     * This used to take a boolean flag deciding "installing" vs. "removing
+     * local changes" internally. That flag is gone: the two things it
+     * controlled - which directories to read ($directories) and what to
+     * seed the working value map with ($lang_array, either the language's
+     * current local changes to preserve/merge, or an empty array for a
+     * clean re-seed) - are now supplied directly by the two call sites
+     * above, each of which already states its intent in its name. This
+     * method itself no longer branches on why it was called; it just writes
+     * whatever data the given directories/seed produce.
+     *
+     * @param iterable<LanguageFileDirectory> $directories
+     * @param array<string, array<string, string>> $lang_array module => identifier => value
      */
-    private function insertLanguage(string $lang_key, bool $include_customizing_directory): void
+    private function insertLanguage(string $lang_key, iterable $directories, array $lang_array): void
     {
         $ilDB = $this->db();
         $working_dir = getcwd();
@@ -256,16 +279,7 @@ class LanguageInstallationManager
         // language check can spuriously fail for a file that is perfectly
         // valid on disk.
         try {
-            // initialize variables
             $values_sql = [];
-            // Start with local changes from DB - but only when those changes
-            // are meant to be preserved; when removing local changes we want
-            // a clean slate instead.
-            $lang_array = $include_customizing_directory ? $this->repository->getLocalChanges($lang_key) : [];
-
-            $directories = $include_customizing_directory
-                ? $this->language_file_directory_manager->getAllDirectories()
-                : $this->language_file_directory_manager->getDirectories();
 
             foreach ($directories as $directory) {
                 $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
