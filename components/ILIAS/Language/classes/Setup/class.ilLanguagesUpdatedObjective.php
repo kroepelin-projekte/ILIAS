@@ -20,15 +20,9 @@ declare(strict_types=1);
 
 use ILIAS\Setup;
 
-class ilLanguagesUpdatedObjective implements Setup\Objective
+class ilLanguagesUpdatedObjective extends ilLanguageObjective
 {
-    protected \ilSetupLanguage $il_setup_language;
-
-    public function __construct(
-        \ilSetupLanguage $il_setup_language
-    ) {
-        $this->il_setup_language = $il_setup_language;
-    }
+    use ilLanguageInstallationObjectiveTrait;
 
     /**
      * @inheritDoc
@@ -75,19 +69,7 @@ class ilLanguagesUpdatedObjective implements Setup\Objective
      */
     public function achieve(Setup\Environment $environment): Setup\Environment
     {
-        $db = $environment->getResource(Setup\Environment::RESOURCE_DATABASE);
-
-        // TODO: Remove this once ilSetupLanguage (or a successor) supports proper
-        //// DI for all methods.
-        $db_tmp = $GLOBALS["ilDB"];
-        $GLOBALS["ilDB"] = $db;
-
-        $this->il_setup_language->setDbHandler($db);
-        $this->il_setup_language->installLanguages(
-            $this->il_setup_language->getInstalledLanguages()
-        );
-
-        $GLOBALS["ilDB"] = $db_tmp;
+        $this->installLanguagesWithSetupDb($environment, $this->il_setup_language->getInstalledLanguages());
 
         return $environment;
     }

@@ -21,6 +21,8 @@ declare(strict_types=1);
 use ILIAS\Setup;
 use ILIAS\Refinery;
 use ILIAS\UI;
+use ILIAS\Language\Activities\InstallLanguageInterface;
+use ILIAS\Language\Setup\InstalledLanguageRepository;
 
 class ilLanguageSetupAgent implements Setup\Agent
 {
@@ -28,13 +30,19 @@ class ilLanguageSetupAgent implements Setup\Agent
 
     protected Refinery\Factory $refinery;
     protected \ilSetupLanguage $il_setup_language;
+    protected InstallLanguageInterface $install_language;
+    protected InstalledLanguageRepository $repository;
 
     public function __construct(
         Refinery\Factory $refinery,
-        \ilSetupLanguage $il_setup_language
+        \ilSetupLanguage $il_setup_language,
+        InstallLanguageInterface $install_language,
+        InstalledLanguageRepository $repository
     ) {
         $this->refinery = $refinery;
         $this->il_setup_language = $il_setup_language;
+        $this->install_language = $install_language;
+        $this->repository = $repository;
     }
 
     /**
@@ -61,7 +69,10 @@ class ilLanguageSetupAgent implements Setup\Agent
         return new Setup\ObjectiveCollection(
             "Complete objectives from components/ILIAS/Language",
             false,
-            new ilLanguagesInstalledAndUpdatedObjective($this->il_setup_language),
+            new ilLanguagesInstalledAndUpdatedObjective(
+                $this->il_setup_language,
+                $this->install_language
+            ),
             new ilDefaultLanguageSetObjective()
         );
     }
@@ -74,7 +85,10 @@ class ilLanguageSetupAgent implements Setup\Agent
         return new Setup\ObjectiveCollection(
             "Complete objectives from components/ILIAS/Language",
             false,
-            new ilLanguagesInstalledAndUpdatedObjective($this->il_setup_language),
+            new ilLanguagesInstalledAndUpdatedObjective(
+                $this->il_setup_language,
+                $this->install_language
+            ),
         );
     }
 
@@ -91,7 +105,7 @@ class ilLanguageSetupAgent implements Setup\Agent
      */
     public function getStatusObjective(Setup\Metrics\Storage $storage): Setup\Objective
     {
-        return new ilLanguageMetricsCollectedObjective($storage, $this->il_setup_language);
+        return new ilLanguageMetricsCollectedObjective($storage, $this->repository);
     }
 
     /**

@@ -40,15 +40,26 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     protected URLBuilder $url_builder;
     protected URLBuilderToken $action_token;
     protected URLBuilderToken $id_token;
+    private readonly InstallLanguage $install_language;
+    private readonly int $current_user_id;
 
     /**
      * Constructor
      */
     public function __construct(?array $a_data, int $a_id, bool $a_call_by_reference)
     {
+        global $DIC;
+
         $this->type = "lngf";
         parent::__construct($a_data, $a_id, $a_call_by_reference, false);
         $this->lng->loadLanguageModule("lng");
+
+        // Resolved once here, per the constructor-injection idiom already
+        // used by sibling GUI classes in this component (see
+        // ilObjLanguageExtGUI::__construct()) - action methods must not
+        // reach into `global $DIC` themselves.
+        $this->install_language = $DIC[InstallLanguage::class];
+        $this->current_user_id = $DIC->user()->getId();
         $this->df = new ILIAS\Data\Factory();
 
         $here_uri = $this->df->uri($this->request->getUri()->__toString());
@@ -191,50 +202,33 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     }
 
     /**
+     * Turn a list of language keys into a localized, comma-separated list
+     * (e.g. for "German, French installed." style messages).
+     *
+     * @param list<string> $lang_keys
+     */
+    private function languageKeysToLocalizedList(array $lang_keys): string
+    {
+        return implode(', ', array_map(
+            fn(string $key): string => $this->lng->txt('meta_l_' . $key),
+            $lang_keys
+        ));
+    }
+
+    /**
      * install languages
      */
     public function installObject(array $ids): void
     {
-        /*$this->checkPermission("write");
-        $this->lng->loadLanguageModule("meta");
-
+        $language_keys = [];
         foreach ($ids as $obj_id) {
-            $langObj = new ilObjLanguage((int) $obj_id);
-            $key = $langObj->install();
-
-            if ($key !== "") {
-                $lang_installed[] = $key;
-            }
-
-            unset($langObj);
+            $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();
         }
 
-        if (isset($lang_installed)) {
-            if (count($lang_installed) === 1) {
-                $this->data = $this->lng->txt("meta_l_" . $lang_installed[0]) . " " . strtolower($this->lng->txt("installed")) . ".";
-            } else {
-                $langnames = [];
-                foreach ($lang_installed as $lang_key) {
-                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-                }
-                $this->data = implode(", ", $langnames) . " " . strtolower($this->lng->txt("installed")) . ".";
-            }
-        } else {
-            $this->data = $this->lng->txt("languages_already_installed");
-        }
-
-        $this->out();*/
-
-        global $DIC;
-
-        $activity = new InstallLanguage(
-            $DIC->refinery()
-        );
-
-        $result = $activity->maybePerformAs(
-            $DIC->user()->getId(),
+        $result = $this->install_language->maybePerformAs(
+            $this->current_user_id,
             [
-                'language_object_ids' => array_map('intval', $ids),
+                'language_keys' => $language_keys,
             ]
         );
 
@@ -251,15 +245,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $value = $result->value();
 
         if (($lang_installed = $value['installed_language_keys']) !== []) {
-            if (count($lang_installed) === 1) {
-                $message = $this->lng->txt("meta_l_" . $lang_installed[0]) . " " . strtolower($this->lng->txt("installed")) . ".";
-            } else {
-                $langnames = [];
-                foreach ($lang_installed as $lang_key) {
-                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-                }
-                $message = implode(", ", $langnames) . " " . strtolower($this->lng->txt("installed")) . ".";
-            }
+            $message = $this->languageKeysToLocalizedList($lang_installed) . " " . strtolower($this->lng->txt("installed")) . ".";
             $this->tpl->setOnScreenMessage(
                 'success',
                 $message,
@@ -268,12 +254,8 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         if (($lang_already_installed = $value['already_installed_language_keys']) !== []) {
-            $message = $this->lng->txt("languages_already_installed") . ': ';
-            $langnames = [];
-            foreach ($lang_already_installed as $lang_key) {
-                $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-            }
-            $message .= implode(', ', $langnames);
+            $message = $this->lng->txt("languages_already_installed") . ': '
+                . $this->languageKeysToLocalizedList($lang_already_installed);
             $this->tpl->setOnScreenMessage(
                 'info',
                 $message,
@@ -281,65 +263,18 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        if (($invalid_local_language_files = $value['invalid_local_language_files']) !== []) {
+            $message = $this->lng->txt('local_language_files') . ': '
+                . implode(', ', $invalid_local_language_files) . '. '
+                . $this->lng->txt('file_not_valid');
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $message,
+                true
+            );
+        }
+
         $this->ctrl->redirect($this, 'view');
-    }
-
-
-    /**
-     * Install local language modifications.
-     */
-    public function installLocalObject(array $ids): void
-    {
-        $this->checkPermission("write");
-        $this->lng->loadLanguageModule("meta");
-
-        foreach ($ids as $obj_id) {
-            $langObj = new ilObjLanguage((int) $obj_id);
-            $key = $langObj->install();
-
-            if ($key !== "") {
-                $lang_installed[] = $key;
-            }
-
-            unset($langObj);
-
-            $langObj = new ilObjLanguage((int) $obj_id);
-            $key = $langObj->install("local");
-
-            if ($key !== "") {
-                $local_installed[] = $key;
-            }
-
-            unset($langObj);
-        }
-
-        if (isset($lang_installed)) {
-            if (count($lang_installed) === 1) {
-                $this->data = $this->lng->txt("meta_l_" . $lang_installed[0]) . " " . strtolower($this->lng->txt("installed")) . ".";
-            } else {
-                $langnames = [];
-                foreach ($lang_installed as $lang_key) {
-                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-                }
-                $this->data = implode(", ", $langnames) . " " . strtolower($this->lng->txt("installed")) . ".";
-            }
-        }
-
-        if (isset($local_installed)) {
-            if (count($local_installed) === 1) {
-                $this->data .= " " . $this->lng->txt("meta_l_" . $local_installed[0]) . " " . $this->lng->txt("local_language_file") . " " . strtolower($this->lng->txt("installed")) . ".";
-            } else {
-                $langnames = [];
-                foreach ($local_installed as $lang_key) {
-                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-                }
-                $this->data .= " " . implode(", ", $langnames) . " " . $this->lng->txt("local_language_files") . " " . strtolower($this->lng->txt("installed")) . ".";
-            }
-        } else {
-            $this->data .= " " . $this->lng->txt("local_languages_already_installed");
-        }
-
-        $this->out();
     }
 
 
@@ -368,16 +303,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
 
         // generate output message
         if (isset($lang_uninstalled)) {
-            if (count($lang_uninstalled) === 1) {
-                $this->data = $this->lng->txt("meta_l_" . $lang_uninstalled[0]) . " " . $this->lng->txt("uninstalled");
-            } else {
-                $langnames = [];
-                foreach ($lang_uninstalled as $lang_key) {
-                    $langnames[] = $this->lng->txt("meta_l_" . $lang_key);
-                }
-
-                $this->data = implode(", ", $langnames) . " " . $this->lng->txt("uninstalled");
-            }
+            $this->data = $this->languageKeysToLocalizedList($lang_uninstalled) . " " . $this->lng->txt("uninstalled");
         } elseif ($sys_lang) {
             $this->data = $this->lng->txt("cannot_uninstall_systemlanguage");
         } elseif ($usr_lang) {
@@ -412,8 +338,14 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                     $langObj->setDescription("installed");
                     $langObj->update();
                     $refreshed[] = $langObj->getKey();
+                    $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
+                } else {
+                    // check() no longer redirects with an error message
+                    // itself (it is a pure Model method now), so an invalid
+                    // language file must be surfaced here instead.
+                    $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey())
+                        . ": " . $this->lng->txt("file_not_valid");
                 }
-                $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
             }
 
             unset($langObj);
@@ -656,19 +588,6 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                             $this->uninstallObject($ids);
                             break;
                         case 'install':
-                            $ids = $this->getIdsFromQueryToken();
-                            if (current($ids) === 'ALL_OBJECTS') {
-                                array_shift($ids);
-                                $languages = ilObject::_getObjectsByType("lng");
-                                foreach ($languages as $lang) {
-                                    $langObj = new ilObjLanguage((int) $lang["obj_id"], false);
-                                    if (!$langObj->isInstalled()) {
-                                        $ids[] = (string) $lang["obj_id"];
-                                    }
-                                }
-                            }
-                            $this->installObject($ids);
-                            break;
                         case 'install_local':
                             $ids = $this->getIdsFromQueryToken();
                             if (current($ids) === 'ALL_OBJECTS') {
@@ -678,7 +597,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                                     $ids[] = (string) $lang["obj_id"];
                                 }
                             }
-                            $this->installLocalObject($ids);
+                            $this->installObject($ids);
                             break;
                         case 'lang_uninstall_changes':
                             $ids = $this->getIdsFromQueryToken();
@@ -847,11 +766,6 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             'install' => $f->table()->action()->standard(
                 $this->lng->txt("install"),
                 $this->url_builder->withParameter($this->action_token, "install"),
-                $this->id_token
-            ),
-            'installLocal' => $f->table()->action()->standard(
-                $this->lng->txt("install_local"),
-                $this->url_builder->withParameter($this->action_token, "installLocal"),
                 $this->id_token
             ),
             'confirmUninstall' => $f->table()->action()->standard(

@@ -124,6 +124,8 @@ class Init implements Component\Component
                 $use[\ILIAS\Setup\AgentFinder::class],
                 $pull[\ILIAS\UI\Implementation\Component\Navigation\Factory::class],
                 $pull[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class],
+                $pull[\ILIAS\Language\Activities\InstallLanguageInterface::class],
+                $use[\ILIAS\Language\Language::class],
             );
     }
 }

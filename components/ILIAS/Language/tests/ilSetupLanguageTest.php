@@ -95,6 +95,35 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         };
     }
 
+    private function createMockCustomizingDirectory(): LanguageFileDirectory
+    {
+        return new class ($this->tempComponentDir) implements LanguageFileDirectory {
+            public function __construct(private string $path)
+            {
+            }
+
+            public function getPrefix(): string
+            {
+                return '';
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '.local';
+            }
+
+            public function isLocal(): bool
+            {
+                return true;
+            }
+        };
+    }
+
     public function testRetrieveLanguageKey(): void
     {
         $this->assertEquals('de', $this->newLangSetupDe->getLangKey());
@@ -203,5 +232,138 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         } finally {
             $this->cleanupTempDir();
         }
+    }
+
+    public function testCheckLanguageFailsOnNonUtf8Value(): void
+    {
+        $fullPath = __DIR__ . '/../../../../' . $this->tempComponentDir;
+        if (!is_dir($fullPath)) {
+            mkdir($fullPath, 0777, true);
+        }
+
+        try {
+            file_put_contents(
+                $fullPath . '/ilias_en.lang',
+                "<!-- language file start -->\n" .
+                "test_key#:#" . chr(0xFF) . chr(0xFE) . "\n"
+            );
+
+            $mockDir = $this->createMockComponentDirectory($this->tempComponentDir, 'test');
+            $manager = new LanguageFileDirectoryManager(
+                new CustomizingLanguageFileDirectory(),
+                new MainLanguageFileDirectory(),
+                $mockDir
+            );
+            $setup_language = new ilSetupLanguage('en', $manager);
+
+            $this->assertFalse($this->callCheckLanguage($setup_language, 'en'));
+        } finally {
+            $this->cleanupTempDir();
+        }
+    }
+
+    public function testGetInvalidLocalLanguageFilesReturnsEmptyForValidFile(): void
+    {
+        $fullPath = __DIR__ . '/../../../../' . $this->tempComponentDir;
+        mkdir($fullPath, 0777, true);
+        file_put_contents($fullPath . '/ilias_en.lang.local', 'custom');
+
+        $manager = new LanguageFileDirectoryManager(
+            $this->createMockCustomizingDirectory(),
+            new MainLanguageFileDirectory()
+        );
+        $setup_language = new ilSetupLanguage('en', $manager);
+
+        $this->assertSame([], $setup_language->getInvalidLocalLanguageFiles(['en']));
+    }
+
+    public function testGetInvalidLocalLanguageFilesIgnoresMissingFile(): void
+    {
+        $fullPath = __DIR__ . '/../../../../' . $this->tempComponentDir;
+        mkdir($fullPath, 0777, true);
+
+        $manager = new LanguageFileDirectoryManager(
+            $this->createMockCustomizingDirectory(),
+            new MainLanguageFileDirectory()
+        );
+        $setup_language = new ilSetupLanguage('en', $manager);
+
+        $this->assertSame([], $setup_language->getInvalidLocalLanguageFiles(['en']));
+    }
+
+    public function testGetInvalidLocalLanguageFilesReturnsMalformedFileName(): void
+    {
+        $fullPath = __DIR__ . '/../../../../' . $this->tempComponentDir;
+        mkdir($fullPath, 0777, true);
+        file_put_contents($fullPath . '/ilias_en.lang.locl', 'custom');
+
+        $manager = new LanguageFileDirectoryManager(
+            $this->createMockCustomizingDirectory(),
+            new MainLanguageFileDirectory()
+        );
+        $setup_language = new ilSetupLanguage('en', $manager);
+
+        $this->assertSame(
+            ['ilias_en.lang.locl'],
+            $setup_language->getInvalidLocalLanguageFiles(['en'])
+        );
+    }
+
+    private function createDatabaseMock(): ilDBInterface
+    {
+        $db = $this->createMock(ilDBInterface::class);
+        $db->method('nextId')->willReturn(42);
+        $db->method('quote')->willReturnCallback(
+            static fn(mixed $value): string => "'" . (string) $value . "'"
+        );
+        $db->method('now')->willReturn('NOW()');
+        $db->method('manipulate')->willReturn(1);
+
+        return $db;
+    }
+
+    public function testRegisterInstalledLanguageInsertsUnknownLanguage(): void
+    {
+        $db = $this->createDatabaseMock();
+        $db->expects($this->once())
+            ->method('manipulate')
+            ->with($this->logicalAnd(
+                $this->stringContains('INSERT INTO object_data'),
+                $this->stringContains("'de'"),
+                $this->stringContains("'installed'")
+            ))
+            ->willReturn(1);
+
+        $this->newLangSetupDe->registerInstalledLanguage($db, 'de', [], []);
+    }
+
+    public function testRegisterInstalledLanguageInsertsAsInstalledLocalWhenLocalFileIsPresent(): void
+    {
+        $db = $this->createDatabaseMock();
+        $db->expects($this->once())
+            ->method('manipulate')
+            ->with($this->stringContains("'installed_local'"));
+
+        $this->newLangSetupDe->registerInstalledLanguage($db, 'de', [], ['de']);
+    }
+
+    public function testRegisterInstalledLanguageUpdatesKnownLanguage(): void
+    {
+        $db = $this->createDatabaseMock();
+        $db->expects($this->once())
+            ->method('manipulate')
+            ->with($this->logicalAnd(
+                $this->stringContains('UPDATE object_data'),
+                $this->stringContains("'installed'"),
+                $this->stringContains('obj_id = ' . "'7'")
+            ))
+            ->willReturn(1);
+
+        $this->newLangSetupDe->registerInstalledLanguage(
+            $db,
+            'de',
+            ['de' => ['obj_id' => 7, 'status' => 'not_installed']],
+            []
+        );
     }
 }

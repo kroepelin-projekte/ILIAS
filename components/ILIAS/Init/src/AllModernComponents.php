@@ -96,6 +96,16 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\Setup\AgentFinder $setup_agent_finder,
         protected \ILIAS\UI\Implementation\Component\Navigation\Factory $ui_factory_navigation,
         protected \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager,
+        protected \ILIAS\Language\Activities\InstallLanguageInterface $install_language,
+        // This constructor argument is evaluated by PHP before enter() runs,
+        // i.e. before the legacy $DIC even exists. That is only safe because
+        // the "default"/Init dependency_resolution.php disambiguates
+        // \ILIAS\Language\Language to LanguageLegacyInitialisationAdapter,
+        // which has no constructor and only lazily touches `global $DIC`
+        // inside its methods. \ilLanguage itself eagerly reads $DIC in its
+        // constructor and would crash if it were resolved here instead - if
+        // that disambiguation ever changes, this argument must be revisited.
+        protected \ILIAS\Language\Language $language,
     ) {
     }
 
@@ -175,7 +185,16 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         $DIC['ui.factory.navigation'] = fn() => $this->ui_factory_input_field;
         $DIC[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class] = fn() =>
             $this->language_file_directory_manager;
-        $DIC[\ILIAS\Language\Language::class] = fn() => $DIC->language();
+        $DIC[\ILIAS\Language\Activities\InstallLanguage::class] = fn() =>
+            $this->install_language;
+        // Route legacy consumers of this FQCN through the instance the
+        // component graph actually resolved, instead of independently
+        // re-deriving it from $DIC->language(). See the constructor comment
+        // on $this->language for why this stays behaviorally equivalent
+        // today (both resolve to the same LanguageLegacyInitialisationAdapter
+        // pointing at $DIC->language()) without risking bootstrap-order
+        // crashes.
+        $DIC[\ILIAS\Language\Language::class] = fn() => $this->language;
     }
 
     public function getName(): string

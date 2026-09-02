@@ -29,16 +29,34 @@ use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
+use ILIAS\UI\Factory as UIFactory;
 
-final class InstallLanguage extends ActivityImpl
+final class InstallLanguage extends ActivityImpl implements InstallLanguageInterface
 {
     private Language $lng;
+    private readonly \Closure $rbac_system;
+    private readonly \Closure $db;
+    private readonly \Closure $language_folder_ref_id;
 
     public function __construct(
         private readonly RefineryFactory $refinery,
+        private readonly UIFactory $ui_factory,
         Language $language,
+        \ilRbacSystem|\Closure $rbac_system,
+        \ilDBInterface|\Closure $db,
+        private readonly \ilSetupLanguage $setup_language,
+        int|\Closure $language_folder_ref_id = 0,
     ) {
         $this->lng = $language;
+        $this->rbac_system = $rbac_system instanceof \Closure
+            ? $rbac_system
+            : static fn(): \ilRbacSystem => $rbac_system;
+        $this->db = $db instanceof \Closure
+            ? $db
+            : static fn(): \ilDBInterface => $db;
+        $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
+            ? $language_folder_ref_id
+            : static fn(): int => $language_folder_ref_id;
     }
 
     public function getType(): ActivityType
@@ -61,12 +79,14 @@ MARKDOWN
 
     public function getInputDescription(): FormInput
     {
-        global $DIC;
-
-        return $DIC->ui()->factory()->input()->field()->text(
+        $language_keys = $this->ui_factory->input()->field()->text(
             'Sprachschlüssel',
             'Kommagetrennte Liste von Sprachschlüsseln, z. B. de, fr, it.'
-        )->withRequired(true);
+        )->withRequired(true)->withDedicatedName('language_keys');
+
+        return $this->ui_factory->input()->field()->group([
+            'language_keys' => $language_keys,
+        ]);
     }
 
     public function getOutputDescription(Description\Factory $f): Description\Description
@@ -81,6 +101,10 @@ MARKDOWN
                 'already_installed_language_keys' => $f->list(
                     $this->markdown('Sprachen, die bereits installiert waren.'),
                     $f->string($this->markdown('Sprachschlüssel einer bereits installierten Sprache.'))
+                ),
+                'invalid_local_language_files' => $f->list(
+                    $this->markdown('Lokale Sprachdateien mit einem ungültigen Dateinamen.'),
+                    $f->string($this->markdown('Dateiname einer ungültigen lokalen Sprachdatei.'))
                 ),
             ]
         );
@@ -98,12 +122,10 @@ MARKDOWN
 
     public function isAllowedToPerform(int $usr_id, mixed $parameters): bool
     {
-        global $DIC;
-
-        return $DIC->rbac()->system()->checkAccessOfUser(
+        return ($this->rbac_system)()->checkAccessOfUser(
             $usr_id,
             'write',
-            \ilObjLanguageAccess::_lookupLangFolderRefId()
+            ($this->language_folder_ref_id)()
         );
     }
 
@@ -113,46 +135,59 @@ MARKDOWN
             throw new \InvalidArgumentException('Parameters must be an array.');
         }
 
-        $obj_ids = $this->toIntegerList($parameters['language_object_ids'] ?? []);
+        $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
+        $db = ($this->db)();
 
-        $installed_language_keys = [];
-        $already_installed_language_keys = [];
-        $currently_installed_language_keys = \ilLanguage::_getInstalledLanguages();
+        $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
+        $error_language_keys = [];
 
-        foreach ($obj_ids as $obj_id) {
-            $langObj = new \ilObjLanguage($obj_id);
-            $language_key = $langObj->getTitle();
-
-            if (in_array($language_key, $currently_installed_language_keys, true)) {
-                $already_installed_language_keys[] = $language_key;
-                unset($langObj);
-                continue;
+        foreach ($language_keys as $language_key) {
+            if (!$this->setup_language->checkLanguageForInstallation($language_key)) {
+                $error_language_keys[] = $language_key;
             }
-
-            $installed_language_key = $langObj->install();
-
-            if ($installed_language_key !== '') {
-                $installed_language_keys[] = $installed_language_key;
-                $currently_installed_language_keys[] = $installed_language_key;
-            }
-
-            unset($langObj);
         }
+
+        if ($error_language_keys !== []) {
+            throw new \RuntimeException(
+                'Invalid language files: ' . implode(', ', $error_language_keys)
+            );
+        }
+
+        $local_language_keys = $this->setup_language->getLocalLanguages();
+        $invalid_local_language_files = $this->setup_language->getInvalidLocalLanguageFiles($language_keys);
+        $currently_installed_language_keys = $this->setup_language->getInstalledLanguages();
+
+        foreach ($language_keys as $language_key) {
+            $this->setup_language->flushLanguageForInstallation($language_key);
+            $this->setup_language->insertLanguageForInstallation($language_key);
+            $this->setup_language->registerInstalledLanguage($db, $language_key, $db_languages, $local_language_keys);
+        }
+
+        $already_installed_language_keys = array_values(array_filter(
+            $language_keys,
+            static fn(string $key): bool => in_array($key, $currently_installed_language_keys, true)
+        ));
+        $installed_language_keys = array_values(array_filter(
+            $language_keys,
+            static fn(string $key): bool => !in_array($key, $currently_installed_language_keys, true)
+        ));
 
         return [
             'installed_language_keys' => $installed_language_keys,
             'already_installed_language_keys' => $already_installed_language_keys,
+            'invalid_local_language_files' => $invalid_local_language_files,
         ];
     }
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
         try {
-            if (!$this->isAllowedToPerform($usr_id, $raw_parameters)) {
-                return new Result\Error($this->lng->txt('msg_no_perm_read'));
+            $parameters = $this->normalizeParameters($raw_parameters);
+            if (!$this->isAllowedToPerform($usr_id, $parameters)) {
+                return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
 
-            return new Result\Ok($this->perform($raw_parameters));
+            return new Result\Ok($this->perform($parameters));
         } catch (\Throwable $e) {
             return new Result\Error($e);
         }
@@ -160,22 +195,49 @@ MARKDOWN
 
     /**
      * @param mixed $value
-     * @return list<int>
+     * @return list<string>
      */
-    private function toIntegerList(mixed $value): array
+    private function toLanguageKeyList(mixed $value): array
     {
-        if (!is_array($value)) {
-            return [];
+        if (!is_string($value) && !is_array($value)) {
+            throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
         }
 
-        return array_values(
-            array_filter(
-                array_map(
-                    static fn(mixed $item): int => (int) $item,
-                    $value
-                ),
-                static fn(int $item): bool => $item > 0
-            )
-        );
+        $values = is_array($value) ? $value : [$value];
+        $language_keys = [];
+
+        foreach ($values as $item) {
+            if (!is_string($item)) {
+                throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+            }
+
+            foreach (explode(',', (string) $item) as $language_key) {
+                $language_key = trim($language_key);
+                if ($language_key !== '' && !in_array($language_key, $language_keys, true)) {
+                    $language_keys[] = $language_key;
+                }
+            }
+        }
+
+        if ($language_keys === []) {
+            throw new \InvalidArgumentException('At least one language key is required.');
+        }
+
+        return $language_keys;
+    }
+
+    /**
+     * @param mixed $raw_parameters
+     * @return array{language_keys: list<string>}
+     */
+    private function normalizeParameters(mixed $raw_parameters): array
+    {
+        if (!is_array($raw_parameters) || !array_key_exists('language_keys', $raw_parameters)) {
+            throw new \InvalidArgumentException('The language_keys parameter is required.');
+        }
+
+        return [
+            'language_keys' => $this->toLanguageKeyList($raw_parameters['language_keys']),
+        ];
     }
 }

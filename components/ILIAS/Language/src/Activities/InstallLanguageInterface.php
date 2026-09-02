@@ -18,17 +18,9 @@
 
 declare(strict_types=1);
 
-use ILIAS\Setup;
+namespace ILIAS\Language\Activities;
 
-/**
- * Not every Objective in this component installs/updates languages (e.g.
- * ilDefaultLanguageSetObjective does not), so the shared "install languages
- * via ilSetupLanguage/InstallLanguage" dependencies and helper are not on
- * this common base - see ilLanguageInstallationObjectiveTrait for those.
- */
-abstract class ilLanguageObjective implements Setup\Objective
+interface InstallLanguageInterface
 {
-    public function __construct()
-    {
-    }
+    public function perform(mixed $parameters): array;
 }

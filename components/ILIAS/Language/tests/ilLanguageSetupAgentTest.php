@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Data\Factory as DataFactory;
+use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Setup\Objective\NullObjective;
 
 /**
@@ -36,8 +38,21 @@ class ilLanguageSetupAgentTest extends ilLanguageBaseTestCase
     {
         $refinery = new Refinery($this->createMock(DataFactory::class), $this->createMock(\ilLanguage::class));
         $setup_language = $this->createMock(ilSetupLanguage::class);
+        $install_language = new InstallLanguage(
+            $refinery,
+            $this->createMock(\ILIAS\UI\Factory::class),
+            $this->createMock(\ILIAS\Language\Language::class),
+            $this->createMock(\ilRbacSystem::class),
+            $this->createMock(\ilDBInterface::class),
+            $setup_language
+        );
 
-        $this->obj = new \ilLanguageSetupAgent($refinery, $setup_language);
+        $this->obj = new \ilLanguageSetupAgent(
+            $refinery,
+            $setup_language,
+            $install_language,
+            $this->createMock(InstalledLanguageRepository::class)
+        );
     }
 
     public function testCreate(): void

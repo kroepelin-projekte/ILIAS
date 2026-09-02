@@ -22,6 +22,9 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\Setup\InstalledLanguageRepository;
+use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
+use ILIAS\Language\Setup\LanguageInstallationManager;
 
 /**
  * language handling for setup
@@ -37,12 +40,20 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
  * @author Peter Gabriel <pgabriel@databay.de>
  * @version $Id$
  *
- *
- * @todo The DATE field is not set correctly on changes of a language (update, install, your stable).
- *  The format functions do not belong in class.Language. Those are also applicable elsewhere.
- *  Therefore, they would be better placed in class.Format
- * @todo This somehow needs to be reconciled with the base class and most probably be factored
- *  into two classes, one for management, one for retrieval.
+ * This class has two responsibilities that used to be more entangled than
+ * they are now:
+ *  - being a \ILIAS\Language\Language implementation (via ilLanguage), used
+ *    as the txt()-lookup during Setup, before the full runtime DIC exists,
+ *  - installing/managing languages in the database and validating language
+ *    files on disk.
+ * The latter responsibility has been extracted into
+ * \ILIAS\Language\Setup\InstalledLanguageRepository (read access) and
+ * \ILIAS\Language\Setup\LanguageInstallationManager (write access), per
+ * docs/development/repository-pattern.md. This class now mostly delegates
+ * to both and is kept around as the concrete \ILIAS\Language\Language
+ * implementation for Setup and as a stable entry point for the many
+ * existing callers (Setup Objectives, ilObjLanguage, ...) that are not
+ * (yet) wired through components/ILIAS/Language/Language.php.
  */
 class ilSetupLanguage extends ilLanguage
 {
@@ -53,6 +64,8 @@ class ilSetupLanguage extends ilLanguage
     public string $separator = "#:#";
     public string $comment_separator = "###";
     protected ilDBInterface $db;
+    private readonly InstalledLanguageRepository $repository;
+    private readonly LanguageInstallationManager $manager;
 
     public function __construct(
         string $a_lang_key,
@@ -66,6 +79,23 @@ class ilSetupLanguage extends ilLanguage
         );
         $this->cust_lang_path = $this->absolute_path . "/lang/customizing";
         $this->lang_path = $this->absolute_path . "/lang";
+
+        // See the class docblock: db access is resolved lazily via the global,
+        // exactly as every method here already did before this class delegated
+        // to the repository/manager, so setDbHandler() below keeps behaving the
+        // same way it always did (it only ever fed the now-unused $this->db).
+        $db_resolver = static fn(): ilDBInterface => $GLOBALS["ilDB"];
+        $this->repository = new InstalledLanguageDatabaseRepository(
+            $db_resolver,
+            $this->language_file_directory_manager,
+            $this->absolute_path
+        );
+        $this->manager = new LanguageInstallationManager(
+            $db_resolver,
+            $this->language_file_directory_manager,
+            $this->absolute_path,
+            $this->repository
+        );
     }
 
     /**
@@ -110,70 +140,69 @@ class ilSetupLanguage extends ilLanguage
      */
     public function installLanguages(array $a_lang_keys, array $a_local_keys = [])
     {
-        global $ilDB;
-
         if (empty($a_lang_keys)) {
             $a_lang_keys = [];
         }
 
-        $err_lang = [];
-        $db_langs = $this->getAvailableLanguages();
-        $local_langs = $this->getLocalLanguages();
+        return $this->manager->installLanguages($a_lang_keys, $a_local_keys);
+    }
 
-        foreach ($a_lang_keys as $lang_key) {
-            if ($this->checkLanguage($lang_key)) {
-                $this->flushLanguage($lang_key, "keep_local");
-                $this->insertLanguage($lang_key);
+    /**
+     * Registers or updates the object_data bookkeeping row for a language
+     * that has just been flushed/(re-)inserted, deciding "installed" vs.
+     * "installed_local" and INSERTing a fresh row or UPDATEing the existing
+     * one accordingly. This is the single source of truth for that
+     * bookkeeping - both installLanguages() and
+     * \ILIAS\Language\Activities\InstallLanguage::perform() call this
+     * instead of duplicating the object_data INSERT/UPDATE.
+     *
+     * @param array<string, array{obj_id:int, status:string}> $known_languages result of getAvailableLanguages()/getAvailableLanguagesForInstallation()
+     * @param list<string> $local_language_keys result of getLocalLanguages()
+     */
+    public function registerInstalledLanguage(
+        ilDBInterface $db,
+        string $lang_key,
+        array $known_languages,
+        array $local_language_keys
+    ): void {
+        $this->manager->registerInstalledLanguage($db, $lang_key, $known_languages, $local_language_keys);
+    }
 
-                // register language first time install
-                if (!array_key_exists($lang_key, $db_langs)) {
-                    $itype = in_array($lang_key, $local_langs, true) ? "installed_local" : "installed";
-                    $lid = $ilDB->nextId("object_data");
-                    $query = "INSERT INTO object_data " .
-                            "(obj_id,type,title,description,owner,create_date,last_update) " .
-                            "VALUES " .
-                            "(" .
-                            $ilDB->quote($lid, "integer") . "," .
-                            $ilDB->quote("lng", "text") . "," .
-                            $ilDB->quote($lang_key, "text") . "," .
-                            $ilDB->quote($itype, "text") . "," .
-                            $ilDB->quote("-1", "integer") . "," .
-                            $ilDB->now() . "," .
-                            $ilDB->now() .
-                            ")";
-                    $ilDB->manipulate($query);
-                }
-            } else {
-                $err_lang[] = $lang_key;
-            }
-        }
+    public function getAvailableLanguagesForInstallation(): array
+    {
+        return $this->repository->getAvailableLanguages();
+    }
 
-        foreach ($db_langs as $key => $val) {
-            if (!in_array($key, $err_lang, true)) {
-                if (in_array($key, $a_lang_keys, true)) {
-                    $ld = in_array($key, $local_langs, true) ? "installed_local" : "installed";
-                    $query = "UPDATE object_data SET " .
-                            "description = " . $ilDB->quote($ld, "text") . ", " .
-                            "last_update = " . $ilDB->quote(gmdate("Y-m-d H:i:s"), "timestamp") . " " .
-                            "WHERE obj_id = " . $ilDB->quote($val["obj_id"], "integer") . " " .
-                            "AND type = " . $ilDB->quote("lng", "text");
-                    $ilDB->manipulate($query);
-                } else {
-                    $this->flushLanguage($key, "all");
+    public function checkLanguageForInstallation(string $lang_key): bool
+    {
+        return $this->repository->checkLanguage($lang_key);
+    }
 
-                    if (strpos($val["status"], "installed") === 0) {
-                        $query = "UPDATE object_data SET " .
-                            "description = " . $ilDB->quote("not_installed", "text") . ", " .
-                            "last_update = " . $ilDB->quote(gmdate("Y-m-d H:i:s"), "timestamp") . " " .
-                            "WHERE obj_id = " . $ilDB->quote($val["obj_id"], "integer") . " " .
-                            "AND type = " . $ilDB->quote("lng", "text");
-                        $ilDB->manipulate($query);
-                    }
-                }
-            }
-        }
+    /**
+     * Validates only the customizing/local language file for $lang_key
+     * (unlike checkLanguageForInstallation(), which treats a missing local
+     * file as acceptable). Used when a caller explicitly wants to validate
+     * a local customization file, e.g. before activating "installed_local"
+     * status for an already globally-installed language.
+     */
+    public function checkLocalLanguageFileForInstallation(string $lang_key): bool
+    {
+        return $this->repository->checkLocalLanguageFile($lang_key);
+    }
 
-        return ($err_lang) ?: true;
+    public function flushLanguageForInstallation(string $lang_key): void
+    {
+        $this->manager->flushLanguageForInstallation($lang_key);
+    }
+
+    public function flushLanguageForUninstallation(string $lang_key): void
+    {
+        $this->manager->flushLanguageForUninstallation($lang_key);
+    }
+
+    public function insertLanguageForInstallation(string $lang_key): void
+    {
+        $this->manager->insertLanguageForInstallation($lang_key);
     }
 
     /**
@@ -181,20 +210,7 @@ class ilSetupLanguage extends ilLanguage
      */
     public function getInstalledLanguages(): array
     {
-        global $ilDB;
-
-        $arr = [];
-        if ($ilDB instanceof ilDBInterface) {
-            $query = "SELECT * FROM object_data " .
-                "WHERE type = " . $ilDB->quote("lng", "text") . " " .
-                "AND " . $ilDB->like("description", "text", "installed%");
-            $r = $ilDB->query($query);
-
-            while ($row = $ilDB->fetchObject($r)) {
-                $arr[] = $row->title;
-            }
-        }
-        return $arr;
+        return $this->repository->getInstalledLanguages();
     }
 
     /**
@@ -202,41 +218,7 @@ class ilSetupLanguage extends ilLanguage
      */
     public function getInstalledLocalLanguages(): array
     {
-        global $ilDB;
-
-        $arr = [];
-        if ($ilDB instanceof ilDBInterface) {
-            $query = "SELECT * FROM object_data " .
-                "WHERE type = " . $ilDB->quote("lng", "text") . " " .
-                "AND description = " . $ilDB->quote("installed_local", "text");
-            $r = $ilDB->query($query);
-
-            while ($row = $ilDB->fetchObject($r)) {
-                $arr[] = $row->title;
-            }
-        }
-        return $arr;
-    }
-
-    /**
-     * get already registered languages (in db)
-     */
-    protected function getAvailableLanguages(): array
-    {
-        global $ilDB;
-
-        $arr = array();
-
-        $query = "SELECT * FROM object_data " .
-                "WHERE type = " . $ilDB->quote("lng", "text");
-        $r = $ilDB->query($query);
-
-        while ($row = $ilDB->fetchObject($r)) {
-            $arr[$row->title]["obj_id"] = $row->obj_id;
-            $arr[$row->title]["status"] = $row->description;
-        }
-
-        return $arr;
+        return $this->repository->getInstalledLocalLanguages();
     }
 
     /**
@@ -247,104 +229,10 @@ class ilSetupLanguage extends ilLanguage
      * three elements (module, identifier, value).
      *
      * $a_lang_key     international language key (2 digits)
-     * $scope          empty (global) or "local"
-     * $info_text      message about results of check OR "1" if all checks successfully passed
      */
     protected function checkLanguage(string $a_lang_key): bool
     {
-        $working_dir = getcwd();
-
-        foreach ($this->language_file_directory_manager->getAllDirectories() as $directory) {
-            $lang_file = "ilias_" . $a_lang_key . ".lang" . $directory->getSuffix();
-            $path = $this->getAbsoluteDirectoryPath($directory);
-
-            try {
-                if (!is_dir($path)) {
-                    if ($directory instanceof MainLanguageFileDirectory) {
-                        return false;
-                    }
-                    continue;
-                }
-                chdir($path);
-
-                if (!is_file($lang_file)) {
-                    if ($directory instanceof MainLanguageFileDirectory) {
-                        return false;
-                    }
-                    continue;
-                }
-
-                $content = $this->cut_header(file($lang_file));
-                if ($content === false) {
-                    return false;
-                }
-
-                $prefix = $directory->getPrefix();
-
-                foreach ($content as $line) {
-                    $line = trim($line);
-                    if ($line === '') {
-                        continue;
-                    }
-                    $parts = explode($this->separator, $line);
-
-                    if (!empty($prefix)) {
-                        array_unshift($parts, $prefix);
-                    }
-                    if (count($parts) !== 3) {
-                        return false;
-                    }
-                }
-            } finally {
-                chdir($working_dir);
-            }
-        }
-
-        return true;
-    }
-
-
-    private function getAbsoluteDirectoryPath(\ILIAS\Language\ComponentTranslation\LanguageFileDirectory $directory): string
-    {
-        $this->lang_path = rtrim($this->absolute_path, '/') . '/' . ltrim($directory->getPath(), '/');
-        return $this->lang_path;
-    }
-
-    /**
-     * Remove *.lang header information from '$content'.
-     *
-     * This function seeks for a special keyword where the language information starts.
-     * If found it returns the plain language information; otherwise returns false.
-     *
-     * $content    expect an ILIAS lang-file
-     *
-     * @return bool|string[]
-     */
-    protected function cut_header(array $content)
-    {
-        foreach ($content as $key => $val) {
-            if (trim($val) === "<!-- language file start -->") {
-                return array_slice($content, $key + 1);
-            }
-        }
-        return false;
-    }
-
-    /**
-     * remove language data from database
-     * $a_lang_key     language key
-     * $a_mode        "all" or "keep_local"
-     */
-    protected function flushLanguage(string $a_lang_key, string $a_mode = "all"): void
-    {
-        global $ilDB;
-
-        self::_deleteLangData($a_lang_key, ($a_mode === "keep_local"));
-
-        if ($a_mode === "all") {
-            $ilDB->manipulate("DELETE FROM lng_modules WHERE lang_key = " .
-                $ilDB->quote($a_lang_key, "text"));
-        }
+        return $this->repository->checkLanguage($a_lang_key);
     }
 
     /**
@@ -375,154 +263,7 @@ class ilSetupLanguage extends ilLanguage
     */
     public function getLocalChanges(string $a_lang_key, string $a_min_date = "", string $a_max_date = ""): array
     {
-        global $ilDB;
-
-        if ($a_min_date === "") {
-            $a_min_date = "1980-01-01 00:00:00";
-        }
-        if ($a_max_date === "") {
-            $a_max_date = "2200-01-01 00:00:00";
-        }
-
-        $q = sprintf(
-            "SELECT * FROM lng_data WHERE lang_key = %s " .
-            "AND local_change >= %s AND local_change <= %s",
-            $ilDB->quote($a_lang_key, "text"),
-            $ilDB->quote($a_min_date, "timestamp"),
-            $ilDB->quote($a_max_date, "timestamp")
-        );
-        $result = $ilDB->query($q);
-
-        $changes = array();
-        while ($row = $result->fetchRow(ilDBConstants::FETCHMODE_ASSOC)) {
-            $changes[$row["module"]][$row["identifier"]] = $row["value"];
-        }
-        return $changes;
-    }
-
-    /**
-     * insert language data from file in database
-     *
-     * $lang_key   international language key (2 digits)
-     * $scope      empty (global) or "local"
-     */
-    protected function insertLanguage(string $a_lang_key): void
-    {
-        global $ilDB;
-
-        $working_dir = getcwd();
-
-        // initialize variables
-        $values_sql = [];
-        $lang_array = $this->getLocalChanges($a_lang_key); // Start with local changes from DB
-
-        foreach ($this->language_file_directory_manager->getAllDirectories() as $directory) {
-            $lang_file = "ilias_" . $a_lang_key . ".lang" . $directory->getSuffix();
-            $path = $this->getAbsoluteDirectoryPath($directory);
-
-            if (!is_dir($path)) {
-                continue;
-            }
-            chdir($path);
-
-            if (!is_file($lang_file)) {
-                continue;
-            }
-
-            // remove header first
-            $content = $this->cut_header(file($lang_file));
-            if (!$content) {
-                continue;
-            }
-
-            $prefix = $directory->getPrefix();
-
-            foreach ($content as $line) {
-                $line = trim($line);
-                if ($line === '') {
-                    continue;
-                }
-                $separated = explode($this->separator, $line);
-
-                if (!empty($prefix)) {
-                    array_unshift($separated, $prefix);
-                }
-
-                $pos = strpos($separated[2], $this->comment_separator);
-                if ($pos !== false) {
-                    $separated[2] = substr($separated[2], 0, $pos);
-                }
-
-                $module = $separated[0];
-                $identifier = $separated[1];
-                $value = $separated[2];
-
-                // Respect DB local changes if this is a global file
-                if (!$directory->isLocal()) {
-                    if (isset($lang_array[$module][$identifier])) {
-                        continue;
-                    }
-                    $change_date = null;
-                } else {
-                    // Local file source: it overwrites, but we should check if DB has an EVEN NEWER change
-                    $min_date = gmdate("Y-m-d H:i:s", filemtime($lang_file));
-                    $newer_db_change = $this->getLocalChanges($a_lang_key, $min_date);
-                    if (isset($newer_db_change[$module][$identifier])) {
-                        $lang_array[$module][$identifier] = $newer_db_change[$module][$identifier];
-                        continue;
-                    }
-                    $change_date = gmdate("Y-m-d H:i:s", time());
-                }
-
-                $values_sql[] = sprintf(
-                    "(%s,%s,%s,%s,%s,%s)",
-                    $ilDB->quote($module, "text"),
-                    $ilDB->quote($identifier, "text"),
-                    $ilDB->quote($a_lang_key, "text"),
-                    $ilDB->quote($value, "text"),
-                    $ilDB->quote($change_date, "timestamp"),
-                    $ilDB->quote($separated[3] ?? null, "text")
-                );
-
-                $lang_array[$module][$identifier] = $value;
-            }
-        }
-
-        if ($values_sql !== []) {
-            $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
-                . implode(',', $values_sql)
-                . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
-            $ilDB->manipulate($query);
-        }
-
-        if ($lang_array === []) {
-            chdir($working_dir);
-            return;
-        }
-
-        $modules = array_keys($lang_array);
-        $inModulesToDelete = $ilDB->in('module', $modules, false, 'text');
-        $ilDB->manipulate(sprintf(
-            "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
-            $ilDB->quote($a_lang_key, "text")
-        ));
-
-        $modulesValuesSql = [];
-        foreach ($lang_array as $module => $lang_arr) {
-            $modulesValuesSql[] = sprintf(
-                "(%s,%s,%s)",
-                $ilDB->quote($module, "text"),
-                $ilDB->quote($a_lang_key, "text"),
-                $ilDB->quote(serialize($lang_arr), "clob")
-            );
-        }
-
-        $query = "INSERT INTO lng_modules (module, lang_key, lang_array) VALUES "
-            . implode(',', $modulesValuesSql)
-            . ";";
-        $ilDB->manipulate($query);
-
-        chdir($working_dir);
+        return $this->repository->getLocalChanges($a_lang_key, $a_min_date, $a_max_date);
     }
 
     /**
@@ -531,25 +272,19 @@ class ilSetupLanguage extends ilLanguage
      */
     public function getLocalLanguages(): array
     {
-        $local_langs = [];
-        $working_dir = getcwd();
+        return $this->repository->getLocalLanguages();
+    }
 
-        foreach ($this->language_file_directory_manager->getCustomizingDirectories() as $directory) {
-            $path = $this->getAbsoluteDirectoryPath($directory);
-            if (is_dir($path)) {
-                $d = dir($path);
-                chdir($path);
-                while ($entry = $d->read()) {
-                    if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
-                        $lang_key = substr($entry, 6, 2);
-                        $local_langs[] = $lang_key;
-                    }
-                }
-                chdir($working_dir);
-            }
-        }
-
-        return array_unique($local_langs);
+    /**
+     * Returns local language files whose names contain a requested language key
+     * but do not match the expected naming scheme.
+     *
+     * @param list<string> $language_keys
+     * @return list<string>
+     */
+    public function getInvalidLocalLanguageFiles(array $language_keys): array
+    {
+        return $this->repository->getInvalidLocalLanguageFiles($language_keys);
     }
 
     /**
@@ -557,25 +292,7 @@ class ilSetupLanguage extends ilLanguage
      */
     public function getInstallableLanguages(): array
     {
-        $installableLanguages = [];
-        $working_dir = getcwd();
-
-        foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
-            $path = $this->getAbsoluteDirectoryPath($directory);
-            if (is_dir($path)) {
-                $d = dir($path);
-                chdir($path);
-                while ($entry = $d->read()) {
-                    if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
-                        $lang_key = substr($entry, 6, 2);
-                        $installableLanguages[] = $lang_key;
-                    }
-                }
-                chdir($working_dir);
-            }
-        }
-
-        return array_unique($installableLanguages);
+        return $this->repository->getInstallableLanguages();
     }
 
     /**

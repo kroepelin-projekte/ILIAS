@@ -63,7 +63,10 @@ class ilPluginLanguageUpdatedObjective implements Setup\Objective
         return [
             new \ilIniFilesLoadedObjective(),
             new \ilDatabaseInitializedObjective(),
-            new ilLanguagesInstalledAndUpdatedObjective(new ilSetupLanguage('en')),
+            new ilLanguagesInstalledAndUpdatedObjective(
+                new ilSetupLanguage('en'),
+                $GLOBALS['DIC'][\ILIAS\Language\Activities\InstallLanguage::class]
+            ),
             new ilComponentRepositoryExistsObjective()
         ];
     }

@@ -287,6 +287,12 @@ class ilLanguage implements \ILIAS\Language\Language
 
     /**
      * Get installed languages
+     *
+     * Deliberately separate from ilSetupLanguage::getInstalledLanguages():
+     * this one relies on ilObject::_getObjectsByType(), which needs the full
+     * runtime object repository and is unavailable during Setup, whereas
+     * ilSetupLanguage's variant uses a raw object_data query that works
+     * before that machinery exists. Do not merge the two.
      */
     public static function _getInstalledLanguages(): array
     {
