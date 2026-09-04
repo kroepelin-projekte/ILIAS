@@ -60,7 +60,9 @@ class ilRTE
     {
         global $DIC;
 
-        $this->tpl = $DIC['tpl'];
+        if ($DIC->offsetExists('tpl')) {
+            $this->tpl = $DIC['tpl'];
+        }
         $this->ctrl = $DIC['ilCtrl'];
         $this->lng = $DIC['lng'];
         $this->browser = $DIC->http()->agent();
