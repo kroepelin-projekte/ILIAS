@@ -271,6 +271,86 @@ class LanguageInstallationManagerTest extends TestCase
         }
     }
 
+    /**
+     * insertLanguage() used to ask the repository for the local changes once
+     * per *line* of a customizing file, which meant thousands of identical
+     * "SELECT ... FROM lng_data" queries for a realistically sized file. The
+     * lookup depends only on the language and the file's mtime, and nothing
+     * inside the loop writes to the database, so it is resolved once per
+     * directory now. This pins the query count down - it must not grow with
+     * the file - while the assertions below keep the precedence rules that
+     * the lookup exists for.
+     */
+    public function testLocalChangesAreLookedUpOncePerDirectoryNotPerEntry(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [
+            ['common', 'locally_changed', 'Global Value'],
+            ['common', 'plain', 'Plain Global'],
+        ]);
+
+        $local_entries = [['common', 'newer_in_db', 'From Local File']];
+        for ($i = 0; $i < 200; $i++) {
+            $local_entries[] = ['common', 'override_' . $i, 'Local ' . $i];
+        }
+        $this->writeLangFile($root . '/lang/customizing/ilias_de.lang.local', $local_entries);
+
+        try {
+            $calls = 0;
+            $inserts = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(
+                static function (string $query) use (&$inserts): int {
+                    if (str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')) {
+                        $inserts[] = $query;
+                    }
+                    return 1;
+                }
+            );
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturnCallback(
+                static function (string $lang_key, string $min_date = '') use (&$calls): array {
+                    $calls++;
+                    // No date given: the seed of changes already in the database.
+                    // With a date: changes newer than the customizing file.
+                    return $min_date === ''
+                        ? ['common' => ['locally_changed' => 'DB Local Change']]
+                        : ['common' => ['newer_in_db' => 'DB Is Newer']];
+                }
+            );
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository,
+                static fn(): \DateTimeImmutable => new \DateTimeImmutable('2026-01-02 03:04:05', new \DateTimeZone('UTC'))
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            // One seed lookup plus one for the single customizing directory -
+            // independent of the 201 entries in that file.
+            $this->assertSame(2, $calls);
+
+            $this->assertCount(1, $inserts);
+            $insert = $inserts[0];
+            // A global entry with a local change in the database keeps the
+            // database value, so it is not re-inserted from the global file.
+            $this->assertStringNotContainsString("'Global Value'", $insert);
+            $this->assertStringContainsString("'Plain Global'", $insert);
+            // A customizing entry the database has an even newer change for
+            // must not be overwritten by the file either.
+            $this->assertStringNotContainsString("'From Local File'", $insert);
+            $this->assertStringContainsString("'Local 0'", $insert);
+            $this->assertStringContainsString("'Local 199'", $insert);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function createTempInstallationRoot(): string
     {
         $dir = sys_get_temp_dir() . '/ilias_lang_test_' . bin2hex(random_bytes(8));

@@ -301,6 +301,26 @@ class LanguageInstallationManager
                 }
 
                 $prefix = $directory->getPrefix();
+                $is_local = $directory->isLocal();
+
+                // Both of these depend only on the language and on this
+                // directory's file - never on the individual entry - so they
+                // are resolved once per directory. Doing it inside the loop
+                // below meant one "SELECT ... FROM lng_data" per line of the
+                // file: a customizing file with a few thousand entries issued
+                // a few thousand identical queries.
+                $change_date = null;
+                $newer_db_changes = [];
+                if ($is_local) {
+                    // A local file overwrites, unless the database holds an
+                    // even newer change for that entry.
+                    $newer_db_changes = $this->repository->getLocalChanges(
+                        $lang_key,
+                        $this->utcTimestamp(filemtime($lang_file))
+                    );
+                    // One import timestamp for every entry of this file.
+                    $change_date = $this->utcTimestamp();
+                }
 
                 foreach ($content as $line) {
                     $line = trim($line);
@@ -322,21 +342,15 @@ class LanguageInstallationManager
                     $identifier = $separated[1];
                     $value = $separated[2];
 
-                    // Respect DB local changes if this is a global file
-                    if (!$directory->isLocal()) {
+                    if (!$is_local) {
+                        // Respect local changes already recorded in the
+                        // database, and let an earlier directory win.
                         if (isset($lang_array[$module][$identifier])) {
                             continue;
                         }
-                        $change_date = null;
-                    } else {
-                        // Local file source: it overwrites, but we should check if DB has an EVEN NEWER change
-                        $min_date = $this->utcTimestamp(filemtime($lang_file));
-                        $newer_db_change = $this->repository->getLocalChanges($lang_key, $min_date);
-                        if (isset($newer_db_change[$module][$identifier])) {
-                            $lang_array[$module][$identifier] = $newer_db_change[$module][$identifier];
-                            continue;
-                        }
-                        $change_date = $this->utcTimestamp();
+                    } elseif (isset($newer_db_changes[$module][$identifier])) {
+                        $lang_array[$module][$identifier] = $newer_db_changes[$module][$identifier];
+                        continue;
                     }
 
                     $values_sql[] = sprintf(
