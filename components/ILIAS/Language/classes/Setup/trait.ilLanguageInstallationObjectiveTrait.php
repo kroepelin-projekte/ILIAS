@@ -56,29 +56,31 @@ trait ilLanguageInstallationObjectiveTrait
     }
 
     /**
-     * Temporarily swaps the global $ilDB for the Setup-provided database
-     * resource, runs the Activity with it, and restores the previous
-     * global afterwards. Shared by the language install/update Objectives
-     * to avoid duplicating this boilerplate.
+     * Hands the Setup-provided database resource to ilSetupLanguage, which
+     * is the single place resolving it for everything that follows: the
+     * Activity needs no database of its own, and ilSetupLanguage's
+     * repository and manager re-read it on every call.
      *
+     * achieve() must call this before reading anything from
+     * ilSetupLanguage, so that the language list is determined against the
+     * Setup database too. Overwriting $GLOBALS['ilDB'] around the install -
+     * which this trait used to do, with a TODO attached - is no longer
+     * necessary.
+     */
+    protected function useSetupDatabase(Setup\Environment $environment): void
+    {
+        $this->il_setup_language->setDbHandler(
+            $environment->getResource(Setup\Environment::RESOURCE_DATABASE)
+        );
+    }
+
+    /**
      * @param list<string> $language_keys
      */
-    protected function installLanguagesWithSetupDb(Setup\Environment $environment, array $language_keys): void
+    protected function installLanguages(array $language_keys): void
     {
-        $db = $environment->getResource(Setup\Environment::RESOURCE_DATABASE);
-
-        // TODO: Remove this once ilSetupLanguage (or a successor) supports proper
-        // DI for all methods.
-        $db_tmp = $GLOBALS["ilDB"];
-        $GLOBALS["ilDB"] = $db;
-
-        try {
-            $this->il_setup_language->setDbHandler($db);
-            $this->install_language->perform([
-                'language_keys' => $language_keys,
-            ]);
-        } finally {
-            $GLOBALS["ilDB"] = $db_tmp;
-        }
+        $this->install_language->perform([
+            'language_keys' => $language_keys,
+        ]);
     }
 }

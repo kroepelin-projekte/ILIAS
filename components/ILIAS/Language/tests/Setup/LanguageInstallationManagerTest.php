@@ -82,7 +82,6 @@ class LanguageInstallationManagerTest extends TestCase
         );
 
         $manager->registerInstalledLanguage(
-            $db,
             'de',
             ['de' => ['obj_id' => 7, 'status' => 'not_installed']],
             []
@@ -105,7 +104,7 @@ class LanguageInstallationManagerTest extends TestCase
             new \DateTimeImmutable('2026-01-02 03:04:05', new \DateTimeZone('UTC'))
         );
 
-        $manager->registerInstalledLanguage($db, 'de', [], []);
+        $manager->registerInstalledLanguage('de', [], []);
     }
 
     public function testInstallLanguagesSetsLastUpdateOnUninstallUsingInjectedClock(): void

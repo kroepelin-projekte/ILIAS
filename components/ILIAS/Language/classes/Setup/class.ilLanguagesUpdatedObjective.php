@@ -69,7 +69,9 @@ class ilLanguagesUpdatedObjective extends ilLanguageObjective
      */
     public function achieve(Setup\Environment $environment): Setup\Environment
     {
-        $this->installLanguagesWithSetupDb($environment, $this->il_setup_language->getInstalledLanguages());
+        // Must come first: getInstalledLanguages() reads from the database too.
+        $this->useSetupDatabase($environment);
+        $this->installLanguages($this->il_setup_language->getInstalledLanguages());
 
         return $environment;
     }

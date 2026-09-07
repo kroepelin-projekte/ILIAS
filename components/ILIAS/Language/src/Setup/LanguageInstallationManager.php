@@ -96,7 +96,7 @@ class LanguageInstallationManager
                 // register language first time install; an already-known
                 // language's status is (re-)synced below instead.
                 if (!array_key_exists($lang_key, $db_langs)) {
-                    $this->registerInstalledLanguage($ilDB, $lang_key, $db_langs, $local_langs);
+                    $this->registerInstalledLanguage($lang_key, $db_langs, $local_langs);
                 }
             } else {
                 $err_lang[] = $lang_key;
@@ -106,7 +106,7 @@ class LanguageInstallationManager
         foreach ($db_langs as $key => $val) {
             if (!in_array($key, $err_lang, true)) {
                 if (in_array($key, $lang_keys, true)) {
-                    $this->registerInstalledLanguage($ilDB, $key, $db_langs, $local_langs);
+                    $this->registerInstalledLanguage($key, $db_langs, $local_langs);
                 } else {
                     $this->flushLanguage($key, "all");
 
@@ -140,11 +140,11 @@ class LanguageInstallationManager
      *        InstalledLanguageRepository::getLocalLanguages()
      */
     public function registerInstalledLanguage(
-        \ilDBInterface $db,
         string $lang_key,
         array $known_languages,
         array $local_language_keys
     ): void {
+        $db = $this->db();
         $installation_type = in_array($lang_key, $local_language_keys, true) ? "installed_local" : "installed";
 
         if (!array_key_exists($lang_key, $known_languages)) {

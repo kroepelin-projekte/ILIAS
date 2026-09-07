@@ -36,7 +36,6 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
-    private readonly \Closure $db;
     private readonly \Closure $language_folder_ref_id;
 
     public function __construct(
@@ -44,7 +43,6 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
         UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
-        \ilDBInterface|\Closure $db,
         private readonly \ilSetupLanguage $setup_language,
         int|\Closure $language_folder_ref_id = 0,
     ) {
@@ -55,9 +53,6 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
         $this->rbac_system = $rbac_system instanceof \Closure
             ? $rbac_system
             : static fn(): \ilRbacSystem => $rbac_system;
-        $this->db = $db instanceof \Closure
-            ? $db
-            : static fn(): \ilDBInterface => $db;
         $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
             ? $language_folder_ref_id
             : static fn(): int => $language_folder_ref_id;
@@ -79,11 +74,13 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
      *    user).
      * The Refinery, by contrast, is built for real: it only needs a Data
      * Factory and any \ILIAS\Language\Language, and ilSetupLanguage is one.
+     *
+     * No database is needed here: every database access in perform() goes
+     * through $setup_language, which resolves it itself - inject the
+     * Setup-provided one via ilSetupLanguage::setDbHandler().
      */
-    public static function forSetup(
-        \ilSetupLanguage $setup_language,
-        \ilDBInterface|\Closure|null $db = null
-    ): self {
+    public static function forSetup(\ilSetupLanguage $setup_language): self
+    {
         return new self(
             new RefineryFactory(new \ILIAS\Data\Factory(), $setup_language),
             static fn(): UIFactory => throw new \LogicException(
@@ -95,7 +92,6 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
                 'RBAC is not available during Setup; '
                 . self::class . '::isAllowedToPerform() cannot be used here.'
             ),
-            $db ?? static fn(): \ilDBInterface => $GLOBALS['ilDB'],
             $setup_language
         );
     }
@@ -189,7 +185,6 @@ MARKDOWN
         }
 
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
-        $db = ($this->db)();
 
         $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
         $error_language_keys = [];
@@ -213,7 +208,7 @@ MARKDOWN
         foreach ($language_keys as $language_key) {
             $this->setup_language->flushLanguageForInstallation($language_key);
             $this->setup_language->insertLanguageForInstallation($language_key);
-            $this->setup_language->registerInstalledLanguage($db, $language_key, $db_languages, $local_language_keys);
+            $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
         }
 
         // A language with a customizing/local file has that file

@@ -43,7 +43,6 @@ class ilLanguageSetupAgentTest extends ilLanguageBaseTestCase
             $this->createMock(\ILIAS\UI\Factory::class),
             $this->createMock(\ILIAS\Language\Language::class),
             $this->createMock(\ilRbacSystem::class),
-            $this->createMock(\ilDBInterface::class),
             $setup_language
         );
 

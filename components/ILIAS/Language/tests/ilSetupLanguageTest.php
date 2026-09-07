@@ -334,7 +334,8 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
             ))
             ->willReturn(1);
 
-        $this->newLangSetupDe->registerInstalledLanguage($db, 'de', [], []);
+        $this->newLangSetupDe->setDbHandler($db);
+        $this->newLangSetupDe->registerInstalledLanguage('de', [], []);
     }
 
     public function testRegisterInstalledLanguageInsertsAsInstalledLocalWhenLocalFileIsPresent(): void
@@ -344,7 +345,8 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
             ->method('manipulate')
             ->with($this->stringContains("'installed_local'"));
 
-        $this->newLangSetupDe->registerInstalledLanguage($db, 'de', [], ['de']);
+        $this->newLangSetupDe->setDbHandler($db);
+        $this->newLangSetupDe->registerInstalledLanguage('de', [], ['de']);
     }
 
     public function testRegisterInstalledLanguageUpdatesKnownLanguage(): void
@@ -359,8 +361,8 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
             ))
             ->willReturn(1);
 
+        $this->newLangSetupDe->setDbHandler($db);
         $this->newLangSetupDe->registerInstalledLanguage(
-            $db,
             'de',
             ['de' => ['obj_id' => 7, 'status' => 'not_installed']],
             []

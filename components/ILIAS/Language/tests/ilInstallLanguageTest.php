@@ -30,7 +30,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->once())->method('flushLanguageForInstallation');
         $setup_language->expects($this->once())->method('insertLanguageForInstallation');
 
-        $result = $this->createActivity($setup_language, $this->createDatabaseMock())->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => ' de ',
         ]);
 
@@ -56,7 +56,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->exactly(2))->method('flushLanguageForInstallation');
         $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation');
 
-        $result = $this->createActivity($setup_language, $this->createDatabaseMock())->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => [' de, fr ', 'de'],
         ]);
 
@@ -85,7 +85,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->once())->method('flushLanguageForInstallation')->with('de');
         $setup_language->expects($this->once())->method('insertLanguageForInstallation')->with('de');
 
-        $result = $this->createActivity($setup_language, $this->createDatabaseMock())->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
         ]);
 
@@ -116,15 +116,12 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->once())
             ->method('registerInstalledLanguage')
             ->with(
-                $this->anything(),
                 'de',
                 ['de' => ['obj_id' => 1, 'status' => 'installed']],
                 ['de']
             );
 
-        $db = $this->createDatabaseMock();
-
-        $result = $this->createActivity($setup_language, $db)->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
         ]);
 
@@ -156,14 +153,12 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->once())
             ->method('registerInstalledLanguage')
             ->with(
-                $this->anything(),
                 'de',
                 ['en' => ['obj_id' => 1, 'status' => 'installed']],
                 []
             );
 
-        $db = $this->createDatabaseMock();
-        $result = $this->createActivity($setup_language, $db)->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
         ]);
 
@@ -187,7 +182,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->once())->method('flushLanguageForInstallation');
         $setup_language->expects($this->once())->method('insertLanguageForInstallation');
 
-        $result = $this->createActivity($setup_language, $this->createDatabaseMock())->perform([
+        $result = $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
         ]);
 
@@ -258,7 +253,6 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
         $activity = $this->createActivity(
             $this->createSetupLanguageMock([], [], []),
-            $this->createDatabaseMock(),
             $ui_factory
         );
 
@@ -302,7 +296,6 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
         $result = $this->createActivity(
             $setup_language,
-            $this->createDatabaseMock(),
             null,
             $rbac,
             $language
@@ -313,7 +306,6 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
     private function createActivity(
         ilSetupLanguage $setup_language,
-        ?ilDBInterface $db = null,
         ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
         ?\ILIAS\Language\Language $language = null
@@ -323,7 +315,6 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
             $ui_factory ?? $this->createMock(UIFactory::class),
             $language ?? $this->createMock(\ILIAS\Language\Language::class),
             $rbac ?? $this->createMock(\ilRbacSystem::class),
-            $db ?? $this->createDatabaseMock(),
             $setup_language
         );
     }
@@ -341,18 +332,5 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->method('getInvalidLocalLanguageFiles')->willReturn($invalid_local_language_files);
 
         return $setup_language;
-    }
-
-    private function createDatabaseMock(): MockObject&ilDBInterface
-    {
-        $db = $this->createMock(ilDBInterface::class);
-        $db->method('nextId')->willReturn(1);
-        $db->method('quote')->willReturnCallback(
-            static fn(mixed $value): string => "'" . (string) $value . "'"
-        );
-        $db->method('now')->willReturn('NOW()');
-        $db->method('manipulate')->willReturn(1);
-
-        return $db;
     }
 }

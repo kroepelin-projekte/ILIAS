@@ -101,16 +101,9 @@ class Language implements Component\Component
                 $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
-                // Setup Objectives (see ilLanguageInstallationObjectiveTrait)
-                // call perform() directly - without a runtime $DIC - after
-                // temporarily swapping $GLOBALS['ilDB'] to the Setup-provided
-                // database resource, following the same
-                // $GLOBALS['ilDB'] ?? $DIC->database() convention already
-                // used elsewhere for this Setup/Runtime split (see
-                // arConnectorDB::__construct()). $GLOBALS['ilDB'] is also
-                // populated at runtime by ilInitialisation::initDatabase()
-                // via initGlobal(), so this works for both entry points.
-                static fn(): \ilDBInterface => $GLOBALS['ilDB'] ?? $GLOBALS['DIC']->database(),
+                // The Activity needs no database of its own: every database
+                // access in perform() goes through ilSetupLanguage, which
+                // resolves it itself.
                 $internal[\ilSetupLanguage::class],
                 static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
             );

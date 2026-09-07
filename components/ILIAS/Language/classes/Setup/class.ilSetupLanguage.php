@@ -63,7 +63,7 @@ class ilSetupLanguage extends ilLanguage
     public string $lang_key;
     public string $separator = "#:#";
     public string $comment_separator = "###";
-    protected ilDBInterface $db;
+    protected ?ilDBInterface $db = null;
     private readonly InstalledLanguageRepository $repository;
     private readonly LanguageInstallationManager $manager;
 
@@ -80,11 +80,14 @@ class ilSetupLanguage extends ilLanguage
         $this->cust_lang_path = $this->absolute_path . "/lang/customizing";
         $this->lang_path = $this->absolute_path . "/lang";
 
-        // See the class docblock: db access is resolved lazily via the global,
-        // exactly as every method here already did before this class delegated
-        // to the repository/manager, so setDbHandler() below keeps behaving the
-        // same way it always did (it only ever fed the now-unused $this->db).
-        $db_resolver = static fn(): ilDBInterface => $GLOBALS["ilDB"];
+        // Resolved lazily and re-read on every call, so a database handed in
+        // later via setDbHandler() actually takes effect - which is what lets
+        // Setup Objectives inject the Setup-provided database instead of
+        // temporarily overwriting $GLOBALS['ilDB'] around the call (see
+        // ilLanguageInstallationObjectiveTrait). The global remains the
+        // fallback for the runtime, where ilInitialisation::initDatabase()
+        // populates it via initGlobal().
+        $db_resolver = fn(): ilDBInterface => $this->db ?? $GLOBALS["ilDB"];
         $this->repository = new InstalledLanguageDatabaseRepository(
             $db_resolver,
             $this->language_file_directory_manager,
@@ -160,12 +163,11 @@ class ilSetupLanguage extends ilLanguage
      * @param list<string> $local_language_keys result of getLocalLanguages()
      */
     public function registerInstalledLanguage(
-        ilDBInterface $db,
         string $lang_key,
         array $known_languages,
         array $local_language_keys
     ): void {
-        $this->manager->registerInstalledLanguage($db, $lang_key, $known_languages, $local_language_keys);
+        $this->manager->registerInstalledLanguage($lang_key, $known_languages, $local_language_keys);
     }
 
     public function getAvailableLanguagesForInstallation(): array
@@ -296,13 +298,17 @@ class ilSetupLanguage extends ilLanguage
     }
 
     /**
-     * set db handler object
-     * @string   object      db handler
+     * Set the database this instance works on, taking precedence over
+     * $GLOBALS['ilDB']. Used by Setup Objectives to inject the
+     * Setup-provided database resource; the repository and manager pick it
+     * up on their next call, because they resolve the database lazily (see
+     * the constructor).
+     *
      * Return true on success
      */
     public function setDbHandler(ilDBInterface $a_db_handler): bool
     {
-        $this->db = &$a_db_handler;
+        $this->db = $a_db_handler;
         return true;
     }
 
