@@ -110,7 +110,7 @@ class ilLanguageInstallationObjectiveTraitTest extends TestCase
         $log = [];
         unset($GLOBALS['ilDB']);
 
-        $objective = new ilLanguagesUpdatedObjective(new ilSetupLanguage('en'));
+        $objective = new ilLanguagesInstalledAndUpdatedObjective(new ilSetupLanguage('en'));
         $environment = new Setup\ArrayEnvironment([
             Setup\Environment::RESOURCE_DATABASE => $this->createDatabaseMock('INJECTED', $log),
         ]);

@@ -24,10 +24,16 @@ use ILIAS\Language\Activities\InstallLanguageInterface;
 
 /**
  * Shared dependencies and boilerplate for Objectives that install/update
- * languages via ilSetupLanguage and the InstallLanguage Activity. Used by
- * ilLanguagesInstalledAndUpdatedObjective and ilLanguagesUpdatedObjective;
- * not part of ilLanguageObjective itself because not every Objective in
- * this component needs these dependencies.
+ * languages via ilSetupLanguage and the InstallLanguage Activity. Not part
+ * of ilLanguageObjective itself because not every Objective in this
+ * component needs these dependencies (ilDefaultLanguageSetObjective does
+ * not).
+ *
+ * Currently only ilLanguagesInstalledAndUpdatedObjective uses this - the
+ * former second user, ilLanguagesUpdatedObjective, was unused since
+ * install and update were merged into one Objective and has been removed.
+ * If no further Objective needs these, the trait can be folded into its
+ * single user.
  */
 trait ilLanguageInstallationObjectiveTrait
 {

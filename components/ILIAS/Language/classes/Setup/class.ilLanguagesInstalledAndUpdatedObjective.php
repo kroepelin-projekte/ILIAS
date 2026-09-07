@@ -41,14 +41,6 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
     }
 
     /**
-     * Return installed local languages
-     */
-    protected function getInstallLocalLanguages(): array
-    {
-        return $this->il_setup_language->getInstalledLocalLanguages();
-    }
-
-    /**
      * @inheritDoc
      */
     public function getLabel(): string
