@@ -34,13 +34,14 @@ use ILIAS\UI\Factory as UIFactory;
 final class InstallLanguage extends ActivityImpl implements InstallLanguageInterface
 {
     private Language $lng;
+    private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
     private readonly \Closure $db;
     private readonly \Closure $language_folder_ref_id;
 
     public function __construct(
         private readonly RefineryFactory $refinery,
-        private readonly UIFactory $ui_factory,
+        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         \ilDBInterface|\Closure $db,
@@ -48,6 +49,9 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
         int|\Closure $language_folder_ref_id = 0,
     ) {
         $this->lng = $language;
+        $this->ui_factory = $ui_factory instanceof \Closure
+            ? $ui_factory
+            : static fn(): UIFactory => $ui_factory;
         $this->rbac_system = $rbac_system instanceof \Closure
             ? $rbac_system
             : static fn(): \ilRbacSystem => $rbac_system;
@@ -57,6 +61,43 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
         $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
             ? $language_folder_ref_id
             : static fn(): int => $language_folder_ref_id;
+    }
+
+    /**
+     * Build the Activity for the Setup context, where only perform() is ever
+     * called and no runtime container exists to resolve services from.
+     *
+     * Setup Objectives (see ilLanguageInstallationObjectiveTrait) used to
+     * fetch this Activity from $GLOBALS['DIC'], which is only populated by
+     * AllModernComponents::enter() and therefore never during Setup - that
+     * made setup.php update fail outright. The collaborators that perform()
+     * does not touch are supplied here as closures that fail loudly if the
+     * Setup path ever starts using the corresponding methods:
+     *  - the UI Factory (getInputDescription() only),
+     *  - ilRbacSystem and the language folder ref id (isAllowedToPerform()
+     *    only, which the Objectives must not call - Setup runs without a
+     *    user).
+     * The Refinery, by contrast, is built for real: it only needs a Data
+     * Factory and any \ILIAS\Language\Language, and ilSetupLanguage is one.
+     */
+    public static function forSetup(
+        \ilSetupLanguage $setup_language,
+        \ilDBInterface|\Closure|null $db = null
+    ): self {
+        return new self(
+            new RefineryFactory(new \ILIAS\Data\Factory(), $setup_language),
+            static fn(): UIFactory => throw new \LogicException(
+                'The UI Factory is not available during Setup; '
+                . self::class . '::getInputDescription() cannot be used here.'
+            ),
+            $setup_language,
+            static fn(): \ilRbacSystem => throw new \LogicException(
+                'RBAC is not available during Setup; '
+                . self::class . '::isAllowedToPerform() cannot be used here.'
+            ),
+            $db ?? static fn(): \ilDBInterface => $GLOBALS['ilDB'],
+            $setup_language
+        );
     }
 
     public function getType(): ActivityType
@@ -79,12 +120,14 @@ MARKDOWN
 
     public function getInputDescription(): FormInput
     {
-        $language_keys = $this->ui_factory->input()->field()->text(
+        $ui_factory = ($this->ui_factory)();
+
+        $language_keys = $ui_factory->input()->field()->text(
             'Sprachschlüssel',
             'Kommagetrennte Liste von Sprachschlüsseln, z. B. de, fr, it.'
         )->withRequired(true)->withDedicatedName('language_keys');
 
-        return $this->ui_factory->input()->field()->group([
+        return $ui_factory->input()->field()->group([
             'language_keys' => $language_keys,
         ]);
     }

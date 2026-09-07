@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Setup;
+use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\InstallLanguageInterface;
 
 /**
@@ -33,12 +34,25 @@ trait ilLanguageInstallationObjectiveTrait
     protected \ilSetupLanguage $il_setup_language;
     protected InstallLanguageInterface $install_language;
 
+    /**
+     * @param InstallLanguageInterface|null $install_language The Activity to
+     *        install with. Callers wired through the component graph (see
+     *        ilLanguageSetupAgent) pass the resolved instance. Callers that
+     *        are themselves constructed deep inside the Setup Objective tree
+     *        - ilComponentPluginAdminInitObjective and
+     *        ilPluginLanguageUpdatedObjective, reached via ilPluginDefaultAgent,
+     *        which only ever receives a plugin name - have nothing to inject
+     *        and omit it; a Setup-only instance is then built here. This is
+     *        the single place that knows how, instead of each of those call
+     *        sites reaching into $GLOBALS['DIC'] for a key that Setup never
+     *        registers.
+     */
     public function __construct(
         \ilSetupLanguage $il_setup_language,
-        InstallLanguageInterface $install_language
+        ?InstallLanguageInterface $install_language = null
     ) {
         $this->il_setup_language = $il_setup_language;
-        $this->install_language = $install_language;
+        $this->install_language = $install_language ?? InstallLanguage::forSetup($il_setup_language);
     }
 
     /**
