@@ -96,7 +96,7 @@ class ilObjLanguage extends ilObject
         // fail with "file not valid", for every language, even though the
         // file itself was fine. Compare Language.php's own (correct)
         // 3-level "../../../ " from components/ILIAS/Language/.
-        $this->absolute_path = realpath(__DIR__ . "/../../../../");
+        $this->absolute_path = (string) realpath(__DIR__ . "/../../../../");
 
         // Single source of truth for file-based language check/insert
         // operations - see check()/insert() below. This avoids duplicating
@@ -477,13 +477,16 @@ class ilObjLanguage extends ilObject
     /**
      * insert language data from file into database
      *
-     * $scope is accepted for backwards compatibility but no longer selects
-     * a separate write path: LanguageInstallationManager::insertLanguageForInstallation()
+     * @deprecated $scope is accepted for backwards compatibility but no
+     * longer selects a separate write path: LanguageInstallationManager::insertLanguageForInstallation()
      * always processes every directory the LanguageFileDirectoryManager
      * knows about (global/component directories *and* the customizing/local
      * one) in a single, idempotent pass, correctly preserving local
      * overrides for global entries. This replaces the previous separate
-     * ilObjLanguageDBAccess-based write path (removed).
+     * ilObjLanguageDBAccess-based write path (removed). No caller in this
+     * repository passes a non-empty $scope any more (verified repo-wide) -
+     * the parameter is kept only in case external/plugin code still calls
+     * this public method with one; remove it once that can be ruled out.
      */
     public function insert(string $scope = ""): void
     {

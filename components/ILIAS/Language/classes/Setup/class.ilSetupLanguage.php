@@ -208,6 +208,17 @@ class ilSetupLanguage extends ilLanguage
     }
 
     /**
+     * (Re-)apply only the customizing/local language file for an already
+     * installed language, without touching the base/global data - see
+     * LanguageInstallationManager::insertLanguageForApplyingLocalChanges()
+     * for why.
+     */
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    {
+        $this->manager->insertLanguageForApplyingLocalChanges($lang_key);
+    }
+
+    /**
      * get already installed languages (in db)
      */
     public function getInstalledLanguages(): array

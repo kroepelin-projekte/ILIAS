@@ -216,9 +216,13 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     }
 
     /**
-     * install languages
+     * Install languages, or (re-)apply just their customizing/local file -
+     * see InstallLanguage::MODE_INSTALL / MODE_INSTALL_LOCAL. $mode is
+     * passed straight from the "install"/"install_local" command that was
+     * dispatched (see executeCommand()) - both are valid InstallLanguage
+     * modes as-is.
      */
-    public function installObject(array $ids): void
+    public function installObject(array $ids, string $mode): void
     {
         $language_keys = [];
         foreach ($ids as $obj_id) {
@@ -229,13 +233,17 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $this->current_user_id,
             [
                 'language_keys' => $language_keys,
+                'mode' => $mode,
             ]
         );
 
         if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
             $this->tpl->setOnScreenMessage(
                 'failure',
-                $this->lng->txt('language_not_installed'),
+                $this->lng->txt('language_not_installed') . ': ' . $error_message,
                 true
             );
 
@@ -257,11 +265,11 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                 . " " . strtolower($this->lng->txt("installed")) . ".";
         }
 
-        // A language with a customizing/local file gets that file
-        // (re-)applied on every install run, regardless of whether the
-        // language itself was already installed before - so this must be
-        // reported explicitly rather than disappearing into "already
-        // installed", which would wrongly suggest nothing happened.
+        // A language gets a customizing/local file (re-)applied either as
+        // part of a fresh installation (mode "install") or as the result of
+        // mode "install_local" - either way, something did change for it, so
+        // this must be reported explicitly rather than disappearing into
+        // "already installed", which would wrongly suggest nothing happened.
         if (($lang_installed_with_local_file = $value['installed_with_local_language_keys']) !== []) {
             $success_messages[] = $this->languageKeysToLocalizedList($lang_installed_with_local_file)
                 . ": " . $this->lng->txt("installed_local") . ".";
@@ -275,12 +283,27 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        // Both of these are "info" messages about requests that changed
+        // nothing at all (mode "install" on an already installed language,
+        // or mode "install_local" on a language that is not installed) -
+        // combined into a single message for the same reason as the success
+        // messages above.
+        $info_messages = [];
+
         if (($lang_already_installed = $value['already_installed_language_keys']) !== []) {
-            $message = $this->lng->txt("languages_already_installed") . ': '
+            $info_messages[] = $this->lng->txt("languages_already_installed") . ': '
                 . $this->languageKeysToLocalizedList($lang_already_installed);
+        }
+
+        if (($lang_not_installed = $value['not_installed_language_keys']) !== []) {
+            $info_messages[] = $this->languageKeysToLocalizedList($lang_not_installed)
+                . " " . $this->lng->txt("language_not_installed");
+        }
+
+        if ($info_messages !== []) {
             $this->tpl->setOnScreenMessage(
                 'info',
-                $message,
+                implode('<br />', $info_messages),
                 true
             );
         }
@@ -614,7 +637,12 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
                                     $ids[] = (string) $lang["obj_id"];
                                 }
                             }
-                            $this->installObject($ids);
+                            // $action is exactly 'install' or 'install_local'
+                            // here (the two case labels above) - which are
+                            // also InstallLanguage::MODE_INSTALL and
+                            // MODE_INSTALL_LOCAL's values, so it can be
+                            // passed straight through as the mode.
+                            $this->installObject($ids, $action);
                             break;
                         case 'lang_uninstall_changes':
                             $ids = $this->getIdsFromQueryToken();
@@ -766,51 +794,6 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $conf_screen->setCancel($this->lng->txt("cancel"), "view");
         $conf_screen->setConfirm($this->lng->txt("ok"), "uninstallChanges");
         $this->tpl->setContent($conf_screen->getHTML());
-    }
-
-    /**
-     * Get Actions
-     */
-    public function getActions(): array
-    {
-        $f = $this->ui_factory;
-        return [
-            'confirmRefreshSelected' => $f->table()->action()->standard(
-                $this->lng->txt("refresh"),
-                $this->url_builder->withParameter($this->action_token, "confirmRefreshSelected"),
-                $this->id_token
-            )->withAsync(),
-            'install' => $f->table()->action()->standard(
-                $this->lng->txt("install"),
-                $this->url_builder->withParameter($this->action_token, "install"),
-                $this->id_token
-            ),
-            'confirmUninstall' => $f->table()->action()->standard(
-                $this->lng->txt("uninstall"),
-                $this->url_builder->withParameter($this->action_token, "confirmUninstall"),
-                $this->id_token
-            ),
-            'confirmUninstallChanges' => $f->table()->action()->standard(
-                $this->lng->txt("lang_uninstall_changes"),
-                $this->url_builder->withParameter($this->action_token, "confirmUninstallChanges"),
-                $this->id_token
-            ),
-            'setSystemLanguage' => $f->table()->action()->single(
-                $this->lng->txt("setSystemLanguage"),
-                $this->url_builder->withParameter($this->action_token, "setSystemLanguage"),
-                $this->id_token
-            ),
-            'setUserLanguage' => $f->table()->action()->single(
-                $this->lng->txt("setUserLanguage"),
-                $this->url_builder->withParameter($this->action_token, "setUserLanguage"),
-                $this->id_token
-            ),
-            'editFolder' => $f->table()->action()->single(
-                $this->lng->txt("edit"),
-                $this->url_builder->withParameter($this->action_token, "editFolder"),
-                $this->id_token
-            ),
-        ];
     }
 
     protected function editFolderObject(array $ids): void

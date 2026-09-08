@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
@@ -27,11 +28,14 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Focused coverage for LanguageInstallationManager, in particular for the
- * "DATE field is not set correctly on changes of a language" concern
- * formerly flagged as a @todo on ilSetupLanguage - see its class docblock.
- * Since the manager accepts an injectable clock, these tests can assert the
- * exact last_update value instead of only that *some* value was set.
+ * Focused coverage for LanguageInstallationManager. In particular, these
+ * tests pin down last_update handling for object_data bookkeeping rows: the
+ * UPDATE path (registerInstalledLanguage()'s update branch, and
+ * installLanguages()' uninstall branch) sets last_update via the manager's
+ * injectable clock, so a test can assert the exact value instead of only
+ * that *some* value was set - while the INSERT path deliberately keeps using
+ * $db->now() instead, which is asserted explicitly as well. The clock exists
+ * for testability, not because the date was ever computed incorrectly.
  */
 class LanguageInstallationManagerTest extends TestCase
 {
@@ -349,6 +353,451 @@ class LanguageInstallationManagerTest extends TestCase
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    /**
+     * insertLanguageForApplyingLocalChanges() must read only the
+     * customizing/local directory - the base/global directory's content
+     * must never appear in the resulting INSERT, and no flush (DELETE FROM
+     * lng_data) may happen at all, since the base data is left untouched.
+     */
+    public function testInsertLanguageForApplyingLocalChangesOnlyReadsCustomizingDirectory(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [['common', 'test', 'Global Value']]);
+        $this->writeLangFile($root . '/lang/customizing/ilias_de.lang.local', [['common', 'test', 'Custom Value']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->expects($this->once())
+                ->method('getLanguageEntries')
+                ->with('de')
+                ->willReturn([]);
+            // insertLanguage()'s shared "does the DB hold an even newer
+            // change than this local file?" check still calls
+            // getLocalChanges() once per local directory - that is unrelated
+            // to the *seed*, which must come from getLanguageEntries() alone.
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForApplyingLocalChanges('de');
+
+            $insert = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')
+            ));
+            $this->assertCount(1, $insert);
+            $this->assertStringContainsString("'Custom Value'", $insert[0]);
+            $this->assertStringNotContainsString('Global Value', $insert[0]);
+
+            $flush = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'DELETE FROM lng_data')
+            ));
+            $this->assertCount(0, $flush);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Regression coverage for the lng_modules cache correctness that the
+     * choice of seed exists for: insertLanguage() rebuilds the lng_modules
+     * cache row for a module entirely from the seed plus whatever it reads
+     * from the given directories. If the seed only contained previously
+     * *local* changes (getLocalChanges()) instead of every currently stored
+     * entry (getLanguageEntries()), a plain base entry the customizing file
+     * does not override would silently vanish from the rebuilt cache row -
+     * this pins that it survives.
+     */
+    public function testInsertLanguageForApplyingLocalChangesPreservesUnrelatedSeedEntriesInModulesCache(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        // Only 'overridden' is touched by the customizing file below -
+        // 'untouched_by_customizing' must still make it into lng_modules,
+        // because getLanguageEntries() (the seed) already contains it.
+        $this->writeLangFile(
+            $root . '/lang/customizing/ilias_de.lang.local',
+            [['common', 'overridden', 'New Custom Value']]
+        );
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLanguageEntries')->with('de')->willReturn([
+                'common' => [
+                    'overridden' => 'Old Value',
+                    'untouched_by_customizing' => 'Still Here',
+                ],
+            ]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForApplyingLocalChanges('de');
+
+            $modules_insert = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')
+            ));
+            $this->assertCount(1, $modules_insert);
+            $serialized = serialize([
+                'overridden' => 'New Custom Value',
+                'untouched_by_customizing' => 'Still Here',
+            ]);
+            $this->assertStringContainsString($serialized, $modules_insert[0]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Regression coverage for the "brand new language" path: installLanguages()
+     * must register a language that passes validation and is not yet known in
+     * object_data, using registerInstalledLanguage()'s INSERT branch. Only the
+     * uninstall branch (empty $lang_keys) was previously covered.
+     */
+    public function testInstallLanguagesRegistersBrandNewLanguage(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [['common', 'greeting', 'Hallo']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('checkLanguage')->with('de')->willReturn(true);
+            $repository->method('getAvailableLanguages')->willReturn([]);
+            $repository->method('getLocalLanguages')->willReturn([]);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $result = $manager->installLanguages(['de']);
+
+            $this->assertTrue($result);
+
+            $inserts_object_data = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO object_data')
+            ));
+            $this->assertCount(1, $inserts_object_data);
+            $this->assertStringContainsString("'de'", $inserts_object_data[0]);
+            $this->assertStringContainsString("'installed'", $inserts_object_data[0]);
+            $this->assertStringNotContainsString("'installed_local'", $inserts_object_data[0]);
+
+            $keep_local_flush = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_contains($query, /** @lang text */ 'DELETE FROM lng_data')
+                    && str_contains($query, 'local_change IS NULL')
+            ));
+            $this->assertCount(1, $keep_local_flush);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Regression coverage for validation failures: a language that fails
+     * checkLanguage() must be reported as failed (a list, not `true`) and must
+     * be completely skipped in the second pass - neither re-synced nor
+     * flushed - even though it is already known in object_data. Only the
+     * "all languages pass" and "none are requested" cases were previously
+     * covered.
+     */
+    public function testInstallLanguagesReportsFailedLanguageAndLeavesItUntouched(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [['common', 'greeting', 'Hallo']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('checkLanguage')->willReturnMap([
+                ['de', true],
+                ['xx', false],
+            ]);
+            $repository->method('getAvailableLanguages')->willReturn([
+                // Already known from a previous installation; its language
+                // file has since become invalid (e.g. removed/corrupted).
+                'xx' => ['obj_id' => 5, 'status' => 'installed'],
+            ]);
+            $repository->method('getLocalLanguages')->willReturn([]);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $result = $manager->installLanguages(['de', 'xx']);
+
+            // A list of the failing keys, not `true`.
+            $this->assertSame(['xx'], $result);
+
+            // 'de' installs normally.
+            $inserts_object_data = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO object_data')
+            ));
+            $this->assertCount(1, $inserts_object_data);
+            $this->assertStringContainsString("'de'", $inserts_object_data[0]);
+
+            // 'xx' is already known (obj_id 5) but failed validation this
+            // time - it must not be touched at all: no flush, no status
+            // update, no resync.
+            foreach ($calls as $query) {
+                $this->assertStringNotContainsString("obj_id = '5'", $query);
+                $this->assertStringNotContainsString("lang_key = 'xx'", $query);
+            }
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Regression coverage for the "resync" branch: a language that is
+     * already known in object_data and is still requested must have its
+     * bookkeeping row refreshed via registerInstalledLanguage() - without
+     * being fully flushed (flushLanguage("all")) or having its status forced
+     * to "not_installed". Previously only the "no longer requested"
+     * (uninstall) branch of this second loop was covered.
+     */
+    public function testInstallLanguagesResyncsAlreadyKnownRequestedLanguage(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_fr.lang', [['common', 'greeting', 'Bonjour']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('checkLanguage')->willReturn(true);
+            $repository->method('getAvailableLanguages')->willReturn([
+                'fr' => ['obj_id' => 9, 'status' => 'installed'],
+            ]);
+            $repository->method('getLocalLanguages')->willReturn([]);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $result = $manager->installLanguages(['fr']);
+            $this->assertTrue($result);
+
+            // Resync must not fully flush the language (flushLanguage("all")
+            // deletes with no module filter at all; insertLanguage's own
+            // per-module cleanup, which does run, always carries an
+            // "AND module IN (...)" filter and is a different query).
+            $full_flush_deletes = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => $query === "DELETE FROM lng_modules WHERE lang_key = 'fr'"
+            ));
+            $this->assertCount(0, $full_flush_deletes);
+
+            // ...and must not force its status to "not_installed"...
+            foreach ($calls as $query) {
+                $this->assertStringNotContainsString('not_installed', $query);
+            }
+
+            // ...but does refresh the bookkeeping row via an UPDATE, keeping
+            // the "installed" status.
+            $object_data_updates = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'UPDATE object_data')
+            ));
+            $this->assertCount(1, $object_data_updates);
+            $this->assertStringContainsString("obj_id = '9'", $object_data_updates[0]);
+            $this->assertStringContainsString("description = 'installed'", $object_data_updates[0]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Regression coverage for the uninstall branch's status-update guard: a
+     * language already marked "not_installed" (not merely absent from
+     * $lang_keys, but explicitly already flagged as such) must still be
+     * flushed, but must NOT receive a redundant
+     * "UPDATE ... description = 'not_installed'". strpos("not_installed",
+     * "installed") is 3, not 0/false - this pins the exact `=== 0` boundary
+     * check against a `!== false` or `>= 0` mutation, either of which would
+     * wrongly re-fire the UPDATE for an already-"not_installed" row.
+     */
+    public function testInstallLanguagesDoesNotReUpdateAlreadyNotInstalledLanguage(): void
+    {
+        $db = $this->createDatabaseMock();
+        $calls = [];
+        $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+            $calls[] = $query;
+            return 1;
+        });
+
+        $repository = $this->createMock(InstalledLanguageRepository::class);
+        $repository->method('getAvailableLanguages')->willReturn([
+            'de' => ['obj_id' => 4, 'status' => 'not_installed'],
+        ]);
+        $repository->method('getLocalLanguages')->willReturn([]);
+
+        $manager = $this->createManager($db, $repository);
+
+        $result = $manager->installLanguages([]);
+
+        $this->assertTrue($result);
+
+        // Still flushed (uninstall path)...
+        $this->assertStringContainsString(
+            "DELETE FROM lng_modules WHERE lang_key = 'de'",
+            implode("\n", $calls)
+        );
+
+        // ...but no UPDATE at all: it was already "not_installed", so there
+        // is nothing to change.
+        $updates = array_values(array_filter(
+            $calls,
+            static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'UPDATE object_data')
+        ));
+        $this->assertCount(0, $updates);
+    }
+
+    /**
+     * Regression coverage for prefix handling on the write path: a component
+     * directory's two-field lines (identifier#:#value, no module) must be
+     * written with the directory's prefix as the module - not with the
+     * file's own first field misread as the module, nor with the four
+     * resulting fields shifted out of place. The read path (checkLanguage())
+     * already has prefix coverage in ilSetupLanguageTest; this covers the
+     * write path in insertLanguage().
+     */
+    public function testInsertLanguageUsesDirectoryPrefixAsModuleForComponentFiles(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        mkdir($root . '/lang/file', 0777, true);
+        file_put_contents(
+            $root . '/lang/file/ilias_de.lang',
+            "<!-- language file start -->\nadd_file#:#Add File\n"
+        );
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('file')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(
+                    new CustomizingLanguageFileDirectory(),
+                    new MainLanguageFileDirectory(),
+                    $this->createPrefixedComponentDirectory('lang/file/', 'file')
+                ),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $insert = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')
+            ));
+            $this->assertCount(1, $insert);
+            // module=prefix, identifier=first field of the 2-field line,
+            // value=second field - not the line's own first field as module.
+            $this->assertStringContainsString("('file','add_file','de','Add File'", $insert[0]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    private function createPrefixedComponentDirectory(string $path, string $prefix): LanguageFileDirectory
+    {
+        return new class ($path, $prefix) implements LanguageFileDirectory {
+            public function __construct(private string $path, private string $prefix)
+            {
+            }
+
+            public function getPrefix(): string
+            {
+                return $this->prefix;
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '';
+            }
+
+            public function isLocal(): bool
+            {
+                return false;
+            }
+        };
     }
 
     private function createTempInstallationRoot(): string

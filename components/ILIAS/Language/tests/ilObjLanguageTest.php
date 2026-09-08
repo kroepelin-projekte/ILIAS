@@ -43,7 +43,7 @@ class ilObjLanguageTest extends TestCase
         $source = file_get_contents($file);
 
         self::assertStringContainsString(
-            '$this->absolute_path = realpath(__DIR__ . "/../../../../");',
+            '$this->absolute_path = (string) realpath(__DIR__ . "/../../../../");',
             $source,
             'ilObjLanguage::__construct() no longer builds absolute_path with the ' .
             'expected four "../" segments - update this test if the file moved, ' .

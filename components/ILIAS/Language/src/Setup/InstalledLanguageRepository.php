@@ -63,6 +63,20 @@ interface InstalledLanguageRepository
     public function getLocalChanges(string $lang_key, string $min_date = "", string $max_date = ""): array;
 
     /**
+     * Every entry currently stored for a language key, regardless of
+     * local_change - unlike getLocalChanges(), which only returns entries
+     * with a non-null local_change in a given date range (i.e. previously
+     * recorded customizations), this also includes plain base/global data.
+     * Used to seed a re-seed of lng_data that only reads the customizing
+     * directory (see LanguageInstallationManager::insertLanguageForApplyingLocalChanges()),
+     * where nothing re-reads the base files to fill in what this doesn't
+     * provide.
+     *
+     * @return array<string, array<string, string>> [module][identifier] => value
+     */
+    public function getLanguageEntries(string $lang_key): array;
+
+    /**
      * Language keys for which a *.lang.local file exists.
      *
      * @return list<string>

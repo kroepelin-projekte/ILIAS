@@ -96,7 +96,7 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\Setup\AgentFinder $setup_agent_finder,
         protected \ILIAS\UI\Implementation\Component\Navigation\Factory $ui_factory_navigation,
         protected \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager,
-        protected \ILIAS\Language\Activities\InstallLanguageInterface $install_language,
+        protected \ILIAS\Language\Activities\InstallLanguage $install_language,
         // This constructor argument is evaluated by PHP before enter() runs,
         // i.e. before the legacy $DIC even exists. That is only safe because
         // the "default"/Init dependency_resolution.php disambiguates

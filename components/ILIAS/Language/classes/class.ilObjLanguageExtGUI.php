@@ -581,7 +581,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $tmp["export"]["scope"] = ilUtil::stripSlashes($post_scope);
         ilSession::set("lang_ext_maintenance", $tmp);
 
-        $pos = !strpos(ILIAS_VERSION, " ") ? null : strpos(ILIAS_VERSION, " ");
+        $pos = strpos(ILIAS_VERSION, " ");
+        $pos = $pos === false ? null : $pos;
         $filename = "ilias_" . $this->object->key . '_'
         . str_replace(".", "_", substr(ILIAS_VERSION, 0, $pos))
         . "-" . gmdate("Y-m-d")

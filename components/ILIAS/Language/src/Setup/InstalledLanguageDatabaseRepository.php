@@ -123,6 +123,23 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         return $changes;
     }
 
+    public function getLanguageEntries(string $lang_key): array
+    {
+        $ilDB = $this->db();
+
+        $q = sprintf(
+            "SELECT * FROM lng_data WHERE lang_key = %s",
+            $ilDB->quote($lang_key, "text")
+        );
+        $result = $ilDB->query($q);
+
+        $entries = [];
+        while ($row = $result->fetchRow(\ilDBConstants::FETCHMODE_ASSOC)) {
+            $entries[$row["module"]][$row["identifier"]] = $row["value"];
+        }
+        return $entries;
+    }
+
     public function getLocalLanguages(): array
     {
         $local_langs = [];
@@ -231,10 +248,21 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
 
     public function checkLocalLanguageFile(string $lang_key): bool
     {
-        foreach ($this->language_file_directory_manager->getCustomizingDirectories() as $directory) {
-            return $this->checkLanguageFile($lang_key, $directory, true);
+        // getCustomizingDirectories() yields exactly one directory today
+        // (see LanguageFileDirectoryManager), but is typed as a generator of
+        // possibly many - so check only the first one explicitly, instead of
+        // a foreach that returns on its first iteration (which reads like an
+        // accidental early return, not an intentional "only the first one").
+        $directories = iterator_to_array(
+            $this->language_file_directory_manager->getCustomizingDirectories(),
+            false
+        );
+
+        if ($directories === []) {
+            return false;
         }
-        return false;
+
+        return $this->checkLanguageFile($lang_key, $directories[0], true);
     }
 
     /**

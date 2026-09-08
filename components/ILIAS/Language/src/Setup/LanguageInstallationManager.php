@@ -247,6 +247,40 @@ class LanguageInstallationManager
     }
 
     /**
+     * (Re-)apply only the customizing/local directory's file on top of an
+     * already installed language, without touching the base/global data at
+     * all - the opposite split from insertLanguageForRemovingLocalChanges().
+     *
+     * This is the write path behind the "Install local" GUI command applied
+     * to an already-installed language (see ilObjLanguageFolderGUI and
+     * \ILIAS\Language\Activities\InstallLanguage::perform()): unlike
+     * insertLanguageForInstallation(), the caller does not flush anything
+     * first, and the base/global directories are never read here either -
+     * so there is no re-parsing of the (usually much larger) base language
+     * files, and no risk of the base data being touched.
+     *
+     * Because nothing here re-reads the base directories to fill in what the
+     * customizing file does not cover, the seed passed to insertLanguage()
+     * must already contain every entry currently stored for the language -
+     * both base data and any previously recorded local changes - not just
+     * the local changes the way insertLanguageForInstallation()'s seed does.
+     * insertLanguage() rebuilds the lng_modules cache row for every module
+     * it sees an entry for, from scratch, using exactly the seed plus
+     * whatever it reads from the given directories; a narrower seed (e.g.
+     * only previously local entries) would make any base entry not
+     * overridden by the customizing file silently disappear from that
+     * module's cache row.
+     */
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    {
+        $this->insertLanguage(
+            $lang_key,
+            $this->language_file_directory_manager->getCustomizingDirectories(),
+            $this->repository->getLanguageEntries($lang_key)
+        );
+    }
+
+    /**
      * Insert language data from file into the database.
      *
      * This used to take a boolean flag deciding "installing" vs. "removing

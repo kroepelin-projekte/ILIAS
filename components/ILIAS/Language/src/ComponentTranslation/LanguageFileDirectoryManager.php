@@ -20,8 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
-use function ILIAS\UI\examples\Breadcrumbs\breadcrumbs;
-
 /**
  * @internal
  * @author Fabian Schmid <fabian@sr.solutions>

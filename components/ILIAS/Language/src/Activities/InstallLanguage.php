@@ -31,8 +31,24 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Factory as UIFactory;
 
-final class InstallLanguage extends ActivityImpl implements InstallLanguageInterface
+class InstallLanguage extends ActivityImpl
 {
+    /**
+     * A language not yet installed is fully installed (base data, plus a
+     * customizing/local file if one exists); a language already installed
+     * is left completely untouched - use MODE_INSTALL_LOCAL to (re-)apply a
+     * customizing file to it instead.
+     */
+    public const string MODE_INSTALL = 'install';
+
+    /**
+     * Only the customizing/local file is (re-)applied, on top of an already
+     * installed language, without touching its base data; a language that
+     * is not installed is left completely untouched - use MODE_INSTALL to
+     * install it first.
+     */
+    public const string MODE_INSTALL_LOCAL = 'install_local';
+
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
@@ -105,11 +121,15 @@ final class InstallLanguage extends ActivityImpl implements InstallLanguageInter
     {
         return $this->markdown(
             <<<'MARKDOWN'
-Installiert eine oder mehrere Sprachen im ILIAS-System.
+Installs one or more languages in the ILIAS system, or applies just their
+customizing/local language file, depending on the chosen mode.
 
-Die Activity lädt die entsprechenden Sprachdateien, schreibt die
-Sprachdaten in die Datenbank und macht die Sprachen anschließend als
-installierte Systemsprachen verfügbar.
+Mode "install" fully installs a language that is not yet installed (base
+data, plus a customizing/local file if one exists) and leaves an already
+installed language completely untouched. Mode "install_local" instead
+(re-)applies only the customizing/local file on top of an already installed
+language, without touching its base data, and leaves a not-yet-installed
+language completely untouched.
 MARKDOWN
         );
     }
@@ -119,41 +139,65 @@ MARKDOWN
         $ui_factory = ($this->ui_factory)();
 
         $language_keys = $ui_factory->input()->field()->text(
-            'Sprachschlüssel',
-            'Kommagetrennte Liste von Sprachschlüsseln, z. B. de, fr, it.'
+            'Language keys',
+            'Comma-separated list of language keys, e.g. de, fr, it.'
         )->withRequired(true)->withDedicatedName('language_keys');
+
+        $mode = $ui_factory->input()->field()->select(
+            'Mode',
+            [
+                self::MODE_INSTALL => 'Install',
+                self::MODE_INSTALL_LOCAL => 'Install local',
+            ],
+            'Whether to fully install the given languages, or to only ' .
+            '(re-)apply their customizing/local file on top of an existing ' .
+            'installation.'
+        )->withRequired(true)->withDedicatedName('mode');
 
         return $ui_factory->input()->field()->group([
             'language_keys' => $language_keys,
+            'mode' => $mode,
         ]);
     }
 
     public function getOutputDescription(Description\Factory $f): Description\Description
     {
         return $f->object(
-            $this->markdown('Ergebnis der Sprachinstallation.'),
+            $this->markdown('Result of the language installation.'),
             [
                 'installed_language_keys' => $f->list(
-                    $this->markdown('Neu installierte Sprachen ohne Custom-Sprachdatei.'),
-                    $f->string($this->markdown('Sprachschlüssel einer neu installierten Sprache.'))
+                    $this->markdown('Newly installed languages without a custom language file.'),
+                    $f->string($this->markdown('Language key of a newly installed language.'))
                 ),
                 'installed_with_local_language_keys' => $f->list(
                     $this->markdown(
-                        'Sprachen, für die eine Custom-Sprachdatei (neu) installiert wurde - ' .
-                        'unabhängig davon, ob die Sprache selbst bereits installiert war.'
+                        'Languages for which a custom/local language file was (re-)installed - ' .
+                        'either as part of a fresh installation (mode "install"), or applied on ' .
+                        'top of an already installed language (mode "install_local").'
                     ),
-                    $f->string($this->markdown('Sprachschlüssel einer Sprache mit installierter Custom-Sprachdatei.'))
+                    $f->string($this->markdown('Language key of a language with an installed custom language file.'))
                 ),
                 'already_installed_language_keys' => $f->list(
                     $this->markdown(
-                        'Sprachen, die bereits installiert waren und für die keine Custom-Sprachdatei ' .
-                        '(neu) installiert wurde - hier hat dieser Lauf nichts verändert.'
+                        'Languages for which this run changed nothing: mode "install" was ' .
+                        'requested for a language that was already installed (a no-op by design ' .
+                        '- use mode "install_local" to (re-)apply a customizing file instead), ' .
+                        'or mode "install_local" was requested for an installed language that ' .
+                        'has no customizing/local file to apply.'
                     ),
-                    $f->string($this->markdown('Sprachschlüssel einer bereits installierten Sprache.'))
+                    $f->string($this->markdown('Language key of an already installed language.'))
+                ),
+                'not_installed_language_keys' => $f->list(
+                    $this->markdown(
+                        'Languages requested with mode "install_local" that are not installed - ' .
+                        'skipped entirely, since there is nothing installed yet to apply local ' .
+                        'changes on top of.'
+                    ),
+                    $f->string($this->markdown('Language key of a not-yet-installed language.'))
                 ),
                 'invalid_local_language_files' => $f->list(
-                    $this->markdown('Lokale Sprachdateien mit einem ungültigen Dateinamen.'),
-                    $f->string($this->markdown('Dateiname einer ungültigen lokalen Sprachdatei.'))
+                    $this->markdown('Local language files with an invalid file name.'),
+                    $f->string($this->markdown('File name of an invalid local language file.'))
                 ),
             ]
         );
@@ -185,11 +229,44 @@ MARKDOWN
         }
 
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
+        $mode = $this->toMode($parameters['mode'] ?? null);
 
-        $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
-        $error_language_keys = [];
+        $currently_installed_language_keys = $this->setup_language->getInstalledLanguages();
+
+        // Split the requested language keys by what must actually happen to
+        // each of them, given $mode and whether they are already installed -
+        // the four combinations mean completely different things:
+        //  - MODE_INSTALL,       not installed: full installation (the base
+        //    files are validated below, then it is installed like before).
+        //  - MODE_INSTALL,       already installed: complete no-op - not
+        //    even a pending customizing/local file is (re-)applied anymore;
+        //    that is now exclusively MODE_INSTALL_LOCAL's job.
+        //  - MODE_INSTALL_LOCAL, already installed: (re-)apply only the
+        //    customizing/local file, the base data is left untouched.
+        //  - MODE_INSTALL_LOCAL, not installed: no-op - there is nothing
+        //    installed yet to apply local changes on top of.
+        $to_fully_install = [];
+        $to_apply_local_changes = [];
+        $already_installed_no_op = [];
+        $not_installed_no_op = [];
 
         foreach ($language_keys as $language_key) {
+            $is_installed = in_array($language_key, $currently_installed_language_keys, true);
+            if ($mode === self::MODE_INSTALL) {
+                if ($is_installed) {
+                    $already_installed_no_op[] = $language_key;
+                } else {
+                    $to_fully_install[] = $language_key;
+                }
+            } elseif ($is_installed) {
+                $to_apply_local_changes[] = $language_key;
+            } else {
+                $not_installed_no_op[] = $language_key;
+            }
+        }
+
+        $error_language_keys = [];
+        foreach ($to_fully_install as $language_key) {
             if (!$this->setup_language->checkLanguageForInstallation($language_key)) {
                 $error_language_keys[] = $language_key;
             }
@@ -201,40 +278,53 @@ MARKDOWN
             );
         }
 
-        $local_language_keys = $this->setup_language->getLocalLanguages();
-        $invalid_local_language_files = $this->setup_language->getInvalidLocalLanguageFiles($language_keys);
-        $currently_installed_language_keys = $this->setup_language->getInstalledLanguages();
-
-        foreach ($language_keys as $language_key) {
-            $this->setup_language->flushLanguageForInstallation($language_key);
-            $this->setup_language->insertLanguageForInstallation($language_key);
-            $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
-        }
-
-        // A language with a customizing/local file has that file
-        // (re-)applied on every run, regardless of whether the language
-        // object itself was already installed - so "already installed" on
-        // its own would be misleading feedback for it: something did change.
-        // That case therefore gets its own bucket instead of being folded
-        // into either of the other two.
         $installed_language_keys = [];
         $installed_with_local_language_keys = [];
-        $already_installed_language_keys = [];
+        $invalid_local_language_files = [];
 
-        foreach ($language_keys as $language_key) {
-            if (in_array($language_key, $local_language_keys, true)) {
-                $installed_with_local_language_keys[] = $language_key;
-            } elseif (in_array($language_key, $currently_installed_language_keys, true)) {
-                $already_installed_language_keys[] = $language_key;
-            } else {
-                $installed_language_keys[] = $language_key;
+        // Nothing below is needed at all (not even a read) if every
+        // requested language turned out to be a no-op above.
+        $affected_language_keys = array_merge($to_fully_install, $to_apply_local_changes);
+        if ($affected_language_keys !== []) {
+            $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
+            $local_language_keys = $this->setup_language->getLocalLanguages();
+            $invalid_local_language_files = $this->setup_language->getInvalidLocalLanguageFiles(
+                $affected_language_keys
+            );
+
+            foreach ($to_fully_install as $language_key) {
+                $this->setup_language->flushLanguageForInstallation($language_key);
+                $this->setup_language->insertLanguageForInstallation($language_key);
+                $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
+
+                if (in_array($language_key, $local_language_keys, true)) {
+                    $installed_with_local_language_keys[] = $language_key;
+                } else {
+                    $installed_language_keys[] = $language_key;
+                }
+            }
+
+            foreach ($to_apply_local_changes as $language_key) {
+                $this->setup_language->insertLanguageForApplyingLocalChanges($language_key);
+                $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
+
+                if (in_array($language_key, $local_language_keys, true)) {
+                    $installed_with_local_language_keys[] = $language_key;
+                } else {
+                    // No customizing/local file actually exists for this
+                    // language - "install_local" had nothing to apply, which
+                    // is exactly the "already installed, nothing changed"
+                    // case.
+                    $already_installed_no_op[] = $language_key;
+                }
             }
         }
 
         return [
             'installed_language_keys' => $installed_language_keys,
             'installed_with_local_language_keys' => $installed_with_local_language_keys,
-            'already_installed_language_keys' => $already_installed_language_keys,
+            'already_installed_language_keys' => $already_installed_no_op,
+            'not_installed_language_keys' => $not_installed_no_op,
             'invalid_local_language_files' => $invalid_local_language_files,
         ];
     }
@@ -287,17 +377,35 @@ MARKDOWN
     }
 
     /**
+     * @param mixed $value
+     */
+    private function toMode(mixed $value): string
+    {
+        if ($value === self::MODE_INSTALL || $value === self::MODE_INSTALL_LOCAL) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException(
+            'mode must be either "' . self::MODE_INSTALL . '" or "' . self::MODE_INSTALL_LOCAL . '".'
+        );
+    }
+
+    /**
      * @param mixed $raw_parameters
-     * @return array{language_keys: list<string>}
+     * @return array{language_keys: list<string>, mode: string}
      */
     private function normalizeParameters(mixed $raw_parameters): array
     {
-        if (!is_array($raw_parameters) || !array_key_exists('language_keys', $raw_parameters)) {
-            throw new \InvalidArgumentException('The language_keys parameter is required.');
+        if (!is_array($raw_parameters)
+            || !array_key_exists('language_keys', $raw_parameters)
+            || !array_key_exists('mode', $raw_parameters)
+        ) {
+            throw new \InvalidArgumentException('The language_keys and mode parameters are required.');
         }
 
         return [
             'language_keys' => $this->toLanguageKeyList($raw_parameters['language_keys']),
+            'mode' => $this->toMode($raw_parameters['mode']),
         ];
     }
 }
