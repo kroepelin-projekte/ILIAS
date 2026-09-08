@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -100,6 +101,18 @@ class Language implements Component\Component
                 static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
             );
 
+        $internal[UpdateLanguage::class] = static fn() =>
+            new UpdateLanguage(
+                $pull[\ILIAS\Refinery\Factory::class],
+                $use[\ILIAS\UI\Factory::class],
+                $use[\ILIAS\Language\Language::class],
+                static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
+                // Same reasoning as InstallLanguage above: no database of
+                // its own, ilSetupLanguage resolves it.
+                $internal[\ilSetupLanguage::class],
+                static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
+            );
+
         // LanguageLegacyInitialisationAdapter has no constructor of its own,
         // so it never needs the LanguageFileDirectoryManager argument -
         // it purely proxies to $DIC->language() at call time. This slot used
@@ -160,14 +173,26 @@ class Language implements Component\Component
         $provide[InstallLanguage::class] = static fn() =>
             $internal[InstallLanguage::class];
 
+        // Same reasoning and same legacy bridge as InstallLanguage above:
+        // components/ILIAS/Init/Init.php pulls this concrete class too, and
+        // AllModernComponents.php re-exposes that same resolved instance
+        // under the legacy $DIC[UpdateLanguage::class] key, which is what
+        // ilObjLanguageFolderGUI::refreshSelectedObject() reads. Setup
+        // Objectives receive it the same way as InstallLanguage: via
+        // $contribute[\ILIAS\Setup\Agent::class] below, or via
+        // UpdateLanguage::forSetup() for callers not wired through the
+        // component graph.
+        $provide[UpdateLanguage::class] = static fn() =>
+            $internal[UpdateLanguage::class];
+
         // --- $contribute: contributions to other components' collection
         //     points. Relative order preserved from before this file's
         //     reorganisation, since components may in general add multiple
         //     contributions to the same collection point sequentially (see
         //     docs/development/components-and-directories.md, "Contribute to
-        //     Service or Functionality") - even though none of the four
-        //     entries below currently share a collection point with another
-        //     entry in this file.
+        //     Service or Functionality") - which the two
+        //     \ILIAS\Component\Activities\Activity::class entries below
+        //     actually do, one per Activity this component offers.
 
         $contribute[LanguageFileDirectory::class] = static fn() => new MainLanguageFileDirectory();
 
@@ -176,11 +201,15 @@ class Language implements Component\Component
                 $pull[\ILIAS\Refinery\Factory::class],
                 $internal[\ilSetupLanguage::class],
                 $internal[InstallLanguage::class],
+                $internal[UpdateLanguage::class],
                 $internal[InstalledLanguageDatabaseRepository::class]
             );
 
         $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
             $internal[InstallLanguage::class];
+
+        $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
+            $internal[UpdateLanguage::class];
 
         $contribute[User\Settings\UserSettings::class] = fn() =>
             new Language\UserSettings\Settings();

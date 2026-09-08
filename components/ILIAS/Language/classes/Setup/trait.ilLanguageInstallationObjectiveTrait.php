@@ -21,13 +21,14 @@ declare(strict_types=1);
 use ILIAS\Setup;
 use ILIAS\Component\Activities\Activity;
 use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Activities\UpdateLanguage;
 
 /**
  * Shared dependencies and boilerplate for Objectives that install/update
- * languages via ilSetupLanguage (see installLanguages() below for why this
- * no longer goes through the InstallLanguage Activity). Not part of
- * ilLanguageObjective itself because not every Objective in this component
- * needs these dependencies (ilDefaultLanguageSetObjective does not).
+ * languages via the InstallLanguage and UpdateLanguage Activities. Not part
+ * of ilLanguageObjective itself because not every Objective in this
+ * component needs these dependencies (ilDefaultLanguageSetObjective does
+ * not).
  *
  * Currently only ilLanguagesInstalledAndUpdatedObjective uses this - the
  * former second user, ilLanguagesUpdatedObjective, was unused since
@@ -38,35 +39,31 @@ use ILIAS\Language\Activities\InstallLanguage;
 trait ilLanguageInstallationObjectiveTrait
 {
     protected \ilSetupLanguage $il_setup_language;
-
-    /**
-     * No longer read by installLanguages() (see that method's docblock) -
-     * kept as part of the constructor contract regardless, since
-     * ilLanguageSetupAgent and Language.php's component-graph wiring both
-     * already pass a resolved instance in, and changing that wiring is out
-     * of scope for the fix that made this property unused.
-     */
     protected Activity $install_language;
+    protected Activity $update_language;
 
     /**
-     * @param Activity|null $install_language Accepted for the reasons
-     *        above, not otherwise used by this trait. Callers wired through
-     *        the component graph (see ilLanguageSetupAgent) pass the
-     *        resolved instance. Callers that are themselves constructed
-     *        deep inside the Setup Objective tree - ilComponentPluginAdminInitObjective
+     * @param Activity|null $install_language Callers wired through the
+     *        component graph (see ilLanguageSetupAgent) pass the resolved
+     *        instance. Callers that are themselves constructed deep inside
+     *        the Setup Objective tree - ilComponentPluginAdminInitObjective
      *        and ilPluginLanguageUpdatedObjective, reached via
      *        ilPluginDefaultAgent, which only ever receives a plugin name -
      *        have nothing to inject and omit it; a Setup-only instance is
      *        then built here. This is the single place that knows how,
      *        instead of each of those call sites reaching into
      *        $GLOBALS['DIC'] for a key that Setup never registers.
+     * @param Activity|null $update_language Same reasoning as
+     *        $install_language above.
      */
     public function __construct(
         \ilSetupLanguage $il_setup_language,
-        ?Activity $install_language = null
+        ?Activity $install_language = null,
+        ?Activity $update_language = null
     ) {
         $this->il_setup_language = $il_setup_language;
         $this->install_language = $install_language ?? InstallLanguage::forSetup($il_setup_language);
+        $this->update_language = $update_language ?? UpdateLanguage::forSetup($il_setup_language);
     }
 
     /**
@@ -89,49 +86,43 @@ trait ilLanguageInstallationObjectiveTrait
     }
 
     /**
-     * Installs every given key that is not yet installed, and re-installs
-     * (refreshes) every given key that already is - unconditionally, this
-     * Objective's job (see ilLanguagesInstalledAndUpdatedObjective's label
+     * Installs every given key that is not yet installed, and refreshes
+     * every given key that already is - unconditionally, this Objective's
+     * job (see ilLanguagesInstalledAndUpdatedObjective's label
      * "Install/Update languages") is to keep already-installed languages in
      * sync with the current language files on every setup.php run (e.g.
      * after a core update added or changed translations), not just to
      * install missing ones.
      *
-     * This is deliberately NOT routed through
-     * $this->install_language->perform(): that Activity's "install"/
-     * "install_local" modes exist for the GUI's "Install"/"Install local"
-     * commands, where mode "install" treats an already-installed language
-     * as a no-op by design (see InstallLanguage::perform()) - the exact
-     * opposite of what this Objective needs. The flush+insert+register
-     * sequence below is instead applied directly via $il_setup_language,
-     * unconditionally for every key - mirroring what
-     * ilObjLanguage::refresh() does for the equivalent runtime "refresh"
-     * GUI command.
+     * Both Activities are handed the same full $language_keys list and each
+     * decides for itself what applies to it: InstallLanguage::MODE_INSTALL
+     * installs a not-yet-installed key and is a no-op for an already
+     * installed one; UpdateLanguage refreshes an already installed key and
+     * is a no-op for one that is not installed. Neither call needs the
+     * caller to pre-filter by install status - see their own perform()
+     * docblocks. Running UpdateLanguage on the keys InstallLanguage just
+     * installed is intentional, not wasted work avoided: it keeps this
+     * method's behaviour simple (one full list, two independent Activities)
+     * and the freshly installed keys are also freshly refreshed, which is
+     * harmless.
+     *
+     * Each Activity validates and throws \RuntimeException only for the
+     * keys it actually processes (see InstallLanguage::perform() and
+     * UpdateLanguage::perform()); a validation error in the first call
+     * prevents the second from running at all, instead of collecting
+     * invalid keys from both into a single combined error.
      *
      * @param list<string> $language_keys
      */
     protected function installLanguages(array $language_keys): void
     {
-        $error_language_keys = [];
-        foreach ($language_keys as $language_key) {
-            if (!$this->il_setup_language->checkLanguageForInstallation($language_key)) {
-                $error_language_keys[] = $language_key;
-            }
-        }
+        $this->install_language->perform([
+            'language_keys' => $language_keys,
+            'mode' => InstallLanguage::MODE_INSTALL,
+        ]);
 
-        if ($error_language_keys !== []) {
-            throw new \RuntimeException(
-                'Invalid language files: ' . implode(', ', $error_language_keys)
-            );
-        }
-
-        $db_languages = $this->il_setup_language->getAvailableLanguagesForInstallation();
-        $local_language_keys = $this->il_setup_language->getLocalLanguages();
-
-        foreach ($language_keys as $language_key) {
-            $this->il_setup_language->flushLanguageForInstallation($language_key);
-            $this->il_setup_language->insertLanguageForInstallation($language_key);
-            $this->il_setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
-        }
+        $this->update_language->perform([
+            'language_keys' => $language_keys,
+        ]);
     }
 }

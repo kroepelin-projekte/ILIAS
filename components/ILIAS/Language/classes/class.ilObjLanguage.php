@@ -314,8 +314,17 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-    * Refresh all installed languages
-    */
+     * Refresh all installed languages.
+     *
+     * @deprecated its only caller in this codebase,
+     * ilObjLanguageFolderGUI::refreshObject(), was removed as unreachable
+     * dead code (no link or ilCtrl command ever dispatched to it - verified
+     * repository-wide) once ilObjLanguageFolderGUI::refreshSelectedObject()
+     * was migrated to \ILIAS\Language\Activities\UpdateLanguage. Kept here,
+     * rather than removed outright, only because this is a public static
+     * method of a public API class that external/plugin code could still be
+     * calling directly.
+     */
     public static function refreshAll(): void
     {
         $languages = ilObject::_getObjectsByType("lng");

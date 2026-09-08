@@ -13,12 +13,15 @@
 
 declare(strict_types=1);
 
+namespace ILIAS\Language\Activities;
+
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\MockObject\MockObject;
+use ilLanguageBaseTestCase;
+use ilSetupLanguage;
 
-class ilInstallLanguageTest extends ilLanguageBaseTestCase
+class InstallLanguageTest extends ilLanguageBaseTestCase
 {
     public function testSingleNewLanguageIsInstalled(): void
     {
@@ -410,7 +413,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->never())->method('flushLanguageForInstallation');
         $setup_language->expects($this->never())->method('insertLanguageForInstallation');
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(\RuntimeException::class);
         $this->createActivity($setup_language)->perform([
             'language_keys' => 'xx',
             'mode' => InstallLanguage::MODE_INSTALL,
@@ -429,7 +432,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
         $setup_language->expects($this->never())->method('flushLanguageForInstallation');
         $setup_language->expects($this->never())->method('insertLanguageForInstallation');
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(\RuntimeException::class);
         $this->createActivity($setup_language)->perform([
             'language_keys' => 'de,xx',
             'mode' => InstallLanguage::MODE_INSTALL,
@@ -438,7 +441,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
     public function testMissingModeParameterIsRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\InvalidArgumentException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
             'language_keys' => 'de',
@@ -447,7 +450,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
     public function testInvalidModeValueIsRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\InvalidArgumentException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
             'language_keys' => 'de',
@@ -507,7 +510,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
     public function testEmptyLanguageKeysAreRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\InvalidArgumentException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
             'language_keys' => ' , ',
@@ -517,7 +520,7 @@ class ilInstallLanguageTest extends ilLanguageBaseTestCase
 
     public function testInvalidLanguageKeysTypeIsRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\InvalidArgumentException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
             'language_keys' => ['de', ['fr']],

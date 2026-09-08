@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language as LanguageComponent;
 use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
@@ -117,6 +118,7 @@ class LanguageComponentGraphTest extends TestCase
         self::assertInstanceOf(InstalledLanguageDatabaseRepository::class, $provide[InstalledLanguageRepository::class]);
         self::assertInstanceOf(LanguageInstallationManager::class, $provide[LanguageInstallationManager::class]);
         self::assertInstanceOf(InstallLanguage::class, $provide[InstallLanguage::class]);
+        self::assertInstanceOf(UpdateLanguage::class, $provide[UpdateLanguage::class]);
     }
 
     public function testProvidedServicesShareTheSameInternalSingletonInstances(): void
@@ -130,6 +132,7 @@ class LanguageComponentGraphTest extends TestCase
         self::assertSame($internal[InstalledLanguageDatabaseRepository::class], $provide[InstalledLanguageRepository::class]);
         self::assertSame($internal[LanguageInstallationManager::class], $provide[LanguageInstallationManager::class]);
         self::assertSame($internal[InstallLanguage::class], $provide[InstallLanguage::class]);
+        self::assertSame($internal[UpdateLanguage::class], $provide[UpdateLanguage::class]);
     }
 
     public function testContributeEntriesResolveToExpectedConcreteClassesInPreservedOrder(): void
@@ -138,24 +141,33 @@ class LanguageComponentGraphTest extends TestCase
 
         // RenamingDIC assigns a single, container-wide "_<counter>" suffix
         // to every offsetSet call, in call order. Reading these exact keys
-        // back pins the relative order of the four $contribute entries,
-        // which the reorganisation was explicitly required to preserve.
+        // back pins the relative order of the five $contribute entries,
+        // which the reorganisation was explicitly required to preserve -
+        // including the two \ILIAS\Component\Activities\Activity::class
+        // entries (InstallLanguage, then UpdateLanguage), one per Activity
+        // this component offers.
         self::assertInstanceOf(MainLanguageFileDirectory::class, $contribute[LanguageFileDirectory::class . '_0']);
         self::assertInstanceOf(\ilLanguageSetupAgent::class, $contribute[\ILIAS\Setup\Agent::class . '_1']);
         self::assertInstanceOf(InstallLanguage::class, $contribute[\ILIAS\Component\Activities\Activity::class . '_2']);
-        self::assertInstanceOf(UserSettingsSettings::class, $contribute[\ILIAS\User\Settings\UserSettings::class . '_3']);
+        self::assertInstanceOf(UpdateLanguage::class, $contribute[\ILIAS\Component\Activities\Activity::class . '_3']);
+        self::assertInstanceOf(UserSettingsSettings::class, $contribute[\ILIAS\User\Settings\UserSettings::class . '_4']);
     }
 
-    public function testContributedActivityIsTheSameSingletonAsTheProvidedInstallLanguage(): void
+    public function testContributedActivitiesAreTheSameSingletonsAsTheProvidedInstances(): void
     {
         [, , , $contribute, , $provide] = $this->initComponent();
 
         // ilLanguageSetupAgent (Setup path) and ilObjLanguageFolderGUI
         // (via $provide[InstallLanguage::class]) must operate on the exact
-        // same InstallLanguage instance, not merely equal ones.
+        // same InstallLanguage instance, not merely equal ones - and the
+        // same holds for UpdateLanguage.
         self::assertSame(
             $provide[InstallLanguage::class],
             $contribute[\ILIAS\Component\Activities\Activity::class . '_2']
+        );
+        self::assertSame(
+            $provide[UpdateLanguage::class],
+            $contribute[\ILIAS\Component\Activities\Activity::class . '_3']
         );
     }
 

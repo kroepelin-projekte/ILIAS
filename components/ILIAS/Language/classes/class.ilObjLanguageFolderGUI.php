@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
@@ -41,6 +42,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     protected URLBuilderToken $action_token;
     protected URLBuilderToken $id_token;
     private readonly InstallLanguage $install_language;
+    private readonly UpdateLanguage $update_language;
     private readonly int $current_user_id;
 
     /**
@@ -59,6 +61,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         // ilObjLanguageExtGUI::__construct()) - action methods must not
         // reach into `global $DIC` themselves.
         $this->install_language = $DIC[InstallLanguage::class];
+        $this->update_language = $DIC[UpdateLanguage::class];
         $this->current_user_id = $DIC->user()->getId();
         $this->df = new ILIAS\Data\Factory();
 
@@ -395,38 +398,62 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     }
 
     /**
-     * update all installed languages
-     */
-    public function refreshObject(): void
-    {
-        $this->checkPermission("write");
-
-        ilObjLanguage::refreshAll();
-        $this->data = $this->lng->txt("languages_updated");
-        $this->out();
-    }
-
-    /**
-     * update selected languages
+     * Refresh (already installed) languages, re-seeding their base data
+     * (plus a customizing/local file if one exists) from the current
+     * language files - see UpdateLanguage. A language among $ids that is
+     * not installed is left completely untouched.
      */
     public function refreshSelectedObject(array $ids): void
     {
-        $this->checkPermission("write");
-        $this->data = $this->lng->txt("selected_languages_updated");
-        $this->lng->loadLanguageModule("meta");
-
-        $refreshed = [];
-        foreach ($ids as $id) {
-            $langObj = new ilObjLanguage((int) $id, false);
-            if ($langObj->refresh()) {
-                $refreshed[] = $langObj->getKey();
-                $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
-            }
-            unset($langObj);
+        $language_keys = [];
+        foreach ($ids as $obj_id) {
+            $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();
         }
 
-        ilObjLanguage::refreshPlugins($refreshed);
-        $this->out();
+        $result = $this->update_language->maybePerformAs(
+            $this->current_user_id,
+            ['language_keys' => $language_keys]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->lng->txt('language_not_installed') . ': ' . $error_message,
+                true
+            );
+
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+        $value = $result->value();
+
+        // Plugin language files are refreshed only for the languages that
+        // were actually updated - a requested-but-not-installed language
+        // (see not_installed_language_keys below) has nothing to refresh.
+        ilObjLanguage::refreshPlugins($value['updated_language_keys']);
+
+        if (($lang_updated = $value['updated_language_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'success',
+                $this->lng->txt('selected_languages_updated') . ' '
+                    . $this->languageKeysToLocalizedList($lang_updated),
+                true
+            );
+        }
+
+        if (($lang_not_installed = $value['not_installed_language_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'info',
+                $this->languageKeysToLocalizedList($lang_not_installed)
+                    . ' ' . $this->lng->txt('language_not_installed'),
+                true
+            );
+        }
+
+        $this->ctrl->redirect($this, 'view');
     }
 
     /**

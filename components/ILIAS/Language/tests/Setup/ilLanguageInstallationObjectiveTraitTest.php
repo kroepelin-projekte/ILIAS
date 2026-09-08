@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Setup;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Guards the database handling of ilLanguageInstallationObjectiveTrait.
@@ -119,5 +120,114 @@ class ilLanguageInstallationObjectiveTraitTest extends TestCase
 
         $this->assertFalse(isset($GLOBALS['ilDB']), 'the global database must not be (re)created');
         $this->assertSame(['INJECTED'], array_values(array_unique($log)));
+    }
+
+    /**
+     * @param list<string> $log collects the language key every write method
+     *        was actually called with, in call order
+     */
+    private function createSetupLanguageMock(array $installed_language_keys, array &$log): MockObject&ilSetupLanguage
+    {
+        $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);
+        $setup_language->method('getAvailableLanguagesForInstallation')->willReturn([]);
+        $setup_language->method('getLocalLanguages')->willReturn([]);
+        $setup_language->method('getInvalidLocalLanguageFiles')->willReturn([]);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->method('flushLanguageForInstallation')->willReturnCallback(
+            static function (string $lang_key) use (&$log): void {
+                $log[] = $lang_key;
+            }
+        );
+
+        return $setup_language;
+    }
+
+    /**
+     * installLanguages() is protected, so it is invoked here via reflection -
+     * the same approach already used by ilSetupLanguageTest::callCheckLanguage()
+     * for a protected method on a sibling class in this component.
+     *
+     * @param list<string> $language_keys
+     */
+    private function invokeInstallLanguages(ilLanguagesInstalledAndUpdatedObjective $objective, array $language_keys): void
+    {
+        (new ReflectionMethod($objective, 'installLanguages'))->invoke($objective, $language_keys);
+    }
+
+    /**
+     * The central integration guarantee of installLanguages(): a single call
+     * with a mixed list of already-installed and not-yet-installed language
+     * keys must actually flush+reinstall each of them - the not-yet-installed
+     * one via InstallLanguage, the already-installed one via UpdateLanguage -
+     * not merely report them as belonging to the correct bucket. Both
+     * Activities are built via their forSetup() factory here (the trait's
+     * default when no Activity is injected), sharing the same mocked
+     * ilSetupLanguage.
+     */
+    public function testInstallLanguagesActuallyFlushesBothTheNewlyInstalledAndTheAlreadyInstalledLanguage(): void
+    {
+        $log = [];
+        // 'de' is already installed, 'fr' is not.
+        $setup_language = $this->createSetupLanguageMock(['de'], $log);
+
+        $objective = new ilLanguagesInstalledAndUpdatedObjective($setup_language);
+        $this->invokeInstallLanguages($objective, ['de', 'fr']);
+
+        // 'fr' is flushed once by InstallLanguage (fresh install); 'de' is
+        // flushed once by UpdateLanguage (refresh of an already installed
+        // language) - in that order, since installLanguages() runs
+        // InstallLanguage before UpdateLanguage.
+        $this->assertSame(['fr', 'de'], $log);
+    }
+
+    /**
+     * Regression guard for the documented "harmless double cycle": a
+     * language that InstallLanguage has just installed is, within the very
+     * same installLanguages() call, immediately flushed a second time by
+     * UpdateLanguage - because by the time UpdateLanguage::perform() queries
+     * getInstalledLanguages() again, the just-installed language is now
+     * reported as installed too, exactly like a real database would behave
+     * after InstallLanguage's write. This is intentional (see
+     * ilLanguageInstallationObjectiveTrait::installLanguages() docblock),
+     * not wasted work accidentally introduced by the two-Activity split.
+     */
+    public function testFreshlyInstalledLanguageIsImmediatelyRefreshedAgainByUpdateLanguage(): void
+    {
+        $log = [];
+        $newly_installed = [];
+
+        $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language->method('getInstalledLanguages')->willReturnCallback(
+            static function () use (&$newly_installed): array {
+                return array_merge(['de'], $newly_installed);
+            }
+        );
+        $setup_language->method('getAvailableLanguagesForInstallation')->willReturn([]);
+        $setup_language->method('getLocalLanguages')->willReturn([]);
+        $setup_language->method('getInvalidLocalLanguageFiles')->willReturn([]);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->method('flushLanguageForInstallation')->willReturnCallback(
+            static function (string $lang_key) use (&$log): void {
+                $log[] = $lang_key;
+            }
+        );
+        // The DB write that makes 'fr' visible as installed to every
+        // subsequent getInstalledLanguages() call, exactly like a real
+        // INSERT into object_data would.
+        $setup_language->method('registerInstalledLanguage')->willReturnCallback(
+            static function (string $lang_key) use (&$newly_installed): void {
+                $newly_installed[] = $lang_key;
+            }
+        );
+
+        $objective = new ilLanguagesInstalledAndUpdatedObjective($setup_language);
+        $this->invokeInstallLanguages($objective, ['de', 'fr']);
+
+        // 'fr': flushed once by InstallLanguage (fresh install). Then
+        // UpdateLanguage runs against the now-current installed list
+        // (['de', 'fr']) and flushes both again - 'de' because it always
+        // was installed, 'fr' because InstallLanguage just registered it.
+        $this->assertSame(['fr', 'de', 'fr'], $log);
     }
 }

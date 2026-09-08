@@ -31,17 +31,20 @@ class ilLanguageSetupAgent implements Setup\Agent
     protected Refinery\Factory $refinery;
     protected \ilSetupLanguage $il_setup_language;
     protected Activity $install_language;
+    protected Activity $update_language;
     protected InstalledLanguageRepository $repository;
 
     public function __construct(
         Refinery\Factory $refinery,
         \ilSetupLanguage $il_setup_language,
         Activity $install_language,
+        Activity $update_language,
         InstalledLanguageRepository $repository
     ) {
         $this->refinery = $refinery;
         $this->il_setup_language = $il_setup_language;
         $this->install_language = $install_language;
+        $this->update_language = $update_language;
         $this->repository = $repository;
     }
 
@@ -71,7 +74,8 @@ class ilLanguageSetupAgent implements Setup\Agent
             false,
             new ilLanguagesInstalledAndUpdatedObjective(
                 $this->il_setup_language,
-                $this->install_language
+                $this->install_language,
+                $this->update_language
             ),
             new ilDefaultLanguageSetObjective()
         );
@@ -87,7 +91,8 @@ class ilLanguageSetupAgent implements Setup\Agent
             false,
             new ilLanguagesInstalledAndUpdatedObjective(
                 $this->il_setup_language,
-                $this->install_language
+                $this->install_language,
+                $this->update_language
             ),
         );
     }

@@ -97,6 +97,7 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\UI\Implementation\Component\Navigation\Factory $ui_factory_navigation,
         protected \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager,
         protected \ILIAS\Language\Activities\InstallLanguage $install_language,
+        protected \ILIAS\Language\Activities\UpdateLanguage $update_language,
         // This constructor argument is evaluated by PHP before enter() runs,
         // i.e. before the legacy $DIC even exists. That is only safe because
         // the "default"/Init dependency_resolution.php disambiguates
@@ -187,6 +188,8 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
             $this->language_file_directory_manager;
         $DIC[\ILIAS\Language\Activities\InstallLanguage::class] = fn() =>
             $this->install_language;
+        $DIC[\ILIAS\Language\Activities\UpdateLanguage::class] = fn() =>
+            $this->update_language;
         // Route legacy consumers of this FQCN through the instance the
         // component graph actually resolved, instead of independently
         // re-deriving it from $DIC->language(). See the constructor comment
