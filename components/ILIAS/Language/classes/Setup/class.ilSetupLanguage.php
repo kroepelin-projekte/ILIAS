@@ -84,9 +84,9 @@ class ilSetupLanguage extends ilLanguage
         // later via setDbHandler() actually takes effect - which is what lets
         // Setup Objectives inject the Setup-provided database instead of
         // temporarily overwriting $GLOBALS['ilDB'] around the call (see
-        // ilLanguageInstallationObjectiveTrait). The global remains the
-        // fallback for the runtime, where ilInitialisation::initDatabase()
-        // populates it via initGlobal().
+        // ilLanguagesInstalledAndUpdatedObjective::useSetupDatabase()). The
+        // global remains the fallback for the runtime, where
+        // ilInitialisation::initDatabase() populates it via initGlobal().
         $db_resolver = fn(): ilDBInterface => $this->db ?? $GLOBALS["ilDB"];
         $this->repository = new InstalledLanguageDatabaseRepository(
             $db_resolver,

@@ -23,9 +23,9 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
- * Guards the database handling of ilLanguageInstallationObjectiveTrait.
+ * Guards the database handling of ilLanguagesInstalledAndUpdatedObjective.
  *
- * The trait used to overwrite $GLOBALS['ilDB'] with the Setup-provided
+ * The class used to overwrite $GLOBALS['ilDB'] with the Setup-provided
  * database for the duration of the install and restore it afterwards, with a
  * "@todo remove this once ilSetupLanguage supports proper DI" attached. That
  * is gone: ilSetupLanguage resolves its database lazily, so setDbHandler()
@@ -33,7 +33,7 @@ use PHPUnit\Framework\MockObject\MockObject;
  * both halves of that down, because a regression would be silent - the
  * global fallback would simply take over again.
  */
-class ilLanguageInstallationObjectiveTraitTest extends TestCase
+class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
 {
     private bool $had_global_db;
     private mixed $previous_global_db = null;
@@ -161,9 +161,9 @@ class ilLanguageInstallationObjectiveTraitTest extends TestCase
      * keys must actually flush+reinstall each of them - the not-yet-installed
      * one via InstallLanguage, the already-installed one via UpdateLanguage -
      * not merely report them as belonging to the correct bucket. Both
-     * Activities are built via their forSetup() factory here (the trait's
-     * default when no Activity is injected), sharing the same mocked
-     * ilSetupLanguage.
+     * Activities are built via their forSetup() factory here (the
+     * constructor's default when no Activity is injected), sharing the same
+     * mocked ilSetupLanguage.
      */
     public function testInstallLanguagesActuallyFlushesBothTheNewlyInstalledAndTheAlreadyInstalledLanguage(): void
     {
@@ -189,7 +189,7 @@ class ilLanguageInstallationObjectiveTraitTest extends TestCase
      * getInstalledLanguages() again, the just-installed language is now
      * reported as installed too, exactly like a real database would behave
      * after InstallLanguage's write. This is intentional (see
-     * ilLanguageInstallationObjectiveTrait::installLanguages() docblock),
+     * ilLanguagesInstalledAndUpdatedObjective::installLanguages() docblock),
      * not wasted work accidentally introduced by the two-Activity split.
      */
     public function testFreshlyInstalledLanguageIsImmediatelyRefreshedAgainByUpdateLanguage(): void

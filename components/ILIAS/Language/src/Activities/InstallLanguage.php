@@ -78,7 +78,7 @@ class InstallLanguage extends ActivityImpl
      * Build the Activity for the Setup context, where only perform() is ever
      * called and no runtime container exists to resolve services from.
      *
-     * Setup Objectives (see ilLanguageInstallationObjectiveTrait) used to
+     * Setup Objectives (see ilLanguagesInstalledAndUpdatedObjective) used to
      * fetch this Activity from $GLOBALS['DIC'], which is only populated by
      * AllModernComponents::enter() and therefore never during Setup - that
      * made setup.php update fail outright. The collaborators that perform()
