@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
+use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Data\Result\Error as ResultError;
 use ILIAS\Data\Result\Ok as ResultOk;
 use PHPUnit\Framework\TestCase;
@@ -76,18 +77,24 @@ class ilObjLanguageFolderGUITest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // Regression coverage for the missing explicit ACL check in
-    // installObject()/refreshSelectedObject().
+    // Regression coverage for the explicit ACL check in installObject(),
+    // refreshSelectedObject() and uninstallObject().
     //
-    // uninstallObject() and uninstallChangesObject() both call
-    // $this->checkPermission('write') as their very first statement -
-    // installObject() and refreshSelectedObject() do not (see class body).
-    // The only remaining gate is the `table_action` dispatch in
-    // executeCommand(), which calls checkPermission('write') itself
-    // before invoking either method - but only when the method is
-    // reached that way. Any other caller of these two *public* methods
-    // (direct forwarding from another GUI, a future refactoring, a test,
-    // ...) gets no ACL protection at all.
+    // All four write-command methods on this class -  installObject(),
+    // uninstallObject(), uninstallChangesObject() and
+    // refreshSelectedObject() - call $this->checkPermission('write') as
+    // their very first statement (verified against the class body; see
+    // also commit 4c98c957d36, "re-introduce explicit permission checks").
+    // This is a defense-in-depth check: installObject()/uninstallObject()/
+    // refreshSelectedObject() additionally delegate to their respective
+    // Activity's isAllowedToPerform() (via maybePerformAs()), so the
+    // permission is enforced twice for those three - once explicitly here,
+    // once inside the Activity. uninstallChangesObject() is not backed by
+    // an Activity and relies solely on this explicit check (plus the
+    // `table_action` dispatch in executeCommand(), which calls
+    // checkPermission('write') itself before invoking it when the method
+    // is reached that way - but any other caller of that *public* method
+    // gets no ACL protection beyond this one).
     //
     // checkPermissionBool() (which checkPermission() delegates to) simply
     // returns false whenever $this->object is not an object - which it
@@ -107,15 +114,13 @@ class ilObjLanguageFolderGUITest extends TestCase
     // difference (data changed vs. not changed) for a denied user.
     //
     // What a unit test *can* pin down directly is the contract itself:
-    // whether the method calls $this->checkPermission('write') at all -
-    // exactly the call uninstallObject()/uninstallChangesObject() make
-    // and installObject()/refreshSelectedObject() are missing. This is a
-    // legitimate case for interaction verification (rule 16): the
-    // presence of that call *is* the contract under test, not an
-    // implementation detail. A partial mock of the GUI itself (stubbing
-    // only checkPermission(), a protected method not otherwise
-    // observable, while every other method keeps its real
-    // implementation) makes that call directly assertable.
+    // that the method calls $this->checkPermission('write') exactly once,
+    // as its first statement, before doing any work. This is a legitimate
+    // case for interaction verification (rule 16): the presence of that
+    // call *is* the contract under test, not an implementation detail. A
+    // partial mock of the GUI itself (stubbing only checkPermission(), a
+    // protected method not otherwise observable, while every other method
+    // keeps its real implementation) makes that call directly assertable.
     // -----------------------------------------------------------------
 
     /**
@@ -156,33 +161,37 @@ class ilObjLanguageFolderGUITest extends TestCase
     }
 
     /**
-     * Control/sanity check for the technique above, not a regression test
-     * in its own right: this pins that uninstallObject() *does* call
-     * checkPermission('write') as its first statement, exactly as the
-     * class body shows. If this failed, the mocking technique itself -
-     * not the two methods under suspicion below - would be the problem.
+     * uninstallObject() must call $this->checkPermission('write') exactly
+     * once, as its first statement, before doing any uninstall work -
+     * exactly like installObject()/refreshSelectedObject()/
+     * uninstallChangesObject() do. In addition, UninstallLanguage enforces
+     * the same 'write' permission itself via isAllowedToPerform()/
+     * maybePerformAs() (see
+     * UninstallLanguageTest::testPermissionDeniedBeforePerformNeverCallsObjectFactoryOrUninstall()
+     * for that side of the contract) - this is a deliberate
+     * defense-in-depth: the GUI-level check here does not replace the
+     * Activity-level check, both must hold.
      */
     public function testUninstallObjectChecksWritePermissionBeforeActing(): void
     {
         $gui = $this->createGuiWithMockedCheckPermission();
         $gui->expects($this->once())->method('checkPermission')->with('write');
 
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(
+            new ResultOk($this->uninstallPerformResult([], [], [], []))
+        );
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'uninstall_language', $uninstall_language);
+
         $gui->uninstallObject([]);
     }
 
     /**
-     * Regression test for the suspected bug: installObject() must check
-     * 'write' permission before doing any installation work - exactly
-     * like its sibling uninstallObject() does, and like installObject()
-     * itself used to before this refactoring (see
-     * git show ff41db61599994e3f56141cbb58aed3116b68d8a - it had an
-     * explicit $this->checkPermission("write"); as its first statement).
-     * Currently, this method relies entirely on the caller (specifically,
-     * executeCommand()'s own checkPermission('write') before dispatching
-     * a `table_action`) - a caller-side check the method itself no longer
-     * enforces. This test currently FAILS, confirming the bug: it invokes
-     * install_language->maybePerformAs() without ever calling
-     * checkPermission() at all.
+     * installObject() must check 'write' permission before doing any
+     * installation work - exactly like its siblings
+     * uninstallObject()/refreshSelectedObject()/uninstallChangesObject()
+     * do (see the class body: all four call $this->checkPermission('write')
+     * as their first statement).
      */
     public function testInstallObjectMustCheckWritePermissionBeforeActing(): void
     {
@@ -201,10 +210,8 @@ class ilObjLanguageFolderGUITest extends TestCase
     }
 
     /**
-     * Regression test for the suspected bug, refreshSelectedObject()
-     * variant: same reasoning as
-     * testInstallObjectMustCheckWritePermissionBeforeActing() above. This
-     * test currently FAILS, confirming the bug.
+     * refreshSelectedObject() variant: same reasoning as
+     * testInstallObjectMustCheckWritePermissionBeforeActing() above.
      */
     public function testRefreshSelectedObjectMustCheckWritePermissionBeforeActing(): void
     {
@@ -688,5 +695,290 @@ class ilObjLanguageFolderGUITest extends TestCase
         );
 
         $gui->refreshSelectedObject([]);
+    }
+
+    // -----------------------------------------------------------------
+    // uninstallObject()
+    //
+    // Same reflection-based construction technique as installObject()/
+    // refreshSelectedObject() above, with $ids always [] for the same
+    // reason: the only other piece of legacy coupling in the method
+    // (`ilObject::_lookupTitle((int) $obj_id)` inside the per-id loop
+    // that builds $language_keys) must never be reached in a unit test.
+    // -----------------------------------------------------------------
+
+    private function createGuiWithUninstallLanguageCollaborators(
+        UninstallLanguage $uninstall_language,
+        ilGlobalTemplateInterface $tpl,
+        ilCtrl $ctrl,
+        ilLanguage $lng
+    ): ilObjLanguageFolderGUI {
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $this->setProperty($gui, 'uninstall_language', $uninstall_language);
+        $this->setProperty($gui, 'current_user_id', 6);
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $lng);
+
+        return $gui;
+    }
+
+    /**
+     * @return array{uninstalled_language_keys: list<string>, system_language_keys: list<string>, user_language_keys: list<string>, not_installed_language_keys: list<string>}
+     */
+    private function uninstallPerformResult(
+        array $uninstalled,
+        array $system,
+        array $user,
+        array $not_installed
+    ): array {
+        return [
+            'uninstalled_language_keys' => $uninstalled,
+            'system_language_keys' => $system,
+            'user_language_keys' => $user,
+            'not_installed_language_keys' => $not_installed,
+        ];
+    }
+
+    public function testUninstallObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
+    {
+        $exception_message = 'boom';
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(
+            new ResultError(new \RuntimeException($exception_message))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', $this->stringContains($exception_message), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    public function testUninstallObjectEmbedsAPlainStringErrorFromAnErrorResultIntoTheFailureMessage(): void
+    {
+        // ILIAS\Data\Result\Error also accepts a plain string (not just a
+        // Throwable) - the "$error instanceof \Throwable ? ... : $error"
+        // branch for that case must be covered too.
+        $error_string = 'permission denied';
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(new ResultError($error_string));
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', $this->stringContains($error_string), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    public function testUninstallObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(
+            new ResultError(new \RuntimeException('boom'))
+        );
+
+        // If the `return` after the redirect were ever dropped, execution
+        // would fall through to `$result->value()` - which throws on an
+        // Error result (see ILIAS\Data\Result\Error::value()) - so this
+        // would surface as a test error rather than silently passing.
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage');
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    /**
+     * $ids is resolved to language keys via
+     * ilObject::_lookupTitle((int) $obj_id) - untestable in isolation
+     * without a real database, so - exactly like the existing
+     * install/update tests - this is only exercised with an empty $ids
+     * array, which is enough to pin that maybePerformAs() receives an
+     * (empty) 'language_keys' array and no other key.
+     */
+    public function testUninstallObjectPassesOnlyLanguageKeysWithoutAModeKeyToMaybePerformAs(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['language_keys' => []])
+            ->willReturn(new ResultOk($this->uninstallPerformResult([], [], [], [])));
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createMock(ilCtrl::class),
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    public function testUninstallObjectSetsSuccessMessageWhenOnlyUninstalledLanguageKeysIsNonEmpty(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(
+            new ResultOk($this->uninstallPerformResult(['de'], [], [], []))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('success', 'meta_l_de uninstalled', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    /**
+     * system_language_keys, user_language_keys and not_installed_language_keys
+     * are all "nothing changed for this language, here is why" outcomes.
+     * setOnScreenMessage() only keeps one message per type, so - exactly
+     * like installObject()'s combined info message - all three buckets
+     * must be combined into a single 'info' call instead of three
+     * separate calls that would silently overwrite each other.
+     */
+    public function testUninstallObjectCombinesSystemUserAndNotInstalledIntoOneInfoMessage(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(new ResultOk(
+            $this->uninstallPerformResult([], ['de'], ['en'], ['fr'])
+        ));
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with(
+                'info',
+                'cannot_uninstall_systemlanguage: meta_l_de<br />'
+                    . 'cannot_uninstall_language_in_use: meta_l_en<br />'
+                    . 'languages_already_uninstalled: meta_l_fr',
+                true
+            );
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+    }
+
+    /**
+     * A single request can mix a genuinely uninstalled language with all
+     * three "nothing changed" buckets at once - the success message and
+     * the combined info message must both be set, as two separate calls
+     * (different message types), neither one clobbering the other.
+     */
+    public function testUninstallObjectSetsBothSuccessAndInfoMessagesWhenBothCategoriesAreNonEmpty(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(new ResultOk(
+            $this->uninstallPerformResult(['de'], ['en'], [], [])
+        ));
+
+        $captured_calls = [];
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->exactly(2))
+            ->method('setOnScreenMessage')
+            ->willReturnCallback(function (string $type, string $message, bool $keep) use (&$captured_calls): void {
+                $captured_calls[] = [$type, $message];
+            });
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
+
+        self::assertCount(2, $captured_calls);
+        self::assertSame(['success', 'meta_l_de uninstalled'], $captured_calls[0]);
+        self::assertSame(['info', 'cannot_uninstall_systemlanguage: meta_l_en'], $captured_calls[1]);
+    }
+
+    /**
+     * Boundary: when every bucket is empty (e.g. an empty $ids request),
+     * no message at all must appear - not even an empty one.
+     */
+    public function testUninstallObjectSetsNoMessageWhenAllBucketsAreEmpty(): void
+    {
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(
+            new ResultOk($this->uninstallPerformResult([], [], [], []))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->never())->method('setOnScreenMessage');
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject([]);
     }
 }

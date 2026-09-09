@@ -126,6 +126,7 @@ class Init implements Component\Component
                 $pull[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class],
                 $pull[\ILIAS\Language\Activities\InstallLanguage::class],
                 $pull[\ILIAS\Language\Activities\UpdateLanguage::class],
+                $pull[\ILIAS\Language\Activities\UninstallLanguage::class],
                 $use[\ILIAS\Language\Language::class],
             );
     }

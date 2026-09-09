@@ -26,6 +26,7 @@ use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
+use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -113,6 +114,21 @@ class Language implements Component\Component
                 static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
             );
 
+        // Unlike InstallLanguage/UpdateLanguage, UninstallLanguage needs no
+        // ilSetupLanguage (it has no Setup counterpart - see its class
+        // docblock) and no forSetup() factory; its two legacy collaborators
+        // (enumerating "lng" objects, constructing an ilObjLanguage by id)
+        // are left at their defaults, which resolve the exact same legacy
+        // calls the extracted GUI code used directly before.
+        $internal[UninstallLanguage::class] = static fn() =>
+            new UninstallLanguage(
+                $pull[\ILIAS\Refinery\Factory::class],
+                $use[\ILIAS\UI\Factory::class],
+                $use[\ILIAS\Language\Language::class],
+                static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
+                static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
+            );
+
         // LanguageLegacyInitialisationAdapter has no constructor of its own,
         // so it never needs the LanguageFileDirectoryManager argument -
         // it purely proxies to $DIC->language() at call time. This slot used
@@ -185,6 +201,16 @@ class Language implements Component\Component
         $provide[UpdateLanguage::class] = static fn() =>
             $internal[UpdateLanguage::class];
 
+        // Same reasoning again, minus the Setup/forSetup() bridge, which
+        // does not apply here - see UninstallLanguage's class docblock for
+        // why it has no Setup counterpart at all. components/ILIAS/Init/Init.php
+        // pulls this concrete class too, and AllModernComponents.php
+        // re-exposes that same resolved instance under the legacy
+        // $DIC[UninstallLanguage::class] key, which is what
+        // ilObjLanguageFolderGUI::uninstallObject() reads.
+        $provide[UninstallLanguage::class] = static fn() =>
+            $internal[UninstallLanguage::class];
+
         // --- $contribute: contributions to other components' collection
         //     points. Relative order preserved from before this file's
         //     reorganisation, since components may in general add multiple
@@ -210,6 +236,9 @@ class Language implements Component\Component
 
         $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
             $internal[UpdateLanguage::class];
+
+        $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
+            $internal[UninstallLanguage::class];
 
         $contribute[User\Settings\UserSettings::class] = fn() =>
             new Language\UserSettings\Settings();

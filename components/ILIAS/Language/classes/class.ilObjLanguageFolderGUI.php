@@ -22,6 +22,7 @@ use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
+use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
@@ -43,6 +44,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     protected URLBuilderToken $id_token;
     private readonly InstallLanguage $install_language;
     private readonly UpdateLanguage $update_language;
+    private readonly UninstallLanguage $uninstall_language;
     private readonly int $current_user_id;
 
     /**
@@ -62,6 +64,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         // reach into `global $DIC` themselves.
         $this->install_language = $DIC[InstallLanguage::class];
         $this->update_language = $DIC[UpdateLanguage::class];
+        $this->uninstall_language = $DIC[UninstallLanguage::class];
         $this->current_user_id = $DIC->user()->getId();
         $this->df = new ILIAS\Data\Factory();
 
@@ -329,40 +332,74 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
 
 
     /**
-     * uninstall language
+     * Uninstall languages - see UninstallLanguage. A language among $ids
+     * that is not installed, the system language, or the language currently
+     * in use is left completely untouched.
      */
     public function uninstallObject(array $ids): void
     {
         $this->checkPermission('write');
         $this->lng->loadLanguageModule("meta");
 
-        $sys_lang = false;
-        $usr_lang = false;
-
-        // uninstall all selected languages
+        $language_keys = [];
         foreach ($ids as $obj_id) {
-            $langObj = new ilObjLanguage((int) $obj_id);
-            if (!($sys_lang = $langObj->isSystemLanguage()) && !($usr_lang = $langObj->isUserLanguage())) {
-                $key = $langObj->uninstall();
-                if ($key !== "") {
-                    $lang_uninstalled[] = $key;
-                }
-            }
-            unset($langObj);
+            $language_keys[] = ilObject::_lookupTitle((int) $obj_id);
         }
 
-        // generate output message
-        if (isset($lang_uninstalled)) {
-            $this->data = $this->languageKeysToLocalizedList($lang_uninstalled) . " " . $this->lng->txt("uninstalled");
-        } elseif ($sys_lang) {
-            $this->data = $this->lng->txt("cannot_uninstall_systemlanguage");
-        } elseif ($usr_lang) {
-            $this->data = $this->lng->txt("cannot_uninstall_language_in_use");
-        } else {
-            $this->data = $this->lng->txt("languages_already_uninstalled");
+        $result = $this->uninstall_language->maybePerformAs(
+            $this->current_user_id,
+            ['language_keys' => $language_keys]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $error_message . "<br/>" . $this->lng->txt("action_aborted"),
+                true
+            );
+
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+        $value = $result->value();
+
+        if (($lang_uninstalled = $value['uninstalled_language_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'success',
+                $this->languageKeysToLocalizedList($lang_uninstalled) . " " . $this->lng->txt("uninstalled"),
+                true
+            );
         }
 
-        $this->out();
+        // These three outcomes are all "nothing changed for this language,
+        // and here is why" - combined into a single info message for the
+        // same reason as installObject()/refreshSelectedObject() combine
+        // theirs: setOnScreenMessage() only keeps one message per type.
+        $info_messages = [];
+
+        if (($lang_system = $value['system_language_keys']) !== []) {
+            $info_messages[] = $this->lng->txt("cannot_uninstall_systemlanguage") . ': '
+                . $this->languageKeysToLocalizedList($lang_system);
+        }
+
+        if (($lang_in_use = $value['user_language_keys']) !== []) {
+            $info_messages[] = $this->lng->txt("cannot_uninstall_language_in_use") . ': '
+                . $this->languageKeysToLocalizedList($lang_in_use);
+        }
+
+        if (($lang_not_installed = $value['not_installed_language_keys']) !== []) {
+            $info_messages[] = $this->lng->txt("languages_already_uninstalled") . ': '
+                . $this->languageKeysToLocalizedList($lang_not_installed);
+        }
+
+        if ($info_messages !== []) {
+            $this->tpl->setOnScreenMessage('info', implode('<br />', $info_messages), true);
+        }
+
+        $this->ctrl->redirect($this, 'view');
     }
 
 
