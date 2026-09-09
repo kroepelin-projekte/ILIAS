@@ -102,6 +102,7 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\Language\Activities\RemoveLocalLanguageChanges $remove_local_language_changes,
         protected \ILIAS\Language\Activities\AddLanguageEntry $add_language_entry,
         protected \ILIAS\Language\Activities\SetLanguageDetectionEnabled $set_language_detection_enabled,
+        protected \ILIAS\Language\Activities\SetLanguageTranslationEnabled $set_language_translation_enabled,
         // This constructor argument is evaluated by PHP before enter() runs,
         // i.e. before the legacy $DIC even exists. That is only safe because
         // the "default"/Init dependency_resolution.php disambiguates
@@ -202,6 +203,8 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
             $this->add_language_entry;
         $DIC[\ILIAS\Language\Activities\SetLanguageDetectionEnabled::class] = fn() =>
             $this->set_language_detection_enabled;
+        $DIC[\ILIAS\Language\Activities\SetLanguageTranslationEnabled::class] = fn() =>
+            $this->set_language_translation_enabled;
         // Route legacy consumers of this FQCN through the instance the
         // component graph actually resolved, instead of independently
         // re-deriving it from $DIC->language(). See the constructor comment

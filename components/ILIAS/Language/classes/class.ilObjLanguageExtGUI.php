@@ -23,6 +23,7 @@ use ILIAS\FileUpload\Location;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 
 /**
 * Class ilObjLanguageExtGUI
@@ -43,6 +44,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     private const ILIAS_LANGUAGE_MODULE = "components/ILIAS/Language";
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
+    private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
 
     /**
     * Constructor
@@ -68,6 +70,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         // ilObjLanguageFolderGUI::__construct()) - action methods must not
         // reach into `global $DIC` themselves.
         $this->add_language_entry = $DIC[AddLanguageEntry::class];
+        $this->set_language_translation_enabled = $DIC[SetLanguageTranslationEnabled::class];
 
         // language maintenance strings are defined in administration
         $lng->loadLanguageModule("administration");
@@ -770,24 +773,49 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     }
 
     /**
-    * Set the language settings
+    * Set the language settings - see SetLanguageTranslationEnabled.
+    *
+    * An unchecked HTML checkbox is not submitted at all, so a missing/empty
+    * "translation" POST value means "disabled", exactly as the extracted
+    * code's `?? ""` default did - see SetLanguageTranslationEnabled's class
+    * docblock for why the Activity's own boolean-based contract is
+    * equivalent to the raw string value the form used to carry directly.
     */
     public function saveSettingsObject(): void
     {
         global $DIC;
-        $ilSetting = $DIC->settings();
+        $ilUser = $DIC->user();
 
-        $translate_key = "lang_translate_" . $this->object->key;
+        $post_translation = $this->http->request()->getParsedBody()['translation'] ?? null;
+        $enabled = $post_translation !== null && $post_translation !== '';
 
-        $post_translation = $this->http->request()->getParsedBody()['translation'] ?? "";
-        // save and get the page translation setting
-        $translate = $ilSetting->get($translate_key, '0');
-        if (!is_null($post_translation) && $post_translation != $translate) {
-            $ilSetting->set($translate_key, $post_translation);
+        $result = $this->set_language_translation_enabled->maybePerformAs(
+            $ilUser->getId(),
+            [
+                'language_key' => $this->object->key,
+                'enabled' => $enabled,
+            ]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+            $this->tpl->setOnScreenMessage('failure', $error_message);
+        } elseif ($result->value()['changed']) {
+            // Only shown if the value actually changed - exactly reproducing
+            // the extracted code's original behaviour (see
+            // SetLanguageTranslationEnabled's class docblock).
             $this->tpl->setOnScreenMessage('success', $this->lng->txt("settings_saved"));
         }
+
         $form = $this->initNewSettingsForm();
 
+        // Unlike installObject()/uninstallObject()/refreshSelectedObject(),
+        // which redirect after a persisted message, this preserves the
+        // extracted code's original behaviour: render the settings form
+        // directly with a non-persisted message, rather than an HTTP
+        // redirect.
         $this->tpl->setContent($form->getHTML());
     }
 
