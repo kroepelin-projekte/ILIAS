@@ -22,6 +22,7 @@ use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
+use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Data\Result\Error as ResultError;
 use ILIAS\Data\Result\Ok as ResultOk;
 use PHPUnit\Framework\TestCase;
@@ -1338,5 +1339,171 @@ class ilObjLanguageFolderGUITest extends TestCase
         );
 
         $gui->uninstallChangesObject([]);
+    }
+
+    // -----------------------------------------------------------------
+    // enableLanguageDetectionObject() / disableLanguageDetectionObject()
+    // (both backed by setLanguageDetectionEnabledObject())
+    //
+    // Unlike installObject()/uninstallObject()/refreshSelectedObject()/
+    // uninstallChangesObject(), neither of these two methods calls
+    // $this->checkPermission('write') itself - this is unchanged legacy
+    // behaviour (see SetLanguageDetectionEnabled's class docblock and the
+    // task's security note): before the extraction, only the toggle
+    // button's visibility in viewObject() was write-gated, the request
+    // itself was not. The extraction deliberately does not retrofit a
+    // GUI-level checkPermission() call here (that would be an unrequested,
+    // additional behavioural change on top of the intended one) - the
+    // *only* enforcement point is now SetLanguageDetectionEnabled's own
+    // isAllowedToPerform(), reached through maybePerformAs(). This is
+    // asserted directly below, in contrast to the defense-in-depth tests
+    // above for the other four write methods.
+    //
+    // Both action methods are `protected` (dispatched only via ilCtrl),
+    // hence invoked here through reflection.
+    // -----------------------------------------------------------------
+
+    private function invokeProtectedMethod(object $object, string $method_name, array $args = []): mixed
+    {
+        // ReflectionMethod::setAccessible() has had no effect (and has been
+        // deprecated) since PHP 8.1 - invoke() already bypasses visibility
+        // on its own since then.
+        return (new ReflectionMethod($object, $method_name))->invoke($object, ...$args);
+    }
+
+    private function createGuiWithSetLanguageDetectionEnabledCollaborators(
+        SetLanguageDetectionEnabled $set_language_detection_enabled,
+        ilGlobalTemplateInterface $tpl,
+        ilCtrl $ctrl,
+        ilLanguage $lng
+    ): ilObjLanguageFolderGUI {
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $this->setProperty($gui, 'set_language_detection_enabled', $set_language_detection_enabled);
+        $this->setProperty($gui, 'current_user_id', 6);
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $lng);
+
+        return $gui;
+    }
+
+    public function testEnableLanguageDetectionObjectCallsMaybePerformAsWithEnabledTrue(): void
+    {
+        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        $set_language_detection_enabled->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['enabled' => true])
+            ->willReturn(new ResultError(new \RuntimeException('boom')));
+
+        $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
+            $set_language_detection_enabled,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createMock(ilCtrl::class),
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $this->invokeProtectedMethod($gui, 'enableLanguageDetectionObject');
+    }
+
+    public function testDisableLanguageDetectionObjectCallsMaybePerformAsWithEnabledFalse(): void
+    {
+        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        $set_language_detection_enabled->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['enabled' => false])
+            ->willReturn(new ResultError(new \RuntimeException('boom')));
+
+        $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
+            $set_language_detection_enabled,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createMock(ilCtrl::class),
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $this->invokeProtectedMethod($gui, 'disableLanguageDetectionObject');
+    }
+
+    public function testSetLanguageDetectionEnabledObjectEmbedsTheThrowableMessageAndRedirectsOnError(): void
+    {
+        $exception_message = 'no write permission';
+        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        $set_language_detection_enabled->method('maybePerformAs')->willReturn(
+            new ResultError(new \RuntimeException($exception_message))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', $this->stringContains($exception_message), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
+            $set_language_detection_enabled,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        // If the `return` after the redirect were ever dropped, execution
+        // would fall through to the success path, which calls
+        // $this->viewObject() - a method that reaches deep into
+        // un-stubbed legacy collaborators ($this->languageFolderTable,
+        // $this->ui_factory, $this->toolbar, ...) on this
+        // reflection-constructed instance and would surface as a fatal
+        // error/TypeError rather than silently passing.
+        $this->invokeProtectedMethod($gui, 'enableLanguageDetectionObject');
+    }
+
+    /**
+     * Regression test documenting the deliberate asymmetry described above:
+     * unlike installObject()/uninstallObject()/refreshSelectedObject()/
+     * uninstallChangesObject() (all four call $this->checkPermission('write')
+     * as their first statement, see the tests earlier in this class),
+     * enableLanguageDetectionObject()/disableLanguageDetectionObject() must
+     * NOT call checkPermission() themselves - this was true before the
+     * extraction and remains true after it. The only enforcement is now
+     * SetLanguageDetectionEnabled::isAllowedToPerform() via maybePerformAs()
+     * (see SetLanguageDetectionEnabledTest::
+     * testMaybePerformAsWithDeniedPermissionReturnsErrorAndNeverWritesTheSetting()
+     * for that side of the contract).
+     */
+    public function testSetLanguageDetectionEnabledObjectNeverCallsCheckPermission(): void
+    {
+        /** @var ilObjLanguageFolderGUI&\PHPUnit\Framework\MockObject\MockObject $gui */
+        $gui = $this->getMockBuilder(ilObjLanguageFolderGUI::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['checkPermission'])
+            ->getMock();
+        $gui->expects($this->never())->method('checkPermission');
+
+        $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
+        $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
+        $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
+
+        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        // Permission denial is simulated at the Activity level (an Error
+        // result) so the success path (which would call $this->viewObject(),
+        // unreachable here) is never taken - this test is only about
+        // checkPermission() never being invoked, not about the outcome of
+        // the permission check itself.
+        $set_language_detection_enabled->method('maybePerformAs')->willReturn(
+            new ResultError('no write permission')
+        );
+        $this->setReadonlyPropertyDeclaredOnGuiClass(
+            $gui,
+            'set_language_detection_enabled',
+            $set_language_detection_enabled
+        );
+
+        $this->invokeProtectedMethod($gui, 'enableLanguageDetectionObject');
+        $this->invokeProtectedMethod($gui, 'disableLanguageDetectionObject');
     }
 }

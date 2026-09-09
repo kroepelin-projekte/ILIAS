@@ -24,6 +24,7 @@ use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
+use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
@@ -47,6 +48,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     private readonly UpdateLanguage $update_language;
     private readonly UninstallLanguage $uninstall_language;
     private readonly RemoveLocalLanguageChanges $remove_local_language_changes;
+    private readonly SetLanguageDetectionEnabled $set_language_detection_enabled;
     private readonly int $current_user_id;
 
     /**
@@ -68,6 +70,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $this->update_language = $DIC[UpdateLanguage::class];
         $this->uninstall_language = $DIC[UninstallLanguage::class];
         $this->remove_local_language_changes = $DIC[RemoveLocalLanguageChanges::class];
+        $this->set_language_detection_enabled = $DIC[SetLanguageDetectionEnabled::class];
         $this->current_user_id = $DIC->user()->getId();
         $this->df = new ILIAS\Data\Factory();
 
@@ -911,21 +914,53 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     }
 
     /**
-     * Disable language detection
+     * Disable language detection - see SetLanguageDetectionEnabled.
      */
     protected function disableLanguageDetectionObject(): void
     {
-        $this->settings->set("lang_detection", '0');
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("saved_successfully"));
-        $this->viewObject();
+        $this->setLanguageDetectionEnabledObject(false);
     }
 
     /**
-     * Enable language detection
+     * Enable language detection - see SetLanguageDetectionEnabled.
      */
     protected function enableLanguageDetectionObject(): void
     {
-        $this->settings->set("lang_detection", '1');
+        $this->setLanguageDetectionEnabledObject(true);
+    }
+
+    /**
+     * Common implementation of enableLanguageDetectionObject()/
+     * disableLanguageDetectionObject() - both flip the very same
+     * "lang_detection" system setting to a fixed value, so both are backed
+     * by the same SetLanguageDetectionEnabled Activity with a different
+     * boolean argument.
+     */
+    private function setLanguageDetectionEnabledObject(bool $enabled): void
+    {
+        $result = $this->set_language_detection_enabled->maybePerformAs(
+            $this->current_user_id,
+            ['enabled' => $enabled]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $error_message . "<br/>" . $this->lng->txt("action_aborted"),
+                true
+            );
+
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+
+        // Unlike installObject()/uninstallObject()/refreshSelectedObject(),
+        // which redirect after a persisted message, this preserves the
+        // extracted code's original behaviour: render the view directly with
+        // a non-persisted message, rather than an HTTP redirect.
         $this->tpl->setOnScreenMessage('success', $this->lng->txt("saved_successfully"));
         $this->viewObject();
     }

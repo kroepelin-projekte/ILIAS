@@ -29,6 +29,7 @@ use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -164,6 +165,24 @@ class Language implements Component\Component
                 static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
             );
 
+        // Same reasoning again, minus the Setup/forSetup() bridge, which does
+        // not apply here either - see SetLanguageDetectionEnabled's class
+        // docblock for why it has no Setup counterpart at all. Unlike every
+        // other Activity above, this needs no "lng" object enumeration, no
+        // ilObjLanguage-by-id closure and no installed-language repository -
+        // it only ever reads/writes the single "lang_detection" system
+        // setting, via the same $GLOBALS['DIC']->settings() call the
+        // extracted GUI code used directly (as $this->settings).
+        $internal[SetLanguageDetectionEnabled::class] = static fn() =>
+            new SetLanguageDetectionEnabled(
+                $pull[\ILIAS\Refinery\Factory::class],
+                $use[\ILIAS\UI\Factory::class],
+                $use[\ILIAS\Language\Language::class],
+                static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
+                static fn(): \ILIAS\Administration\Setting => $GLOBALS['DIC']->settings(),
+                static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
+            );
+
         // LanguageLegacyInitialisationAdapter has no constructor of its own,
         // so it never needs the LanguageFileDirectoryManager argument -
         // it purely proxies to $DIC->language() at call time. This slot used
@@ -266,12 +285,23 @@ class Language implements Component\Component
         $provide[AddLanguageEntry::class] = static fn() =>
             $internal[AddLanguageEntry::class];
 
+        // Same reasoning again, minus the Setup/forSetup() bridge, which does
+        // not apply here either - see SetLanguageDetectionEnabled's class
+        // docblock for why it has no Setup counterpart at all.
+        // components/ILIAS/Init/Init.php pulls this concrete class too, and
+        // AllModernComponents.php re-exposes that same resolved instance
+        // under the legacy $DIC[SetLanguageDetectionEnabled::class] key,
+        // which is what ilObjLanguageFolderGUI::enableLanguageDetectionObject()/
+        // disableLanguageDetectionObject() read.
+        $provide[SetLanguageDetectionEnabled::class] = static fn() =>
+            $internal[SetLanguageDetectionEnabled::class];
+
         // --- $contribute: contributions to other components' collection
         //     points. Relative order preserved from before this file's
         //     reorganisation, since components may in general add multiple
         //     contributions to the same collection point sequentially (see
         //     docs/development/components-and-directories.md, "Contribute to
-        //     Service or Functionality") - which the five
+        //     Service or Functionality") - which the six
         //     \ILIAS\Component\Activities\Activity::class entries below
         //     actually do, one per Activity this component offers.
 
@@ -300,6 +330,9 @@ class Language implements Component\Component
 
         $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
             $internal[AddLanguageEntry::class];
+
+        $contribute[\ILIAS\Component\Activities\Activity::class] = static fn() =>
+            $internal[SetLanguageDetectionEnabled::class];
 
         $contribute[User\Settings\UserSettings::class] = fn() =>
             new Language\UserSettings\Settings();
