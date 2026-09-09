@@ -716,6 +716,129 @@ class LanguageInstallationManagerTest extends TestCase
     }
 
     /**
+     * Regression coverage for the "remarks" (comment) column: a .lang line
+     * may carry an optional "###comment" suffix after the value (see real
+     * examples in lang/ilias_en.lang, e.g.
+     * "assessment#:#discard_answer#:#Delete Answer###fau: testNav"). The
+     * pre-refactor implementation
+     * (class.ilObjLanguageDBAccess::insertLangEntries()) extracted that
+     * suffix into $separated[3] and wrote it into lng_data.remarks.
+     * insertLanguage() still truncates the value at "###" (so the value
+     * itself stays clean), but never assigns $separated[3] - the INSERT
+     * therefore always quotes `$separated[3] ?? null`, i.e. NULL, silently
+     * discarding every comment on every (re-)install/refresh. This pins the
+     * expected (pre-refactor) behavior: the comment must survive into the
+     * remarks column.
+     */
+    public function testInsertLanguageStoresCommentSuffixInRemarksColumn(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents(
+            $root . '/lang/ilias_de.lang',
+            "<!-- language file start -->\n"
+                . "assessment#:#discard_answer#:#Delete Answer###fau: testNav\n"
+        );
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('assessment')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $insert = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')
+            ));
+            $this->assertCount(1, $insert);
+
+            // The value itself must be truncated at "###" - the comment
+            // separator (and the comment text after it) must never leak
+            // into the value.
+            $this->assertStringContainsString("'Delete Answer'", $insert[0]);
+            $this->assertStringNotContainsString('Delete Answer###', $insert[0]);
+
+            // The comment itself must be preserved in the remarks column -
+            // not silently discarded as NULL.
+            $this->assertStringContainsString(
+                "'fau: testNav'",
+                $insert[0],
+                'The "###" comment suffix must be stored in the remarks column of lng_data, not discarded.'
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Boundary/companion to the regression test above: a line with no
+     * "###" comment suffix at all must keep leaving the remarks column
+     * NULL - this is the pre-existing, correct behavior for the (much more
+     * common) case of a plain line, and must not regress either way (e.g.
+     * a naive fix that always writes an empty string, or the literal text
+     * "null", instead of a real NULL).
+     */
+    public function testInsertLanguageLeavesRemarksNullWhenLineHasNoCommentSuffix(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [['common', 'test', 'Plain Value']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $insert = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')
+            ));
+            $this->assertCount(1, $insert);
+            $this->assertStringContainsString("'Plain Value'", $insert[0]);
+            // The mock's quote() callback casts every value through
+            // (string), so a NULL remarks column surfaces as the tuple
+            // ending in an empty quoted string right before the closing
+            // paren - this pins that shape rather than a literal "NULL".
+            $this->assertMatchesRegularExpression(
+                "/,'',''\\)/",
+                $insert[0],
+                'Expected the tuple to end in (...,local_change=\'\',remarks=\'\') for a line without a comment suffix.'
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
      * Regression coverage for prefix handling on the write path: a component
      * directory's two-field lines (identifier#:#value, no module) must be
      * written with the directory's prefix as the module - not with the

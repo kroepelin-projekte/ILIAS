@@ -227,6 +227,8 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
      */
     public function installObject(array $ids, string $mode): void
     {
+        $this->checkPermission('write');
+
         $language_keys = [];
         foreach ($ids as $obj_id) {
             $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();
@@ -405,6 +407,8 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
      */
     public function refreshSelectedObject(array $ids): void
     {
+        $this->checkPermission('write');
+
         $language_keys = [];
         foreach ($ids as $obj_id) {
             $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();

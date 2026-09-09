@@ -369,6 +369,7 @@ class LanguageInstallationManager
 
                     $pos = strpos($separated[2], self::COMMENT_SEPARATOR);
                     if ($pos !== false) {
+                        $separated[3] = substr($separated[2], $pos + strlen(self::COMMENT_SEPARATOR));
                         $separated[2] = substr($separated[2], 0, $pos);
                     }
 

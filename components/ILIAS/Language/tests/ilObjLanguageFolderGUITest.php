@@ -75,6 +75,151 @@ class ilObjLanguageFolderGUITest extends TestCase
         return $lng;
     }
 
+    // -----------------------------------------------------------------
+    // Regression coverage for the missing explicit ACL check in
+    // installObject()/refreshSelectedObject().
+    //
+    // uninstallObject() and uninstallChangesObject() both call
+    // $this->checkPermission('write') as their very first statement -
+    // installObject() and refreshSelectedObject() do not (see class body).
+    // The only remaining gate is the `table_action` dispatch in
+    // executeCommand(), which calls checkPermission('write') itself
+    // before invoking either method - but only when the method is
+    // reached that way. Any other caller of these two *public* methods
+    // (direct forwarding from another GUI, a future refactoring, a test,
+    // ...) gets no ACL protection at all.
+    //
+    // checkPermissionBool() (which checkPermission() delegates to) simply
+    // returns false whenever $this->object is not an object - which it
+    // never is on a reflection-constructed instance - so checkPermission()
+    // takes its early, silent `return;` branch and never actually reaches
+    // $this->access, $this->tpl or $this->ctrl. That makes it impossible
+    // to fake a "permission denied" *outcome* through $access in this kind
+    // of lightweight unit test: the method no-ops the same way regardless
+    // of whether real RBAC would grant or deny 'write', and - even if it
+    // didn't - checkPermission() itself never throws or exits, it only
+    // records a flash message and calls $ctrl->redirectToURL(), which is a
+    // real redirect+exit only at the HTTP layer; against a mocked $ctrl it
+    // is just another recorded call, so it would not actually stop
+    // execution here either. A real integration test (with a genuine
+    // ilAccessHandler backed by RBAC/DB and a request that never reaches
+    // executeCommand()'s own gate) would be needed to observe an *outcome*
+    // difference (data changed vs. not changed) for a denied user.
+    //
+    // What a unit test *can* pin down directly is the contract itself:
+    // whether the method calls $this->checkPermission('write') at all -
+    // exactly the call uninstallObject()/uninstallChangesObject() make
+    // and installObject()/refreshSelectedObject() are missing. This is a
+    // legitimate case for interaction verification (rule 16): the
+    // presence of that call *is* the contract under test, not an
+    // implementation detail. A partial mock of the GUI itself (stubbing
+    // only checkPermission(), a protected method not otherwise
+    // observable, while every other method keeps its real
+    // implementation) makes that call directly assertable.
+    // -----------------------------------------------------------------
+
+    /**
+     * @return ilObjLanguageFolderGUI&\PHPUnit\Framework\MockObject\MockObject
+     */
+    private function createGuiWithMockedCheckPermission(): ilObjLanguageFolderGUI
+    {
+        /** @var ilObjLanguageFolderGUI&\PHPUnit\Framework\MockObject\MockObject $gui */
+        $gui = $this->getMockBuilder(ilObjLanguageFolderGUI::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['checkPermission'])
+            ->getMock();
+
+        $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
+        $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
+        $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        // 'current_user_id' is a private readonly property declared directly
+        // on ilObjLanguageFolderGUI (not an ancestor). On a PHPUnit mock
+        // subclass, plain `new ReflectionProperty($gui, name)` cannot locate
+        // a *readonly* property declared on the leaf class this way -
+        // unlike the plain (non-readonly) $tpl/$ctrl/$lng above, which are
+        // declared on the ilObjectGUI ancestor and are found fine either
+        // way - so it must be looked up via the exact declaring class
+        // instead, and set on the mock instance from there.
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
+
+        return $gui;
+    }
+
+    private function setReadonlyPropertyDeclaredOnGuiClass(
+        ilObjLanguageFolderGUI $gui,
+        string $property_name,
+        mixed $value
+    ): void {
+        (new ReflectionClass(ilObjLanguageFolderGUI::class))
+            ->getProperty($property_name)
+            ->setValue($gui, $value);
+    }
+
+    /**
+     * Control/sanity check for the technique above, not a regression test
+     * in its own right: this pins that uninstallObject() *does* call
+     * checkPermission('write') as its first statement, exactly as the
+     * class body shows. If this failed, the mocking technique itself -
+     * not the two methods under suspicion below - would be the problem.
+     */
+    public function testUninstallObjectChecksWritePermissionBeforeActing(): void
+    {
+        $gui = $this->createGuiWithMockedCheckPermission();
+        $gui->expects($this->once())->method('checkPermission')->with('write');
+
+        $gui->uninstallObject([]);
+    }
+
+    /**
+     * Regression test for the suspected bug: installObject() must check
+     * 'write' permission before doing any installation work - exactly
+     * like its sibling uninstallObject() does, and like installObject()
+     * itself used to before this refactoring (see
+     * git show ff41db61599994e3f56141cbb58aed3116b68d8a - it had an
+     * explicit $this->checkPermission("write"); as its first statement).
+     * Currently, this method relies entirely on the caller (specifically,
+     * executeCommand()'s own checkPermission('write') before dispatching
+     * a `table_action`) - a caller-side check the method itself no longer
+     * enforces. This test currently FAILS, confirming the bug: it invokes
+     * install_language->maybePerformAs() without ever calling
+     * checkPermission() at all.
+     */
+    public function testInstallObjectMustCheckWritePermissionBeforeActing(): void
+    {
+        $gui = $this->createGuiWithMockedCheckPermission();
+        $gui->expects($this->once())->method('checkPermission')->with('write');
+
+        $install_language = $this->createMock(InstallLanguage::class);
+        $install_language->method('maybePerformAs')->willReturn(new ResultOk($this->emptyPerformResult()));
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'install_language', $install_language);
+
+        // Empty $ids, same reasoning as the other installObject() tests
+        // above: avoids the unrelated `new ilObjLanguage(...)` legacy
+        // coupling, which is irrelevant to whether the permission check
+        // happens at all.
+        $gui->installObject([], InstallLanguage::MODE_INSTALL);
+    }
+
+    /**
+     * Regression test for the suspected bug, refreshSelectedObject()
+     * variant: same reasoning as
+     * testInstallObjectMustCheckWritePermissionBeforeActing() above. This
+     * test currently FAILS, confirming the bug.
+     */
+    public function testRefreshSelectedObjectMustCheckWritePermissionBeforeActing(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $gui = $this->createGuiWithMockedCheckPermission();
+        $gui->expects($this->once())->method('checkPermission')->with('write');
+
+        $update_language = $this->createMock(UpdateLanguage::class);
+        $update_language->method('maybePerformAs')->willReturn(new ResultOk($this->updatePerformResult([], [])));
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'update_language', $update_language);
+
+        $gui->refreshSelectedObject([]);
+    }
+
     public function testInstallObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
     {
         $exception_message = 'Invalid language files: xx, yy';
