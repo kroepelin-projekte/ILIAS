@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
+use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Data\Result\Error as ResultError;
 use ILIAS\Data\Result\Ok as ResultOk;
 use PHPUnit\Framework\TestCase;
@@ -78,23 +79,24 @@ class ilObjLanguageFolderGUITest extends TestCase
 
     // -----------------------------------------------------------------
     // Regression coverage for the explicit ACL check in installObject(),
-    // refreshSelectedObject() and uninstallObject().
+    // refreshSelectedObject(), uninstallObject() and
+    // uninstallChangesObject().
     //
     // All four write-command methods on this class -  installObject(),
     // uninstallObject(), uninstallChangesObject() and
     // refreshSelectedObject() - call $this->checkPermission('write') as
     // their very first statement (verified against the class body; see
     // also commit 4c98c957d36, "re-introduce explicit permission checks").
-    // This is a defense-in-depth check: installObject()/uninstallObject()/
-    // refreshSelectedObject() additionally delegate to their respective
-    // Activity's isAllowedToPerform() (via maybePerformAs()), so the
-    // permission is enforced twice for those three - once explicitly here,
-    // once inside the Activity. uninstallChangesObject() is not backed by
-    // an Activity and relies solely on this explicit check (plus the
-    // `table_action` dispatch in executeCommand(), which calls
-    // checkPermission('write') itself before invoking it when the method
-    // is reached that way - but any other caller of that *public* method
-    // gets no ACL protection beyond this one).
+    // This is a defense-in-depth check: all four additionally delegate to
+    // their respective Activity's isAllowedToPerform() (via
+    // maybePerformAs()) - InstallLanguage, UninstallLanguage, UpdateLanguage
+    // and RemoveLocalLanguageChanges respectively - so the permission is
+    // enforced twice: once explicitly here, once inside the Activity (plus
+    // the `table_action` dispatch in executeCommand(), which calls
+    // checkPermission('write') itself before invoking any of them when
+    // reached that way - but any other caller of one of these *public*
+    // methods gets no ACL protection beyond the method's own explicit
+    // check and its Activity's isAllowedToPerform()).
     //
     // checkPermissionBool() (which checkPermission() delegates to) simply
     // returns false whenever $this->object is not an object - which it
@@ -225,6 +227,38 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'update_language', $update_language);
 
         $gui->refreshSelectedObject([]);
+    }
+
+    /**
+     * uninstallChangesObject() variant: same reasoning as
+     * testInstallObjectMustCheckWritePermissionBeforeActing() above. Also
+     * mirrors the defense-in-depth reasoning of
+     * testUninstallObjectChecksWritePermissionBeforeActing(): in addition
+     * to this explicit GUI-level check, RemoveLocalLanguageChanges enforces
+     * the same 'write' permission itself via isAllowedToPerform()/
+     * maybePerformAs() (see
+     * RemoveLocalLanguageChangesTest::testPermissionDeniedBeforePerformNeverCallsObjectFactoryOrRemoveLocalChanges()
+     * for that side of the contract) - the GUI-level check here does not
+     * replace the Activity-level check, both must hold.
+     */
+    public function testUninstallChangesObjectMustCheckWritePermissionBeforeActing(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $gui = $this->createGuiWithMockedCheckPermission();
+        $gui->expects($this->once())->method('checkPermission')->with('write');
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultOk($this->removeLocalChangesPerformResult([], [], []))
+        );
+        $this->setReadonlyPropertyDeclaredOnGuiClass(
+            $gui,
+            'remove_local_language_changes',
+            $remove_local_language_changes
+        );
+
+        $gui->uninstallChangesObject([]);
     }
 
     public function testInstallObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
@@ -980,5 +1014,329 @@ class ilObjLanguageFolderGUITest extends TestCase
         );
 
         $gui->uninstallObject([]);
+    }
+
+    // -----------------------------------------------------------------
+    // uninstallChangesObject()
+    //
+    // Same reflection-based construction technique as uninstallObject()
+    // above, with $ids always [] for the same reason: the only other piece
+    // of legacy coupling in the method (`ilObject::_lookupTitle((int)
+    // $obj_id)` inside the per-id loop that builds $language_keys) must
+    // never be reached in a unit test.
+    //
+    // Unlike uninstallObject(), uninstallChangesObject() calls the legacy
+    // static ilObjLanguage::refreshPlugins() unconditionally on every
+    // success path (even when nothing was changed) - exactly like
+    // refreshSelectedObject() does (see stubComponentRepositoryWithNoPlugins()'s
+    // docblock above for why an empty plugin iterator is what keeps this a
+    // unit test), so every success-path test below needs that same stub.
+    // -----------------------------------------------------------------
+
+    private function createGuiWithRemoveLocalLanguageChangesCollaborators(
+        RemoveLocalLanguageChanges $remove_local_language_changes,
+        ilGlobalTemplateInterface $tpl,
+        ilCtrl $ctrl,
+        ilLanguage $lng
+    ): ilObjLanguageFolderGUI {
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $this->setProperty($gui, 'remove_local_language_changes', $remove_local_language_changes);
+        $this->setProperty($gui, 'current_user_id', 6);
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $lng);
+
+        return $gui;
+    }
+
+    /**
+     * @return array{removed_local_changes_language_keys: list<string>, invalid_language_file_keys: list<string>, not_installed_language_keys: list<string>}
+     */
+    private function removeLocalChangesPerformResult(
+        array $removed_local_changes,
+        array $invalid_language_file,
+        array $not_installed
+    ): array {
+        return [
+            'removed_local_changes_language_keys' => $removed_local_changes,
+            'invalid_language_file_keys' => $invalid_language_file,
+            'not_installed_language_keys' => $not_installed,
+        ];
+    }
+
+    public function testUninstallChangesObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
+    {
+        // The error path is reached before ilObjLanguage::refreshPlugins()
+        // would ever be called, so no $DIC stub is needed here.
+        $exception_message = 'boom';
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultError(new \RuntimeException($exception_message))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', $this->stringContains($exception_message), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    public function testUninstallChangesObjectEmbedsAPlainStringErrorFromAnErrorResultIntoTheFailureMessage(): void
+    {
+        // ILIAS\Data\Result\Error also accepts a plain string (not just a
+        // Throwable) - the "$error instanceof \Throwable ? ... : $error"
+        // branch for that case must be covered too.
+        $error_string = 'permission denied';
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultError($error_string));
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', $this->stringContains($error_string), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    public function testUninstallChangesObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
+    {
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultError(new \RuntimeException('boom'))
+        );
+
+        // If the `return` after the redirect were ever dropped, execution
+        // would fall through to `$result->value()` - which throws on an
+        // Error result (see ILIAS\Data\Result\Error::value()) - and, even
+        // past that, to the unconditional ilObjLanguage::refreshPlugins()
+        // call, which reaches into `global $DIC["component.repository"]`
+        // and is not stubbed here - so this would surface as a test error
+        // rather than silently passing.
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage');
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    /**
+     * $ids is resolved to language keys via
+     * ilObject::_lookupTitle((int) $obj_id) - untestable in isolation
+     * without a real database, so - exactly like the existing
+     * uninstallObject() test - this is only exercised with an empty $ids
+     * array, which is enough to pin that maybePerformAs() receives an
+     * (empty) 'language_keys' array and no other key.
+     */
+    public function testUninstallChangesObjectPassesOnlyLanguageKeysWithoutAModeKeyToMaybePerformAs(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['language_keys' => []])
+            ->willReturn(new ResultOk($this->removeLocalChangesPerformResult([], [], [])));
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createMock(ilCtrl::class),
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    public function testUninstallChangesObjectSetsSuccessMessageWhenOnlyRemovedLocalChangesLanguageKeysIsNonEmpty(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultOk($this->removeLocalChangesPerformResult(['de'], [], []))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('success', 'selected_languages_updated<br />meta_l_de', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    public function testUninstallChangesObjectSetsFailureMessageWhenOnlyInvalidLanguageFileKeysIsNonEmpty(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultOk($this->removeLocalChangesPerformResult([], ['fr'], []))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'meta_l_fr: file_not_valid', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    public function testUninstallChangesObjectSetsInfoMessageWhenOnlyNotInstalledLanguageKeysIsNonEmpty(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultOk($this->removeLocalChangesPerformResult([], [], ['it']))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('info', 'meta_l_it language_not_installed', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+    }
+
+    /**
+     * Unlike uninstallObject()'s combined info message (three "nothing
+     * happened" buckets sharing one message type, therefore explicitly
+     * combined into one call to avoid a silent overwrite), all three
+     * buckets here are different message types (success/failure/info) - so
+     * all three setOnScreenMessage() calls must actually happen, as three
+     * separate calls, none clobbering another.
+     */
+    public function testUninstallChangesObjectSetsAllThreeMessagesWhenAllBucketsAreNonEmpty(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultOk(
+            $this->removeLocalChangesPerformResult(['de'], ['fr'], ['it'])
+        ));
+
+        $captured_calls = [];
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->exactly(3))
+            ->method('setOnScreenMessage')
+            ->willReturnCallback(function (string $type, string $message, bool $keep) use (&$captured_calls): void {
+                $captured_calls[] = [$type, $message];
+            });
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
+
+        self::assertCount(3, $captured_calls);
+        self::assertSame(['success', 'selected_languages_updated<br />meta_l_de'], $captured_calls[0]);
+        self::assertSame(['failure', 'meta_l_fr: file_not_valid'], $captured_calls[1]);
+        self::assertSame(['info', 'meta_l_it language_not_installed'], $captured_calls[2]);
+    }
+
+    /**
+     * Boundary: when every bucket is empty (e.g. an empty $ids request),
+     * no message at all must appear - not even an empty one. This is also
+     * the deliberate behavior change against the pre-Activity legacy code
+     * (see uninstallChangesObject()'s docblock): the old code always showed
+     * a "selected_languages_updated" message, even when nothing changed.
+     */
+    public function testUninstallChangesObjectSetsNoMessageWhenAllBucketsAreEmpty(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(
+            new ResultOk($this->removeLocalChangesPerformResult([], [], []))
+        );
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->never())->method('setOnScreenMessage');
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject([]);
     }
 }

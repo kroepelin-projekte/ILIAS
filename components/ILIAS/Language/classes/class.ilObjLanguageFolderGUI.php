@@ -23,6 +23,7 @@ use ILIAS\UI\URLBuilderToken;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
+use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 
 /**
@@ -45,6 +46,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     private readonly InstallLanguage $install_language;
     private readonly UpdateLanguage $update_language;
     private readonly UninstallLanguage $uninstall_language;
+    private readonly RemoveLocalLanguageChanges $remove_local_language_changes;
     private readonly int $current_user_id;
 
     /**
@@ -65,6 +67,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $this->install_language = $DIC[InstallLanguage::class];
         $this->update_language = $DIC[UpdateLanguage::class];
         $this->uninstall_language = $DIC[UninstallLanguage::class];
+        $this->remove_local_language_changes = $DIC[RemoveLocalLanguageChanges::class];
         $this->current_user_id = $DIC->user()->getId();
         $this->df = new ILIAS\Data\Factory();
 
@@ -404,36 +407,73 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
 
 
     /**
-     * Uninstall local changes in the database
+     * Remove local changes of one or more already installed languages - see
+     * RemoveLocalLanguageChanges. A language among $ids that is not
+     * installed (or not a known language key at all) is left completely
+     * untouched.
      */
     public function uninstallChangesObject(array $ids): void
     {
         $this->checkPermission("write");
-
-        $this->data = $this->lng->txt("selected_languages_updated");
         $this->lng->loadLanguageModule("meta");
-        $refreshed = [];
 
-        foreach ($ids as $id) {
-            $langObj = new ilObjLanguage((int) $id, false);
-
-            if ($langObj->isInstalled()) {
-                if ($langObj->removeLocalChanges()) {
-                    $refreshed[] = $langObj->getKey();
-                    $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey());
-                } else {
-                    // check() no longer redirects with an error message
-                    // itself (it is a pure Model method now), so an invalid
-                    // language file must be surfaced here instead.
-                    $this->data .= "<br />" . $this->lng->txt("meta_l_" . $langObj->getKey())
-                        . ": " . $this->lng->txt("file_not_valid");
-                }
-            }
-
-            unset($langObj);
+        $language_keys = [];
+        foreach ($ids as $obj_id) {
+            $language_keys[] = ilObject::_lookupTitle((int) $obj_id);
         }
-        ilObjLanguage::refreshPlugins($refreshed);
-        $this->out();
+
+        $result = $this->remove_local_language_changes->maybePerformAs(
+            $this->current_user_id,
+            ['language_keys' => $language_keys]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $error_message . "<br/>" . $this->lng->txt("action_aborted"),
+                true
+            );
+
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+        $value = $result->value();
+
+        // Plugin language files are refreshed only for the languages whose
+        // local changes were actually removed - a requested-but-not-installed
+        // or invalid language (see below) has nothing to refresh.
+        ilObjLanguage::refreshPlugins($value['removed_local_changes_language_keys']);
+
+        if (($lang_changed = $value['removed_local_changes_language_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'success',
+                $this->lng->txt("selected_languages_updated") . "<br />"
+                    . $this->languageKeysToLocalizedList($lang_changed),
+                true
+            );
+        }
+
+        if (($lang_invalid = $value['invalid_language_file_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->languageKeysToLocalizedList($lang_invalid) . ": " . $this->lng->txt("file_not_valid"),
+                true
+            );
+        }
+
+        if (($lang_not_installed = $value['not_installed_language_keys']) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'info',
+                $this->languageKeysToLocalizedList($lang_not_installed)
+                    . " " . $this->lng->txt("language_not_installed"),
+                true
+            );
+        }
+
+        $this->ctrl->redirect($this, 'view');
     }
 
     /**
