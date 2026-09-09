@@ -22,6 +22,7 @@ use ILIAS\FileUpload\DTO\ProcessingStatus;
 use ILIAS\FileUpload\Location;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\Language\Activities\AddLanguageEntry;
 
 /**
 * Class ilObjLanguageExtGUI
@@ -41,6 +42,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 {
     private const ILIAS_LANGUAGE_MODULE = "components/ILIAS/Language";
     private string $langmode;
+    private readonly AddLanguageEntry $add_language_entry;
 
     /**
     * Constructor
@@ -61,6 +63,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $lng = $DIC->language();
         $this->http = $DIC['http'];
         $this->refinery = $DIC['refinery'];
+        // Resolved once here, per the constructor-injection idiom already
+        // used by sibling GUI classes in this component (see
+        // ilObjLanguageFolderGUI::__construct()) - action methods must not
+        // reach into `global $DIC` themselves.
+        $this->add_language_entry = $DIC[AddLanguageEntry::class];
 
         // language maintenance strings are defined in administration
         $lng->loadLanguageModule("administration");
@@ -1018,7 +1025,6 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     public function saveNewEntryObject(): void
     {
         global $DIC;
-        $ilDB = $DIC->database();
         $ilCtrl = $DIC->ctrl();
         $ilUser = $DIC->user();
 
@@ -1027,35 +1033,35 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $mod = $form->getInput("mod");
             $id = $form->getInput("id");
 
-            $lang = array();
+            // One value per installed language - an installed language left
+            // blank by the user is skipped entirely by AddLanguageEntry,
+            // exactly as this loop used to skip it via `if ($trans) {...}`.
+            $translations = [];
             foreach ($this->lng->getInstalledLanguages() as $lang_key) {
-                $trans = trim($form->getInput("trans_" . $lang_key));
-                if ($trans) {
-                    // add single entry
-                    ilObjLanguage::replaceLangEntry(
-                        $mod,
-                        $id,
-                        $lang_key,
-                        $trans,
-                        gmdate("Y-m-d H:i:s"),
-                        $ilUser->getLogin()
-                    );
+                $translations[$lang_key] = trim((string) $form->getInput("trans_" . $lang_key));
+            }
 
-                    // add to serialized module
-                    $set = $ilDB->query("SELECT lang_array FROM lng_modules" .
-                        " WHERE lang_key = " . $ilDB->quote($lang_key, "text") .
-                        " AND module = " . $ilDB->quote($mod, "text"));
-                    $row = $ilDB->fetchAssoc($set);
-                    $entries = unserialize($row["lang_array"], ["allowed_classes" => false]);
-                    if (is_array($entries)) {
-                        $entries[$id] = $trans;
-                        ilObjLanguage::replaceLangModule($lang_key, $mod, $entries);
-                    }
-                }
+            $result = $this->add_language_entry->maybePerformAs(
+                $ilUser->getId(),
+                [
+                    'module' => $mod,
+                    'identifier' => $id,
+                    'translations' => $translations,
+                ]
+            );
+
+            if ($result->isError()) {
+                $error = $result->error();
+                $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+
+                $this->tpl->setOnScreenMessage('failure', $error_message, true);
+                $ilCtrl->redirect($this, "view");
+                return;
             }
 
             $this->tpl->setOnScreenMessage('success', $this->lng->txt("settings_saved"), true);
             $ilCtrl->redirect($this, "view");
+            return;
         }
 
         $form->setValuesByPost();
