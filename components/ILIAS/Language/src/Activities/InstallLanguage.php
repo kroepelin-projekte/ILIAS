@@ -33,6 +33,8 @@ use ILIAS\UI\Factory as UIFactory;
 
 class InstallLanguage extends ActivityImpl
 {
+    use GrindsFormInput;
+
     /**
      * A language not yet installed is fully installed (base data, plus a
      * customizing/local file if one exists); a language already installed
@@ -331,8 +333,13 @@ MARKDOWN
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
+        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        if ($grind_result->isError()) {
+            return new Result\Error($grind_result->error());
+        }
+
         try {
-            $parameters = $this->normalizeParameters($raw_parameters);
+            $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
@@ -350,7 +357,7 @@ MARKDOWN
     private function toLanguageKeyList(mixed $value): array
     {
         if (!is_string($value) && !is_array($value)) {
-            throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+            throw new InvalidInputException('language_keys must be a string or an array of strings.');
         }
 
         $values = is_array($value) ? $value : [$value];
@@ -358,7 +365,7 @@ MARKDOWN
 
         foreach ($values as $item) {
             if (!is_string($item)) {
-                throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+                throw new InvalidInputException('language_keys must be a string or an array of strings.');
             }
 
             foreach (explode(',', (string) $item) as $language_key) {
@@ -370,7 +377,7 @@ MARKDOWN
         }
 
         if ($language_keys === []) {
-            throw new \InvalidArgumentException('At least one language key is required.');
+            throw new InvalidInputException('At least one language key is required.');
         }
 
         return $language_keys;
@@ -385,27 +392,30 @@ MARKDOWN
             return $value;
         }
 
-        throw new \InvalidArgumentException(
+        throw new InvalidInputException(
             'mode must be either "' . self::MODE_INSTALL . '" or "' . self::MODE_INSTALL_LOCAL . '".'
         );
     }
 
     /**
-     * @param mixed $raw_parameters
+     * Builds the parameters perform()/isAllowedToPerform() expect from the
+     * already-grinded content of getInputDescription() (see grind() in the
+     * GrindsFormInput trait) - both 'language_keys' and 'mode' are
+     * guaranteed to be non-blank strings at this point (both Text/Select
+     * fields are required), but still need the actual domain-level parsing/
+     * validation toLanguageKeyList()/toMode() already did before (splitting
+     * the comma-separated list, checking 'mode' is one of the two allowed
+     * values) - getInputDescription()'s own required-check only enforces a
+     * minimum length of 1 on the raw string.
+     *
+     * @param array{language_keys: string, mode: string} $grind_result
      * @return array{language_keys: list<string>, mode: string}
      */
-    private function normalizeParameters(mixed $raw_parameters): array
+    private function normalizeParameters(array $grind_result): array
     {
-        if (!is_array($raw_parameters)
-            || !array_key_exists('language_keys', $raw_parameters)
-            || !array_key_exists('mode', $raw_parameters)
-        ) {
-            throw new \InvalidArgumentException('The language_keys and mode parameters are required.');
-        }
-
         return [
-            'language_keys' => $this->toLanguageKeyList($raw_parameters['language_keys']),
-            'mode' => $this->toMode($raw_parameters['mode']),
+            'language_keys' => $this->toLanguageKeyList($grind_result['language_keys']),
+            'mode' => $this->toMode($grind_result['mode']),
         ];
     }
 }

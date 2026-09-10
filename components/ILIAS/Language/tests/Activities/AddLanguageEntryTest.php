@@ -18,16 +18,20 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\Activities;
+namespace ILIAS\Language\Tests\Activities;
 
-use ILIAS\Component\Activities\ActivityType;
+use ILIAS\Language\Tests\Activities\ActivityContractTestCase;
+use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\Activities\InvalidInputException;
+use ILIAS\Language\Activities\SafeToDisplayActivityError;
+use ILIAS\Language\Language;
+use ILIAS\UI\Component\Input\Field\Text;
 use ILIAS\Data\Description\Factory as DescriptionFactory;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\Refinery\String\Group as StringGroup;
 use ILIAS\Refinery\String\MarkdownFormattingToHTML;
 use ILIAS\UI\Factory as UIFactory;
-use ilLanguageBaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -45,17 +49,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * None of these tests may touch real language files under lang/*.lang or a
  * real database - every collaborator is a fake/closure/mock.
  */
-class AddLanguageEntryTest extends ilLanguageBaseTestCase
+class AddLanguageEntryTest extends ActivityContractTestCase
 {
-    // -----------------------------------------------------------------
-    // getType()
-    // -----------------------------------------------------------------
-
-    public function testGetTypeIsCommand(): void
+    protected function createDefaultActivity(): AddLanguageEntry
     {
-        $activity = $this->createActivity([]);
-
-        $this->assertSame(ActivityType::Command, $activity->getType());
+        return $this->createActivity([]);
     }
 
     // -----------------------------------------------------------------
@@ -188,11 +186,191 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         }
     }
 
-    public function testWhitespaceOnlyValueIsTreatedAsEmptyAndSkipped(): void
+    /**
+     * Regression test documenting the deliberate, pre-existing limitation
+     * described in the class docblock ("Known limitations" - "perform()'s
+     * write loop itself is NOT transactional"): if replace_lang_entry()
+     * throws while writing language n of m (here: the 3rd of 3, "fr"), the
+     * languages already written before it ("de", "en") must remain written
+     * - the exception propagates uncaught out of perform() rather than
+     * rolling anything back. This is NOT a bug to fix, only a behaviour to
+     * pin down so a future change does not silently alter it either way
+     * (e.g. by accidentally wrapping the loop in a transaction, or by
+     * accidentally swallowing the exception).
+     */
+    public function testAThrowingReplaceLangEntryPartwayThroughTheWriteLoopLeavesEarlierLanguagesWritten(): void
+    {
+        $calls = [];
+        $replace_lang_entry = static function (
+            string $module,
+            string $identifier,
+            string $lang_key,
+            string $value,
+            string $local_change,
+            string $remarks
+        ) use (&$calls): bool {
+            $calls['replace'][] = [$module, $identifier, $lang_key, $value, $local_change, $remarks];
+            if ($lang_key === 'fr') {
+                throw new \RuntimeException('simulated database error while writing "fr"');
+            }
+            return true;
+        };
+
+        $activity = $this->createActivity(
+            ['de', 'en', 'fr'],
+            replace_lang_entry: $replace_lang_entry,
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        try {
+            $activity->perform([
+                'module' => 'common',
+                'identifier' => 'new_topic',
+                'translations' => [
+                    'de' => 'Hallo',
+                    'en' => 'Hello',
+                    'fr' => 'Bonjour',
+                ],
+                'usr_id' => 6,
+            ]);
+            $this->fail('Expected the simulated \RuntimeException to propagate out of perform().');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('simulated database error while writing "fr"', $e->getMessage());
+
+            // "de" and "en" - written before the failing "fr" - remain
+            // written: perform() gives no atomicity guarantee across the
+            // write loop (see class docblock).
+            $this->assertSame(
+                ['common', 'new_topic', 'de', 'Hallo', $calls['replace'][0][4], 'default-login'],
+                $calls['replace'][0]
+            );
+            $this->assertSame(
+                ['common', 'new_topic', 'en', 'Hello', $calls['replace'][1][4], 'default-login'],
+                $calls['replace'][1]
+            );
+            $this->assertSame(['de', 'common', 'new_topic', 'Hallo'], $calls['cache'][0]);
+            $this->assertSame(['en', 'common', 'new_topic', 'Hello'], $calls['cache'][1]);
+
+            // Exactly the 3 attempted calls - "fr" itself was attempted
+            // (and recorded before throwing) but never reached
+            // update_module_cache().
+            $this->assertCount(3, $calls['replace']);
+            $this->assertCount(2, $calls['cache']);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // "de"/"en" mandatory, all-or-nothing (see class docblock)
+    // -----------------------------------------------------------------
+
+    /**
+     * Regression test for the "de"/"en" mandatory, all-or-nothing rule:
+     * both installed, "de" given a perfectly valid value, "en" left blank -
+     * perform() must reject the WHOLE request and must not write anything
+     * for ANY language, not even "de" (whose value was valid).
+     */
+    public function testDeAndEnBothInstalledOneBlankRejectsWholeRequestAndWritesNothingForAnyLanguage(): void
     {
         $calls = [];
         $activity = $this->createActivity(
-            ['de'],
+            ['de', 'en'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        try {
+            $activity->perform([
+                'module' => 'common',
+                'identifier' => 'new_topic',
+                'translations' => [
+                    'de' => 'Hallo',
+                    // 'en' left blank - must reject the whole request.
+                ],
+                'usr_id' => 6,
+            ]);
+            $this->fail('Expected an InvalidArgumentException to be thrown.');
+        } catch (\InvalidArgumentException $e) {
+            // Nothing written for either language - not even the valid "de".
+            $this->assertArrayNotHasKey('replace', $calls);
+            $this->assertArrayNotHasKey('cache', $calls);
+        }
+    }
+
+    /**
+     * Same rule, exercised end-to-end through maybePerformAs() (with a
+     * real, grinding UI Factory): "de" valid, "en" blank must still reject
+     * the whole request as a Result\Error, and must never write anything
+     * for "de" either.
+     */
+    public function testMaybePerformAsRejectsWholeRequestAndWritesNothingWhenEnIsBlankWhileDeIsValid(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de', 'en'],
+            rbac: $rbac,
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        $result = $activity->maybePerformAs(6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => [
+                'de' => 'Hallo',
+                'en' => '   ', // whitespace-only counts as blank too
+            ],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $result->error());
+        $this->assertArrayNotHasKey('replace', $calls);
+        $this->assertArrayNotHasKey('cache', $calls);
+    }
+
+    /**
+     * The mirror case: "en" valid, "de" blank must likewise reject the
+     * whole request and write nothing for "en" either - the rule applies
+     * to each of "de"/"en" independently, not only to "de".
+     */
+    public function testPerformRejectsWholeRequestAndWritesNothingWhenDeIsBlankWhileEnIsValid(): void
+    {
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de', 'en'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        try {
+            $activity->perform([
+                'module' => 'common',
+                'identifier' => 'new_topic',
+                'translations' => ['en' => 'Hello'],
+                'usr_id' => 6,
+            ]);
+        } finally {
+            $this->assertArrayNotHasKey('replace', $calls);
+            $this->assertArrayNotHasKey('cache', $calls);
+        }
+    }
+
+    /**
+     * If neither "de" nor "en" is installed at all, the mandatory rule
+     * imposes no requirement for them - exactly like the legacy form,
+     * which never rendered a field for a language that is not installed in
+     * the first place (see class docblock). Every other installed language
+     * remains merely optional.
+     */
+    public function testDeAndEnNotInstalledAtAllImposesNoMandatoryRequirement(): void
+    {
+        $calls = [];
+        $activity = $this->createActivity(
+            ['fr'],
             replace_lang_entry: $this->spyReplaceLangEntry($calls),
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
@@ -200,12 +378,36 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         $result = $activity->perform([
             'module' => 'common',
             'identifier' => 'new_topic',
-            'translations' => ['de' => "  \t "],
+            'translations' => [],
             'usr_id' => 6,
         ]);
 
         $this->assertSame([], $result['added_language_keys']);
-        $this->assertSame(['de'], $result['skipped_empty_language_keys']);
+        $this->assertSame(['fr'], $result['skipped_empty_language_keys']);
+        $this->assertArrayNotHasKey('replace', $calls);
+    }
+
+    public function testWhitespaceOnlyValueIsTreatedAsEmptyAndSkipped(): void
+    {
+        // 'fr' (not 'de'/'en') is used here on purpose: this test isolates
+        // the whitespace-only-is-blank behaviour, not the "de"/"en"
+        // mandatory rule (see testDeAndEnAreMandatoryAllOrNothing... below).
+        $calls = [];
+        $activity = $this->createActivity(
+            ['fr'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['fr' => "  \t "],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame([], $result['added_language_keys']);
+        $this->assertSame(['fr'], $result['skipped_empty_language_keys']);
         $this->assertArrayNotHasKey('replace', $calls);
         $this->assertArrayNotHasKey('cache', $calls);
     }
@@ -241,9 +443,11 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
      */
     public function testNonStringTranslationValueIsTreatedAsEmptyAndSkippedRatherThanCoerced(): void
     {
+        // 'fr' (not 'de'/'en') is used here on purpose - see
+        // testWhitespaceOnlyValueIsTreatedAsEmptyAndSkipped().
         $calls = [];
         $activity = $this->createActivity(
-            ['de'],
+            ['fr'],
             replace_lang_entry: $this->spyReplaceLangEntry($calls),
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
@@ -251,12 +455,12 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         $result = $activity->perform([
             'module' => 'common',
             'identifier' => 'new_topic',
-            'translations' => ['de' => 42],
+            'translations' => ['fr' => 42],
             'usr_id' => 6,
         ]);
 
         $this->assertSame([], $result['added_language_keys']);
-        $this->assertSame(['de'], $result['skipped_empty_language_keys']);
+        $this->assertSame(['fr'], $result['skipped_empty_language_keys']);
         $this->assertArrayNotHasKey('replace', $calls);
     }
 
@@ -346,8 +550,14 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
             ->with(6, 'write', $this->anything())
             ->willReturn(false);
 
-        $language = $this->createMock(\ILIAS\Language\Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        // getInputDescription() (built for real via RealFieldsUiFactory) calls
+        // txt('meta_l_de') to label the 'de' translation field before
+        // isAllowedToPerform() is ever reached (grinding happens first) - the
+        // mock must tolerate that call too, not just 'msg_no_perm_write'.
+        $language = $this->createMock(Language::class);
+        $language->method('txt')->willReturnCallback(
+            static fn(string $key): string => $key === 'msg_no_perm_write' ? 'no write permission' : $key
+        );
 
         $calls = [];
         $activity = $this->createActivity(
@@ -458,10 +668,14 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * normalizeParameters() validates before isAllowedToPerform() is even
-     * reached - a missing/invalid parameter must surface as a Result\Error,
-     * not an uncaught exception, and must never touch the rbac system
-     * (validation happens first).
+     * A completely missing 'module' key is caught by grind() itself (see
+     * GrindsFormInput): the required Text field receives a blank raw value
+     * and fails its own required-field constraint before
+     * normalizeParameters()/isAllowedToPerform() are ever reached - so the
+     * rejection surfaces as a Result\Error carrying a field-attributed
+     * InvalidInputException (see GrindsFormInput::describeInputError()), not
+     * an InvalidArgumentException thrown by normalizeParameters(). Either
+     * way, the rbac system must never be touched (validation happens first).
      */
     public function testMissingModuleViaMaybePerformAsIsAResultErrorAndNeverChecksPermission(): void
     {
@@ -476,7 +690,8 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         ]);
 
         $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertStringContainsString('module:', $result->error()->getMessage());
     }
 
     public function testMissingRawParametersKeyIsAResultError(): void
@@ -486,18 +701,61 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         $result = $activity->maybePerformAs(6, []);
 
         $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertNotSame('', $result->error()->getMessage());
+    }
+
+    /**
+     * These raw_parameters all leave the mandatory 'de' translation field
+     * (see class docblock, "de"/"en" are mandatory) blank - either because
+     * 'translations' is not an array at all, or because it is an array
+     * that does not carry a 'de' key - so grind() itself rejects them, via
+     * the 'de' Text field's own required-field constraint (or, for a
+     * non-string key, GrindsFormInput's own unknown-key guard), before
+     * normalizeParameters()/isAllowedToPerform() are ever reached. The
+     * rejection surfaces as a Result\Error carrying an InvalidInputException,
+     * not an InvalidArgumentException.
+     */
+    public static function invalidRawParametersRejectedByGrindWithStringErrorProvider(): array
+    {
+        return [
+            'non-array translations' => [['module' => 'common', 'identifier' => 'foo', 'translations' => 'nope']],
+            'translations with non-string key' => [
+                ['module' => 'common', 'identifier' => 'foo', 'translations' => [0 => 'Hallo']],
+            ],
+        ];
+    }
+
+    #[DataProvider('invalidRawParametersRejectedByGrindWithStringErrorProvider')]
+    public function testMaybePerformAsRejectsStructurallyInvalidTranslationsAtGrindLevelWithoutCheckingPermission(
+        array $raw_parameters
+    ): void {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->expects($this->never())->method('checkAccessOfUser');
+
+        $activity = $this->createActivity(['de'], rbac: $rbac);
+
+        $result = $activity->maybePerformAs(6, $raw_parameters);
+
+        $this->assertTrue($result->isError());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertNotSame('', $result->error()->getMessage());
     }
 
     public static function invalidRawParametersProvider(): array
     {
         return [
-            'blank module' => [['module' => '   ', 'identifier' => 'foo', 'translations' => []]],
-            'blank identifier' => [['module' => 'common', 'identifier' => '   ', 'translations' => []]],
-            'non-array translations' => [['module' => 'common', 'identifier' => 'foo', 'translations' => 'nope']],
-            'translations with non-string key' => [
-                ['module' => 'common', 'identifier' => 'foo', 'translations' => [0 => 'Hallo']],
-            ],
+            // 'de' is given a valid, non-blank value here on purpose, so
+            // that grind() itself succeeds and the blank module/identifier
+            // is instead caught by normalizeParameters()'s
+            // toNonEmptyString() - an InvalidInputException, reached
+            // before isAllowedToPerform().
+            'blank module' => [['module' => '   ', 'identifier' => 'foo', 'translations' => ['de' => 'Hallo']]],
+            'blank identifier' => [['module' => 'common', 'identifier' => '   ', 'translations' => ['de' => 'Hallo']]],
+            // Outside the Text field's own type check - grind() itself
+            // converts the UI framework's own blank \InvalidArgumentException
+            // ("Display value does not match input type.") into an
+            // InvalidInputException (see grind()'s try/catch).
             'translations with non-string value' => [
                 ['module' => 'common', 'identifier' => 'foo', 'translations' => ['de' => 42]],
             ],
@@ -515,7 +773,8 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         $result = $activity->maybePerformAs(6, $raw_parameters);
 
         $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $result->error());
     }
 
     public function testNormalizeParametersTrimsModuleAndIdentifierButKeepsTranslationsAsGiven(): void
@@ -547,10 +806,15 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
      */
     public function testEmptyTranslationsArrayIsAcceptedAndSkipsEveryInstalledLanguage(): void
     {
+        // 'fr'/'it' (not 'de'/'en') are used here on purpose: neither is
+        // mandatory, so an entirely empty translations array is legal and
+        // every installed language is simply skipped - unlike 'de'/'en',
+        // which reject a blank value outright (see the "de"/"en" mandatory
+        // regression tests below).
         $rbac = $this->createMock(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $activity = $this->createActivity(['de', 'en'], rbac: $rbac);
+        $activity = $this->createActivity(['fr', 'it'], rbac: $rbac);
 
         $result = $activity->maybePerformAs(6, [
             'module' => 'common',
@@ -560,7 +824,7 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
 
         $this->assertFalse($result->isError());
         $this->assertSame([], $result->value()['added_language_keys']);
-        $this->assertSame(['de', 'en'], $result->value()['skipped_empty_language_keys']);
+        $this->assertSame(['fr', 'it'], $result->value()['skipped_empty_language_keys']);
     }
 
     // -----------------------------------------------------------------
@@ -569,15 +833,15 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
 
     public function testInputDescriptionBuildsModuleIdentifierAndPerLanguageTranslationFields(): void
     {
-        $module_text = $this->createMock(\ILIAS\UI\Component\Input\Field\Text::class);
+        $module_text = $this->createMock(Text::class);
         $module_text->method('withRequired')->with(true)->willReturnSelf();
         $module_text->method('withDedicatedName')->with('module')->willReturnSelf();
 
-        $identifier_text = $this->createMock(\ILIAS\UI\Component\Input\Field\Text::class);
+        $identifier_text = $this->createMock(Text::class);
         $identifier_text->method('withRequired')->with(true)->willReturnSelf();
         $identifier_text->method('withDedicatedName')->with('identifier')->willReturnSelf();
 
-        $de_text = $this->createMock(\ILIAS\UI\Component\Input\Field\Text::class);
+        $de_text = $this->createMock(Text::class);
         $de_required = null;
         $de_text->method('withRequired')->willReturnCallback(function (bool $required) use ($de_text, &$de_required) {
             $de_required = $required;
@@ -585,7 +849,7 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         });
         $de_text->method('withDedicatedName')->with('de')->willReturnSelf();
 
-        $fr_text = $this->createMock(\ILIAS\UI\Component\Input\Field\Text::class);
+        $fr_text = $this->createMock(Text::class);
         $fr_required = null;
         $fr_text->method('withRequired')->willReturnCallback(function (bool $required) use ($fr_text, &$fr_required) {
             $fr_required = $required;
@@ -641,7 +905,7 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         $ui_factory = $this->createMock(UIFactory::class);
         $ui_factory->method('input')->willReturn($input);
 
-        $language = $this->createMock(\ILIAS\Language\Language::class);
+        $language = $this->createMock(Language::class);
         $language->method('txt')->willReturnCallback(static fn(string $key): string => $key);
 
         $activity = $this->createActivity(
@@ -683,6 +947,136 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
             ['module', 'identifier', 'added_language_keys', 'skipped_empty_language_keys'],
             $field_names
         );
+    }
+
+    // -----------------------------------------------------------------
+    // $db / default update_module_cache() guard clauses
+    //
+    // Every other test in this class overrides $update_module_cache with a
+    // no-op or a spy, so the constructor's own $db-backed default closure
+    // (see class docblock, "updateModuleCache()'s default needs a database
+    // connection...") is never exercised anywhere else. These tests inject
+    // a real \ilDBInterface mock instead, to pin down the is_string() guard
+    // added around unserialize() - the actual regression this class'
+    // constructor gained a $db parameter for. $replace_lang_entry is still
+    // overridden with a no-op (writing a single entry is unrelated to the
+    // cache refresh and would otherwise need the real global $DIC), so only
+    // ONE installed language ("de") with a non-blank value is used - just
+    // enough to reach update_module_cache() exactly once per test, without
+    // ever reaching \ilObjLanguage::replaceLangModule() (a real write to
+    // legacy statics): every case below returns from the guard before that
+    // point is reached.
+    // -----------------------------------------------------------------
+
+    private function createActivityWithRealUpdateModuleCacheDefault(\ilDBInterface $db): AddLanguageEntry
+    {
+        return new AddLanguageEntry(
+            refinery: $this->createMock(RefineryFactory::class),
+            ui_factory: $this->createRealFieldsUiFactory(),
+            language: $this->createMock(Language::class),
+            rbac_system: $this->createMock(\ilRbacSystem::class),
+            installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
+            language_folder_ref_id: 0,
+            replace_lang_entry: static fn(
+                string $module,
+                string $identifier,
+                string $lang_key,
+                string $value,
+                string $local_change,
+                string $remarks
+            ): bool => true,
+            // $update_module_cache deliberately left null - the whole point
+            // of these tests is exercising the constructor's own default.
+            update_module_cache: null,
+            user_login: static fn(int $usr_id): string => 'default-login',
+            db: $db,
+        );
+    }
+
+    private function mockDbFetchingRow(?array $row): \ilDBInterface
+    {
+        $statement = $this->createMock(\ilDBStatement::class);
+
+        $db = $this->createMock(\ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(
+            static fn(mixed $value, string $type): string => "'" . (string) $value . "'"
+        );
+        $db->method('query')->willReturn($statement);
+        $db->method('fetchAssoc')->with($statement)->willReturn($row);
+
+        return $db;
+    }
+
+    public function testDefaultUpdateModuleCacheDoesNothingWhenNoLngModulesRowIsFound(): void
+    {
+        $db = $this->mockDbFetchingRow(null);
+
+        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
+
+        // No exception/error of any kind must surface - a missing row is a
+        // normal, silently-ignored case (see class docblock).
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de'], $result['added_language_keys']);
+    }
+
+    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNull(): void
+    {
+        // Before the is_string() guard was added, unserialize(null, ...)
+        // would raise a \TypeError under declare(strict_types=1) instead of
+        // silently doing nothing (see class docblock/AddLanguageEntry.php).
+        $db = $this->mockDbFetchingRow(['lang_array' => null]);
+
+        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de'], $result['added_language_keys']);
+    }
+
+    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNotAString(): void
+    {
+        $db = $this->mockDbFetchingRow(['lang_array' => 42]);
+
+        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de'], $result['added_language_keys']);
+    }
+
+    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnDeserializesToANonArray(): void
+    {
+        // A syntactically valid serialized string that decodes to something
+        // other than an array (e.g. a plain scalar) leaves nothing to merge
+        // the new entry into - silently do nothing, same as a missing row.
+        $db = $this->mockDbFetchingRow(['lang_array' => serialize('not-an-array')]);
+
+        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de'], $result['added_language_keys']);
     }
 
     // -----------------------------------------------------------------
@@ -729,8 +1123,9 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         array $installed_languages,
         ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
-        ?\ILIAS\Language\Language $language = null,
+        ?Language $language = null,
         ?InstalledLanguageRepository $installed_language_repository = null,
+        \ilDBInterface|\Closure|null $db = null,
         int $language_folder_ref_id = 0,
         ?\Closure $replace_lang_entry = null,
         ?\Closure $update_module_cache = null,
@@ -761,19 +1156,28 @@ class AddLanguageEntryTest extends ilLanguageBaseTestCase
         ): void {
         };
         $user_login ??= static fn(int $usr_id): string => 'default-login';
+        // Every test above passes its own $update_module_cache (a no-op or a
+        // spy), so the constructor's own $db-based default closure is never
+        // reached in practice - this deliberately throws rather than
+        // defaulting to a harmless stub, so a test that accidentally relies
+        // on the real default fails loudly instead of silently passing.
+        $db ??= static fn(): \ilDBInterface => throw new \LogicException(
+            'db must not be resolved when update_module_cache is overridden'
+        );
 
         return new AddLanguageEntry(
-            $refinery ?? $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createMock(UIFactory::class),
-            $language ?? $this->createMock(\ILIAS\Language\Language::class),
-            $rbac ?? $this->createMock(\ilRbacSystem::class),
-            $installed_language_repository ?? new FakeInstalledLanguageRepository(
+            refinery: $refinery ?? $this->createMock(RefineryFactory::class),
+            ui_factory: $ui_factory ?? $this->createRealFieldsUiFactory(),
+            language: $language ?? $this->createMock(Language::class),
+            rbac_system: $rbac ?? $this->createMock(\ilRbacSystem::class),
+            installed_language_repository: $installed_language_repository ?? new FakeInstalledLanguageRepository(
                 static fn(): array => $installed_languages
             ),
-            $language_folder_ref_id,
-            $replace_lang_entry,
-            $update_module_cache,
-            $user_login,
+            language_folder_ref_id: $language_folder_ref_id,
+            replace_lang_entry: $replace_lang_entry,
+            update_module_cache: $update_module_cache,
+            user_login: $user_login,
+            db: $db,
         );
     }
 }

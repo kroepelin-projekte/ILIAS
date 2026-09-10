@@ -155,7 +155,11 @@ class Language implements Component\Component
         // or ilObjLanguage-by-id closures - it reads the set of installed
         // languages from InstalledLanguageDatabaseRepository (already built
         // above for other consumers) and writes single entries via the two
-        // legacy closures defaulted inside AddLanguageEntry itself.
+        // legacy closures defaulted inside AddLanguageEntry itself; the second
+        // of those two (updateModuleCache()) needs a database connection,
+        // supplied here via the same $resolve_db closure every other database
+        // consumer in this component shares, rather than AddLanguageEntry
+        // reaching into $GLOBALS['DIC'] directly.
         $internal[AddLanguageEntry::class] = static fn() =>
             new AddLanguageEntry(
                 $pull[\ILIAS\Refinery\Factory::class],
@@ -163,7 +167,16 @@ class Language implements Component\Component
                 $use[\ILIAS\Language\Language::class],
                 static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
                 $internal[InstalledLanguageDatabaseRepository::class],
-                static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
+                // $db is a mandatory collaborator (see AddLanguageEntry's own
+                // constructor docblock) - it needs no database of its own
+                // beyond what updateModuleCache()'s default resolves via
+                // this same $resolve_db closure, already shared by
+                // InstalledLanguageDatabaseRepository/LanguageInstallationManager.
+                $resolve_db,
+                language_folder_ref_id: static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId(),
+                // replace_lang_entry/update_module_cache/user_login: left at
+                // their defaults (see AddLanguageEntry's own constructor
+                // docblock).
             );
 
         // Same reasoning again, minus the Setup/forSetup() bridge, which does
@@ -188,11 +201,14 @@ class Language implements Component\Component
         // not apply here either - see SetLanguageTranslationEnabled's class
         // docblock for why it has no Setup counterpart at all. Like
         // SetLanguageDetectionEnabled, this needs no "lng" object
-        // enumeration, no ilObjLanguage-by-id closure and no installed-
-        // language repository - it only ever reads/writes a single
-        // "lang_translate_<key>" system setting, via the same
-        // $GLOBALS['DIC']->settings() call the extracted GUI code used
-        // directly (as $DIC->settings() inside saveSettingsObject()).
+        // enumeration and no ilObjLanguage-by-id closure - it only ever
+        // reads/writes a single "lang_translate_<key>" system setting, via
+        // the same $GLOBALS['DIC']->settings() call the extracted GUI code
+        // used directly (as $DIC->settings() inside saveSettingsObject()).
+        // Unlike SetLanguageDetectionEnabled, it now also needs the
+        // installed-language repository (already built above for
+        // AddLanguageEntry) to validate the given language_key is actually
+        // installed - see SetLanguageTranslationEnabled's class docblock.
         $internal[SetLanguageTranslationEnabled::class] = static fn() =>
             new SetLanguageTranslationEnabled(
                 $pull[\ILIAS\Refinery\Factory::class],
@@ -200,7 +216,8 @@ class Language implements Component\Component
                 $use[\ILIAS\Language\Language::class],
                 static fn(): \ilRbacSystem => $GLOBALS['DIC']->rbac()->system(),
                 static fn(): \ILIAS\Administration\Setting => $GLOBALS['DIC']->settings(),
-                static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId()
+                $internal[InstalledLanguageDatabaseRepository::class],
+                language_folder_ref_id: static fn(): int => \ilObjLanguageAccess::_lookupLangFolderRefId(),
             );
 
         // LanguageLegacyInitialisationAdapter has no constructor of its own,

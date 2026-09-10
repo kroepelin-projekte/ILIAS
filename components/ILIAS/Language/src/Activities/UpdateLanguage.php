@@ -45,6 +45,8 @@ use ILIAS\UI\Factory as UIFactory;
  */
 class UpdateLanguage extends ActivityImpl
 {
+    use GrindsFormInput;
+
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
@@ -226,8 +228,13 @@ MARKDOWN
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
+        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        if ($grind_result->isError()) {
+            return new Result\Error($grind_result->error());
+        }
+
         try {
-            $parameters = $this->normalizeParameters($raw_parameters);
+            $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
@@ -245,7 +252,7 @@ MARKDOWN
     private function toLanguageKeyList(mixed $value): array
     {
         if (!is_string($value) && !is_array($value)) {
-            throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+            throw new InvalidInputException('language_keys must be a string or an array of strings.');
         }
 
         $values = is_array($value) ? $value : [$value];
@@ -253,7 +260,7 @@ MARKDOWN
 
         foreach ($values as $item) {
             if (!is_string($item)) {
-                throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+                throw new InvalidInputException('language_keys must be a string or an array of strings.');
             }
 
             foreach (explode(',', (string) $item) as $language_key) {
@@ -265,24 +272,27 @@ MARKDOWN
         }
 
         if ($language_keys === []) {
-            throw new \InvalidArgumentException('At least one language key is required.');
+            throw new InvalidInputException('At least one language key is required.');
         }
 
         return $language_keys;
     }
 
     /**
-     * @param mixed $raw_parameters
+     * Builds the parameters perform()/isAllowedToPerform() expect from the
+     * already-grinded content of getInputDescription() (see grind() in the
+     * GrindsFormInput trait) - 'language_keys' is guaranteed to be a
+     * non-blank string at this point (the Text field is required), but
+     * still needs toLanguageKeyList()'s own domain-level parsing (splitting
+     * the comma-separated list).
+     *
+     * @param array{language_keys: string} $grind_result
      * @return array{language_keys: list<string>}
      */
-    private function normalizeParameters(mixed $raw_parameters): array
+    private function normalizeParameters(array $grind_result): array
     {
-        if (!is_array($raw_parameters) || !array_key_exists('language_keys', $raw_parameters)) {
-            throw new \InvalidArgumentException('The language_keys parameter is required.');
-        }
-
         return [
-            'language_keys' => $this->toLanguageKeyList($raw_parameters['language_keys']),
+            'language_keys' => $this->toLanguageKeyList($grind_result['language_keys']),
         ];
     }
 }

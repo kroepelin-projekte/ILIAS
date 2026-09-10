@@ -28,6 +28,7 @@ use ILIAS\Data\Result;
 use ILIAS\Data\Text;
 use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
+use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Factory as UIFactory;
@@ -81,43 +82,96 @@ use ILIAS\UI\Factory as UIFactory;
  * requested value differs from the currently stored one", which is what
  * `perform()` reproduces via its returned `changed` flag (see
  * getOutputDescription()) - the caller decides whether to show a success
- * message from that flag, exactly reproducing
- * `ilObjLanguageExtGUI::saveSettingsObject()`'s original "only show
- * 'settings_saved' if something actually changed" behaviour without baking
- * that GUI-level presentation decision into the Activity itself.
+ * message from that flag.
  *
- * Permission check, and why this does NOT introduce a new restriction
- * (unlike AddLanguageEntry/SetLanguageDetectionEnabled, both of which
- * document closing a pre-existing enforcement gap in their own class
- * docblocks): `isAllowedToPerform()` here requires "write" access to the
- * language folder ref_id, exactly like every other Activity in this
- * component. But unlike `ilObjLanguageFolderGUI` (where the generic command
- * gate only ever checks "read"), every command of the extracted GUI code's
- * own class - `ilObjLanguageExtGUI::executeCommand()` - already refuses to
- * run at all unless `ilObjLanguageAccess::_checkMaintenance()` holds, which
- * itself requires `$rbacsystem->checkAccess("read,write", $ref_id)` on the
- * very same language folder ref_id (RBAC's `checkAccess()` with a
- * comma-separated operation list requires ALL listed operations, i.e. this
- * is an AND, not an OR - see `\ilRbacSystem::checkAccessOfUser()`). So
- * `saveSettingsObject()` could never have run in the first place without the
- * acting user already holding write access to that same ref_id - this
- * Activity's `isAllowedToPerform()` re-affirms an already-enforced business
- * rule at the Activity layer, it does not add a new one.
+ * This reproduces the extracted GUI code's behaviour with ONE known,
+ * deliberate exception, not exactly: the extracted code decided "changed"
+ * via a loose `!=` comparison of two raw strings
+ * (`$post_translation != $translate`, both coming straight from
+ * `getParsedBody()`/`ilSetting::get()`), while `perform()` compares two
+ * proper booleans (`$currently_enabled !== $enabled`). These two ways of
+ * comparing disagree in exactly one case: a stored value of the literal
+ * string "0" (a disabled setting written by *this* Activity, or by any
+ * writer using the "0"/"1" convention) together with a submitted, unchecked
+ * checkbox (`$post_translation === ""`). Loosely, `"" != "0"` is `true` -
+ * the legacy code treated this as "changed", wrote the redundant "" over
+ * the existing "0", and showed the `settings_saved` success message - even
+ * though the *actual*, boolean state (disabled) never changed at all. This
+ * was never a deliberate feature: nothing that ever reads this setting
+ * distinguishes "" from "0" (both are falsy), so no reader could tell the
+ * two apart either way - it was simply an accidental side effect of
+ * comparing raw strings loosely instead of the booleans they were always
+ * meant to represent. `perform()` deliberately does NOT reproduce this
+ * side effect: for that exact case it correctly reports `changed = false`
+ * and performs no write at all, since no observable state actually changed.
+ * See SetLanguageTranslationEnabledTest for a regression test pinning this
+ * exact case down as intended behaviour.
+ *
+ * Permission check, and why this does NOT introduce a new restriction -
+ * unlike SetLanguageDetectionEnabled, which documents a genuine, deliberate
+ * behavioural change of this kind in its own class docblock (its two
+ * extracted GUI methods never enforced a write check themselves at all):
+ * `isAllowedToPerform()` here requires "write" access to the language folder
+ * ref_id, exactly like every other Activity in this component. But unlike
+ * `ilObjLanguageFolderGUI` (where the generic command gate only ever checks
+ * "read"), every command of the extracted GUI code's own class -
+ * `ilObjLanguageExtGUI::executeCommand()` - already refuses to run at all
+ * unless `ilObjLanguageAccess::_checkMaintenance()` holds, which itself
+ * requires `$rbacsystem->checkAccess("read,write", $ref_id)` on the very
+ * same language folder ref_id (RBAC's `checkAccess()` with a comma-separated
+ * operation list requires ALL listed operations, i.e. this is an AND, not an
+ * OR - see `\ilRbacSystem::checkAccessOfUser()`). So `saveSettingsObject()`
+ * could never have run in the first place without the acting user already
+ * holding write access to that same ref_id - this Activity's
+ * `isAllowedToPerform()` re-affirms an already-enforced business rule at the
+ * Activity layer, it does not add a new one. AddLanguageEntry's own
+ * `isAllowedToPerform()` re-affirms the exact same pre-existing
+ * `_checkMaintenance()` precedent for its own extracted GUI method
+ * (`saveNewEntryObject()`, gated by the very same `executeCommand()`) - see
+ * its class docblock.
+ *
+ * `maybePerformAs()` now actually grinds $raw_parameters through
+ * getInputDescription() (see the GrindsFormInput trait) instead of reading
+ * $raw_parameters directly. Two deliberate, spec-compliant consequences:
+ *  - 'enabled' now accepts the common primitive representations of
+ *    true/false a generic (non-HTML) caller would reasonably send (e.g.
+ *    "1"/"0", "true"/"false"), not only a strict PHP bool - see
+ *    GrindsFormInput::normalizeCheckboxRawValue(). perform()'s own contract
+ *    is unchanged: it still requires a strict bool.
+ *  - `language_key` is now validated against the set of actually installed
+ *    languages (via the newly injected `$installed_language_repository`,
+ *    the same collaborator AddLanguageEntry already uses for the same
+ *    purpose). Before this, an unknown language key was accepted without
+ *    complaint and silently created a new "lang_translate_<key>" setting
+ *    row for a language that does not exist - this was never caught by a
+ *    test or a real caller before, because the extracted GUI code
+ *    (`ilObjLanguageExtGUI`) only ever reached this method for its own
+ *    `$this->object->key`, which `ilCtrl`'s object resolution already
+ *    guarantees to be a real, installed language; that guarantee obviously
+ *    no longer holds now that this Activity is reachable generically via
+ *    maybePerformAs().
  */
 class SetLanguageTranslationEnabled extends ActivityImpl
 {
+    use GrindsFormInput;
+
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
     private readonly \Closure $language_folder_ref_id;
     private readonly \Closure $settings;
 
+    /**
+     * @param InstalledLanguageRepository $installed_language_repository Validates the given
+     *        `language_key` is actually installed - see class docblock.
+     */
     public function __construct(
         private readonly RefineryFactory $refinery,
         UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         Setting|\Closure $settings,
+        private readonly InstalledLanguageRepository $installed_language_repository,
         int|\Closure $language_folder_ref_id = 0,
     ) {
         $this->lng = $language;
@@ -222,13 +276,26 @@ MARKDOWN
             || !array_key_exists('enabled', $parameters)
             || !is_bool($parameters['enabled'])
         ) {
-            throw new \InvalidArgumentException(
+            throw new InvalidInputException(
                 'The language_key (non-empty string) and enabled (bool) parameters are required.'
             );
         }
 
         $language_key = trim($parameters['language_key']);
         $enabled = $parameters['enabled'];
+
+        // The extracted GUI code never needed this check because ilCtrl's
+        // object resolution guaranteed $this->object->key was always a real,
+        // installed language - see class docblock. This Activity is
+        // reachable generically via maybePerformAs() now, so that guarantee
+        // no longer holds and must be enforced here explicitly, for direct
+        // perform()/isAllowedToPerform() callers too (see README.md, "As
+        // User of a Specific Activity").
+        if (!in_array($language_key, $this->installed_language_repository->getInstalledLanguages(), true)) {
+            throw new InvalidInputException(
+                'Unknown language key "' . htmlspecialchars($language_key, ENT_QUOTES) . '" - not an installed language.'
+            );
+        }
 
         $translate_key = 'lang_translate_' . $language_key;
 
@@ -253,8 +320,13 @@ MARKDOWN
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
+        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        if ($grind_result->isError()) {
+            return new Result\Error($grind_result->error());
+        }
+
         try {
-            $parameters = $this->normalizeParameters($raw_parameters);
+            $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
@@ -266,39 +338,24 @@ MARKDOWN
     }
 
     /**
-     * @param mixed $raw_parameters
+     * Builds the parameters perform()/isAllowedToPerform() expect from the
+     * already-grinded content of getInputDescription() (see grind() in the
+     * GrindsFormInput trait) - 'enabled' is already a strict bool at this
+     * point (the Checkbox field's own withInput() already tolerantly
+     * normalized it, see GrindsFormInput::normalizeCheckboxRawValue()); the
+     * installed-language check for 'language_key' still happens in
+     * perform() itself (see there), not here, so it also applies to direct
+     * perform()/isAllowedToPerform() callers that never go through
+     * maybePerformAs() at all.
+     *
+     * @param array{language_key: string, enabled: bool} $grind_result
      * @return array{language_key: string, enabled: bool}
      */
-    private function normalizeParameters(mixed $raw_parameters): array
+    private function normalizeParameters(array $grind_result): array
     {
-        if (!is_array($raw_parameters)
-            || !array_key_exists('language_key', $raw_parameters)
-            || !array_key_exists('enabled', $raw_parameters)
-        ) {
-            throw new \InvalidArgumentException('The language_key and enabled parameters are required.');
-        }
-
         return [
-            'language_key' => $this->toNonEmptyString($raw_parameters['language_key']),
-            'enabled' => $this->toBool($raw_parameters['enabled']),
+            'language_key' => trim($grind_result['language_key']),
+            'enabled' => $grind_result['enabled'],
         ];
-    }
-
-    private function toNonEmptyString(mixed $value): string
-    {
-        if (!is_string($value) || trim($value) === '') {
-            throw new \InvalidArgumentException('language_key must be a non-empty string.');
-        }
-
-        return trim($value);
-    }
-
-    private function toBool(mixed $value): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        throw new \InvalidArgumentException('enabled must be a boolean.');
     }
 }

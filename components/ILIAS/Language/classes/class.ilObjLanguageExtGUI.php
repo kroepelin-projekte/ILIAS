@@ -24,6 +24,8 @@ use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
+use ILIAS\Language\Activities\SafeToDisplayActivityError;
+use ILIAS\Language\RendersActivityErrors;
 
 /**
 * Class ilObjLanguageExtGUI
@@ -41,7 +43,9 @@ use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 */
 class ilObjLanguageExtGUI extends ilObjectGUI
 {
-    private const ILIAS_LANGUAGE_MODULE = "components/ILIAS/Language";
+    use RendersActivityErrors;
+
+    private const string ILIAS_LANGUAGE_MODULE = "components/ILIAS/Language";
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
     private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
@@ -71,6 +75,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         // reach into `global $DIC` themselves.
         $this->add_language_entry = $DIC[AddLanguageEntry::class];
         $this->set_language_translation_enabled = $DIC[SetLanguageTranslationEnabled::class];
+        // Used exclusively by activityErrorMessage() (see RendersActivityErrors) -
+        // resolved once here, per the same idiom as the Activities above.
+        $this->activity_error_logger = $DIC->logger()->lang();
 
         // language maintenance strings are defined in administration
         $lng->loadLanguageModule("administration");
@@ -783,8 +790,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     */
     public function saveSettingsObject(): void
     {
-        global $DIC;
-        $ilUser = $DIC->user();
+        // $this->user/$this->ctrl (set up by the parent ilObjectGUI
+        // constructor) are used here rather than reaching into global $DIC -
+        // see the comment on the constructor-injected Activities above for
+        // why action methods must not reach into it themselves.
+        $ilUser = $this->user;
 
         $post_translation = $this->http->request()->getParsedBody()['translation'] ?? null;
         $enabled = $post_translation !== null && $post_translation !== '';
@@ -799,7 +809,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         if ($result->isError()) {
             $error = $result->error();
-            $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+            $error_message = $this->activityErrorMessage($error);
 
             $this->tpl->setOnScreenMessage('failure', $error_message);
         } elseif ($result->value()['changed']) {
@@ -1052,9 +1062,12 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
     public function saveNewEntryObject(): void
     {
-        global $DIC;
-        $ilCtrl = $DIC->ctrl();
-        $ilUser = $DIC->user();
+        // $this->ctrl/$this->user (set up by the parent ilObjectGUI
+        // constructor) are used here rather than reaching into global $DIC -
+        // see the comment on the constructor-injected Activities above for
+        // why action methods must not reach into it themselves.
+        $ilCtrl = $this->ctrl;
+        $ilUser = $this->user;
 
         $form = $this->initAddNewEntryForm();
         if ($form->checkInput()) {
@@ -1080,8 +1093,25 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
             if ($result->isError()) {
                 $error = $result->error();
-                $error_message = $error instanceof \Throwable ? $error->getMessage() : $error;
+                $error_message = $this->activityErrorMessage($error);
 
+                if ($error instanceof SafeToDisplayActivityError) {
+                    // A genuine input rejection (e.g. a missing/blank "de"/
+                    // "en" translation, see AddLanguageEntry's class
+                    // docblock) - re-render the same form with the values
+                    // the user already entered still filled in, exactly like
+                    // the $form->checkInput() === false branch below does,
+                    // instead of redirecting to "view" and discarding them.
+                    $this->tpl->setOnScreenMessage('failure', $error_message);
+                    $form->setValuesByPost();
+                    $this->addNewEntryObject($form);
+                    return;
+                }
+
+                // An unexpected internal failure (already logged by
+                // activityErrorMessage()) - redirecting away, losing the
+                // entered values, matches every other Activity error path in
+                // this component.
                 $this->tpl->setOnScreenMessage('failure', $error_message, true);
                 $ilCtrl->redirect($this, "view");
                 return;

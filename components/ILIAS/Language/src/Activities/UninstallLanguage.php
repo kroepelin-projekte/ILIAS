@@ -66,6 +66,18 @@ use ILIAS\UI\Factory as UIFactory;
  * so tests can substitute fakes without bootstrapping the legacy global $DIC
  * that ilObjLanguage's constructor needs.
  *
+ * Resolving a requested language key back to its object id (see
+ * resolveObjIdsByLanguageKey()) matches purely on title: the caller (e.g.
+ * ilObjLanguageFolderGUI::uninstallObject()) only ever has an obj_id to
+ * begin with, looks up its title to build the language_keys this Activity is
+ * given, and this Activity resolves that title back to an obj_id itself - a
+ * round trip needed because "language key" (title), not "obj_id", is this
+ * Activity's public vocabulary, consistent with every other Activity in this
+ * component. Two "lng" objects sharing the same title would make that
+ * round trip ambiguous; perform() guards against silently uninstalling the
+ * wrong one by rejecting a request naming such a title outright instead
+ * (see resolveObjIdsByLanguageKey()).
+ *
  * Known limitations, both inherited from the legacy domain object rather than
  * introduced by this extraction:
  *  - "the language currently in use" is decided by `ilObjLanguage::isUserLanguage()`,
@@ -86,6 +98,9 @@ use ILIAS\UI\Factory as UIFactory;
  */
 class UninstallLanguage extends ActivityImpl
 {
+    use GrindsFormInput;
+    use ResolvesLanguageKeysToObjIds;
+
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
@@ -226,10 +241,30 @@ MARKDOWN
         }
 
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
+        [$obj_id_by_language_key, $ambiguous_language_keys] = $this->resolveObjIdsByLanguageKey();
 
-        $obj_id_by_language_key = [];
-        foreach (($this->lng_objects)() as $lng_object) {
-            $obj_id_by_language_key[$lng_object['title']] = (int) $lng_object['obj_id'];
+        // Checked BEFORE anything below is written, and for every requested
+        // key at once (rather than inline in the loop, as before): otherwise
+        // a request naming both an unambiguous and an ambiguous key would
+        // already have uninstalled the unambiguous one by the time the
+        // ambiguous one is reached, leaving the admin unaware that a partial
+        // uninstallation already happened underneath an "aborted" message -
+        // see resolveObjIdsByLanguageKey() for why an ambiguous title is
+        // rejected instead of silently guessed at.
+        $requested_ambiguous_language_keys = array_values(
+            array_intersect($language_keys, array_keys($ambiguous_language_keys))
+        );
+        if ($requested_ambiguous_language_keys !== []) {
+            // AmbiguousLanguageTitleException (rather than a plain
+            // \RuntimeException) marks this as a concrete, admin-actionable
+            // data integrity problem that activityErrorMessage() shows
+            // directly instead of hiding it behind a generic "action
+            // aborted" message.
+            throw new AmbiguousLanguageTitleException(
+                'Multiple language objects share the title(s) "'
+                . implode('", "', array_map($this->escapeForMessage(...), $requested_ambiguous_language_keys))
+                . '" - cannot unambiguously resolve which one(s) to uninstall.'
+            );
         }
 
         $uninstalled_language_keys = [];
@@ -277,8 +312,13 @@ MARKDOWN
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
+        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        if ($grind_result->isError()) {
+            return new Result\Error($grind_result->error());
+        }
+
         try {
-            $parameters = $this->normalizeParameters($raw_parameters);
+            $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
@@ -296,7 +336,7 @@ MARKDOWN
     private function toLanguageKeyList(mixed $value): array
     {
         if (!is_string($value) && !is_array($value)) {
-            throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+            throw new InvalidInputException('language_keys must be a string or an array of strings.');
         }
 
         $values = is_array($value) ? $value : [$value];
@@ -304,7 +344,7 @@ MARKDOWN
 
         foreach ($values as $item) {
             if (!is_string($item)) {
-                throw new \InvalidArgumentException('language_keys must be a string or an array of strings.');
+                throw new InvalidInputException('language_keys must be a string or an array of strings.');
             }
 
             foreach (explode(',', (string) $item) as $language_key) {
@@ -316,24 +356,39 @@ MARKDOWN
         }
 
         if ($language_keys === []) {
-            throw new \InvalidArgumentException('At least one language key is required.');
+            throw new InvalidInputException('At least one language key is required.');
         }
 
         return $language_keys;
     }
 
     /**
-     * @param mixed $raw_parameters
+     * HTML-escapes a language key/title before it is embedded into a
+     * SafeToDisplayActivityError message (see AmbiguousLanguageTitleException
+     * above) - such a message is rendered unescaped by callers (e.g.
+     * ilObjLanguageFolderGUI::activityErrorMessage()), so a language object
+     * title containing HTML-significant characters must not reach it as-is.
+     */
+    private function escapeForMessage(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES);
+    }
+
+    /**
+     * Builds the parameters perform()/isAllowedToPerform() expect from the
+     * already-grinded content of getInputDescription() (see grind() in the
+     * GrindsFormInput trait) - 'language_keys' is guaranteed to be a
+     * non-blank string at this point (the Text field is required), but
+     * still needs toLanguageKeyList()'s own domain-level parsing (splitting
+     * the comma-separated list).
+     *
+     * @param array{language_keys: string} $grind_result
      * @return array{language_keys: list<string>}
      */
-    private function normalizeParameters(mixed $raw_parameters): array
+    private function normalizeParameters(array $grind_result): array
     {
-        if (!is_array($raw_parameters) || !array_key_exists('language_keys', $raw_parameters)) {
-            throw new \InvalidArgumentException('The language_keys parameter is required.');
-        }
-
         return [
-            'language_keys' => $this->toLanguageKeyList($raw_parameters['language_keys']),
+            'language_keys' => $this->toLanguageKeyList($grind_result['language_keys']),
         ];
     }
 }

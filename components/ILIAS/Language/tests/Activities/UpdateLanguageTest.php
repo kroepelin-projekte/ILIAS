@@ -13,16 +13,35 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\Activities;
+namespace ILIAS\Language\Tests\Activities;
 
+use ILIAS\Language\Tests\Activities\ActivityWithPerformResultContractTestCase;
+use ILIAS\Language\Activities\InvalidInputException;
+use ILIAS\Language\Activities\UpdateLanguage;
+use ILIAS\UI\Component\Input\Field\Text;
+use ILIAS\UI\Component\Input\Field\Group;
+use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
-use ilLanguageBaseTestCase;
 use ilSetupLanguage;
 
-class UpdateLanguageTest extends ilLanguageBaseTestCase
+class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 {
+    protected function createDefaultActivity(): UpdateLanguage
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+
+        return $this->createActivity($setup_language);
+    }
+
+    protected function validPerformParameters(): array
+    {
+        return ['language_keys' => 'de'];
+    }
+
     public function testSingleAlreadyInstalledLanguageIsRefreshed(): void
     {
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
@@ -222,34 +241,26 @@ class UpdateLanguageTest extends ilLanguageBaseTestCase
         $this->assertSame(['de'], $result['updated_language_keys']);
     }
 
-    public function testMissingLanguageKeysParameterIsRejected(): void
+    public static function invalidLanguageKeysProvider(): array
     {
-        $this->expectException(\InvalidArgumentException::class);
-
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([]);
+        return [
+            'missing language_keys key' => [[]],
+            'empty (only whitespace/commas)' => [['language_keys' => ' , ']],
+            'nested array value' => [['language_keys' => ['de', ['fr']]]],
+        ];
     }
 
-    public function testEmptyLanguageKeysAreRejected(): void
+    #[DataProvider('invalidLanguageKeysProvider')]
+    public function testInvalidLanguageKeysAreRejected(array $parameters): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
-            'language_keys' => ' , ',
-        ]);
-    }
-
-    public function testInvalidLanguageKeysTypeIsRejected(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform([
-            'language_keys' => ['de', ['fr']],
-        ]);
+        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform($parameters);
     }
 
     public function testInputDescriptionUsesOnlyTheLanguageKeysFieldWithNoModeField(): void
     {
-        $text = $this->createMock(\ILIAS\UI\Component\Input\Field\Text::class);
+        $text = $this->createMock(Text::class);
         $text->expects($this->once())->method('withRequired')->with(true)->willReturnSelf();
         $text->expects($this->once())
             ->method('withDedicatedName')
@@ -265,7 +276,7 @@ class UpdateLanguageTest extends ilLanguageBaseTestCase
         // be built, unlike InstallLanguage's input description.
         $field->expects($this->never())->method('select');
 
-        $group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
+        $group = $this->createMock(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_keys' => $text])
@@ -300,7 +311,7 @@ class UpdateLanguageTest extends ilLanguageBaseTestCase
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
         $setup_language->expects($this->never())->method('getInstalledLanguages');
         $setup_language->expects($this->never())->method('flushLanguageForInstallation');
-        $language = $this->createMock(\ILIAS\Language\Language::class);
+        $language = $this->createMock(Language::class);
         $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
 
         $result = $this->createActivity(
@@ -331,16 +342,43 @@ class UpdateLanguageTest extends ilLanguageBaseTestCase
         $this->assertSame(['de'], $result->value()['updated_language_keys']);
     }
 
+    /**
+     * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
+     * always builds 'language_keys' as a PHP array of strings, never a
+     * comma-separated string - and GrindsFormInput::grind() (see its own
+     * class docblock, "Array raw values for a Text field") must join that
+     * array into the same shape a real HTML text input would carry BEFORE
+     * it reaches the declared Text field, rather than rejecting it. This
+     * is exercised through the REAL getInputDescription()/grind() pipeline
+     * (createRealFieldsUiFactory(), not a mocked FormInput) via
+     * maybePerformAs() - the previously blocking regression this test
+     * guards against.
+     */
+    public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndUpdatesEachOne(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+
+        $result = $this->createActivity($setup_language, null, $rbac)
+            ->maybePerformAs(6, ['language_keys' => ['de', 'fr']]);
+
+        $this->assertFalse($result->isError());
+        $this->assertSame(['de', 'fr'], $result->value()['updated_language_keys']);
+    }
+
     private function createActivity(
         ilSetupLanguage $setup_language,
         ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
-        ?\ILIAS\Language\Language $language = null
+        ?Language $language = null
     ): UpdateLanguage {
         return new UpdateLanguage(
             $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createMock(UIFactory::class),
-            $language ?? $this->createMock(\ILIAS\Language\Language::class),
+            $ui_factory ?? $this->createRealFieldsUiFactory(),
+            $language ?? $this->createMock(Language::class),
             $rbac ?? $this->createMock(\ilRbacSystem::class),
             $setup_language
         );

@@ -81,11 +81,30 @@ use ILIAS\UI\Factory as UIFactory;
  * a system-wide setting must not be changeable by a merely-read-permitted
  * user. This closes what looks like a pre-existing enforcement gap, but it
  * is a genuine behavioural change and must be treated as such, not silently
- * introduced - see this component's task report for the AddLanguageEntry
- * precedent of the same kind.
+ * introduced - unlike, say, AddLanguageEntry's or SetLanguageTranslationEnabled's
+ * own `isAllowedToPerform()` (see their class docblocks), which merely
+ * re-affirm a write check their respective extracted GUI methods already had
+ * enforced on them by their class' `executeCommand()`, this Activity's write
+ * check has no such precedent to point to: `enableLanguageDetectionObject()`/
+ * `disableLanguageDetectionObject()` ran behind `ilObjLanguageFolderGUI`'s own
+ * generic command gate, which - as stated above - only ever checked "read",
+ * so no prior enforcement of "write" existed for these two commands at all.
+ *
+ * `maybePerformAs()` now actually grinds $raw_parameters through
+ * getInputDescription() (see the GrindsFormInput trait) instead of reading
+ * $raw_parameters directly. One deliberate, spec-compliant behavioural
+ * consequence: since the 'enabled' Checkbox field is not marked required,
+ * an entirely missing 'enabled' key in $raw_parameters is no longer
+ * rejected - it now defaults to false, exactly like an unchecked, and
+ * therefore never submitted, HTML checkbox would. Before this change,
+ * normalizeParameters() rejected a missing 'enabled' key outright, which
+ * contradicted getInputDescription()'s own (correct) "not required"
+ * declaration.
  */
 class SetLanguageDetectionEnabled extends ActivityImpl
 {
+    use GrindsFormInput;
+
     private Language $lng;
     private readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
@@ -191,8 +210,13 @@ MARKDOWN
 
     public function maybePerformAs(int $usr_id, array $raw_parameters): Result
     {
+        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        if ($grind_result->isError()) {
+            return new Result\Error($grind_result->error());
+        }
+
         try {
-            $parameters = $this->normalizeParameters($raw_parameters);
+            $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
@@ -204,26 +228,16 @@ MARKDOWN
     }
 
     /**
-     * @param mixed $raw_parameters
+     * Builds the parameters perform()/isAllowedToPerform() expect from the
+     * already-grinded content of getInputDescription() (see grind() in the
+     * GrindsFormInput trait) - 'enabled' is already a strict bool at this
+     * point, produced by the Checkbox field's own withInput().
+     *
+     * @param array{enabled: bool} $grind_result
      * @return array{enabled: bool}
      */
-    private function normalizeParameters(mixed $raw_parameters): array
+    private function normalizeParameters(array $grind_result): array
     {
-        if (!is_array($raw_parameters) || !array_key_exists('enabled', $raw_parameters)) {
-            throw new \InvalidArgumentException('The enabled parameter is required.');
-        }
-
-        return [
-            'enabled' => $this->toBool($raw_parameters['enabled']),
-        ];
-    }
-
-    private function toBool(mixed $value): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        throw new \InvalidArgumentException('enabled must be a boolean.');
+        return ['enabled' => $grind_result['enabled']];
     }
 }

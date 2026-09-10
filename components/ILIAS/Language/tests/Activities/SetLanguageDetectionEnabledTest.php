@@ -13,13 +13,19 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\Activities;
+namespace ILIAS\Language\Tests\Activities;
 
+use ILIAS\Language\Tests\Activities\ActivityContractTestCase;
+use ILIAS\Language\Activities\InvalidInputException;
+use ILIAS\Language\Activities\SafeToDisplayActivityError;
+use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
+use ILIAS\Language\Language;
+use ILIAS\UI\Component\Input\Field\Checkbox;
+use ILIAS\UI\Component\Input\Field\Group;
+use ILIAS\Data\Description\Description;
 use ILIAS\Administration\Setting;
-use ILIAS\Component\Activities\ActivityType;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
-use ilLanguageBaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -38,24 +44,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * prove that a denied permission both yields a Result\Error *and* leaves
  * the Setting collaborator untouched (no side effect on denial).
  */
-class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
+class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 {
-    // -----------------------------------------------------------------
-    // getType() / getName()
-    // -----------------------------------------------------------------
-
-    public function testGetTypeIsCommand(): void
+    protected function createDefaultActivity(): SetLanguageDetectionEnabled
     {
-        $activity = $this->createActivity();
-
-        $this->assertSame(ActivityType::Command, $activity->getType());
-    }
-
-    public function testGetNameIsTheFullyQualifiedClassName(): void
-    {
-        $activity = $this->createActivity();
-
-        $this->assertSame(SetLanguageDetectionEnabled::class, (string) $activity->getName());
+        return $this->createActivity();
     }
 
     // -----------------------------------------------------------------
@@ -228,7 +221,7 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $language = $this->createMock(\ILIAS\Language\Language::class);
+        $language = $this->createMock(Language::class);
         $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
@@ -255,37 +248,120 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
             ->maybePerformAs(6, ['enabled' => 'not-a-bool']);
 
         $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        // 'not-a-bool' is outside normalizeCheckboxRawValue()'s explicit
+        // whitelist - grind()'s dedicated catch block converts the
+        // resulting \InvalidArgumentException into an InvalidInputException
+        // (a SafeToDisplayActivityError), not a raw \InvalidArgumentException.
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $result->error());
     }
 
     /**
-     * normalizeParameters() validates 'enabled' before isAllowedToPerform()
-     * is even reached - a missing parameter must likewise surface as a
-     * Result\Error, not an uncaught exception, and must not touch the rbac
-     * system at all (validation happens first, exactly like the sibling
-     * Activities in this component).
+     * The 'enabled' Checkbox field is not required, so - now that
+     * maybePerformAs() actually grinds $raw_parameters through
+     * getInputDescription() (see GrindsFormInput) - a completely missing
+     * 'enabled' key is no longer rejected: it defaults to false, exactly
+     * like an unchecked, and therefore never submitted, HTML checkbox
+     * would. This is a deliberate behavioural change from the old
+     * (pre-grinding) normalizeParameters(), which used to reject a missing
+     * key outright - see the class docblock. Unlike before, the request
+     * now actually reaches isAllowedToPerform()/perform().
      */
-    public function testMaybePerformAsWithMissingEnabledKeyIsAResultErrorAndNeverChecksPermission(): void
+    public function testMaybePerformAsWithMissingEnabledKeyDefaultsToFalseAndStillPerformsTheWrite(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
-        $rbac->expects($this->never())->method('checkAccessOfUser');
+        $rbac->expects($this->once())
+            ->method('checkAccessOfUser')
+            ->willReturn(true);
 
-        $result = $this->createActivity(rbac_system: $rbac)->maybePerformAs(6, []);
+        $settings = $this->createMock(Setting::class);
+        $settings->expects($this->once())->method('set')->with('lang_detection', '0');
 
-        $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        $result = $this->createActivity(rbac_system: $rbac, settings: $settings)->maybePerformAs(6, []);
+
+        $this->assertFalse($result->isError());
+        $this->assertSame(['enabled' => false], $result->value());
+    }
+
+    public static function tolerantlyAcceptedTruthyEnabledValuesProvider(): array
+    {
+        return [
+            'string "1"' => ['1'],
+            'string "true"' => ['true'],
+            'int 1' => [1],
+        ];
+    }
+
+    public static function tolerantlyAcceptedFalsyEnabledValuesProvider(): array
+    {
+        return [
+            'string "0"' => ['0'],
+            'string "false"' => ['false'],
+            'string ""' => [''],
+            'int 0' => [0],
+            'null' => [null],
+        ];
     }
 
     /**
-     * Grenzfall: non-bool 'enabled' values normalized via
-     * normalizeParameters() must be rejected the same way as in perform()
-     * itself (both call the same toBool()) - covered here end-to-end
-     * through maybePerformAs() for the values most likely to appear from a
-     * real caller (a webservice/JSON request sending "true"/1/null instead
-     * of a strict boolean).
+     * Grinding tolerance (see GrindsFormInput::normalizeCheckboxRawValue()):
+     * unlike perform() itself (which still requires a strict bool, see
+     * testPerformRejectsNonStrictBooleanEnabledValues), maybePerformAs()
+     * now accepts the common primitive representations of "true" a generic
+     * (non-HTML) caller might reasonably send, and writes the setting
+     * accordingly.
      */
-    #[DataProvider('nonBooleanEnabledValuesProvider')]
-    public function testMaybePerformAsRejectsNonStrictBooleanEnabledValuesWithoutTouchingSettings(mixed $value): void
+    #[DataProvider('tolerantlyAcceptedTruthyEnabledValuesProvider')]
+    public function testMaybePerformAsToleratesCommonPrimitiveTruthyRepresentationsAndWritesEnabledTrue(mixed $value): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $settings = $this->createMock(Setting::class);
+        $settings->expects($this->once())->method('set')->with('lang_detection', '1');
+
+        $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
+            ->maybePerformAs(6, ['enabled' => $value]);
+
+        $this->assertFalse($result->isError());
+        $this->assertSame(['enabled' => true], $result->value());
+    }
+
+    /**
+     * Same tolerance as above, but for the common primitive representations
+     * of "false".
+     */
+    #[DataProvider('tolerantlyAcceptedFalsyEnabledValuesProvider')]
+    public function testMaybePerformAsToleratesCommonPrimitiveFalsyRepresentationsAndWritesEnabledFalse(mixed $value): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $settings = $this->createMock(Setting::class);
+        $settings->expects($this->once())->method('set')->with('lang_detection', '0');
+
+        $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
+            ->maybePerformAs(6, ['enabled' => $value]);
+
+        $this->assertFalse($result->isError());
+        $this->assertSame(['enabled' => false], $result->value());
+    }
+
+    public static function rejectedEnabledValuesProvider(): array
+    {
+        return [
+            'float 1.0' => [1.0],
+            'array' => [[true]],
+        ];
+    }
+
+    /**
+     * Only values outside GrindsFormInput::normalizeCheckboxRawValue()'s
+     * explicit whitelist are still rejected via maybePerformAs() - "konservativ
+     * normalisieren", not "alles akzeptieren" (see that method's docblock).
+     */
+    #[DataProvider('rejectedEnabledValuesProvider')]
+    public function testMaybePerformAsRejectsValuesGrindCannotInterpretAsACheckboxWithoutTouchingSettings(mixed $value): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
@@ -297,7 +373,8 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
             ->maybePerformAs(6, ['enabled' => $value]);
 
         $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\InvalidArgumentException::class, $result->error());
+        $this->assertInstanceOf(InvalidInputException::class, $result->error());
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $result->error());
     }
 
     // -----------------------------------------------------------------
@@ -306,7 +383,7 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
 
     public function testInputDescriptionBuildsAGroupWithASingleEnabledCheckboxField(): void
     {
-        $checkbox = $this->createMock(\ILIAS\UI\Component\Input\Field\Checkbox::class);
+        $checkbox = $this->createMock(Checkbox::class);
         $checkbox->expects($this->once())
             ->method('withDedicatedName')
             ->with('enabled')
@@ -321,7 +398,7 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
             )
             ->willReturn($checkbox);
 
-        $group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
+        $group = $this->createMock(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['enabled' => $checkbox])
@@ -340,8 +417,8 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
 
     public function testOutputDescriptionDescribesASingleBooleanEnabledField(): void
     {
-        $bool_description = $this->createMock(\ILIAS\Data\Description\Description::class);
-        $object_description = $this->createMock(\ILIAS\Data\Description\Description::class);
+        $bool_description = $this->createMock(Description::class);
+        $object_description = $this->createMock(Description::class);
 
         $f = $this->createMock(\ILIAS\Data\Description\Factory::class);
         $f->expects($this->once())->method('bool')->willReturn($bool_description);
@@ -361,13 +438,13 @@ class SetLanguageDetectionEnabledTest extends ilLanguageBaseTestCase
         ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac_system = null,
         ?Setting $settings = null,
-        ?\ILIAS\Language\Language $language = null,
+        ?Language $language = null,
         int $language_folder_ref_id = 0
     ): SetLanguageDetectionEnabled {
         return new SetLanguageDetectionEnabled(
             $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createMock(UIFactory::class),
-            $language ?? $this->createMock(\ILIAS\Language\Language::class),
+            $ui_factory ?? $this->createRealFieldsUiFactory(),
+            $language ?? $this->createMock(Language::class),
             $rbac_system ?? $this->createMock(\ilRbacSystem::class),
             $settings ?? $this->createMock(Setting::class),
             $language_folder_ref_id

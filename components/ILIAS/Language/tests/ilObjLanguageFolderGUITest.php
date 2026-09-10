@@ -46,6 +46,76 @@ use PHPUnit\Framework\TestCase;
  */
 class ilObjLanguageFolderGUITest extends TestCase
 {
+    /**
+     * Holds whatever stubLoggerLangError() built for the currently running
+     * test, so every createGuiWith*Collaborators()/createGuiWith*
+     * ()-style factory below can attach it to the GUI instance's
+     * `activity_error_logger` property (see RendersActivityErrors) instead
+     * of a plain permissive stub. Reset in tearDown() so it never leaks
+     * between tests - PHP runs every test in this class within the same
+     * process, and $GLOBALS['DIC'] (written by
+     * stubComponentRepositoryWithNoPlugins()) is genuinely global state too,
+     * for the same reason.
+     */
+    private ?\ilLogger $stubbed_activity_error_logger = null;
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['DIC']);
+        $this->stubbed_activity_error_logger = null;
+    }
+
+    /**
+     * activityErrorMessage() (see class docblock of the production class)
+     * logs a \Throwable's raw message via `$this->activity_error_logger`
+     * (a constructor-injected "lang" component logger - see
+     * RendersActivityErrors) before returning the generic, localized
+     * replacement text. This builds a mocked \ilLogger expecting exactly
+     * that call and stashes it so the GUI-building helpers below can wire
+     * it onto the instance under test via `activity_error_logger`.
+     *
+     * activityErrorMessage() logs `get_class($error) . ': ' .
+     * $error->getMessage() . "\n" . $error->getTraceAsString()` (see
+     * RendersActivityErrors::activityErrorMessage()) - the trace itself is
+     * environment-dependent (absolute file paths, line numbers), so only
+     * the "<class>: <message>\n" prefix is asserted here, not the full
+     * logged string.
+     *
+     * @param non-empty-string $expected_logged_message The raw \Throwable
+     *        message activityErrorMessage() must log - never the generic
+     *        replacement text shown to the user.
+     * @param class-string<\Throwable> $expected_exception_class The class
+     *        of the \Throwable the test's Result\Error is constructed
+     *        with.
+     */
+    private function stubLoggerLangError(
+        string $expected_logged_message,
+        string $expected_exception_class = \RuntimeException::class
+    ): void {
+        $expected_prefix = $expected_exception_class . ': ' . $expected_logged_message . "\n";
+
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->once())->method('error')->with(
+            $this->callback(
+                static fn(string $logged): bool => str_starts_with($logged, $expected_prefix)
+            )
+        );
+
+        $this->stubbed_activity_error_logger = $logger;
+    }
+
+    /**
+     * The logger to wire onto a GUI instance's `activity_error_logger`
+     * property while building it for a test: whatever stubLoggerLangError()
+     * set up for this test, or - for tests that never expect a Throwable
+     * to be logged - a permissive stub that tolerates being left untouched
+     * or called incidentally.
+     */
+    private function activityErrorLoggerForGui(): \ilLogger
+    {
+        return $this->stubbed_activity_error_logger ?? $this->createMock(\ilLogger::class);
+    }
+
     private function createGuiWithCollaborators(
         InstallLanguage $install_language,
         ilGlobalTemplateInterface $tpl,
@@ -60,6 +130,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
 
         return $gui;
     }
@@ -149,6 +220,11 @@ class ilObjLanguageFolderGUITest extends TestCase
         // way - so it must be looked up via the exact declaring class
         // instead, and set on the mock instance from there.
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
+        $this->setReadonlyPropertyDeclaredOnGuiClass(
+            $gui,
+            'activity_error_logger',
+            $this->activityErrorLoggerForGui()
+        );
 
         return $gui;
     }
@@ -262,148 +338,41 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui->uninstallChangesObject([]);
     }
 
-    public function testInstallObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
+    /**
+     * Regression test for installObject()'s explicit "empty selection"
+     * guard (checked BEFORE the Activity is ever called): an empty $ids
+     * must show the established 'no_checkbox' failure message and redirect
+     * to "view" WITHOUT ever calling InstallLanguage::maybePerformAs() -
+     * before this guard existed, an empty selection reached the Activity
+     * itself, which rejected it with a technical, untranslated message
+     * (e.g. "language_keys: not_min_length").
+     *
+     * Note: because of this guard, $ids=[] can no longer be used (as it
+     * was before this production change) to exercise installObject()'s
+     * Result-handling logic (error/success/info message assembly, $mode
+     * pass-through) while sidestepping the method's other legacy coupling
+     * (`new ilObjLanguage((int) $obj_id)` for a non-empty $ids, which
+     * cannot be safely reached in this kind of lightweight unit test - see
+     * class docblock). That logic is therefore no longer directly
+     * unit-testable via this public method; the underlying business logic
+     * it merely assembles into a message remains covered by
+     * InstallLanguageTest (perform()/maybePerformAs()).
+     */
+    public function testInstallObjectWithEmptySelectionShowsNoCheckboxMessageAndNeverCallsTheActivity(): void
     {
-        $exception_message = 'Invalid language files: xx, yy';
         $install_language = $this->createMock(InstallLanguage::class);
-        $install_language->method('maybePerformAs')->willReturn(
-            new ResultError(new \RuntimeException($exception_message))
-        );
+        $install_language->expects($this->never())->method('maybePerformAs');
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
         $tpl->expects($this->once())
             ->method('setOnScreenMessage')
-            ->with(
-                'failure',
-                $this->stringContains($exception_message),
-                true
-            );
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
-
-        $gui = $this->createGuiWithCollaborators(
-            $install_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        // The mode is irrelevant for this test - it only exercises the error
-        // path, which is reached before $mode has any effect on behavior.
-        $gui->installObject([], InstallLanguage::MODE_INSTALL);
-    }
-
-    public function testInstallObjectEmbedsAPlainStringErrorFromAnErrorResultIntoTheFailureMessage(): void
-    {
-        // ILIAS\Data\Result\Error also accepts a plain string (not just a
-        // Throwable) - the "$error instanceof \Throwable ? ... : $error"
-        // branch for that case must be covered too.
-        $error_string = 'permission denied';
-        $install_language = $this->createMock(InstallLanguage::class);
-        $install_language->method('maybePerformAs')->willReturn(new ResultError($error_string));
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())
-            ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($error_string), true);
-
-        $ctrl = $this->createMock(ilCtrl::class);
-
-        $gui = $this->createGuiWithCollaborators(
-            $install_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->installObject([], InstallLanguage::MODE_INSTALL_LOCAL);
-    }
-
-    public function testInstallObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
-    {
-        $install_language = $this->createMock(InstallLanguage::class);
-        $install_language->method('maybePerformAs')->willReturn(
-            new ResultError(new \RuntimeException('boom'))
-        );
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+            ->with('failure', 'no_checkbox', true);
 
         $ctrl = $this->createMock(ilCtrl::class);
         $ctrl->expects($this->once())->method('redirect')->with(
             $this->isInstanceOf(ilObjLanguageFolderGUI::class),
             'view'
         );
-
-        $gui = $this->createGuiWithCollaborators(
-            $install_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->installObject([], InstallLanguage::MODE_INSTALL);
-    }
-
-    /**
-     * $mode is a plain pass-through: whatever installObject() is called
-     * with must end up verbatim under the 'mode' key of
-     * maybePerformAs()'s parameter array, alongside the language keys
-     * resolved from $ids.
-     */
-    public function testInstallObjectPassesModeThroughToMaybePerformAs(): void
-    {
-        $install_language = $this->createMock(InstallLanguage::class);
-        $install_language->expects($this->once())
-            ->method('maybePerformAs')
-            ->with(
-                6,
-                ['language_keys' => [], 'mode' => InstallLanguage::MODE_INSTALL_LOCAL]
-            )
-            ->willReturn(new ResultOk($this->emptyPerformResult()));
-
-        $gui = $this->createGuiWithCollaborators(
-            $install_language,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->installObject([], InstallLanguage::MODE_INSTALL_LOCAL);
-    }
-
-    /**
-     * already_installed_language_keys and the new not_installed_language_keys
-     * are both "nothing happened" buckets. setOnScreenMessage() only keeps
-     * one message per type, so - exactly like the existing
-     * success_messages combination pattern for installed/installed-with-local
-     * - both must be combined into a single 'info' call instead of two
-     * separate calls that would silently overwrite each other.
-     */
-    public function testInstallObjectCombinesAlreadyInstalledAndNotInstalledIntoOneInfoMessage(): void
-    {
-        $install_language = $this->createMock(InstallLanguage::class);
-        $install_language->method('maybePerformAs')->willReturn(new ResultOk(
-            [
-                'installed_language_keys' => [],
-                'installed_with_local_language_keys' => [],
-                'already_installed_language_keys' => ['de'],
-                'not_installed_language_keys' => ['fr'],
-                'invalid_local_language_files' => [],
-            ]
-        ));
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())
-            ->method('setOnScreenMessage')
-            ->with(
-                'info',
-                'languages_already_installed: meta_l_de<br />meta_l_fr language_not_installed',
-                true
-            );
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
 
         $gui = $this->createGuiWithCollaborators(
             $install_language,
@@ -453,6 +422,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
 
         return $gui;
     }
@@ -492,229 +462,31 @@ class ilObjLanguageFolderGUITest extends TestCase
         ];
     }
 
-    public function testRefreshSelectedObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
-    {
-        $exception_message = 'Invalid language files: xx, yy';
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultError(new \RuntimeException($exception_message))
-        );
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())
-            ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($exception_message), true);
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        // The error path is reached before ilObjLanguage::refreshPlugins()
-        // would ever be called, so no $DIC stub is needed here.
-        $gui->refreshSelectedObject([]);
-    }
-
-    public function testRefreshSelectedObjectEmbedsAPlainStringErrorFromAnErrorResultIntoTheFailureMessage(): void
-    {
-        // ILIAS\Data\Result\Error also accepts a plain string (not just a
-        // Throwable) - the "$error instanceof \Throwable ? ... : $error"
-        // branch for that case must be covered too.
-        $error_string = 'permission denied';
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(new ResultError($error_string));
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())
-            ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($error_string), true);
-
-        $ctrl = $this->createMock(ilCtrl::class);
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-    }
-
-    public function testRefreshSelectedObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
-    {
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultError(new \RuntimeException('boom'))
-        );
-
-        // If the `return` after the redirect were ever dropped, execution
-        // would fall through to `$result->value()` - which throws on an
-        // Error result (see ILIAS\Data\Result\Error::value()) - so this
-        // would surface as a test error rather than silently passing.
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())->method('setOnScreenMessage');
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect')->with(
-            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
-            'view'
-        );
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-    }
-
     /**
-     * UpdateLanguage::perform() has no "mode" concept (unlike
-     * InstallLanguage) - only 'language_keys' may ever be sent.
+     * Regression test for refreshSelectedObject()'s explicit "empty
+     * selection" guard - same reasoning as
+     * testInstallObjectWithEmptySelectionShowsNoCheckboxMessageAndNeverCallsTheActivity()
+     * above: an empty $ids must show 'no_checkbox' and redirect WITHOUT
+     * ever calling UpdateLanguage::maybePerformAs().
+     *
+     * Note: as with installObject(), this guard means $ids=[] can no
+     * longer be used to exercise refreshSelectedObject()'s own
+     * Result-handling logic (error/success/info message assembly) while
+     * sidestepping its other legacy coupling (`new ilObjLanguage((int)
+     * $obj_id)` for a non-empty $ids) - see class docblock. That logic is
+     * no longer directly unit-testable via this public method; the
+     * underlying business logic it assembles into a message remains
+     * covered by UpdateLanguageTest (perform()/maybePerformAs()).
      */
-    public function testRefreshSelectedObjectPassesOnlyLanguageKeysWithoutAModeKeyToMaybePerformAs(): void
+    public function testRefreshSelectedObjectWithEmptySelectionShowsNoCheckboxMessageAndNeverCallsTheActivity(): void
     {
-        $this->stubComponentRepositoryWithNoPlugins();
-
         $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->expects($this->once())
-            ->method('maybePerformAs')
-            ->with(6, ['language_keys' => []])
-            ->willReturn(new ResultOk($this->updatePerformResult([], [])));
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-    }
-
-    public function testRefreshSelectedObjectSetsSuccessMessageWhenOnlyUpdatedLanguageKeysIsNonEmpty(): void
-    {
-        $this->stubComponentRepositoryWithNoPlugins();
-
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultOk($this->updatePerformResult(['de'], []))
-        );
+        $update_language->expects($this->never())->method('maybePerformAs');
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
         $tpl->expects($this->once())
             ->method('setOnScreenMessage')
-            ->with('success', 'selected_languages_updated meta_l_de', true);
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-    }
-
-    public function testRefreshSelectedObjectSetsInfoMessageWhenOnlyNotInstalledLanguageKeysIsNonEmpty(): void
-    {
-        $this->stubComponentRepositoryWithNoPlugins();
-
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultOk($this->updatePerformResult([], ['fr']))
-        );
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->once())
-            ->method('setOnScreenMessage')
-            ->with('info', 'meta_l_fr language_not_installed', true);
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-    }
-
-    /**
-     * Unlike installObject()'s combined success message (two "nothing
-     * happened" / two "something happened" buckets sharing one message
-     * type, and therefore explicitly combined into one call to avoid a
-     * silent overwrite), 'success' and 'info' are different message
-     * types here - so both setOnScreenMessage() calls must actually
-     * happen, as two separate calls, neither one clobbering the other.
-     */
-    public function testRefreshSelectedObjectSetsBothSuccessAndInfoMessagesWhenBothBucketsAreNonEmpty(): void
-    {
-        $this->stubComponentRepositoryWithNoPlugins();
-
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultOk($this->updatePerformResult(['de'], ['fr']))
-        );
-
-        $captured_calls = [];
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->exactly(2))
-            ->method('setOnScreenMessage')
-            ->willReturnCallback(function (string $type, string $message, bool $keep) use (&$captured_calls): void {
-                $captured_calls[] = [$type, $message];
-            });
-
-        $ctrl = $this->createMock(ilCtrl::class);
-        $ctrl->expects($this->once())->method('redirect');
-
-        $gui = $this->createGuiWithUpdateLanguageCollaborators(
-            $update_language,
-            $tpl,
-            $ctrl,
-            $this->createLanguageMockReturningTopicAsIs()
-        );
-
-        $gui->refreshSelectedObject([]);
-
-        self::assertCount(2, $captured_calls);
-        self::assertSame(['success', 'selected_languages_updated meta_l_de'], $captured_calls[0]);
-        self::assertSame(['info', 'meta_l_fr language_not_installed'], $captured_calls[1]);
-    }
-
-    /**
-     * Boundary: when nothing was requested (or every requested language
-     * was already covered by neither bucket - which cannot actually
-     * happen per UpdateLanguage::perform()'s contract, but the two
-     * `!== []` checks must still degrade correctly for the case that
-     * genuinely does occur, an empty $ids request), no message at all
-     * must appear - not even an empty one.
-     */
-    public function testRefreshSelectedObjectSetsNoMessageWhenBothBucketsAreEmpty(): void
-    {
-        $this->stubComponentRepositoryWithNoPlugins();
-
-        $update_language = $this->createMock(UpdateLanguage::class);
-        $update_language->method('maybePerformAs')->willReturn(
-            new ResultOk($this->updatePerformResult([], []))
-        );
-
-        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
-        $tpl->expects($this->never())->method('setOnScreenMessage');
+            ->with('failure', 'no_checkbox', true);
 
         $ctrl = $this->createMock(ilCtrl::class);
         $ctrl->expects($this->once())->method('redirect')->with(
@@ -756,6 +528,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
 
         return $gui;
     }
@@ -780,15 +553,18 @@ class ilObjLanguageFolderGUITest extends TestCase
     public function testUninstallObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
     {
         $exception_message = 'boom';
+        $this->stubLoggerLangError($exception_message);
+
         $uninstall_language = $this->createMock(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
 
+        // uninstallObject() wraps the message as "{error}<br/>action_aborted".
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
         $tpl->expects($this->once())
             ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($exception_message), true);
+            ->with('failure', 'action_aborted', true);
 
         $ctrl = $this->createMock(ilCtrl::class);
         $ctrl->expects($this->once())->method('redirect');
@@ -831,6 +607,8 @@ class ilObjLanguageFolderGUITest extends TestCase
 
     public function testUninstallObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
     {
+        $this->stubLoggerLangError('boom');
+
         $uninstall_language = $this->createMock(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
@@ -866,19 +644,38 @@ class ilObjLanguageFolderGUITest extends TestCase
      * install/update tests - this is only exercised with an empty $ids
      * array, which is enough to pin that maybePerformAs() receives an
      * (empty) 'language_keys' array and no other key.
+     *
+     * An empty $ids array means UninstallLanguage::toLanguageKeyList([])
+     * would, in reality, throw \InvalidArgumentException('At least one
+     * language key is required.') - the real Activity is never reached
+     * here (it is mocked), but the mock is stubbed to return that same
+     * realistic error instead of an artificial Ok result, so this test does
+     * not silently pretend an empty request succeeds (m6). The 'with()'
+     * expectation below - the actual point of this test - is unaffected
+     * either way.
      */
     public function testUninstallObjectPassesOnlyLanguageKeysWithoutAModeKeyToMaybePerformAs(): void
     {
+        $this->stubLoggerLangError('At least one language key is required.', \InvalidArgumentException::class);
+
         $uninstall_language = $this->createMock(UninstallLanguage::class);
         $uninstall_language->expects($this->once())
             ->method('maybePerformAs')
             ->with(6, ['language_keys' => []])
-            ->willReturn(new ResultOk($this->uninstallPerformResult([], [], [], [])));
+            ->willReturn(new ResultError(
+                new \InvalidArgumentException('At least one language key is required.')
+            ));
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with('failure', $this->anything(), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
 
         $gui = $this->createGuiWithUninstallLanguageCollaborators(
             $uninstall_language,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
+            $tpl,
+            $ctrl,
             $this->createLanguageMockReturningTopicAsIs()
         );
 
@@ -1048,6 +845,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
 
         return $gui;
     }
@@ -1070,17 +868,23 @@ class ilObjLanguageFolderGUITest extends TestCase
     public function testUninstallChangesObjectEmbedsTheThrowableMessageFromAnErrorResultIntoTheFailureMessage(): void
     {
         // The error path is reached before ilObjLanguage::refreshPlugins()
-        // would ever be called, so no $DIC stub is needed here.
+        // would ever be called, so stubComponentRepositoryWithNoPlugins() is
+        // not needed here - only the "lang" logger stub activityErrorMessage()
+        // now requires for a \Throwable error.
         $exception_message = 'boom';
+        $this->stubLoggerLangError($exception_message);
+
         $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
 
+        // uninstallChangesObject() wraps the message as
+        // "{error}<br/>action_aborted", same as uninstallObject().
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
         $tpl->expects($this->once())
             ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($exception_message), true);
+            ->with('failure', 'action_aborted', true);
 
         $ctrl = $this->createMock(ilCtrl::class);
         $ctrl->expects($this->once())->method('redirect');
@@ -1123,6 +927,13 @@ class ilObjLanguageFolderGUITest extends TestCase
 
     public function testUninstallChangesObjectRedirectsToViewAfterAnErrorResultAndDoesNotContinueToTheSuccessPath(): void
     {
+        // The error path is reached (and returns) before
+        // ilObjLanguage::refreshPlugins() would ever be called, so
+        // stubComponentRepositoryWithNoPlugins() is not needed here - only
+        // the "lang" logger stub activityErrorMessage() now requires for a
+        // \Throwable error.
+        $this->stubLoggerLangError('boom');
+
         $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
@@ -1161,21 +972,41 @@ class ilObjLanguageFolderGUITest extends TestCase
      * uninstallObject() test - this is only exercised with an empty $ids
      * array, which is enough to pin that maybePerformAs() receives an
      * (empty) 'language_keys' array and no other key.
+     *
+     * An empty $ids array means
+     * RemoveLocalLanguageChanges::toLanguageKeyList([]) would, in reality,
+     * throw \InvalidArgumentException('At least one language key is
+     * required.') - the real Activity is never reached here (it is
+     * mocked), but the mock is stubbed to return that same realistic error
+     * instead of an artificial Ok result, so this test does not silently
+     * pretend an empty request succeeds (m6). This also means the error
+     * path is taken, so stubComponentRepositoryWithNoPlugins() is no longer
+     * needed (refreshPlugins() is never reached on the error path) - only
+     * the "lang" logger stub activityErrorMessage() now requires for a
+     * \Throwable error is.
      */
     public function testUninstallChangesObjectPassesOnlyLanguageKeysWithoutAModeKeyToMaybePerformAs(): void
     {
-        $this->stubComponentRepositoryWithNoPlugins();
+        $this->stubLoggerLangError('At least one language key is required.', \InvalidArgumentException::class);
 
         $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->expects($this->once())
             ->method('maybePerformAs')
             ->with(6, ['language_keys' => []])
-            ->willReturn(new ResultOk($this->removeLocalChangesPerformResult([], [], [])));
+            ->willReturn(new ResultError(
+                new \InvalidArgumentException('At least one language key is required.')
+            ));
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with('failure', $this->anything(), true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
 
         $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
             $remove_local_language_changes,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
+            $tpl,
+            $ctrl,
             $this->createLanguageMockReturningTopicAsIs()
         );
 
@@ -1385,12 +1216,20 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
 
         return $gui;
     }
 
     public function testEnableLanguageDetectionObjectCallsMaybePerformAsWithEnabledTrue(): void
     {
+        // The stubbed Error result's \Throwable is unconditionally passed
+        // through activityErrorMessage(), which now logs it via the "lang"
+        // component logger - this test is only about the maybePerformAs()
+        // arguments, but still needs the logger stub so the (irrelevant to
+        // this test) logging call does not fatally error on a null $DIC.
+        $this->stubLoggerLangError('boom');
+
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->expects($this->once())
             ->method('maybePerformAs')
@@ -1409,6 +1248,11 @@ class ilObjLanguageFolderGUITest extends TestCase
 
     public function testDisableLanguageDetectionObjectCallsMaybePerformAsWithEnabledFalse(): void
     {
+        // See testEnableLanguageDetectionObjectCallsMaybePerformAsWithEnabledTrue()
+        // above for why this stub is needed even though this test itself is
+        // only about the maybePerformAs() arguments.
+        $this->stubLoggerLangError('boom');
+
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->expects($this->once())
             ->method('maybePerformAs')
@@ -1428,15 +1272,19 @@ class ilObjLanguageFolderGUITest extends TestCase
     public function testSetLanguageDetectionEnabledObjectEmbedsTheThrowableMessageAndRedirectsOnError(): void
     {
         $exception_message = 'no write permission';
+        $this->stubLoggerLangError($exception_message);
+
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
 
+        // setLanguageDetectionEnabledObject() wraps the message as
+        // "{error}<br/>action_aborted", same as uninstallObject().
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
         $tpl->expects($this->once())
             ->method('setOnScreenMessage')
-            ->with('failure', $this->stringContains($exception_message), true);
+            ->with('failure', 'action_aborted', true);
 
         $ctrl = $this->createMock(ilCtrl::class);
         $ctrl->expects($this->once())->method('redirect')->with(
@@ -1487,6 +1335,11 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
         $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
+        $this->setReadonlyPropertyDeclaredOnGuiClass(
+            $gui,
+            'activity_error_logger',
+            $this->activityErrorLoggerForGui()
+        );
 
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         // Permission denial is simulated at the Activity level (an Error
