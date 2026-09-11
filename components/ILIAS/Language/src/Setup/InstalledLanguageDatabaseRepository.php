@@ -29,6 +29,22 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
     private const SEPARATOR = "#:#";
 
     /**
+     * The language-key part of the `ilias_<key>.lang...` file naming
+     * convention that getLocalLanguages()/getInstallableLanguages() below
+     * discover files by. Mirrors
+     * \ILIAS\Language\Activities\ParsesLanguageKeyList::LANGUAGE_KEY_FORMAT
+     * (exactly two lowercase ASCII letters) so that a file this repository
+     * lists as installable/local can never fail that later, stricter
+     * validation once an Activity actually tries to install/refresh it.
+     * Kept as a parallel definition, not a shared reference: PHP trait
+     * constants cannot be accessed via the trait's own name (only through a
+     * class that uses the trait), and this class has no reason to use
+     * ParsesLanguageKeyList itself, which exists to parse a
+     * comma-separated form/request value, not to discover files.
+     */
+    private const LANGUAGE_KEY_PATTERN = '[a-z]{2}';
+
+    /**
      * @param \ilDBInterface|\Closure():\ilDBInterface $db Accepted as a closure so this
      *        can be built once (e.g. in Language.php's DI wiring) before a database
      *        connection is available, and resolved lazily on first use - mirroring
@@ -52,7 +68,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $ilDB = $this->db();
 
         $arr = [];
-        $query = "SELECT * FROM object_data " .
+        $query = "SELECT title FROM object_data " .
             "WHERE type = " . $ilDB->quote("lng", "text") . " " .
             "AND " . $ilDB->like("description", "text", "installed%");
         $r = $ilDB->query($query);
@@ -68,7 +84,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $ilDB = $this->db();
 
         $arr = [];
-        $query = "SELECT * FROM object_data " .
+        $query = "SELECT title FROM object_data " .
             "WHERE type = " . $ilDB->quote("lng", "text") . " " .
             "AND description = " . $ilDB->quote("installed_local", "text");
         $r = $ilDB->query($query);
@@ -84,7 +100,10 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $ilDB = $this->db();
 
         $arr = [];
-        $query = "SELECT * FROM object_data " .
+        // Unlike the two queries above, obj_id and description are both
+        // actually read below (title alone would not be enough here) - see
+        // the loop body.
+        $query = "SELECT obj_id, title, description FROM object_data " .
             "WHERE type = " . $ilDB->quote("lng", "text");
         $r = $ilDB->query($query);
 
@@ -108,7 +127,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         }
 
         $q = sprintf(
-            "SELECT * FROM lng_data WHERE lang_key = %s " .
+            "SELECT module, identifier, value FROM lng_data WHERE lang_key = %s " .
             "AND local_change >= %s AND local_change <= %s",
             $ilDB->quote($lang_key, "text"),
             $ilDB->quote($min_date, "timestamp"),
@@ -128,7 +147,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
         $ilDB = $this->db();
 
         $q = sprintf(
-            "SELECT * FROM lng_data WHERE lang_key = %s",
+            "SELECT module, identifier, value FROM lng_data WHERE lang_key = %s",
             $ilDB->quote($lang_key, "text")
         );
         $result = $ilDB->query($q);
@@ -156,7 +175,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
                     $d = dir($path);
                     chdir($path);
                     while ($entry = $d->read()) {
-                        if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
                             $lang_key = substr($entry, 6, 2);
                             $local_langs[] = $lang_key;
                         }
@@ -185,7 +204,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
                     $d = dir($path);
                     chdir($path);
                     while ($entry = $d->read()) {
-                        if (is_file($entry) && (preg_match("~(^ilias_.{2}\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
                             $lang_key = substr($entry, 6, 2);
                             $installableLanguages[] = $lang_key;
                         }

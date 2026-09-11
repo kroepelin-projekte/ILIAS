@@ -300,6 +300,65 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         }
     }
 
+    /**
+     * Regression test: the discovery regex must accept exactly the same
+     * shape as \ILIAS\Language\Activities\ParsesLanguageKeyList::LANGUAGE_KEY_FORMAT
+     * ('/^[a-z]{2}$/') - two lowercase ASCII letters, nothing else. A file
+     * whose "language key" part is uppercase, a digit, or longer/shorter
+     * than two characters must be silently ignored here, not listed as a
+     * local language: previously such a file WAS listed (any two
+     * characters were accepted), only to fail later at the stricter
+     * ParsesLanguageKeyList validation once an Activity actually tried to
+     * install/refresh it.
+     */
+    public function testGetLocalLanguagesIgnoresFilesWithAnInvalidLanguageKeyShapeInTheirName(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/customizing/ilias_de.lang.local', 'irrelevant content');
+        // Uppercase letters - would fail ParsesLanguageKeyList's '/^[a-z]{2}$/' later.
+        file_put_contents($root . '/lang/customizing/ilias_DE.lang.local', 'irrelevant content');
+        // Digits instead of letters.
+        file_put_contents($root . '/lang/customizing/ilias_12.lang.local', 'irrelevant content');
+        // Mixed case.
+        file_put_contents($root . '/lang/customizing/ilias_Fr.lang.local', 'irrelevant content');
+        // Three letters - too long for the fixed two-letter format.
+        file_put_contents($root . '/lang/customizing/ilias_deu.lang.local', 'irrelevant content');
+
+        try {
+            $repository = $this->createRepository($this->createReadDatabaseMock(), $root);
+
+            $result = $repository->getLocalLanguages();
+
+            $this->assertSame(['de'], $result);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Same regression as above, for getInstallableLanguages() (the main
+     * lang/ directory) rather than getLocalLanguages() (lang/customizing/).
+     */
+    public function testGetInstallableLanguagesIgnoresFilesWithAnInvalidLanguageKeyShapeInTheirName(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/ilias_de.lang', 'irrelevant content');
+        // Uppercase letters - would fail ParsesLanguageKeyList's '/^[a-z]{2}$/' later.
+        file_put_contents($root . '/lang/ilias_DE.lang', 'irrelevant content');
+        // Digits instead of letters.
+        file_put_contents($root . '/lang/ilias_12.lang', 'irrelevant content');
+
+        try {
+            $repository = $this->createRepository($this->createReadDatabaseMock(), $root);
+
+            $result = $repository->getInstallableLanguages();
+
+            $this->assertSame(['de'], $result);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testGetLocalLanguagesReturnsEmptyArrayWhenCustomizingDirectoryIsEmpty(): void
     {
         $root = $this->createTempInstallationRoot();

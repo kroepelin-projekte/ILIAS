@@ -79,7 +79,83 @@ class RendersActivityErrorsTest extends TestCase
         $message = $this->host($logger, $this->languageMockReturningTopicAsIs())
             ->callActivityErrorMessage($error);
 
-        $this->assertSame('Multiple language objects share the title(s) "fr".', $message);
+        // The domain layer (UninstallLanguage/RemoveLocalLanguageChanges etc.)
+        // deliberately embeds the raw, unescaped title in the exception
+        // message - activityErrorMessage() is the one seam that HTML-escapes
+        // it for safe display, so the '"' characters must come back as
+        // '&quot;' here.
+        $this->assertSame('Multiple language objects share the title(s) &quot;fr&quot;.', $message);
+    }
+
+    /**
+     * Regression test for the escaping seam itself: a SafeToDisplayActivityError
+     * message containing genuinely dangerous markup (not just a stray quote)
+     * must come back HTML-escaped - proving activityErrorMessage() is not
+     * merely quote-escaping by coincidence but actually protects against
+     * XSS-shaped content that a caller-controlled language key/title/field
+     * name could carry.
+     */
+    public function testASafeToDisplayActivityErrorMessageWithDangerousMarkupIsHtmlEscaped(): void
+    {
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->never())->method('error');
+
+        $error = new InvalidInputException('Unknown key(s) for <script>alert(1)</script> & "quoted" \'single\'.');
+
+        $message = $this->host($logger, $this->languageMockReturningTopicAsIs())
+            ->callActivityErrorMessage($error);
+
+        $this->assertSame(
+            'Unknown key(s) for &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quoted&quot; &#039;single&#039;.',
+            $message
+        );
+        $this->assertStringNotContainsString('<script>', $message);
+    }
+
+    /**
+     * Regression test for the ENT_SUBSTITUTE fix: without it, invalid UTF-8
+     * anywhere in a SafeToDisplayActivityError's message (e.g. caller-
+     * controlled data embedded by the domain layer, see the class docblock
+     * above) made htmlspecialchars() return an EMPTY STRING for the WHOLE
+     * message, not just drop the offending bytes - the user would see a
+     * blank error box with no indication anything went wrong at all. With
+     * ENT_SUBSTITUTE, the invalid byte sequence is replaced by U+FFFD
+     * (encoded as UTF-8: "\xEF\xBF\xBD") and the rest of the message - both
+     * before and after the invalid bytes - survives.
+     */
+    public function testASafeToDisplayActivityErrorMessageWithInvalidUtf8IsNotSilentlyDroppedToAnEmptyString(): void
+    {
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->never())->method('error');
+
+        // "\xC3\x28" is not valid UTF-8 (0xC3 announces a 2-byte sequence,
+        // but 0x28 "(" is not a valid continuation byte).
+        $error = new InvalidInputException("Invalid language key \"d\xC3\x28\": bad input.");
+
+        $message = $this->host($logger, $this->languageMockReturningTopicAsIs())
+            ->callActivityErrorMessage($error);
+
+        $this->assertNotSame('', $message);
+        $this->assertStringStartsWith('Invalid language key &quot;d', $message);
+        $this->assertStringContainsString("\u{FFFD}", $message);
+        $this->assertStringEndsWith('&quot;: bad input.', $message);
+    }
+
+    /**
+     * Companion to the previous test: the plain-string branch (is_string($error),
+     * e.g. 'msg_no_perm_write' from $this->lng->txt()) must NOT be escaped at
+     * all - proving no double-escaping was introduced alongside the new
+     * escaping seam for SafeToDisplayActivityError.
+     */
+    public function testAPlainStringErrorContainingHtmlSignificantCharactersIsReturnedCompletelyUnescaped(): void
+    {
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->never())->method('error');
+
+        $message = $this->host($logger, $this->languageMockReturningTopicAsIs())
+            ->callActivityErrorMessage('<b>already trusted</b> & safe "as-is"');
+
+        $this->assertSame('<b>already trusted</b> & safe "as-is"', $message);
     }
 
     /**

@@ -130,7 +130,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
         $this->createActivity(settings: $settings)->perform([]);
     }
@@ -140,7 +140,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
         $this->createActivity(settings: $settings)->perform('not-an-array');
     }
@@ -157,7 +157,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
         $this->createActivity(settings: $settings)->perform(['enabled' => $value]);
     }

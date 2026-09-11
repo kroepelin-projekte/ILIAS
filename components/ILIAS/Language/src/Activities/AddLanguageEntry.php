@@ -20,12 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
-use ILIAS\Component\Activities\ActivityImpl;
-use ILIAS\Component\Activities\ActivityType;
 use ILIAS\Data\Description;
 use ILIAS\Data\Result;
 use ILIAS\Data\Text;
-use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -36,161 +33,51 @@ use ILIAS\UI\Factory as UIFactory;
  * Adds one new "adjust language variables" entry (a module/identifier pair
  * not yet present in any installed language) - the value given for each
  * currently installed language is written to that language's lng_data, and
- * the according lng_modules serialization cache is refreshed to match. An
- * installed language for which no value was given (or only a blank one) is
- * left completely untouched and reported separately - EXCEPT "de" and "en"
- * (see "de"/"en" are mandatory below), which are never merely skipped; use
- * UpdateLanguage/RemoveLocalLanguageChanges if an *existing* entry needs to
- * be changed back to the shipped default instead - this Activity only ever
- * adds/overwrites the given module/identifier pair with the given values.
+ * the lng_modules serialization cache is refreshed to match. An installed
+ * language with no (or only a blank) value given is left untouched and
+ * reported separately - EXCEPT "de"/"en" (see the mandatory-language check
+ * in perform()), which reject the WHOLE request instead of being merely
+ * skipped, mirroring the legacy `ilPropertyFormGUI`'s `setRequired(true)` on
+ * these two fields.
  *
- * "de"/"en" are mandatory, all-or-nothing: mirroring the legacy
- * `ilPropertyFormGUI`'s `$trans->setRequired(true)` on these two translation
- * fields (see `git show 4b1cbf1a488:.../class.ilObjLanguageExtGUI.php`), a
- * missing or blank value for "de" or "en" - whichever is currently installed
- * - rejects the WHOLE request: perform() throws InvalidInputException and
- * writes NOTHING for ANY language, before a single
- * `ilObjLanguage::replaceLangEntry()` call is made - exactly reproducing the
- * legacy form's `$form->checkInput()` behaviour. A "de"/"en" that is not
- * currently installed imposes no such requirement, just like the legacy
- * form never rendered a field for it. Every OTHER installed language stays
- * optional and is simply skipped if left blank, as before.
+ * Separate Activity from Install/Update/Uninstall/RemoveLocalLanguageChanges
+ * on purpose: this acts on a single module/identifier pair across every
+ * installed language, not on whole languages by key. Has no Setup
+ * counterpart (Setup never edits individual language entries), hence no
+ * `forSetup()` factory.
  *
- * This guarantee is scoped EXACTLY to this one failure mode and is upheld
- * unconditionally (the check runs entirely before the write loop starts) -
- * it is NOT a general transactional guarantee for the write loop itself,
- * see "Known limitations" below for that (pre-existing, narrower) gap.
+ * Unlike every other Activity here, this records *who* made the change:
+ * `replaceLangEntry()` stores the acting user's login. Since the Activity
+ * interface only hands `$usr_id` to `isAllowedToPerform()`, not `perform()`,
+ * `maybePerformAs()` injects it into the parameter array under the reserved
+ * `usr_id` key before calling `perform()` - a direct perform()/
+ * isAllowedToPerform() caller bypassing maybePerformAs() must supply it
+ * itself; it is deliberately not part of getInputDescription(), so it can
+ * never be spoofed by a caller-supplied form value. `maybePerformAs()`
+ * likewise injects the already-resolved `installed_language_keys` snapshot,
+ * so perform() reuses the exact list getInputDescription() was built from
+ * (avoiding both a redundant DB round trip and a TOCTOU risk).
  *
- * This is a separate Activity from InstallLanguage/UpdateLanguage/
- * UninstallLanguage/RemoveLocalLanguageChanges on purpose: "add a language
- * entry" acts on a single module/identifier pair across every installed
- * language, not on whole languages by key, and has no notion of installing,
- * refreshing, uninstalling, or discarding local customizations of a
- * language. Like UninstallLanguage/RemoveLocalLanguageChanges, this has no
- * Setup counterpart - Setup never edits individual language entries - which
- * is why this class deliberately has no `forSetup()` factory.
+ * `isAllowedToPerform()` requires "write" access to the language folder
+ * ref_id, exactly like every sibling Activity - this re-affirms an
+ * already-enforced rule rather than introducing one, for the same
+ * `ilObjLanguageAccess::_checkMaintenance()` precedent documented in
+ * SetLanguageTranslationEnabled's class docblock.
  *
- * Unlike every other Activity in this component, this one needs to record
- * *who* made the change: `ilObjLanguage::replaceLangEntry()` stores the
- * acting user's login in its `remarks` column, exactly as the extracted GUI
- * code (`ilObjLanguageExtGUI::saveNewEntryObject()`) did before. The Activity
- * interface only ever hands the acting `$usr_id` to `isAllowedToPerform()`,
- * not to `perform()` - to still let `perform()` record the correct login,
- * `maybePerformAs()` (which is the only caller of `perform()` here that ever
- * gets a `$usr_id`) adds it into the parameter array under the reserved key
- * `usr_id` before calling `perform()`. A caller that invokes
- * `isAllowedToPerform()`/`perform()` directly instead of `maybePerformAs()`
- * (see README.md, "As User of a Specific Activity") MUST supply the same
- * `usr_id` key itself - it is deliberately not part of
- * `getInputDescription()`, so that the recorded login always reflects the
- * authenticated acting user and can never be spoofed by a caller-supplied
- * form value.
- *
- * Which languages a value can be given for (`getInputDescription()`) and
- * which of them actually receive a write (`perform()`) both come from
- * `InstalledLanguageRepository::getInstalledLanguages()` - the exact same
- * set the extracted GUI code read via `$this->lng->getInstalledLanguages()`.
- * Unlike UninstallLanguage/RemoveLocalLanguageChanges, this Activity has no
- * need to construct an `ilObjLanguage` for a specific language key, so no
- * such closure is offered here.
- *
- * Two further legacy access points are wrapped in closures, purely so tests
- * can substitute fakes without bootstrapping the legacy global $DIC:
- *  - `replaceLangEntry()`, defaulting to the exact
- *    `\ilObjLanguage::replaceLangEntry()` call the extracted GUI code used
- *    directly, and
- *  - `updateModuleCache()`, defaulting to the exact "read the serialized
- *    lng_modules row for this language/module, decode it, set the new entry,
- *    write it back via `\ilObjLanguage::replaceLangModule()`" sequence the
- *    extracted GUI code used directly (silently doing nothing if the row is
- *    missing or not decodable, exactly as before).
- *
- * `updateModuleCache()`'s default needs a database connection to read the
- * `lng_modules` row it refreshes. Like every other legacy collaborator this
- * component's Activities depend on, that connection is injected via `$db`
- * (accepting either an `\ilDBInterface` or a `\Closure` resolving one) rather
- * than reached for directly here in `src/` - `Language.php` wires it to the
- * same `$resolve_db` closure (`$GLOBALS['ilDB'] ?? $GLOBALS['DIC']->database()`)
- * already shared by `InstalledLanguageDatabaseRepository`/
- * `LanguageInstallationManager`, so this class has no direct `$GLOBALS['DIC']`
- * access of its own, consistent with every sibling Activity in this
- * component.
- *
- * Permission check, and why this does NOT introduce a new restriction:
- * `isAllowedToPerform()` here requires "write" access to the language folder
- * ref_id, exactly like every other Activity in this component. The extracted
- * GUI code this Activity replaces (`ilObjLanguageExtGUI::saveNewEntryObject()`)
- * never performed this check itself either, but it did not need to: every
- * command of that same class - including `saveNewEntryObject()` - already
- * runs behind `ilObjLanguageExtGUI::executeCommand()`'s blanket
- * `ilObjLanguageAccess::_checkMaintenance()` gate, which itself requires
- * `$rbacsystem->checkAccess("read,write", $ref_id)` on that very same
- * language folder ref_id (RBAC's `checkAccess()` with a comma-separated
- * operation list requires ALL listed operations, i.e. this is an AND, not an
- * OR - see `\ilRbacSystem::checkAccessOfUser()`). So `saveNewEntryObject()`
- * could never have run in the first place without the acting user already
- * holding write access to that same ref_id - this Activity's
- * `isAllowedToPerform()` re-affirms an already-enforced business rule at the
- * Activity layer, exactly like SetLanguageTranslationEnabled's own
- * `isAllowedToPerform()` (see its class docblock, which documents the same
- * `_checkMaintenance()` gate for its own extracted GUI method); it does not
- * add a new one.
- *
- * Deliberately NOT reproduced here: the session-based restriction of `module`/
+ * Deliberately NOT reproduced: the session-based restriction of `module`/
  * `identifier` to previously listed "missing entries"
- * (`ilObjLanguageAccess::_getSavedModules()`/`_getSavedTopics()`). That
- * restriction is a GUI workflow guard tied to the acting session's "missing
- * entries" listing, not a business rule of the domain action itself - it
- * remains solely the caller's (GUI's) responsibility, exactly as before this
- * extraction.
- *
- * Known limitations, inherited from the legacy domain code rather than
- * introduced by this extraction:
- *  - perform()'s write loop itself is NOT transactional (unlike the
- *    "de"/"en" mandatory check above, which is atomic by construction -
- *    see there): if `replace_lang_entry()`/`update_module_cache()` throws
- *    partway through writing multiple already-validated languages (e.g. a
- *    database error), languages processed before the failing one remain
- *    written while the whole call is still reported as a single
- *    Result\Error, with no indication of which languages that were. A
- *    database transaction was deliberately not introduced here to cover
- *    this: `replace_lang_entry()`/`update_module_cache()` are both
- *    injectable collaborators a caller may freely replace (every test in
- *    this class does), so this class cannot generally guarantee they
- *    share one single database connection/transaction to begin with - a
- *    transaction wrapped only around the *default* implementations would
- *    give a guarantee that quietly stops applying the moment either
- *    collaborator is overridden, which is worse than documenting the
- *    limitation honestly.
- *  - updateModuleCache()'s default silently does nothing if the lng_modules
- *    row for a language/module is missing or not a serialized array -
- *    exactly the same silent behaviour the extracted GUI code had (it never
- *    surfaced this case to the user either).
- *  - a translation value of exactly "0" is treated as if it were blank and
- *    silently skipped, the same as an empty or whitespace-only value - the
- *    extracted GUI code decided via `if ($trans) {...}` on the trimmed
- *    string, which is false for "0" in PHP; perform() deliberately
- *    reproduces this exact truthiness check rather than a stricter
- *    `$value === ''` comparison, to not change this pre-existing behaviour
- *    as a side effect of the extraction.
- *  - getInputDescription() accepts a whitespace-only or "0" value for a
- *    mandatory "de"/"en" translation (a plain `withRequired(true)` only
- *    enforces a minimum length of 1 on the RAW, untrimmed string - see
- *    Text::getConstraintForRequirement()), which perform() then still
- *    rejects once trimmed (see the mandatory-language check above) - a
- *    narrow violation of this component's own README.md rule that input
- *    accepted by getInputDescription() must not make perform() crash. See
- *    buildInputDescription() for why this is left as a known limitation
- *    rather than fixed at the field level.
+ * (`ilObjLanguageAccess::_getSavedModules()`/`_getSavedTopics()`) - a GUI
+ * workflow guard, not a business rule of the domain action, and so remains
+ * solely the caller's responsibility.
  */
-class AddLanguageEntry extends ActivityImpl
+class AddLanguageEntry extends LanguageActivity
 {
-    use GrindsFormInput;
+    // grind() is inherited from LanguageActivity (which itself `use
+    // GrindsFormInput`, see there) - protected there specifically so this
+    // class's own maybePerformAs() override below (see class docblock for
+    // why it needs one) can call it directly without re-mixing the trait in
+    // here too.
 
-    private Language $lng;
-    private readonly \Closure $ui_factory;
-    private readonly \Closure $rbac_system;
-    private readonly \Closure $language_folder_ref_id;
     private readonly \Closure $replace_lang_entry;
     private readonly \Closure $update_module_cache;
     private readonly \Closure $user_login;
@@ -214,7 +101,7 @@ class AddLanguageEntry extends ActivityImpl
      *        `\ilObjUser::_lookupLogin()`.
      */
     public function __construct(
-        private readonly RefineryFactory $refinery,
+        RefineryFactory $refinery,
         UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
@@ -225,16 +112,7 @@ class AddLanguageEntry extends ActivityImpl
         ?\Closure $update_module_cache = null,
         ?\Closure $user_login = null,
     ) {
-        $this->lng = $language;
-        $this->ui_factory = $ui_factory instanceof \Closure
-            ? $ui_factory
-            : static fn(): UIFactory => $ui_factory;
-        $this->rbac_system = $rbac_system instanceof \Closure
-            ? $rbac_system
-            : static fn(): \ilRbacSystem => $rbac_system;
-        $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
-            ? $language_folder_ref_id
-            : static fn(): int => $language_folder_ref_id;
+        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
         $this->replace_lang_entry = $replace_lang_entry
             ?? static fn(
                 string $module,
@@ -281,11 +159,6 @@ class AddLanguageEntry extends ActivityImpl
             };
         $this->user_login = $user_login
             ?? static fn(int $usr_id): string => \ilObjUser::_lookupLogin($usr_id);
-    }
-
-    public function getType(): ActivityType
-    {
-        return ActivityType::Command;
     }
 
     public function getDescription(): Text\SimpleDocumentMarkdown
@@ -338,11 +211,13 @@ MARKDOWN
         )->withRequired(true)->withDedicatedName('identifier');
 
         // A whitespace-only or "0" value for a mandatory "de"/"en" still
-        // passes withRequired(true) here (see class docblock, "Known
-        // limitations") - not closed at the field level because it would
-        // need a custom Refinery\Constraint via $this->refinery->custom(),
-        // which every bare-mock test of this class would then need to stub
-        // too; left to a dedicated follow-up instead.
+        // passes withRequired(true) here (a plain withRequired(true) only
+        // enforces hasMinLength(1) on the raw, untrimmed string) - not
+        // closed at the field level because it would need a custom
+        // Refinery\Constraint via $this->refinery->custom(), which every
+        // bare-mock test of this class would then need to stub too; left to
+        // a dedicated follow-up instead. perform()'s own mandatory-language
+        // check (see there) still rejects it once trimmed.
         $translation_fields = [];
         foreach ($installed_language_keys as $lang_key) {
             $is_mandatory = in_array($lang_key, ['de', 'en'], true);
@@ -392,25 +267,6 @@ MARKDOWN
         );
     }
 
-    private function markdown(string $raw): Text\SimpleDocumentMarkdown
-    {
-        return new Text\SimpleDocumentMarkdown(
-            new SimpleDocumentMarkdownShape(
-                $this->refinery->string()->markdown()
-            ),
-            $raw
-        );
-    }
-
-    public function isAllowedToPerform(int $usr_id, mixed $parameters): bool
-    {
-        return ($this->rbac_system)()->checkAccessOfUser(
-            $usr_id,
-            'write',
-            ($this->language_folder_ref_id)()
-        );
-    }
-
     /**
      * @param mixed $parameters must additionally carry a `usr_id` (int) key - see class docblock for
      *        why this is not part of getInputDescription()/normalizeParameters(). May additionally
@@ -420,12 +276,14 @@ MARKDOWN
      *        InstalledLanguageRepository::getInstalledLanguages() a second time within the same
      *        maybePerformAs() call. A direct perform()/isAllowedToPerform() caller (see README.md,
      *        "As User of a Specific Activity") that never goes through maybePerformAs() may omit
-     *        it entirely - it is then resolved here instead, exactly as before.
+     *        it entirely - it is then resolved here instead, exactly as before. Both keys are
+     *        reserved, internally-injected parameters, NOT part of the form data
+     *        getInputDescription() declares.
      */
     public function perform(mixed $parameters): array
     {
         if (!is_array($parameters)) {
-            throw new \InvalidArgumentException('Parameters must be an array.');
+            throw new InvalidInputException('Parameters must be an array.');
         }
 
         $module = $parameters['module'] ?? null;
@@ -438,7 +296,7 @@ MARKDOWN
             || !is_array($translations)
             || !is_int($usr_id)
         ) {
-            throw new \InvalidArgumentException(
+            throw new InvalidInputException(
                 'The module, identifier, translations and usr_id parameters are required.'
             );
         }
@@ -467,8 +325,8 @@ MARKDOWN
             $value = is_string($value) ? trim($value) : '';
 
             // Same truthy check as the per-language loop below (a value of
-            // exactly "0" counts as blank too, see class docblock) - applied
-            // here first so an "0" value for "de"/"en" is rejected outright
+            // exactly "0" counts as blank too, see below) - applied here
+            // first so an "0" value for "de"/"en" is rejected outright
             // rather than silently reaching the loop's own skip bucket.
             if (!$value) {
                 $missing_mandatory_language_keys[] = $mandatory_lang_key;
@@ -487,6 +345,15 @@ MARKDOWN
         $added_language_keys = [];
         $skipped_empty_language_keys = [];
 
+        // Not transactional across multiple languages: if
+        // replace_lang_entry()/update_module_cache() throws partway through
+        // writing several already-validated languages (e.g. a database
+        // error), languages processed before the failing one remain written
+        // while the whole call is still reported as a single Result\Error.
+        // Not fixed with a database transaction here: both collaborators are
+        // freely replaceable by a caller (every test in this class does),
+        // so this class cannot generally guarantee they share one
+        // connection to begin with.
         foreach ($installed_language_keys as $lang_key) {
             $value = $translations[$lang_key] ?? '';
             $value = is_string($value) ? trim($value) : '';
@@ -494,7 +361,7 @@ MARKDOWN
             // A truthy check on purpose, not `$value === ''`: the extracted
             // GUI code did `if ($trans) {...}` on the trimmed string, so a
             // value of exactly "0" was (and still is here) silently skipped
-            // too - see class docblock, "Known limitations".
+            // too.
             if (!$value) {
                 $skipped_empty_language_keys[] = $lang_key;
                 continue;
@@ -558,7 +425,7 @@ MARKDOWN
      * @param array{module: string, identifier: string, translations: array<string, string>} $grind_result
      * @return array{module: string, identifier: string, translations: array<string, string>}
      */
-    private function normalizeParameters(array $grind_result): array
+    protected function normalizeParameters(array $grind_result): array
     {
         return [
             'module' => $this->toNonEmptyString($grind_result['module'], 'module'),
@@ -572,11 +439,10 @@ MARKDOWN
         if (!is_string($value) || trim($value) === '') {
             // Reachable via a genuine maybePerformAs() call: getInputDescription()'s
             // withRequired(true) only enforces hasMinLength(1) on the raw,
-            // untrimmed string (see class docblock note on
-            // buildInputDescription()), so a whitespace-only value passes
-            // grinding and must still be rejected here - as a
-            // SafeToDisplayActivityError, since this is a genuine input
-            // mistake, not an internal failure.
+            // untrimmed string (see buildInputDescription()), so a
+            // whitespace-only value passes grinding and must still be
+            // rejected here - as a SafeToDisplayActivityError, since this is
+            // a genuine input mistake, not an internal failure.
             throw new InvalidInputException("The $field parameter must be a non-empty string.");
         }
 

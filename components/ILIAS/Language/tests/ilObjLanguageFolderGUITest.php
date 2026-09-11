@@ -1359,4 +1359,462 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->invokeProtectedMethod($gui, 'enableLanguageDetectionObject');
         $this->invokeProtectedMethod($gui, 'disableLanguageDetectionObject');
     }
+
+    // -----------------------------------------------------------------
+    // abortIfAnyIdIsNotALanguageObject() - the blocker fix: every request-
+    // supplied id in $ids must be confirmed to be a "lng" object BEFORE its
+    // title is ever trusted as a language key (see the method's own
+    // docblock in the production class for the full rationale). Exercised
+    // indirectly through every public/protected caller below, since the
+    // method itself is private.
+    //
+    // ilObject::_lookupType()/_lookupTitle() are both backed by
+    // `global $DIC["ilObjDataCache"]` (see class.ilObject.php) - stubbed via
+    // stubObjDataCache() below, exactly like stubComponentRepositoryWithNoPlugins()
+    // already stubs `global $DIC["component.repository"]` for
+    // ilObjLanguage::refreshPlugins().
+    // -----------------------------------------------------------------
+
+    /**
+     * Stubs `global $DIC["ilObjDataCache"]` (see ilObject::_lookupType()/
+     * _lookupTitle()) so abortIfAnyIdIsNotALanguageObject() and the
+     * downstream `ilObject::_lookupTitle((int) $obj_id)` calls in the
+     * production class can be driven from a unit test without a real
+     * database.
+     *
+     * Reuses (rather than overwrites) an already-present $GLOBALS['DIC']
+     * container - e.g. one stubComponentRepositoryWithNoPlugins() built
+     * first in the same test for ilObjLanguage::refreshPlugins() - so both
+     * stubs can coexist when a single test needs both.
+     *
+     * @param array<int, string> $types_by_id obj_id => type (e.g. "lng",
+     *        "cat"); an id missing from this array resolves to "" - a
+     *        never-installed/non-existing object, exactly like the real
+     *        ilObjectDataCache.
+     * @param array<int, string> $titles_by_id obj_id => title. Ignored (and
+     *        lookupTitle() must never even be called - enforced via
+     *        expects($this->never())) when $expect_no_title_lookup is true,
+     *        which every "the request must be aborted before any id's title
+     *        is trusted" test below uses: that IS the property the blocker
+     *        fix guarantees, not just an implementation detail.
+     */
+    private function stubObjDataCache(
+        array $types_by_id,
+        array $titles_by_id = [],
+        bool $expect_no_title_lookup = false
+    ): void {
+        $cache = $this->createMock(\ilObjectDataCache::class);
+        $cache->method('lookupType')->willReturnCallback(
+            static fn(int $id): string => $types_by_id[$id] ?? ''
+        );
+        if ($expect_no_title_lookup) {
+            $cache->expects($this->never())->method('lookupTitle');
+        } else {
+            $cache->method('lookupTitle')->willReturnCallback(
+                static fn(int $id): string => $titles_by_id[$id] ?? ''
+            );
+        }
+
+        if (!isset($GLOBALS['DIC'])) {
+            $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        }
+        $GLOBALS['DIC']['ilObjDataCache'] = $cache;
+    }
+
+    /**
+     * Regression test for installObject(): a single non-"lng" id among
+     * otherwise-plausible ids must abort the WHOLE request - the established
+     * 'obj_not_found'+'action_aborted' failure message, a redirect to
+     * "view", and InstallLanguage::maybePerformAs() must NEVER be called
+     * (i.e. nothing about the request is honoured, see
+     * abortIfAnyIdIsNotALanguageObject()'s own docblock).
+     */
+    public function testInstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsInstallLanguage(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        $install_language = $this->createMock(InstallLanguage::class);
+        $install_language->expects($this->never())->method('maybePerformAs');
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithCollaborators(
+            $install_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->installObject(['5'], InstallLanguage::MODE_INSTALL);
+    }
+
+    /**
+     * Regression test documenting that installObject()'s previous behaviour
+     * (for ids that ARE all "lng" objects) is unchanged by the blocker fix:
+     * InstallLanguage::maybePerformAs() must still be called, with
+     * 'language_keys' resolved from ilObject::_lookupTitle() exactly as
+     * before.
+     */
+    public function testInstallObjectWithAllLanguageObjectIdsStillCallsInstallLanguageWithResolvedLanguageKeys(): void
+    {
+        $this->stubObjDataCache([5 => 'lng'], [5 => 'de']);
+
+        $install_language = $this->createMock(InstallLanguage::class);
+        $install_language->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['language_keys' => ['de'], 'mode' => InstallLanguage::MODE_INSTALL])
+            ->willReturn(new ResultOk($this->emptyPerformResult()));
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithCollaborators(
+            $install_language,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->installObject(['5'], InstallLanguage::MODE_INSTALL);
+    }
+
+    /**
+     * uninstallObject() variant of
+     * testInstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsInstallLanguage().
+     */
+    public function testUninstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsUninstallLanguage(): void
+    {
+        $this->stubObjDataCache([5 => 'usr'], [], true);
+
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->expects($this->never())->method('maybePerformAs');
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject(['5']);
+    }
+
+    /**
+     * Regression test documenting that uninstallObject()'s previous
+     * behaviour (for ids that ARE all "lng" objects) is unchanged by the
+     * blocker fix.
+     */
+    public function testUninstallObjectWithAllLanguageObjectIdsStillCallsUninstallLanguageWithResolvedLanguageKeys(): void
+    {
+        $this->stubObjDataCache([5 => 'lng'], [5 => 'de']);
+
+        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language->expects($this->once())
+            ->method('maybePerformAs')
+            ->with(6, ['language_keys' => ['de']])
+            ->willReturn(new ResultOk($this->uninstallPerformResult([], [], [], [])));
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $this->createMock(ilGlobalTemplateInterface::class),
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallObject(['5']);
+    }
+
+    /**
+     * uninstallChangesObject() variant of
+     * testInstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsInstallLanguage().
+     */
+    public function testUninstallChangesObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsRemoveLocalLanguageChanges(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->expects($this->never())->method('maybePerformAs');
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->uninstallChangesObject(['5']);
+    }
+
+    /**
+     * refreshSelectedObject() variant of
+     * testInstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsInstallLanguage().
+     */
+    public function testRefreshSelectedObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsUpdateLanguage(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        $update_language = $this->createMock(UpdateLanguage::class);
+        $update_language->expects($this->never())->method('maybePerformAs');
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithUpdateLanguageCollaborators(
+            $update_language,
+            $tpl,
+            $ctrl,
+            $this->createLanguageMockReturningTopicAsIs()
+        );
+
+        $gui->refreshSelectedObject(['5']);
+    }
+
+    /**
+     * Builds a `ui_factory` stub sufficient for buildConfirmModal()'s abort
+     * branch: `$f->modal()->interruptive($title, '', '')->withActionButtonLabel(...)`.
+     * Returns the exact Interruptive instance that chain produces, so a test
+     * can assert buildConfirmModal() returned it unchanged (i.e. that the
+     * abort branch's `return` was actually taken, rather than falling
+     * through into the per-id loop).
+     *
+     * @return array{0: \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\MockObject, 1: \ILIAS\UI\Implementation\Component\Modal\Interruptive}
+     */
+    private function createStubModalUiFactory(): array
+    {
+        // buildConfirmModal() is declared to return the concrete
+        // Implementation\Component\Modal\Interruptive class, not just the
+        // M\Interruptive interface - a mock of the interface alone fails
+        // that return type check, so the concrete class must be mocked
+        // here instead (createMock() disables its constructor, so the real
+        // SignalGeneratorInterface dependency is never actually needed).
+        $interruptive = $this->createMock(\ILIAS\UI\Implementation\Component\Modal\Interruptive::class);
+        $interruptive->method('withActionButtonLabel')->willReturnSelf();
+
+        $modal_factory = $this->createMock(\ILIAS\UI\Component\Modal\Factory::class);
+        $modal_factory->method('interruptive')->willReturn($interruptive);
+
+        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory->method('modal')->willReturn($modal_factory);
+
+        return [$ui_factory, $interruptive];
+    }
+
+    /**
+     * buildConfirmModal() variant of
+     * testInstallObjectAbortsWhenAnyIdIsNotALanguageObjectAndNeverCallsInstallLanguage():
+     * a non-"lng" id must abort exactly like the four write-command methods
+     * above (buildConfirmModal() delegates to the very same
+     * abortIfAnyIdIsNotALanguageObject()) - the method's return type still
+     * requires a Modal value even on abort (see its own docblock: never
+     * actually rendered in production, since the redirect takes precedence),
+     * which this test also pins down: the exact Interruptive instance the
+     * abort branch itself builds must be returned, proving the per-id loop
+     * (and therefore ilObject::_lookupTitle()/ilObjLanguage::_getLastLocalChange())
+     * was never reached - no data belonging to the wrongly-typed object ever
+     * leaks into the built UI.
+     */
+    public function testBuildConfirmModalAbortsWhenAnyIdIsNotALanguageObjectAndNeverLeaksData(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        [$ui_factory, $expected_interruptive] = $this->createStubModalUiFactory();
+
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
+        $this->setProperty($gui, 'ui_factory', $ui_factory);
+
+        $result = $this->invokeProtectedMethod($gui, 'buildConfirmModal', [
+            ['5'],
+            'refresh_languages',
+            'confirmRefresh',
+            'lang_refresh_confirm_selected',
+            'lang_refresh_confirm_info',
+        ]);
+
+        $this->assertSame($expected_interruptive, $result);
+    }
+
+    /**
+     * confirmRefreshSelectedObject() variant of the abort tests above: takes
+     * $ids straight from its own $a_ids argument, so - unlike
+     * confirmUninstallObject()/confirmUninstallChangesObject() below - no
+     * request_wrapper/id_token stubbing is needed to reach the abort check.
+     */
+    public function testConfirmRefreshSelectedObjectAbortsWhenAnyIdIsNotALanguageObject(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
+
+        $gui->confirmRefreshSelectedObject(['5']);
+    }
+
+    /**
+     * Builds a reflection-constructed GUI instance whose private
+     * getIdsFromQueryToken() (used by confirmUninstallObject()/
+     * confirmUninstallChangesObject()) resolves to exactly $ids - stubbing
+     * `request_wrapper`/`id_token`/`refinery` (see the production method's
+     * body) rather than mocking the private method itself, which PHPUnit
+     * cannot intercept (private methods are not polymorphic in PHP).
+     */
+    private function createGuiWithIdsFromQueryToken(
+        array $ids,
+        ilLanguage $lng,
+        ilGlobalTemplateInterface $tpl,
+        ilCtrl $ctrl
+    ): ilObjLanguageFolderGUI {
+        /** @var ilObjLanguageFolderGUI $gui */
+        $gui = (new ReflectionClass(ilObjLanguageFolderGUI::class))->newInstanceWithoutConstructor();
+
+        $id_token = new \ILIAS\UI\URLBuilderToken(['language_folder'], 'obj_ids');
+
+        $request_wrapper = $this->createMock(\ILIAS\HTTP\Wrapper\RequestWrapper::class);
+        $request_wrapper->method('has')->with($id_token->getName())->willReturn(true);
+        $request_wrapper->method('retrieve')->willReturn($ids);
+
+        $custom_group = $this->createMock(\ILIAS\Refinery\Custom\Group::class);
+        $custom_group->method('transformation')->willReturn(
+            $this->createMock(\ILIAS\Refinery\Transformation::class)
+        );
+        $refinery = $this->createMock(\ILIAS\Refinery\Factory::class);
+        $refinery->method('custom')->willReturn($custom_group);
+
+        $this->setProperty($gui, 'id_token', $id_token);
+        $this->setProperty($gui, 'request_wrapper', $request_wrapper);
+        $this->setProperty($gui, 'refinery', $refinery);
+        $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+
+        return $gui;
+    }
+
+    /**
+     * confirmUninstallObject() variant of the abort tests above.
+     */
+    public function testConfirmUninstallObjectAbortsWhenAnyIdIsNotALanguageObject(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithIdsFromQueryToken(
+            ['5'],
+            $this->createLanguageMockReturningTopicAsIs(),
+            $tpl,
+            $ctrl
+        );
+
+        $gui->confirmUninstallObject();
+    }
+
+    /**
+     * confirmUninstallChangesObject() variant of the abort tests above.
+     */
+    public function testConfirmUninstallChangesObjectAbortsWhenAnyIdIsNotALanguageObject(): void
+    {
+        $this->stubObjDataCache([5 => 'cat'], [], true);
+
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())
+            ->method('setOnScreenMessage')
+            ->with('failure', 'obj_not_found<br/>action_aborted', true);
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with(
+            $this->isInstanceOf(ilObjLanguageFolderGUI::class),
+            'view'
+        );
+
+        $gui = $this->createGuiWithIdsFromQueryToken(
+            ['5'],
+            $this->createLanguageMockReturningTopicAsIs(),
+            $tpl,
+            $ctrl
+        );
+
+        $gui->confirmUninstallChangesObject();
+    }
 }

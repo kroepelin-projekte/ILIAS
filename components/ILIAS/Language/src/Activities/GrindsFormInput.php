@@ -124,8 +124,13 @@ trait GrindsFormInput
      * itself would otherwise surface. Any other, genuinely unexpected
      * failure (e.g. getInputDescription() itself throwing) is reported as a
      * Result\Error carrying that \Throwable as-is.
+     *
+     * Protected, not private: AddLanguageEntry overrides maybePerformAs()
+     * itself (see its own class docblock) and calls this inherited copy
+     * directly, rather than needing its own separate `use GrindsFormInput;`
+     * just to get an accessible grind().
      */
-    private function grind(FormInput $description, array $raw_parameters): Result
+    protected function grind(FormInput $description, array $raw_parameters): Result
     {
         try {
             $named = $this->nameForGrinding($description);
@@ -222,16 +227,14 @@ trait GrindsFormInput
                 $unknown_keys = array_diff(array_keys($sub_raw), array_keys($named->getInputs()));
                 if ($unknown_keys !== []) {
                     // $unknown_keys come straight from the caller-supplied
-                    // $raw_parameters (e.g. a REST body) - HTML-escaped
-                    // before being embedded, since this message is rendered
-                    // unescaped by callers (e.g.
-                    // ilObjLanguageFolderGUI::activityErrorMessage()).
+                    // $raw_parameters (e.g. a REST body) and are embedded
+                    // here as plain text - this message is not HTML; any
+                    // escaping needed for display is applied by the caller
+                    // (see \ILIAS\Language\RendersActivityErrors::activityErrorMessage()),
+                    // never here in the domain layer.
                     throw new InvalidInputException(
                         'Unknown key(s) for ' . $this->fieldLabelForErrorMessage($named) . ': '
-                        . implode(', ', array_map(
-                            static fn(int|string $key): string => htmlspecialchars((string) $key, ENT_QUOTES),
-                            $unknown_keys
-                        ))
+                        . implode(', ', array_map(static fn(int|string $key): string => (string) $key, $unknown_keys))
                     );
                 }
             }
@@ -327,10 +330,22 @@ trait GrindsFormInput
             return '';
         }
 
+        // Only $value's TYPE (e.g. "array", "float", "MyClass") is embedded
+        // here via get_debug_type() - never its actual content, which could
+        // be arbitrarily large or otherwise unsuitable for a message (unlike
+        // get_debug_type()'s output, var_export()'s length is unbounded by
+        // the caller-controlled $value itself). This \InvalidArgumentException
+        // is converted into an InvalidInputException by grind()'s own catch
+        // block (see there), making it a SafeToDisplayActivityError; a
+        // caller rendering it as HTML (e.g.
+        // \ILIAS\Language\RendersActivityErrors::activityErrorMessage()) is
+        // responsible for escaping it before doing so, exactly like every
+        // other SafeToDisplayActivityError message - it must never be
+        // treated as pre-escaped HTML by any caller.
         throw new \InvalidArgumentException(
             'Expected a boolean or one of the common primitive representations of true/false ' .
             '(true/false, 1/0, "1"/"0", "true"/"false", "checked"/"on", "" or null), got: '
-            . var_export($value, true)
+            . get_debug_type($value)
         );
     }
 

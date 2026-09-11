@@ -417,7 +417,7 @@ class ilObjLanguage extends ilObject
         }
 
         $q = sprintf(
-            "SELECT * FROM lng_data WHERE lang_key = %s " .
+            "SELECT module, identifier, value FROM lng_data WHERE lang_key = %s " .
             "AND local_change >= %s AND local_change <= %s",
             $ilDB->quote($this->key, "text"),
             $ilDB->quote($a_min_date, "timestamp"),
@@ -471,7 +471,7 @@ class ilObjLanguage extends ilObject
 
         $changes = array();
         $result = $ilDB->queryF(
-            "SELECT * FROM lng_data WHERE lang_key = %s AND module = %s AND local_change IS NOT NULL",
+            "SELECT identifier, value FROM lng_data WHERE lang_key = %s AND module = %s AND local_change IS NOT NULL",
             array("text", "text"),
             array($a_key, $a_module)
         );

@@ -20,20 +20,16 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
-use ILIAS\Component\Activities\ActivityImpl;
-use ILIAS\Component\Activities\ActivityType;
 use ILIAS\Data\Description;
-use ILIAS\Data\Result;
 use ILIAS\Data\Text;
-use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Factory as UIFactory;
 
-class InstallLanguage extends ActivityImpl
+class InstallLanguage extends LanguageActivity
 {
-    use GrindsFormInput;
+    use ParsesLanguageKeyList;
 
     /**
      * A language not yet installed is fully installed (base data, plus a
@@ -51,29 +47,15 @@ class InstallLanguage extends ActivityImpl
      */
     public const string MODE_INSTALL_LOCAL = 'install_local';
 
-    private Language $lng;
-    private readonly \Closure $ui_factory;
-    private readonly \Closure $rbac_system;
-    private readonly \Closure $language_folder_ref_id;
-
     public function __construct(
-        private readonly RefineryFactory $refinery,
+        RefineryFactory $refinery,
         UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         private readonly \ilSetupLanguage $setup_language,
         int|\Closure $language_folder_ref_id = 0,
     ) {
-        $this->lng = $language;
-        $this->ui_factory = $ui_factory instanceof \Closure
-            ? $ui_factory
-            : static fn(): UIFactory => $ui_factory;
-        $this->rbac_system = $rbac_system instanceof \Closure
-            ? $rbac_system
-            : static fn(): \ilRbacSystem => $rbac_system;
-        $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
-            ? $language_folder_ref_id
-            : static fn(): int => $language_folder_ref_id;
+        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
     }
 
     /**
@@ -112,11 +94,6 @@ class InstallLanguage extends ActivityImpl
             ),
             $setup_language
         );
-    }
-
-    public function getType(): ActivityType
-    {
-        return ActivityType::Command;
     }
 
     public function getDescription(): Text\SimpleDocumentMarkdown
@@ -205,29 +182,10 @@ MARKDOWN
         );
     }
 
-    private function markdown(string $raw): Text\SimpleDocumentMarkdown
-    {
-        return new Text\SimpleDocumentMarkdown(
-            new SimpleDocumentMarkdownShape(
-                $this->refinery->string()->markdown()
-            ),
-            $raw
-        );
-    }
-
-    public function isAllowedToPerform(int $usr_id, mixed $parameters): bool
-    {
-        return ($this->rbac_system)()->checkAccessOfUser(
-            $usr_id,
-            'write',
-            ($this->language_folder_ref_id)()
-        );
-    }
-
     public function perform(mixed $parameters): array
     {
         if (!is_array($parameters)) {
-            throw new \InvalidArgumentException('Parameters must be an array.');
+            throw new InvalidInputException('Parameters must be an array.');
         }
 
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
@@ -331,58 +289,6 @@ MARKDOWN
         ];
     }
 
-    public function maybePerformAs(int $usr_id, array $raw_parameters): Result
-    {
-        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
-        if ($grind_result->isError()) {
-            return new Result\Error($grind_result->error());
-        }
-
-        try {
-            $parameters = $this->normalizeParameters($grind_result->value());
-            if (!$this->isAllowedToPerform($usr_id, $parameters)) {
-                return new Result\Error($this->lng->txt('msg_no_perm_write'));
-            }
-
-            return new Result\Ok($this->perform($parameters));
-        } catch (\Throwable $e) {
-            return new Result\Error($e);
-        }
-    }
-
-    /**
-     * @param mixed $value
-     * @return list<string>
-     */
-    private function toLanguageKeyList(mixed $value): array
-    {
-        if (!is_string($value) && !is_array($value)) {
-            throw new InvalidInputException('language_keys must be a string or an array of strings.');
-        }
-
-        $values = is_array($value) ? $value : [$value];
-        $language_keys = [];
-
-        foreach ($values as $item) {
-            if (!is_string($item)) {
-                throw new InvalidInputException('language_keys must be a string or an array of strings.');
-            }
-
-            foreach (explode(',', (string) $item) as $language_key) {
-                $language_key = trim($language_key);
-                if ($language_key !== '' && !in_array($language_key, $language_keys, true)) {
-                    $language_keys[] = $language_key;
-                }
-            }
-        }
-
-        if ($language_keys === []) {
-            throw new InvalidInputException('At least one language key is required.');
-        }
-
-        return $language_keys;
-    }
-
     /**
      * @param mixed $value
      */
@@ -411,7 +317,7 @@ MARKDOWN
      * @param array{language_keys: string, mode: string} $grind_result
      * @return array{language_keys: list<string>, mode: string}
      */
-    private function normalizeParameters(array $grind_result): array
+    protected function normalizeParameters(array $grind_result): array
     {
         return [
             'language_keys' => $this->toLanguageKeyList($grind_result['language_keys']),

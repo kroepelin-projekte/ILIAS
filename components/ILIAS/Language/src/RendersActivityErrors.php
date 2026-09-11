@@ -44,15 +44,23 @@ trait RendersActivityErrors
 
     /**
      * Turns a maybePerformAs() Result\Error's error() into text safe to show
-     * to the user via setOnScreenMessage().
+     * to the user via setOnScreenMessage() (which renders it as HTML,
+     * unescaped - see every GUI caller's own literal "<br/>" concatenations
+     * alongside $this->lng->txt() calls).
      *  - A plain string (e.g. `msg_no_perm_write`) is already a localized,
-     *    user-facing message produced by the Activity itself and is
-     *    returned as-is.
+     *    trusted, HTML-safe message produced by the Activity itself (via
+     *    $this->lng->txt(), the same source every GUI caller's own literal
+     *    markup already trusts) and is returned as-is, unescaped.
      *  - A \Throwable implementing SafeToDisplayActivityError (e.g.
      *    InvalidInputException, AmbiguousLanguageTitleException - see
      *    their own class docblocks) is a genuine, actionable problem
-     *    already reduced to a concrete, non-sensitive message - shown
-     *    directly too, and likewise never logged.
+     *    already reduced to a concrete, non-sensitive message - but,
+     *    unlike the plain-string case above, its text may embed raw,
+     *    caller-controlled data (a language key, an unknown form field
+     *    name, ...): the Activity/domain layer deliberately returns this
+     *    unescaped (see e.g. UninstallLanguage::perform()), so THIS is the
+     *    one place that escapes it for safe HTML display, rather than each
+     *    Activity escaping it itself.
      *  - Any OTHER \Throwable is an unexpected failure (e.g. a database
      *    error) whose message is hardcoded English, not meant for end
      *    users, and in the worst case (\ilDatabaseException) may even
@@ -60,7 +68,8 @@ trait RendersActivityErrors
      *    chain (class, message and stack trace of the exception itself,
      *    plus of every getPrevious() wrapped underneath it) is logged via
      *    this component's established "lang" logger channel, and a
-     *    generic, localized message is shown instead.
+     *    generic, localized message (again already trusted, see above) is
+     *    shown instead.
      */
     private function activityErrorMessage(\Throwable|string $error): string
     {
@@ -69,7 +78,13 @@ trait RendersActivityErrors
         }
 
         if ($error instanceof SafeToDisplayActivityError) {
-            return $error->getMessage();
+            // ENT_SUBSTITUTE: without it, invalid UTF-8 in getMessage() (e.g.
+            // caller-controlled data embedded by the domain layer, see the
+            // class docblock above) makes htmlspecialchars() return an empty
+            // string instead of the message - the user would then see a
+            // blank error box with no indication anything went wrong, rather
+            // than the actual (partially substituted) message.
+            return htmlspecialchars($error->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE);
         }
 
         $this->activity_error_logger->error($this->describeThrowableChain($error));

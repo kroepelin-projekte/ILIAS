@@ -240,4 +240,45 @@ class GrindsFormInputTest extends TestCase
         $this->assertTrue($result->isOk());
         $this->assertSame('de,fr', $result->value()['language_keys']);
     }
+
+    /**
+     * Regression test for collectRawValues()'s unknown-Group-key rejection
+     * (e.g. AddLanguageEntry's nested 'translations' group receiving an
+     * unrecognized language key): the resulting InvalidInputException
+     * message must embed the unknown key(s) RAW/unescaped - escaping for
+     * safe HTML display is deliberately NOT this domain-layer trait's job
+     * any more, but \ILIAS\Language\RendersActivityErrors::activityErrorMessage()'s
+     * (see that class's own docblock and its own test suite). If this
+     * message were escaped here, it would end up DOUBLE-escaped once it
+     * reaches that single rendering seam.
+     */
+    public function testGrindReportsUnknownNestedGroupKeysRawAndUnescaped(): void
+    {
+        $de = $this->createRealFieldsUiFactory()->input()->field()->text('German', '')
+            ->withDedicatedName('de');
+        $translations = $this->createRealFieldsUiFactory()->input()->field()->group([
+            'de' => $de,
+        ])->withDedicatedName('translations');
+        $description = $this->createRealFieldsUiFactory()->input()->field()->group([
+            'translations' => $translations,
+        ]);
+
+        $dangerous_unknown_key = '<script>alert(1)</script>';
+
+        $result = $this->host()->callGrind($description, [
+            'translations' => [
+                'de' => 'Hallo',
+                $dangerous_unknown_key => 'whatever',
+            ],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(InvalidInputException::class, $error);
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $error);
+        $this->assertStringContainsString('Unknown key(s) for translations: ' . $dangerous_unknown_key, $error->getMessage());
+        // Not escaped here - htmlspecialchars() would turn '<'/'>' into
+        // '&lt;'/'&gt;', which must NOT happen at this layer.
+        $this->assertStringContainsString('<script>alert(1)</script>', $error->getMessage());
+    }
 }

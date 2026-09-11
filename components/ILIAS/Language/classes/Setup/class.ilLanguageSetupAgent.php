@@ -21,7 +21,8 @@ declare(strict_types=1);
 use ILIAS\Setup;
 use ILIAS\Refinery;
 use ILIAS\UI;
-use ILIAS\Component\Activities\Activity;
+use ILIAS\Language\Activities\InstallLanguage;
+use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 
 class ilLanguageSetupAgent implements Setup\Agent
@@ -30,15 +31,15 @@ class ilLanguageSetupAgent implements Setup\Agent
 
     protected Refinery\Factory $refinery;
     protected \ilSetupLanguage $il_setup_language;
-    protected Activity $install_language;
-    protected Activity $update_language;
+    protected InstallLanguage $install_language;
+    protected UpdateLanguage $update_language;
     protected InstalledLanguageRepository $repository;
 
     public function __construct(
         Refinery\Factory $refinery,
         \ilSetupLanguage $il_setup_language,
-        Activity $install_language,
-        Activity $update_language,
+        InstallLanguage $install_language,
+        UpdateLanguage $update_language,
         InstalledLanguageRepository $repository
     ) {
         $this->refinery = $refinery;

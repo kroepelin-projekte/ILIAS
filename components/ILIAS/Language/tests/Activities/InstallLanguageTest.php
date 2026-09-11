@@ -537,6 +537,23 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
             'nested array value' => [
                 ['language_keys' => ['de', ['fr']], 'mode' => InstallLanguage::MODE_INSTALL],
             ],
+            // Regression coverage for ParsesLanguageKeyList::toLanguageKeyList()'s
+            // format validation (exactly two lowercase ASCII letters).
+            'three letters' => [
+                ['language_keys' => 'deu', 'mode' => InstallLanguage::MODE_INSTALL],
+            ],
+            'one letter' => [
+                ['language_keys' => 'd', 'mode' => InstallLanguage::MODE_INSTALL],
+            ],
+            'uppercase' => [
+                ['language_keys' => 'DE', 'mode' => InstallLanguage::MODE_INSTALL],
+            ],
+            'contains a digit' => [
+                ['language_keys' => 'de1', 'mode' => InstallLanguage::MODE_INSTALL],
+            ],
+            'contains a hyphen' => [
+                ['language_keys' => 'de-at', 'mode' => InstallLanguage::MODE_INSTALL],
+            ],
         ];
     }
 
@@ -546,6 +563,19 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->expectException(InvalidInputException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform($parameters);
+    }
+
+    /**
+     * Regression test for the perform()-parameter-type-check unification
+     * (see InstallLanguage::perform()): a non-array $parameters must now
+     * raise the concrete InvalidInputException - not just the more general
+     * \InvalidArgumentException it extends.
+     */
+    public function testNonArrayParametersAreRejected(): void
+    {
+        $this->expectException(InvalidInputException::class);
+
+        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform('not-an-array');
     }
 
     /**

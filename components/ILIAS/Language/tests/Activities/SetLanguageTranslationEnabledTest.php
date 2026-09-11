@@ -546,6 +546,34 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
+     * Regression test: the "Unknown language key" InvalidInputException
+     * message embeds the offending language_key RAW/unescaped - escaping
+     * HTML-significant characters for safe display is deliberately no
+     * longer this domain layer's job (see perform()'s own comment above the
+     * throw), only \ILIAS\Language\RendersActivityErrors::
+     * activityErrorMessage()'s. If this message were pre-escaped here, it
+     * would end up double-escaped once it reaches that single seam.
+     */
+    public function testPerformRejectsUnknownLanguageKeyMessageContainsTheRawUnescapedKey(): void
+    {
+        $settings = $this->createMock(Setting::class);
+        $settings->expects($this->never())->method('get');
+        $settings->expects($this->never())->method('set');
+
+        $dangerous_key = '<script>alert(1)</script>&"quoted"';
+
+        try {
+            $this->createActivity(settings: $settings)
+                ->perform(['language_key' => $dangerous_key, 'enabled' => true]);
+            $this->fail('Expected an InvalidInputException to be thrown.');
+        } catch (InvalidInputException $e) {
+            $this->assertStringContainsString($dangerous_key, $e->getMessage());
+            $this->assertStringNotContainsString('&lt;script&gt;', $e->getMessage());
+            $this->assertStringNotContainsString('&quot;', $e->getMessage());
+        }
+    }
+
+    /**
      * The same rejection, exercised end-to-end through maybePerformAs():
      * the unknown language_key passes grind() (any non-blank string
      * satisfies the Text field's own required-check) and the permission

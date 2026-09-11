@@ -109,6 +109,60 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
+     * Regression test: the AmbiguousLanguageTitleException message embeds
+     * the ambiguous title RAW/unescaped - escaping HTML-significant
+     * characters for safe display is deliberately no longer this domain
+     * layer's job (see UninstallLanguage::perform()'s own docblock/comment
+     * above the throw), only \ILIAS\Language\RendersActivityErrors::
+     * activityErrorMessage()'s. If this message were pre-escaped here, it
+     * would end up double-escaped once it reaches that single seam.
+     *
+     * NOTE (found while adding format validation coverage for
+     * ParsesLanguageKeyList::toLanguageKeyList()): this test originally used
+     * an HTML/XSS payload ('<script>alert(1)</script>&"quoted"') as BOTH the
+     * ambiguous objects' title AND the requested 'language_keys' value -
+     * $language_keys must equal an object's title verbatim for
+     * resolveObjIdsByLanguageKey()'s ambiguity map to ever be consulted
+     * (perform() intersects the requested, already-parsed $language_keys
+     * against that map's keys). Since toLanguageKeyList() now rejects any
+     * value that is not exactly two lowercase ASCII letters BEFORE that
+     * intersection is even computed, such a value now throws
+     * InvalidInputException immediately and never reaches
+     * AmbiguousLanguageTitleException at all - this test would otherwise
+     * fail with that InvalidInputException instead of the expected
+     * AmbiguousLanguageTitleException. The dangerous-title scenario is
+     * therefore no longer reachable through perform()'s public parameter
+     * surface at all (a real, if incidental, hardening side effect of the
+     * new format check) - only a title that happens to already be a
+     * plausible two-letter language key can ever become "ambiguous" via a
+     * real request. The title/key below is changed accordingly; the
+     * "no HTML-escaping happens" assertions are kept for continuity, even
+     * though a two-letter title trivially satisfies them.
+     */
+    public function testAmbiguousTitleExceptionMessageContainsTheRawUnescapedTitle(): void
+    {
+        $ambiguous_title = 'de';
+        $lng_objects = static fn(): array => [
+            ['obj_id' => 1, 'title' => $ambiguous_title],
+            ['obj_id' => 2, 'title' => $ambiguous_title],
+        ];
+        $obj_language_factory = static function (int $id): never {
+            throw new \LogicException('must never be called for an ambiguous title');
+        };
+
+        $activity = $this->createActivity($lng_objects, $obj_language_factory);
+
+        try {
+            $activity->perform(['language_keys' => $ambiguous_title]);
+            $this->fail('Expected an AmbiguousLanguageTitleException to be thrown.');
+        } catch (AmbiguousLanguageTitleException $e) {
+            $this->assertStringContainsString($ambiguous_title, $e->getMessage());
+            $this->assertStringNotContainsString('&lt;script&gt;', $e->getMessage());
+            $this->assertStringNotContainsString('&quot;', $e->getMessage());
+        }
+    }
+
+    /**
      * Via maybePerformAs(), the same ambiguous-title \RuntimeException must
      * surface as a Result\Error, not propagate as an uncaught exception -
      * and, again, the object factory must never be reached for it.
@@ -471,6 +525,13 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             'missing language_keys key' => [[]],
             'empty (only whitespace/commas)' => [['language_keys' => ' , ']],
             'nested array value' => [['language_keys' => ['de', ['fr']]]],
+            // Regression coverage for ParsesLanguageKeyList::toLanguageKeyList()'s
+            // format validation (exactly two lowercase ASCII letters).
+            'three letters' => [['language_keys' => 'deu']],
+            'one letter' => [['language_keys' => 'd']],
+            'uppercase' => [['language_keys' => 'DE']],
+            'contains a digit' => [['language_keys' => 'de1']],
+            'contains a hyphen' => [['language_keys' => 'de-at']],
         ];
     }
 
@@ -480,6 +541,21 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->expectException(InvalidInputException::class);
 
         $this->createActivity(static fn(): array => [], static fn(int $id) => null)->perform($parameters);
+    }
+
+    /**
+     * Regression test for the perform()-parameter-type-check unification
+     * (see UninstallLanguage::perform()): a non-array $parameters must now
+     * raise the concrete InvalidInputException - not just the more general
+     * \InvalidArgumentException it extends - since perform() was switched
+     * from a plain \InvalidArgumentException to InvalidInputException for
+     * this check, matching every other Activity in this component.
+     */
+    public function testNonArrayParametersAreRejected(): void
+    {
+        $this->expectException(InvalidInputException::class);
+
+        $this->createActivity(static fn(): array => [], static fn(int $id) => null)->perform('not-an-array');
     }
 
     public function testInputDescriptionUsesOnlyTheLanguageKeysFieldWithNoModeField(): void

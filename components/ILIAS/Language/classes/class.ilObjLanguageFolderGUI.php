@@ -178,6 +178,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $items = [];
 
         if (!empty($ids)) {
+            if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+                // The request has already been aborted above (a failure
+                // message plus a redirect to "view") - this method's return
+                // type still requires a Modal value, but it is never
+                // actually rendered to the user: the redirect() response
+                // takes precedence in production. See
+                // abortIfAnyIdIsNotALanguageObject() for why.
+                return $f->modal()->interruptive($title, '', '')->withActionButtonLabel($this->lng->txt('ok'));
+            }
+
             $message = $this->lng->txt($text);
 
             $some_changed = false;
@@ -234,6 +244,53 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     }
 
     /**
+     * Restores, for a batch of ids taken directly from request input (see
+     * getIdsFromQueryToken()), the implicit type guarantee
+     * `new ilObjLanguage((int) $obj_id)` used to give before every caller
+     * below was switched away from it towards `ilObject::_lookupTitle()`: the
+     * former threw ilObjectTypeMismatchException for a non-"lng" id, while
+     * the latter returns ANY object's title regardless of type (or "" for a
+     * non-existing id) without any type check at all. $ids is completely
+     * unvalidated request input, so every id must be confirmed to actually be
+     * a "lng" object BEFORE its title is trusted as a language key anywhere
+     * in this class.
+     *
+     * Aborts the WHOLE request - a generic, user-visible failure message
+     * followed by a redirect back to "view" - the moment a SINGLE id in
+     * $ids is not a "lng" object, rather than silently skipping just that
+     * one: a caller submitting an id that does not belong on this screen at
+     * all must never have any part of their request honoured. The message
+     * deliberately does not name the actual mismatch (e.g. which id, or what
+     * type it actually is), to avoid confirming to a caller probing this
+     * parameter which ids exist and of what type.
+     *
+     * `ilObject::_lookupType()` is backed by `ilObjDataCache` (see its own
+     * implementation), exactly like `ilObject::_lookupTitle()` already is -
+     * so checking every id here costs no additional, uncached database
+     * round trip compared to before.
+     *
+     * @param list<string|int> $ids
+     * @return bool true if the request was aborted (the caller must return
+     *         immediately without acting on $ids at all); false if every id
+     *         in $ids is confirmed to be a "lng" object.
+     */
+    private function abortIfAnyIdIsNotALanguageObject(array $ids): bool
+    {
+        foreach ($ids as $obj_id) {
+            if (ilObject::_lookupType((int) $obj_id) !== 'lng') {
+                $this->tpl->setOnScreenMessage(
+                    'failure',
+                    $this->lng->txt('obj_not_found') . '<br/>' . $this->lng->txt('action_aborted'),
+                    true
+                );
+                $this->ctrl->redirect($this, 'view');
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Install languages, or (re-)apply just their customizing/local file -
      * see InstallLanguage::MODE_INSTALL / MODE_INSTALL_LOCAL. $mode is
      * passed straight from the "install"/"install_local" command that was
@@ -256,9 +313,13 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             return;
         }
 
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $language_keys = [];
         foreach ($ids as $obj_id) {
-            $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();
+            $language_keys[] = ilObject::_lookupTitle((int) $obj_id);
         }
 
         $result = $this->install_language->maybePerformAs(
@@ -370,6 +431,10 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $this->checkPermission('write');
         $this->lng->loadLanguageModule("meta");
 
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $language_keys = [];
         foreach ($ids as $obj_id) {
             $language_keys[] = ilObject::_lookupTitle((int) $obj_id);
@@ -448,6 +513,10 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     {
         $this->checkPermission("write");
         $this->lng->loadLanguageModule("meta");
+
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
 
         $language_keys = [];
         foreach ($ids as $obj_id) {
@@ -532,9 +601,13 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             return;
         }
 
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $language_keys = [];
         foreach ($ids as $obj_id) {
-            $language_keys[] = new ilObjLanguage((int) $obj_id)->getTitle();
+            $language_keys[] = ilObject::_lookupTitle((int) $obj_id);
         }
 
         $result = $this->update_language->maybePerformAs(
@@ -897,6 +970,10 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $this->ctrl->redirect($this, "view");
         }
 
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $conf_screen = new ilConfirmationGUI();
         $some_changed = false;
         foreach ($ids as $id) {
@@ -926,10 +1003,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $this->checkPermission("write");
 
         $this->lng->loadLanguageModule("meta");
+
+        $ids = $this->getIdsFromQueryToken();
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $conf_screen = new ilConfirmationGUI();
         $conf_screen->setFormAction($this->ctrl->getFormAction($this));
         $conf_screen->setHeaderText($this->lng->txt("lang_uninstall_confirm"));
-        foreach ($this->getIdsFromQueryToken() as $id) {
+        foreach ($ids as $id) {
             $lang_title = ilObject::_lookupTitle((int) $id);
             $conf_screen->addItem("id[]", $id, $this->lng->txt("meta_l_" . $lang_title));
         }
@@ -943,10 +1026,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $this->checkPermission('write');
 
         $this->lng->loadLanguageModule("meta");
+
+        $ids = $this->getIdsFromQueryToken();
+        if ($this->abortIfAnyIdIsNotALanguageObject($ids)) {
+            return;
+        }
+
         $conf_screen = new ilConfirmationGUI();
         $conf_screen->setFormAction($this->ctrl->getFormAction($this));
         $conf_screen->setHeaderText($this->lng->txt("lang_uninstall_changes_confirm"));
-        foreach ($this->getIdsFromQueryToken() as $id) {
+        foreach ($ids as $id) {
             $lang_title = ilObject::_lookupTitle($id);
             $conf_screen->addItem("id[]", (string) $id, $this->lng->txt("meta_l_" . $lang_title));
         }

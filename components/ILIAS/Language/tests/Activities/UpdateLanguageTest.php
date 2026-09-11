@@ -247,6 +247,13 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             'missing language_keys key' => [[]],
             'empty (only whitespace/commas)' => [['language_keys' => ' , ']],
             'nested array value' => [['language_keys' => ['de', ['fr']]]],
+            // Regression coverage for ParsesLanguageKeyList::toLanguageKeyList()'s
+            // format validation (exactly two lowercase ASCII letters).
+            'three letters' => [['language_keys' => 'deu']],
+            'one letter' => [['language_keys' => 'd']],
+            'uppercase' => [['language_keys' => 'DE']],
+            'contains a digit' => [['language_keys' => 'de1']],
+            'contains a hyphen' => [['language_keys' => 'de-at']],
         ];
     }
 
@@ -256,6 +263,19 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->expectException(InvalidInputException::class);
 
         $this->createActivity($this->createSetupLanguageMock([], [], []))->perform($parameters);
+    }
+
+    /**
+     * Regression test for the perform()-parameter-type-check unification
+     * (see UpdateLanguage::perform()): a non-array $parameters must now
+     * raise the concrete InvalidInputException - not just the more general
+     * \InvalidArgumentException it extends.
+     */
+    public function testNonArrayParametersAreRejected(): void
+    {
+        $this->expectException(InvalidInputException::class);
+
+        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform('not-an-array');
     }
 
     public function testInputDescriptionUsesOnlyTheLanguageKeysFieldWithNoModeField(): void

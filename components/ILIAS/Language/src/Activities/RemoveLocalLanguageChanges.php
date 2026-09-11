@@ -20,15 +20,10 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
-use ILIAS\Component\Activities\ActivityImpl;
-use ILIAS\Component\Activities\ActivityType;
 use ILIAS\Data\Description;
-use ILIAS\Data\Result;
 use ILIAS\Data\Text;
-use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Factory as UIFactory;
 
 /**
@@ -39,66 +34,33 @@ use ILIAS\UI\Factory as UIFactory;
  * A language that is not installed (or not a known language key at all) is
  * left completely untouched; use InstallLanguage to install it first.
  *
- * This is a separate Activity from InstallLanguage/UpdateLanguage/
- * UninstallLanguage on purpose: "discard local customizations of an already
- * installed language while keeping it installed" is a distinct domain action
- * from installing, refreshing or uninstalling one - it has no notion of "not
- * installed yet" becoming "installed" (unlike InstallLanguage), no notion of
- * "install this again as-is" (unlike UpdateLanguage, which also considers a
- * customizing/local file worth reapplying), and does not remove the language
- * object or reset any user preference (unlike UninstallLanguage). Like
- * UninstallLanguage, this has no Setup counterpart - the Setup process only
- * ever installs or refreshes the languages ILIAS ships with, it never
- * discards local changes of one - which is why, like UninstallLanguage, this
- * class deliberately has no `forSetup()` factory.
+ * Separate Activity from Install/Update/UninstallLanguage on purpose:
+ * "discard local customizations while keeping the language installed" is a
+ * distinct domain action from installing, refreshing or uninstalling one -
+ * and, like UninstallLanguage (see its class docblock for the shared
+ * reasoning), has no Setup counterpart and hence no `forSetup()` factory.
  *
- * Like UninstallLanguage, this necessarily acts on the already existing
- * `ilObjLanguage` domain object for each language key - only that object
- * carries the business rule (`removeLocalChanges()`) needed here, which
- * validates the language file via `check()`, flushes the existing data and
- * reinstalls the language while explicitly excluding the customizing/local
- * directory (see `ilObjLanguage::removeLocalChanges()` for why this must not
- * go through the ordinary install path). Both legacy access points this
- * requires - enumerating all "lng" objects to resolve a language key to its
- * object id, and constructing the `ilObjLanguage` for a given object id - are
- * the exact calls already used elsewhere in this component (see
- * UninstallLanguage's class docblock for the same reasoning); they are
- * wrapped in closures here only so tests can substitute fakes without
- * bootstrapping the legacy global $DIC that ilObjLanguage's constructor
- * needs.
+ * Like UninstallLanguage, this necessarily acts on the existing
+ * `ilObjLanguage` domain object per language key - only that object carries
+ * the business rule (`removeLocalChanges()`) needed here, which validates
+ * the language file via `check()`, flushes the existing data and reinstalls
+ * the language while explicitly excluding the customizing/local directory.
+ * Both legacy access points this requires (enumerating "lng" objects,
+ * constructing an ilObjLanguage by id) are the exact calls UninstallLanguage
+ * also uses, for the same reasons (see its class docblock) - wrapped in
+ * closures here only so tests can substitute fakes without bootstrapping the
+ * legacy global $DIC.
  *
- * Resolving a requested language key back to its object id (see
- * resolveObjIdsByLanguageKey()) matches purely on title, for the exact same
- * reason and via the exact same round trip as UninstallLanguage (see its
- * class docblock) - including the same guard against two "lng" objects
- * sharing one title: such a title is rejected outright rather than silently
- * resolved to the wrong object.
- *
- * Known limitations, both inherited from the legacy domain object rather
- * than introduced by this extraction:
- *  - `removeLocalChanges()` returns false both when the language is not
- *    installed and when its underlying language file fails `check()`. This
- *    Activity already excludes the "not installed" case beforehand (via
- *    `isInstalled()`), so a false return it still observes can only be the
- *    "invalid language file" case - but this inference is only as reliable
- *    as that being the only remaining reason able to produce false, which
- *    depends on `ilObjLanguage::removeLocalChanges()` not gaining further
- *    failure conditions later on without an accompanying update here.
- *  - perform() is not transactional: if removeLocalChanges() throws partway
- *    through a multi-key request (e.g. a database error), languages
- *    processed before the failing one remain changed while the whole call
- *    is still reported as a single Result\Error, with no indication of
- *    which keys that were.
+ * Resolving a requested language key to its object id
+ * (resolveObjIdsByLanguageKey(), see ResolvesLanguageKeysToObjIds) matches
+ * purely on title and rejects an ambiguous one outright - identical
+ * reasoning to UninstallLanguage, see its class docblock.
  */
-class RemoveLocalLanguageChanges extends ActivityImpl
+class RemoveLocalLanguageChanges extends LanguageActivity
 {
-    use GrindsFormInput;
+    use DeclaresLanguageKeysOnlyInput;
     use ResolvesLanguageKeysToObjIds;
 
-    private Language $lng;
-    private readonly \Closure $ui_factory;
-    private readonly \Closure $rbac_system;
-    private readonly \Closure $language_folder_ref_id;
     private readonly \Closure $lng_objects;
     private readonly \Closure $obj_language_factory;
 
@@ -113,7 +75,7 @@ class RemoveLocalLanguageChanges extends ActivityImpl
      *        Defaults to `new \ilObjLanguage($obj_id, false)`.
      */
     public function __construct(
-        private readonly RefineryFactory $refinery,
+        RefineryFactory $refinery,
         UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
@@ -121,25 +83,11 @@ class RemoveLocalLanguageChanges extends ActivityImpl
         ?\Closure $lng_objects = null,
         ?\Closure $obj_language_factory = null,
     ) {
-        $this->lng = $language;
-        $this->ui_factory = $ui_factory instanceof \Closure
-            ? $ui_factory
-            : static fn(): UIFactory => $ui_factory;
-        $this->rbac_system = $rbac_system instanceof \Closure
-            ? $rbac_system
-            : static fn(): \ilRbacSystem => $rbac_system;
-        $this->language_folder_ref_id = $language_folder_ref_id instanceof \Closure
-            ? $language_folder_ref_id
-            : static fn(): int => $language_folder_ref_id;
+        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
         $this->lng_objects = $lng_objects
             ?? static fn(): array => \ilObject::_getObjectsByType('lng');
         $this->obj_language_factory = $obj_language_factory
             ?? static fn(int $obj_id): \ilObjLanguage => new \ilObjLanguage($obj_id, false);
-    }
-
-    public function getType(): ActivityType
-    {
-        return ActivityType::Command;
     }
 
     public function getDescription(): Text\SimpleDocumentMarkdown
@@ -156,20 +104,6 @@ not installed (or not a known language key at all), or if its underlying
 language file fails validation.
 MARKDOWN
         );
-    }
-
-    public function getInputDescription(): FormInput
-    {
-        $ui_factory = ($this->ui_factory)();
-
-        $language_keys = $ui_factory->input()->field()->text(
-            'Language keys',
-            'Comma-separated list of language keys, e.g. de, fr, it.'
-        )->withRequired(true)->withDedicatedName('language_keys');
-
-        return $ui_factory->input()->field()->group([
-            'language_keys' => $language_keys,
-        ]);
     }
 
     public function getOutputDescription(Description\Factory $f): Description\Description
@@ -203,29 +137,10 @@ MARKDOWN
         );
     }
 
-    private function markdown(string $raw): Text\SimpleDocumentMarkdown
-    {
-        return new Text\SimpleDocumentMarkdown(
-            new SimpleDocumentMarkdownShape(
-                $this->refinery->string()->markdown()
-            ),
-            $raw
-        );
-    }
-
-    public function isAllowedToPerform(int $usr_id, mixed $parameters): bool
-    {
-        return ($this->rbac_system)()->checkAccessOfUser(
-            $usr_id,
-            'write',
-            ($this->language_folder_ref_id)()
-        );
-    }
-
     public function perform(mixed $parameters): array
     {
         if (!is_array($parameters)) {
-            throw new \InvalidArgumentException('Parameters must be an array.');
+            throw new InvalidInputException('Parameters must be an array.');
         }
 
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
@@ -247,10 +162,13 @@ MARKDOWN
             // \RuntimeException) marks this as a concrete, admin-actionable
             // data integrity problem that activityErrorMessage() shows
             // directly instead of hiding it behind a generic "action
-            // aborted" message.
+            // aborted" message. Its message is plain text, not HTML - any
+            // HTML-escaping needed for display is applied by the caller
+            // (see \ILIAS\Language\RendersActivityErrors::activityErrorMessage()),
+            // never here in the domain layer.
             throw new AmbiguousLanguageTitleException(
                 'Multiple language objects share the title(s) "'
-                . implode('", "', array_map($this->escapeForMessage(...), $requested_ambiguous_language_keys))
+                . implode('", "', $requested_ambiguous_language_keys)
                 . '" - cannot unambiguously resolve which one(s) to remove local changes from.'
             );
         }
@@ -259,6 +177,10 @@ MARKDOWN
         $invalid_language_file_keys = [];
         $not_installed_language_keys = [];
 
+        // Not transactional across multiple keys: if removeLocalChanges()
+        // throws partway through (e.g. a database error), languages
+        // processed before the failing one remain changed while the whole
+        // call is still reported as a single Result\Error.
         foreach ($language_keys as $language_key) {
             if (!array_key_exists($language_key, $obj_id_by_language_key)) {
                 // Not a known language key at all - certainly not installed.
@@ -289,88 +211,6 @@ MARKDOWN
             'removed_local_changes_language_keys' => $removed_local_changes_language_keys,
             'invalid_language_file_keys' => $invalid_language_file_keys,
             'not_installed_language_keys' => $not_installed_language_keys,
-        ];
-    }
-
-    public function maybePerformAs(int $usr_id, array $raw_parameters): Result
-    {
-        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
-        if ($grind_result->isError()) {
-            return new Result\Error($grind_result->error());
-        }
-
-        try {
-            $parameters = $this->normalizeParameters($grind_result->value());
-            if (!$this->isAllowedToPerform($usr_id, $parameters)) {
-                return new Result\Error($this->lng->txt('msg_no_perm_write'));
-            }
-
-            return new Result\Ok($this->perform($parameters));
-        } catch (\Throwable $e) {
-            return new Result\Error($e);
-        }
-    }
-
-    /**
-     * @param mixed $value
-     * @return list<string>
-     */
-    private function toLanguageKeyList(mixed $value): array
-    {
-        if (!is_string($value) && !is_array($value)) {
-            throw new InvalidInputException('language_keys must be a string or an array of strings.');
-        }
-
-        $values = is_array($value) ? $value : [$value];
-        $language_keys = [];
-
-        foreach ($values as $item) {
-            if (!is_string($item)) {
-                throw new InvalidInputException('language_keys must be a string or an array of strings.');
-            }
-
-            foreach (explode(',', (string) $item) as $language_key) {
-                $language_key = trim($language_key);
-                if ($language_key !== '' && !in_array($language_key, $language_keys, true)) {
-                    $language_keys[] = $language_key;
-                }
-            }
-        }
-
-        if ($language_keys === []) {
-            throw new InvalidInputException('At least one language key is required.');
-        }
-
-        return $language_keys;
-    }
-
-    /**
-     * HTML-escapes a language key/title before it is embedded into a
-     * SafeToDisplayActivityError message (see AmbiguousLanguageTitleException
-     * above) - such a message is rendered unescaped by callers (e.g.
-     * ilObjLanguageFolderGUI::activityErrorMessage()), so a language object
-     * title containing HTML-significant characters must not reach it as-is.
-     */
-    private function escapeForMessage(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES);
-    }
-
-    /**
-     * Builds the parameters perform()/isAllowedToPerform() expect from the
-     * already-grinded content of getInputDescription() (see grind() in the
-     * GrindsFormInput trait) - 'language_keys' is guaranteed to be a
-     * non-blank string at this point (the Text field is required), but
-     * still needs toLanguageKeyList()'s own domain-level parsing (splitting
-     * the comma-separated list).
-     *
-     * @param array{language_keys: string} $grind_result
-     * @return array{language_keys: list<string>}
-     */
-    private function normalizeParameters(array $grind_result): array
-    {
-        return [
-            'language_keys' => $this->toLanguageKeyList($grind_result['language_keys']),
         ];
     }
 }

@@ -288,8 +288,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
                 ],
                 'usr_id' => 6,
             ]);
-            $this->fail('Expected an InvalidArgumentException to be thrown.');
-        } catch (\InvalidArgumentException $e) {
+            $this->fail('Expected an InvalidInputException to be thrown.');
+        } catch (InvalidInputException $e) {
             // Nothing written for either language - not even the valid "de".
             $this->assertArrayNotHasKey('replace', $calls);
             $this->assertArrayNotHasKey('cache', $calls);
@@ -345,7 +345,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
         try {
             $activity->perform([
                 'module' => 'common',
@@ -526,14 +526,14 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     #[DataProvider('invalidPerformParametersProvider')]
     public function testPerformRejectsInvalidOrIncompleteParameters(array $parameters): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
         $this->createActivity(['de'])->perform($parameters);
     }
 
     public function testPerformRejectsNonArrayParameters(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidInputException::class);
 
         $this->createActivity(['de'])->perform('not-an-array');
     }
