@@ -26,18 +26,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
 
-/**
- * Refreshes languages that are already installed, re-seeding their base data
- * (plus a customizing/local file if one exists) from the current language
- * files - e.g. after a core update shipped new or changed translations. A
- * language that is not installed is left completely untouched; use
- * InstallLanguage to install it first.
- *
- * This is a separate Activity from InstallLanguage on purpose: "install a
- * language that is missing" and "refresh a language that is already there"
- * are different responsibilities with different callers and different
- * no-op semantics, not two modes of the same operation.
- */
 class UpdateLanguage extends LanguageActivity
 {
     use DeclaresLanguageKeysOnlyInput;
@@ -53,13 +41,6 @@ class UpdateLanguage extends LanguageActivity
         parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
     }
 
-    /**
-     * Build the Activity for the Setup context, where only perform() is ever
-     * called and no runtime container exists to resolve services from. See
-     * InstallLanguage::forSetup() for why the collaborators perform() does
-     * not touch are supplied as closures that fail loudly instead, and why
-     * no database is needed here either.
-     */
     public static function forSetup(\ilSetupLanguage $setup_language): self
     {
         return new self(
@@ -123,9 +104,6 @@ MARKDOWN
 
         $currently_installed_language_keys = $this->setup_language->getInstalledLanguages();
 
-        // Only an already installed language has anything to refresh; a
-        // language that is not installed is a complete no-op - there is
-        // nothing installed yet to update.
         $to_update = [];
         $not_installed_no_op = [];
 
@@ -150,8 +128,6 @@ MARKDOWN
             );
         }
 
-        // Nothing below is needed at all (not even a read) if every
-        // requested language turned out to be a no-op above.
         if ($to_update !== []) {
             $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
             $local_language_keys = $this->setup_language->getLocalLanguages();

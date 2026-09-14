@@ -29,30 +29,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
 
-/**
- * Common base for every Command Activity in this component: all seven
- * (InstallLanguage, UpdateLanguage, UninstallLanguage,
- * RemoveLocalLanguageChanges, AddLanguageEntry, SetLanguageDetectionEnabled,
- * SetLanguageTranslationEnabled) share the exact same getType(), markdown(),
- * isAllowedToPerform() (a "write" RBAC check on the language folder ref_id)
- * and maybePerformAs() (grind $raw_parameters, check isAllowedToPerform(),
- * then perform()) - this class hoists that byte-for-byte duplication into
- * one place instead of seven, together with the constructor's
- * Closure-normalisation for $ui_factory/$rbac_system/$language_folder_ref_id
- * (see forSetup() factories on InstallLanguage/UpdateLanguage for why these
- * three are accepted as either a resolved value or a \Closure).
- *
- * A subclass only needs to implement the Activity methods that are actually
- * specific to it (getDescription(), getInputDescription(),
- * getOutputDescription(), perform()) plus normalizeParameters() (not part of
- * the public Activity interface, but required by maybePerformAs() here to
- * turn a grind()ed FormInput result into perform()'s expected shape).
- *
- * This class is intentionally NOT final: AddLanguageEntry overrides
- * maybePerformAs() itself, to pass its reserved 'usr_id'/'installed_language_keys'
- * parameters through to perform() (see its own class docblock) - a subclass
- * providing its own maybePerformAs() must stay possible.
- */
 abstract class LanguageActivity extends ActivityImpl
 {
     use GrindsFormInput;
@@ -127,10 +103,6 @@ abstract class LanguageActivity extends ActivityImpl
     }
 
     /**
-     * Builds the parameters perform()/isAllowedToPerform() expect from the
-     * already-grinded content of getInputDescription() (see grind() in the
-     * GrindsFormInput trait) - see each implementor for the exact shape.
-     *
      * @return array<string, mixed>
      */
     abstract protected function normalizeParameters(array $grind_result): array;

@@ -28,40 +28,6 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Factory as UIFactory;
 
-/**
- * Switches the system-wide "detect the user's language from the browser's
- * Accept-Language header" setting on or off. This is a single boolean flag
- * for the whole installation - not tied to any language, user, or session -
- * stored under the "lang_detection" system setting and read by
- * ilLanguageDetectorFactory::getValidInstances().
- *
- * Modelled as ONE Command with a boolean `enabled` parameter, not two
- * Activities ("Enable.../Disable..."): both extracted GUI methods
- * (ilObjLanguageFolderGUI::enableLanguageDetectionObject()/
- * disableLanguageDetectionObject()) did nothing but flip the same domain
- * flag to a fixed value - mirroring how InstallLanguage models two related
- * outcomes via a mode parameter rather than two classes. Has no Setup
- * counterpart (Setup never touches this setting), hence no `forSetup()`
- * factory. `$settings` wraps the `\ilSetting::set()`/`get()` pair the
- * extracted GUI code used directly, typed against
- * `\ILIAS\Administration\Setting` rather than the concrete `\ilSetting`
- * class, since the Administration component does not (yet) contribute this
- * interface via the component graph.
- *
- * Deliberate behavioural change: the two extracted GUI methods enforced no
- * write-permission check of their own - they relied solely on
- * `executeCommand()`'s blanket `checkPermission('read', ...)` plus the write
- * button only being rendered for a write-permitted user, so a forged request
- * against a read-only user's session could previously still have flipped the
- * setting. `isAllowedToPerform()` here DOES enforce a "write" RBAC check,
- * closing that gap - a genuine change, not a mere re-affirmation of an
- * already-enforced rule (contrast AddLanguageEntry/SetLanguageTranslationEnabled).
- *
- * `maybePerformAs()` grinds $raw_parameters through the 'enabled' Checkbox
- * field (see GrindsFormInput); since that field is not required, an entirely
- * missing 'enabled' key defaults to false, exactly like an unchecked HTML
- * checkbox.
- */
 class SetLanguageDetectionEnabled extends LanguageActivity
 {
     private readonly \Closure $settings;
@@ -131,11 +97,6 @@ MARKDOWN
     }
 
     /**
-     * Builds the parameters perform()/isAllowedToPerform() expect from the
-     * already-grinded content of getInputDescription() (see grind() in the
-     * GrindsFormInput trait) - 'enabled' is already a strict bool at this
-     * point, produced by the Checkbox field's own withInput().
-     *
      * @param array{enabled: bool} $grind_result
      * @return array{enabled: bool}
      */

@@ -40,9 +40,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * "write" RBAC check in isAllowedToPerform()/maybePerformAs(): before this
  * extraction, neither enableLanguageDetectionObject() nor
  * disableLanguageDetectionObject() performed any permission check of their
- * own - see this class's docblock for the full history. A test here must
- * prove that a denied permission both yields a Result\Error *and* leaves
- * the Setting collaborator untouched (no side effect on denial).
+ * own. A test here must prove that a denied permission both yields a
+ * Result\Error *and* leaves the Setting collaborator untouched (no side
+ * effect on denial).
  */
 class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 {
@@ -198,10 +198,10 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Core security regression test (see class docblock): before this
-     * extraction, enableLanguageDetectionObject()/
-     * disableLanguageDetectionObject() performed no RBAC check of their own
-     * at all - a request forged directly against the corresponding ilCtrl
+     * Core security regression test: before this extraction,
+     * enableLanguageDetectionObject()/disableLanguageDetectionObject()
+     * performed no RBAC check of their own at all - a request forged
+     * directly against the corresponding ilCtrl
      * commands by a user with only "read" access on the language folder
      * would still have flipped "lang_detection". isAllowedToPerform() now
      * enforces a "write" check, and this must actually cause
@@ -264,8 +264,8 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
      * like an unchecked, and therefore never submitted, HTML checkbox
      * would. This is a deliberate behavioural change from the old
      * (pre-grinding) normalizeParameters(), which used to reject a missing
-     * key outright - see the class docblock. Unlike before, the request
-     * now actually reaches isAllowedToPerform()/perform().
+     * key outright. Unlike before, the request now actually reaches
+     * isAllowedToPerform()/perform().
      */
     public function testMaybePerformAsWithMissingEnabledKeyDefaultsToFalseAndStillPerformsTheWrite(): void
     {
@@ -358,7 +358,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     /**
      * Only values outside GrindsFormInput::normalizeCheckboxRawValue()'s
      * explicit whitelist are still rejected via maybePerformAs() - "konservativ
-     * normalisieren", not "alles akzeptieren" (see that method's docblock).
+     * normalisieren", not "alles akzeptieren".
      */
     #[DataProvider('rejectedEnabledValuesProvider')]
     public function testMaybePerformAsRejectsValuesGrindCannotInterpretAsACheckboxWithoutTouchingSettings(mixed $value): void

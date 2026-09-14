@@ -20,18 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
-/**
- * Marker interface for a \Throwable a maybePerformAs() Result\Error can
- * carry whose getMessage() is ALREADY a concrete, actionable, non-sensitive
- * message meant to be shown to the end user as-is - as opposed to every
- * other \Throwable, which is an unexpected *internal* failure whose raw
- * message must never be shown directly. See
- * \ILIAS\Language\RendersActivityErrors::activityErrorMessage() for how
- * this decides what to show/log.
- *
- * Implemented by InvalidInputException and AmbiguousLanguageTitleException
- * (see their own class docblocks).
- */
 interface SafeToDisplayActivityError extends \Throwable
 {
 }

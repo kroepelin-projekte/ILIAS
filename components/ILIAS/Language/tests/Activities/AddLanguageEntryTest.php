@@ -42,9 +42,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * small in-memory fake, never the real InstalledLanguageDatabaseRepository),
  * and writes single entries via the $replace_lang_entry/$update_module_cache
  * closures. Unlike every sibling Activity, it also needs a $user_login
- * closure to resolve the acting user's login for the audit trail (see the
- * class docblock of AddLanguageEntry for why this must go through
- * maybePerformAs() rather than being part of getInputDescription()).
+ * closure to resolve the acting user's login for the audit trail (see
+ * perform()'s own docblock on its $parameters argument for why this must
+ * go through maybePerformAs() rather than being part of
+ * getInputDescription()).
  *
  * None of these tests may touch real language files under lang/*.lang or a
  * real database - every collaborator is a fake/closure/mock.
@@ -188,8 +189,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     /**
      * Regression test documenting the deliberate, pre-existing limitation
-     * described in the class docblock ("Known limitations" - "perform()'s
-     * write loop itself is NOT transactional"): if replace_lang_entry()
+     * noted directly above perform()'s write loop ("Not transactional
+     * across multiple languages: a failure partway through ... leaves
+     * languages processed so far written"): if replace_lang_entry()
      * throws while writing language n of m (here: the 3rd of 3, "fr"), the
      * languages already written before it ("de", "en") must remain written
      * - the exception propagates uncaught out of perform() rather than
@@ -239,7 +241,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
             // "de" and "en" - written before the failing "fr" - remain
             // written: perform() gives no atomicity guarantee across the
-            // write loop (see class docblock).
+            // write loop (see perform()'s own "Not transactional..."
+            // comment above the loop).
             $this->assertSame(
                 ['common', 'new_topic', 'de', 'Hallo', $calls['replace'][0][4], 'default-login'],
                 $calls['replace'][0]
@@ -260,7 +263,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     // -----------------------------------------------------------------
-    // "de"/"en" mandatory, all-or-nothing (see class docblock)
+    // "de"/"en" mandatory, all-or-nothing (see getDescription()'s markdown)
     // -----------------------------------------------------------------
 
     /**
@@ -363,8 +366,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      * If neither "de" nor "en" is installed at all, the mandatory rule
      * imposes no requirement for them - exactly like the legacy form,
      * which never rendered a field for a language that is not installed in
-     * the first place (see class docblock). Every other installed language
-     * remains merely optional.
+     * the first place (see the 'translations' field's own description in
+     * buildInputDescription()). Every other installed language remains
+     * merely optional.
      */
     public function testDeAndEnNotInstalledAtAllImposesNoMandatoryRequirement(): void
     {
@@ -602,8 +606,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     /**
      * usr_id must never be taken from $raw_parameters (it is not part of
-     * normalizeParameters()'s accepted keys - see the class docblock) - it
-     * must come exclusively from maybePerformAs()'s own $usr_id argument,
+     * normalizeParameters()'s accepted keys - see that method's own
+     * docblock) - it must come exclusively from maybePerformAs()'s own
+     * $usr_id argument,
      * both for the permission check and for resolving the audit login.
      */
     public function testUsrIdArgumentIsUsedForBothThePermissionCheckAndTheAuditLoginRegardlessOfRawParameters(): void
@@ -694,6 +699,50 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertStringContainsString('module:', $result->error()->getMessage());
     }
 
+    /**
+     * Regression test for the asymmetry between the top level of
+     * raw_parameters (unknown keys tolerated, see GrindsFormInput's own
+     * $enforce_known_keys docblock) and a NESTED group such as
+     * 'translations' (unknown keys rejected): a language key inside
+     * 'translations' that is not one of the installed languages - and
+     * therefore not one of the 'translations' group's own fields - must be
+     * rejected with an InvalidInputException naming the unknown key,
+     * before isAllowedToPerform() (and therefore the rbac system) is ever
+     * reached, and without writing anything.
+     */
+    public function testMaybePerformAsRejectsAnUnknownLanguageKeyInsideTheNestedTranslationsGroup(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->expects($this->never())->method('checkAccessOfUser');
+
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de'],
+            rbac: $rbac,
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        $result = $activity->maybePerformAs(6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => [
+                'de' => 'Hallo',
+                // Not an installed language, i.e. not a field of the
+                // 'translations' group - must be rejected outright.
+                'xx' => 'whatever',
+            ],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(InvalidInputException::class, $error);
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $error);
+        $this->assertStringContainsString('Unknown key(s) for translations: xx', $error->getMessage());
+        $this->assertArrayNotHasKey('replace', $calls);
+        $this->assertArrayNotHasKey('cache', $calls);
+    }
+
     public function testMissingRawParametersKeyIsAResultError(): void
     {
         $activity = $this->createActivity(['de']);
@@ -707,8 +756,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     /**
      * These raw_parameters all leave the mandatory 'de' translation field
-     * (see class docblock, "de"/"en" are mandatory) blank - either because
-     * 'translations' is not an array at all, or because it is an array
+     * (see the 'translations' field's own description in
+     * buildInputDescription(), "de"/"en" are mandatory) blank - either
+     * because 'translations' is not an array at all, or because it is an array
      * that does not carry a 'de' key - so grind() itself rejects them, via
      * the 'de' Text field's own required-field constraint (or, for a
      * non-string key, GrindsFormInput's own unknown-key guard), before
@@ -954,8 +1004,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     //
     // Every other test in this class overrides $update_module_cache with a
     // no-op or a spy, so the constructor's own $db-backed default closure
-    // (see class docblock, "updateModuleCache()'s default needs a database
-    // connection...") is never exercised anywhere else. These tests inject
+    // (see the constructor body: it resolves $db_resolver and queries
+    // lng_modules to refresh the cached lang_array) is never exercised
+    // anywhere else. These tests inject
     // a real \ilDBInterface mock instead, to pin down the is_string() guard
     // added around unserialize() - the actual regression this class'
     // constructor gained a $db parameter for. $replace_lang_entry is still
@@ -1014,7 +1065,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
 
         // No exception/error of any kind must surface - a missing row is a
-        // normal, silently-ignored case (see class docblock).
+        // normal, silently-ignored case (see the default update_module_cache
+        // closure's `if ($row === null ...) { return; }` guard).
         $result = $activity->perform([
             'module' => 'common',
             'identifier' => 'new_topic',
@@ -1029,7 +1081,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     {
         // Before the is_string() guard was added, unserialize(null, ...)
         // would raise a \TypeError under declare(strict_types=1) instead of
-        // silently doing nothing (see class docblock/AddLanguageEntry.php).
+        // silently doing nothing (see the `!is_string($row['lang_array'] ??
+        // null)` guard in the default update_module_cache closure).
         $db = $this->mockDbFetchingRow(['lang_array' => null]);
 
         $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);

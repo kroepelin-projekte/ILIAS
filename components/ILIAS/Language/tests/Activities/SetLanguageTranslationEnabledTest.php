@@ -41,7 +41,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * (not just normalizeParameters()) validates its $parameters array and
  * computes a `changed` flag by comparing the requested value against the
  * *currently stored* one (read via a falsy (bool) cast, exactly mirroring
- * `ilObjLanguageAccess::_checkTranslate()` - see the class docblock). That
+ * `ilObjLanguageAccess::_checkTranslate()` - see `$currently_enabled = (bool)
+ * ($this->settings)()->get($translate_key, '0')` in perform()). That
  * comparison, and the "write only if changed" behaviour it drives, is the
  * most important regression surface in this file: a mutant that always
  * writes (or that inverts the comparison) must be caught here.
@@ -49,9 +50,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * The second most important regression this file guards is the same one as
  * SetLanguageDetectionEnabledTest: the enforced "write" RBAC check in
  * isAllowedToPerform()/maybePerformAs() must actually prevent both the
- * outcome *and* the side effect (no write to Settings) when denied - see
- * this class's own docblock for why this does NOT, in this particular case,
- * close a pre-existing gap (unlike AddLanguageEntry/SetLanguageDetectionEnabled).
+ * outcome *and* the side effect (no write to Settings) when denied.
  */
 class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
 {
@@ -112,7 +111,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     // -----------------------------------------------------------------
 
     /**
-     * Core business rule (see class docblock): perform() must read the
+     * Core business rule: perform() must read the
      * *current* value of "lang_translate_<key>" via a falsy check - exactly
      * the same interpretation ilObjLanguageAccess::_checkTranslate() applies
      * - and only write when the requested value actually differs. Every
@@ -372,8 +371,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
             // try/catch.
             'non-string language_key' => [['language_key' => 42, 'enabled' => true]],
             // Outside GrindsFormInput::normalizeCheckboxRawValue()'s
-            // explicit whitelist - see that method's docblock ("konservativ
-            // normalisieren", not "alles akzeptieren").
+            // explicit whitelist - "konservativ normalisieren", not "alles
+            // akzeptieren".
             'non-bool enabled: array' => [['language_key' => 'de', 'enabled' => [true]]],
             'non-bool enabled: float 1.0' => [['language_key' => 'de', 'enabled' => 1.0]],
         ];

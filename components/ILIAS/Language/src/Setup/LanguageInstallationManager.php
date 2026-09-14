@@ -184,8 +184,7 @@ class LanguageInstallationManager
     }
 
     /**
-     * remove language data from database
-     * $mode "all" or "keep_local"
+     * @param string $mode either "all" or "keep_local"
      */
     private function flushLanguage(string $lang_key, string $mode = "all"): void
     {
@@ -281,17 +280,10 @@ class LanguageInstallationManager
     }
 
     /**
-     * Insert language data from file into the database.
-     *
-     * This used to take a boolean flag deciding "installing" vs. "removing
-     * local changes" internally. That flag is gone: the two things it
-     * controlled - which directories to read ($directories) and what to
-     * seed the working value map with ($lang_array, either the language's
-     * current local changes to preserve/merge, or an empty array for a
-     * clean re-seed) - are now supplied directly by the two call sites
-     * above, each of which already states its intent in its name. This
-     * method itself no longer branches on why it was called; it just writes
-     * whatever data the given directories/seed produce.
+     * Writes whatever data the given $directories/$lang_array seed produce - it does not
+     * itself decide which directories to read or what to seed with; that is entirely up to
+     * the caller (see the three call sites above, each of which already states its intent in its
+     * own name).
      *
      * @param iterable<LanguageFileDirectory> $directories
      * @param array<string, array<string, string>> $lang_array module => identifier => value
@@ -328,7 +320,6 @@ class LanguageInstallationManager
                     continue;
                 }
 
-                // remove header first
                 $content = $this->cutHeader(file($lang_file));
                 if (!$content) {
                     continue;

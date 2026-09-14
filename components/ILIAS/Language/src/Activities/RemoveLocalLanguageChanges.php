@@ -26,36 +26,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
 
-/**
- * Removes all local changes of one or more already installed languages -
- * both entries edited directly via the "adjust language variables" table and
- * any override coming from a customizing/local language file - and
- * reinstalls each language purely from the global/component language files.
- * A language that is not installed (or not a known language key at all) is
- * left completely untouched; use InstallLanguage to install it first.
- *
- * Separate Activity from Install/Update/UninstallLanguage on purpose:
- * "discard local customizations while keeping the language installed" is a
- * distinct domain action from installing, refreshing or uninstalling one -
- * and, like UninstallLanguage (see its class docblock for the shared
- * reasoning), has no Setup counterpart and hence no `forSetup()` factory.
- *
- * Like UninstallLanguage, this necessarily acts on the existing
- * `ilObjLanguage` domain object per language key - only that object carries
- * the business rule (`removeLocalChanges()`) needed here, which validates
- * the language file via `check()`, flushes the existing data and reinstalls
- * the language while explicitly excluding the customizing/local directory.
- * Both legacy access points this requires (enumerating "lng" objects,
- * constructing an ilObjLanguage by id) are the exact calls UninstallLanguage
- * also uses, for the same reasons (see its class docblock) - wrapped in
- * closures here only so tests can substitute fakes without bootstrapping the
- * legacy global $DIC.
- *
- * Resolving a requested language key to its object id
- * (resolveObjIdsByLanguageKey(), see ResolvesLanguageKeysToObjIds) matches
- * purely on title and rejects an ambiguous one outright - identical
- * reasoning to UninstallLanguage, see its class docblock.
- */
 class RemoveLocalLanguageChanges extends LanguageActivity
 {
     use DeclaresLanguageKeysOnlyInput;
@@ -65,14 +35,8 @@ class RemoveLocalLanguageChanges extends LanguageActivity
     private readonly \Closure $obj_language_factory;
 
     /**
-     * @param \Closure|null $lng_objects () => list<array{obj_id: int, title: string}>
-     *        Enumerates every "lng"-type object in the system, used to
-     *        resolve a requested language key to its object id. Defaults to
-     *        the same `ilObject::_getObjectsByType('lng')` call already used
-     *        elsewhere in this component.
-     * @param \Closure|null $obj_language_factory (int $obj_id) => \ilObjLanguage
-     *        Constructs the domain object for a given language object id.
-     *        Defaults to `new \ilObjLanguage($obj_id, false)`.
+     * @param \Closure|null $lng_objects (): list<array{obj_id: int, title: string}>
+     * @param \Closure|null $obj_language_factory (int $obj_id): \ilObjLanguage
      */
     public function __construct(
         RefineryFactory $refinery,
@@ -146,26 +110,13 @@ MARKDOWN
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
         [$obj_id_by_language_key, $ambiguous_language_keys] = $this->resolveObjIdsByLanguageKey();
 
-        // Checked BEFORE anything below is written, and for every requested
-        // key at once (rather than inline in the loop, as before): otherwise
-        // a request naming both an unambiguous and an ambiguous key would
-        // already have changed the unambiguous one by the time the ambiguous
-        // one is reached, leaving the admin unaware that a partial change
-        // already happened underneath an "aborted" message - see
-        // resolveObjIdsByLanguageKey() for why an ambiguous title is
-        // rejected instead of silently guessed at.
+        // Checked upfront, for all requested keys at once, so a request naming both an
+        // unambiguous and an ambiguous key never changes the unambiguous one before
+        // rejecting the whole call.
         $requested_ambiguous_language_keys = array_values(
             array_intersect($language_keys, array_keys($ambiguous_language_keys))
         );
         if ($requested_ambiguous_language_keys !== []) {
-            // AmbiguousLanguageTitleException (rather than a plain
-            // \RuntimeException) marks this as a concrete, admin-actionable
-            // data integrity problem that activityErrorMessage() shows
-            // directly instead of hiding it behind a generic "action
-            // aborted" message. Its message is plain text, not HTML - any
-            // HTML-escaping needed for display is applied by the caller
-            // (see \ILIAS\Language\RendersActivityErrors::activityErrorMessage()),
-            // never here in the domain layer.
             throw new AmbiguousLanguageTitleException(
                 'Multiple language objects share the title(s) "'
                 . implode('", "', $requested_ambiguous_language_keys)
@@ -177,13 +128,10 @@ MARKDOWN
         $invalid_language_file_keys = [];
         $not_installed_language_keys = [];
 
-        // Not transactional across multiple keys: if removeLocalChanges()
-        // throws partway through (e.g. a database error), languages
-        // processed before the failing one remain changed while the whole
-        // call is still reported as a single Result\Error.
+        // Not transactional across multiple keys: a failure partway through (e.g. a database
+        // error) leaves languages processed so far changed.
         foreach ($language_keys as $language_key) {
             if (!array_key_exists($language_key, $obj_id_by_language_key)) {
-                // Not a known language key at all - certainly not installed.
                 $not_installed_language_keys[] = $language_key;
                 continue;
             }
@@ -195,11 +143,9 @@ MARKDOWN
                 continue;
             }
 
-            // removeLocalChanges() re-checks isInstalled() internally (and
-            // additionally validates the language file via check()) and
-            // returns false if either fails - the "not installed" case is
-            // already excluded above, so a false return here can only mean
-            // the language file failed validation.
+            // removeLocalChanges() re-checks isInstalled() internally (and additionally
+            // validates the language file) and returns false if either fails - "not installed"
+            // is already excluded above, so false here can only mean validation failed.
             if ($language_object->removeLocalChanges()) {
                 $removed_local_changes_language_keys[] = $language_key;
             } else {

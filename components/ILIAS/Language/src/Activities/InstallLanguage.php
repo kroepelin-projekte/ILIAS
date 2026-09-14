@@ -31,20 +31,7 @@ class InstallLanguage extends LanguageActivity
 {
     use ParsesLanguageKeyList;
 
-    /**
-     * A language not yet installed is fully installed (base data, plus a
-     * customizing/local file if one exists); a language already installed
-     * is left completely untouched - use MODE_INSTALL_LOCAL to (re-)apply a
-     * customizing file to it instead.
-     */
     public const string MODE_INSTALL = 'install';
-
-    /**
-     * Only the customizing/local file is (re-)applied, on top of an already
-     * installed language, without touching its base data; a language that
-     * is not installed is left completely untouched - use MODE_INSTALL to
-     * install it first.
-     */
     public const string MODE_INSTALL_LOCAL = 'install_local';
 
     public function __construct(
@@ -58,27 +45,6 @@ class InstallLanguage extends LanguageActivity
         parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
     }
 
-    /**
-     * Build the Activity for the Setup context, where only perform() is ever
-     * called and no runtime container exists to resolve services from.
-     *
-     * Setup Objectives (see ilLanguagesInstalledAndUpdatedObjective) used to
-     * fetch this Activity from $GLOBALS['DIC'], which is only populated by
-     * AllModernComponents::enter() and therefore never during Setup - that
-     * made setup.php update fail outright. The collaborators that perform()
-     * does not touch are supplied here as closures that fail loudly if the
-     * Setup path ever starts using the corresponding methods:
-     *  - the UI Factory (getInputDescription() only),
-     *  - ilRbacSystem and the language folder ref id (isAllowedToPerform()
-     *    only, which the Objectives must not call - Setup runs without a
-     *    user).
-     * The Refinery, by contrast, is built for real: it only needs a Data
-     * Factory and any \ILIAS\Language\Language, and ilSetupLanguage is one.
-     *
-     * No database is needed here: every database access in perform() goes
-     * through $setup_language, which resolves it itself - inject the
-     * Setup-provided one via ilSetupLanguage::setDbHandler().
-     */
     public static function forSetup(\ilSetupLanguage $setup_language): self
     {
         return new self(
@@ -193,18 +159,6 @@ MARKDOWN
 
         $currently_installed_language_keys = $this->setup_language->getInstalledLanguages();
 
-        // Split the requested language keys by what must actually happen to
-        // each of them, given $mode and whether they are already installed -
-        // the four combinations mean completely different things:
-        //  - MODE_INSTALL,       not installed: full installation (the base
-        //    files are validated below, then it is installed like before).
-        //  - MODE_INSTALL,       already installed: complete no-op - not
-        //    even a pending customizing/local file is (re-)applied anymore;
-        //    that is now exclusively MODE_INSTALL_LOCAL's job.
-        //  - MODE_INSTALL_LOCAL, already installed: (re-)apply only the
-        //    customizing/local file, the base data is left untouched.
-        //  - MODE_INSTALL_LOCAL, not installed: no-op - there is nothing
-        //    installed yet to apply local changes on top of.
         $to_fully_install = [];
         $to_apply_local_changes = [];
         $already_installed_no_op = [];
@@ -242,8 +196,6 @@ MARKDOWN
         $installed_with_local_language_keys = [];
         $invalid_local_language_files = [];
 
-        // Nothing below is needed at all (not even a read) if every
-        // requested language turned out to be a no-op above.
         $affected_language_keys = array_merge($to_fully_install, $to_apply_local_changes);
         if ($affected_language_keys !== []) {
             $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
@@ -271,10 +223,8 @@ MARKDOWN
                 if (in_array($language_key, $local_language_keys, true)) {
                     $installed_with_local_language_keys[] = $language_key;
                 } else {
-                    // No customizing/local file actually exists for this
-                    // language - "install_local" had nothing to apply, which
-                    // is exactly the "already installed, nothing changed"
-                    // case.
+                    // "install_local" had no customizing/local file to apply for this language -
+                    // the same outcome as "already installed, nothing changed".
                     $already_installed_no_op[] = $language_key;
                 }
             }
@@ -289,9 +239,6 @@ MARKDOWN
         ];
     }
 
-    /**
-     * @param mixed $value
-     */
     private function toMode(mixed $value): string
     {
         if ($value === self::MODE_INSTALL || $value === self::MODE_INSTALL_LOCAL) {
@@ -304,16 +251,6 @@ MARKDOWN
     }
 
     /**
-     * Builds the parameters perform()/isAllowedToPerform() expect from the
-     * already-grinded content of getInputDescription() (see grind() in the
-     * GrindsFormInput trait) - both 'language_keys' and 'mode' are
-     * guaranteed to be non-blank strings at this point (both Text/Select
-     * fields are required), but still need the actual domain-level parsing/
-     * validation toLanguageKeyList()/toMode() already did before (splitting
-     * the comma-separated list, checking 'mode' is one of the two allowed
-     * values) - getInputDescription()'s own required-check only enforces a
-     * minimum length of 1 on the raw string.
-     *
      * @param array{language_keys: string, mode: string} $grind_result
      * @return array{language_keys: list<string>, mode: string}
      */

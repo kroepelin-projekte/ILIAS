@@ -52,9 +52,9 @@ trait RendersActivityErrors
      *    $this->lng->txt(), the same source every GUI caller's own literal
      *    markup already trusts) and is returned as-is, unescaped.
      *  - A \Throwable implementing SafeToDisplayActivityError (e.g.
-     *    InvalidInputException, AmbiguousLanguageTitleException - see
-     *    their own class docblocks) is a genuine, actionable problem
-     *    already reduced to a concrete, non-sensitive message - but,
+     *    InvalidInputException, AmbiguousLanguageTitleException - both marker
+     *    implementations with no logic of their own) is a genuine, actionable
+     *    problem already reduced to a concrete, non-sensitive message - but,
      *    unlike the plain-string case above, its text may embed raw,
      *    caller-controlled data (a language key, an unknown form field
      *    name, ...): the Activity/domain layer deliberately returns this
@@ -80,7 +80,7 @@ trait RendersActivityErrors
         if ($error instanceof SafeToDisplayActivityError) {
             // ENT_SUBSTITUTE: without it, invalid UTF-8 in getMessage() (e.g.
             // caller-controlled data embedded by the domain layer, see the
-            // class docblock above) makes htmlspecialchars() return an empty
+            // docblock above) makes htmlspecialchars() return an empty
             // string instead of the message - the user would then see a
             // blank error box with no indication anything went wrong, rather
             // than the actual (partially substituted) message.

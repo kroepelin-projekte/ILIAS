@@ -1140,9 +1140,9 @@ class ilObjLanguageFolderGUITest extends TestCase
     /**
      * Boundary: when every bucket is empty (e.g. an empty $ids request),
      * no message at all must appear - not even an empty one. This is also
-     * the deliberate behavior change against the pre-Activity legacy code
-     * (see uninstallChangesObject()'s docblock): the old code always showed
-     * a "selected_languages_updated" message, even when nothing changed.
+     * a deliberate behavior change against the pre-Activity legacy code,
+     * which always showed a "selected_languages_updated" message, even
+     * when nothing changed.
      */
     public function testUninstallChangesObjectSetsNoMessageWhenAllBucketsAreEmpty(): void
     {
@@ -1179,8 +1179,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     // Unlike installObject()/uninstallObject()/refreshSelectedObject()/
     // uninstallChangesObject(), neither of these two methods calls
     // $this->checkPermission('write') itself - this is unchanged legacy
-    // behaviour (see SetLanguageDetectionEnabled's class docblock and the
-    // task's security note): before the extraction, only the toggle
+    // behaviour: before the extraction, only the toggle
     // button's visibility in viewObject() was write-gated, the request
     // itself was not. The extraction deliberately does not retrofit a
     // GUI-level checkPermission() call here (that would be an unrequested,
@@ -1647,9 +1646,10 @@ class ilObjLanguageFolderGUITest extends TestCase
      * a non-"lng" id must abort exactly like the four write-command methods
      * above (buildConfirmModal() delegates to the very same
      * abortIfAnyIdIsNotALanguageObject()) - the method's return type still
-     * requires a Modal value even on abort (see its own docblock: never
-     * actually rendered in production, since the redirect takes precedence),
-     * which this test also pins down: the exact Interruptive instance the
+     * requires a Modal value even on abort (see the inline comment on that
+     * abort branch: never actually rendered in production, since the
+     * redirect takes precedence), which this test also pins down: the
+     * exact Interruptive instance the
      * abort branch itself builds must be returned, proving the per-id loop
      * (and therefore ilObject::_lookupTitle()/ilObjLanguage::_getLastLocalChange())
      * was never reached - no data belonging to the wrongly-typed object ever

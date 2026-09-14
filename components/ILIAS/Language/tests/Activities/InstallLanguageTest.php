@@ -581,9 +581,10 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
     /**
      * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
      * always builds 'language_keys' as a PHP array of strings, never a
-     * comma-separated string - and GrindsFormInput::grind() (see its own
-     * class docblock, "Array raw values for a Text field") must join that
-     * array into the same shape a real HTML text input would carry BEFORE
+     * comma-separated string - and GrindsFormInput::grind() (via its
+     * private joinListOfStringsRawValue() helper - see that method's own
+     * docblock) must join that array into the same shape a real HTML text
+     * input would carry BEFORE
      * it reaches the declared Text field, rather than rejecting it. This
      * is exercised through the REAL getInputDescription()/grind() pipeline
      * (createRealFieldsUiFactory(), not a mocked FormInput) via

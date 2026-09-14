@@ -227,8 +227,10 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     /**
      * Regression test for the ambiguity check being moved OUT of the
      * per-key foreach loop and performed for ALL requested keys BEFORE any
-     * removeLocalChanges() call (see class docblock: "Checked BEFORE
-     * anything below is written, and for every requested key at once"). A
+     * removeLocalChanges() call (see the comment directly above that check
+     * in perform(): "Checked upfront, for all requested keys at once, so a
+     * request naming both an unambiguous and an ambiguous key never
+     * changes the unambiguous one before rejecting the whole call."). A
      * request naming an unambiguous key ('de') FIRST and an ambiguous one
      * ('fr') SECOND must reject the whole request and must NOT have already
      * changed 'de' by the time 'fr' is reached - before this fix, the
@@ -258,7 +260,9 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $activity = $this->createActivity($lng_objects, $obj_language_factory);
 
         try {
-            // 'de' listed BEFORE the ambiguous 'fr' on purpose - see docblock.
+            // 'de' listed BEFORE the ambiguous 'fr' on purpose - see the
+            // "Checked upfront, for all requested keys at once" comment
+            // above the ambiguity check in perform().
             $activity->perform(['language_keys' => 'de,fr']);
             $this->fail('Expected an AmbiguousLanguageTitleException to be thrown.');
         } catch (AmbiguousLanguageTitleException $e) {
@@ -618,9 +622,10 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     /**
      * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
      * always builds 'language_keys' as a PHP array of strings, never a
-     * comma-separated string - and GrindsFormInput::grind() (see its own
-     * class docblock, "Array raw values for a Text field") must join that
-     * array into the same shape a real HTML text input would carry BEFORE
+     * comma-separated string - and GrindsFormInput::grind() (via its
+     * private joinListOfStringsRawValue() helper - see that method's own
+     * docblock) must join that array into the same shape a real HTML text
+     * input would carry BEFORE
      * it reaches the declared Text field, rather than rejecting it. This
      * is exercised through the REAL getInputDescription()/grind() pipeline
      * (createRealFieldsUiFactory(), not a mocked FormInput) via

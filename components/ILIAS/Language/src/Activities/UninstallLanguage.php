@@ -26,40 +26,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Factory as UIFactory;
 
-/**
- * Uninstalls one or more already installed languages: DB-held base data
- * (and any customizing/local data) is flushed, the language's status
- * reverts to "not installed", and any user preference still pointing at it
- * is reset to the system default. A language that is not installed, the
- * current system language, or the language currently in use by the acting
- * session is left completely untouched and reported separately (see
- * getOutputDescription()).
- *
- * Separate Activity from Install/UpdateLanguage on purpose: uninstalling has
- * its own guard rails (the system/in-use language must never be removable)
- * and, unlike them, no Setup counterpart - Setup only ever installs/
- * refreshes the languages ILIAS ships with, never uninstalls one - hence no
- * `forSetup()` factory here.
- *
- * Necessarily acts on the existing `ilObjLanguage` domain object per
- * language key: only that object carries the business rules
- * (isSystemLanguage()/isUserLanguage()/isInstalled()/uninstall()) needed
- * here. The lower-level `flushLanguageForUninstallation()` on
- * ilSetupLanguage/LanguageInstallationManager is deliberately NOT used - it
- * neither updates the object's title/status nor resets a pointing user
- * preference, both of which `uninstall()` does and must be preserved. The
- * two legacy access points this requires (enumerating "lng" objects,
- * constructing an ilObjLanguage by id) are wrapped in closures purely so
- * tests can substitute fakes without bootstrapping the legacy global $DIC.
- *
- * Resolving a requested language key to its object id
- * (resolveObjIdsByLanguageKey(), shared with RemoveLocalLanguageChanges - see
- * ResolvesLanguageKeysToObjIds) matches purely on title, because "language
- * key" (title), not "obj_id", is this Activity's public vocabulary; a title
- * shared by two "lng" objects is rejected outright
- * (AmbiguousLanguageTitleException) rather than silently resolved to the
- * wrong one.
- */
 class UninstallLanguage extends LanguageActivity
 {
     use DeclaresLanguageKeysOnlyInput;
@@ -69,14 +35,8 @@ class UninstallLanguage extends LanguageActivity
     private readonly \Closure $obj_language_factory;
 
     /**
-     * @param \Closure|null $lng_objects () => list<array{obj_id: int, title: string}>
-     *        Enumerates every "lng"-type object in the system, used to
-     *        resolve a requested language key to its object id. Defaults to
-     *        the same `ilObject::_getObjectsByType('lng')` call already used
-     *        elsewhere in this component.
-     * @param \Closure|null $obj_language_factory (int $obj_id) => \ilObjLanguage
-     *        Constructs the domain object for a given language object id.
-     *        Defaults to `new \ilObjLanguage($obj_id)`.
+     * @param \Closure|null $lng_objects (): list<array{obj_id: int, title: string}>
+     * @param \Closure|null $obj_language_factory (int $obj_id): \ilObjLanguage
      */
     public function __construct(
         RefineryFactory $refinery,
@@ -156,26 +116,13 @@ MARKDOWN
         $language_keys = $this->toLanguageKeyList($parameters['language_keys'] ?? null);
         [$obj_id_by_language_key, $ambiguous_language_keys] = $this->resolveObjIdsByLanguageKey();
 
-        // Checked BEFORE anything below is written, and for every requested
-        // key at once (rather than inline in the loop, as before): otherwise
-        // a request naming both an unambiguous and an ambiguous key would
-        // already have uninstalled the unambiguous one by the time the
-        // ambiguous one is reached, leaving the admin unaware that a partial
-        // uninstallation already happened underneath an "aborted" message -
-        // see resolveObjIdsByLanguageKey() for why an ambiguous title is
-        // rejected instead of silently guessed at.
+        // Checked upfront, for all requested keys at once, so a request naming both an
+        // unambiguous and an ambiguous key never uninstalls the unambiguous one before
+        // rejecting the whole call.
         $requested_ambiguous_language_keys = array_values(
             array_intersect($language_keys, array_keys($ambiguous_language_keys))
         );
         if ($requested_ambiguous_language_keys !== []) {
-            // AmbiguousLanguageTitleException (rather than a plain
-            // \RuntimeException) marks this as a concrete, admin-actionable
-            // data integrity problem that activityErrorMessage() shows
-            // directly instead of hiding it behind a generic "action
-            // aborted" message. Its message is plain text, not HTML - any
-            // HTML-escaping needed for display is applied by the caller
-            // (see \ILIAS\Language\RendersActivityErrors::activityErrorMessage()),
-            // never here in the domain layer.
             throw new AmbiguousLanguageTitleException(
                 'Multiple language objects share the title(s) "'
                 . implode('", "', $requested_ambiguous_language_keys)
@@ -188,13 +135,10 @@ MARKDOWN
         $user_language_keys = [];
         $not_installed_language_keys = [];
 
-        // Not transactional across multiple keys: if uninstall() throws
-        // partway through (e.g. a database error), languages processed
-        // before the failing one remain uninstalled while the whole call is
-        // still reported as a single Result\Error.
+        // Not transactional across multiple keys: a failure partway through (e.g. a database
+        // error) leaves languages processed so far uninstalled.
         foreach ($language_keys as $language_key) {
             if (!array_key_exists($language_key, $obj_id_by_language_key)) {
-                // Not a known language key at all - certainly not installed.
                 $not_installed_language_keys[] = $language_key;
                 continue;
             }
@@ -204,28 +148,19 @@ MARKDOWN
             if ($language_object->isSystemLanguage()) {
                 $system_language_keys[] = $language_key;
             } elseif ($language_object->isUserLanguage()) {
-                // isUserLanguage() compares against the *ambient*
-                // \ILIAS\Language\Language service's lang_user (i.e. this
-                // PHP request's session), not against $usr_id - inherited
-                // from the legacy domain object, not introduced by this
-                // extraction. A caller acting for a $usr_id other than the
-                // current session's user (e.g. a webservice or background
-                // job) will not protect *that* user's language this way.
+                // Compares against the ambient Language service's lang_user (this request's
+                // session), not against $usr_id - a caller acting for another user's $usr_id
+                // (e.g. a webservice or background job) does not protect that user's language.
                 $user_language_keys[] = $language_key;
             } elseif (!$language_object->isInstalled()) {
                 $not_installed_language_keys[] = $language_key;
+            } elseif ($language_object->uninstall() !== '') {
+                // uninstall() re-checks these same guards internally and returns "" if any
+                // still applies - the outcome is decided by this return value, not the checks
+                // above alone.
+                $uninstalled_language_keys[] = $language_key;
             } else {
-                // uninstall() re-checks these same three guards internally
-                // and returns "" if any of them applies after all (e.g. a
-                // future additional guard added there) - the outcome is
-                // therefore decided by this return value, not merely by the
-                // three checks above, so that a rejection inside uninstall()
-                // is never misreported as a success.
-                if ($language_object->uninstall() !== '') {
-                    $uninstalled_language_keys[] = $language_key;
-                } else {
-                    $not_installed_language_keys[] = $language_key;
-                }
+                $not_installed_language_keys[] = $language_key;
             }
         }
 

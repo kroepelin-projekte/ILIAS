@@ -223,8 +223,11 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
     /**
      * Regression test for the ambiguity check being moved OUT of the
      * per-key foreach loop and performed for ALL requested keys BEFORE any
-     * uninstall() call (see class docblock: "Checked BEFORE anything below
-     * is written, and for every requested key at once"). A request naming
+     * uninstall() call (see the comment directly above the
+     * AmbiguousLanguageTitleException throw in UninstallLanguage::perform():
+     * "Checked upfront, for all requested keys at once, so a request naming
+     * both an unambiguous and an ambiguous key never uninstalls the
+     * unambiguous one before rejecting the whole call"). A request naming
      * an unambiguous key ('de') FIRST and an ambiguous one ('fr') SECOND
      * must reject the whole request and must NOT have already uninstalled
      * 'de' by the time 'fr' is reached - before this fix, the ambiguity
@@ -254,7 +257,11 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $activity = $this->createActivity($lng_objects, $obj_language_factory);
 
         try {
-            // 'de' listed BEFORE the ambiguous 'fr' on purpose - see docblock.
+            // 'de' listed BEFORE the ambiguous 'fr' on purpose - this is the
+            // exact ordering the regression above (see this test's own
+            // docblock) requires: were the ambiguity check still inline in
+            // the per-key loop, 'de' being processed first would already
+            // have been uninstalled before 'fr' was ever reached.
             $activity->perform(['language_keys' => 'de,fr']);
             $this->fail('Expected an AmbiguousLanguageTitleException to be thrown.');
         } catch (AmbiguousLanguageTitleException $e) {
@@ -647,14 +654,17 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
     /**
      * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
      * always builds 'language_keys' as a PHP array of strings, never a
-     * comma-separated string - and GrindsFormInput::grind() (see its own
-     * class docblock, "Array raw values for a Text field") must join that
-     * array into the same shape a real HTML text input would carry BEFORE
-     * it reaches the declared Text field, rather than rejecting it. This
-     * is exercised through the REAL getInputDescription()/grind() pipeline
-     * (createRealFieldsUiFactory(), not a mocked FormInput) via
-     * maybePerformAs() - the previously blocking regression this test
-     * guards against.
+     * comma-separated string - and GrindsFormInput::grind(), via
+     * collectRawValues()'s call to joinListOfStringsRawValue() (see that
+     * method's own docblock: "Returns $raw_value joined into a single
+     * comma-separated string if every one of its items is a string;
+     * otherwise returns $raw_value unchanged, in whatever shape the caller
+     * passed"), must join that array into the same shape a real HTML text
+     * input would carry BEFORE it reaches the declared Text field, rather
+     * than rejecting it. This is exercised through the REAL
+     * getInputDescription()/grind() pipeline (createRealFieldsUiFactory(),
+     * not a mocked FormInput) via maybePerformAs() - the previously
+     * blocking regression this test guards against.
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndUninstallsEachOne(): void
     {

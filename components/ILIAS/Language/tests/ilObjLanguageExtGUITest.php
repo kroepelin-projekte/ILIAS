@@ -280,8 +280,8 @@ class ilObjLanguageExtGUITest extends TestCase
 
     /**
      * Only shown if the value actually changed - exactly reproducing the
-     * extracted code's original behaviour (see
-     * SetLanguageTranslationEnabled's class docblock).
+     * extracted code's original behaviour (see the 'changed' field's own
+     * description in SetLanguageTranslationEnabled::getOutputDescription()).
      */
     public function testSaveSettingsObjectShowsNoMessageWhenResultReportsChangedFalse(): void
     {

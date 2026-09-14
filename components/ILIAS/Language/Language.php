@@ -129,11 +129,11 @@ class Language implements Component\Component
             );
 
         // Unlike InstallLanguage/UpdateLanguage, UninstallLanguage needs no
-        // ilSetupLanguage (it has no Setup counterpart - see its class
-        // docblock) and no forSetup() factory; its two legacy collaborators
-        // (enumerating "lng" objects, constructing an ilObjLanguage by id)
-        // are left at their defaults, which resolve the exact same legacy
-        // calls the extracted GUI code used directly before.
+        // ilSetupLanguage - uninstalling a language is a runtime-only action with no
+        // equivalent step during Setup - and so no forSetup() factory either; its two legacy
+        // collaborators (enumerating "lng" objects, constructing an ilObjLanguage by id) are
+        // left at their defaults, which resolve the exact same legacy calls the extracted GUI
+        // code used directly before.
         $internal[UninstallLanguage::class] = static fn() =>
             new UninstallLanguage(
                 $pull[\ILIAS\Refinery\Factory::class],
@@ -158,18 +158,16 @@ class Language implements Component\Component
                 $lang_folder_ref_id
             );
 
-        // Same reasoning again, minus the Setup/forSetup() bridge, which does
-        // not apply here either - see AddLanguageEntry's class docblock for
-        // why it has no Setup counterpart at all. Unlike UninstallLanguage/
-        // RemoveLocalLanguageChanges, this needs no "lng" object enumeration
-        // or ilObjLanguage-by-id closures - it reads the set of installed
-        // languages from InstalledLanguageDatabaseRepository (already built
-        // above for other consumers) and writes single entries via the two
-        // legacy closures defaulted inside AddLanguageEntry itself; the second
-        // of those two (updateModuleCache()) needs a database connection,
-        // supplied here via the same $resolve_db closure every other database
-        // consumer in this component shares, rather than AddLanguageEntry
-        // reaching into $GLOBALS['DIC'] directly.
+        // Same reasoning again, minus the Setup/forSetup() bridge, which does not apply here
+        // either - adding a single language entry is a runtime-only action with no equivalent
+        // step during Setup. Unlike UninstallLanguage/RemoveLocalLanguageChanges, this needs no
+        // "lng" object enumeration or ilObjLanguage-by-id closures - it reads the set of
+        // installed languages from InstalledLanguageDatabaseRepository (already built above for
+        // other consumers) and writes single entries via the two legacy closures defaulted
+        // inside AddLanguageEntry itself; the second of those two (updateModuleCache()) needs a
+        // database connection, supplied here via the same $resolve_db closure every other
+        // database consumer in this component shares, rather than AddLanguageEntry reaching
+        // into $GLOBALS['DIC'] directly.
         $internal[AddLanguageEntry::class] = static fn() =>
             new AddLanguageEntry(
                 $pull[\ILIAS\Refinery\Factory::class],
@@ -177,9 +175,8 @@ class Language implements Component\Component
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $internal[InstalledLanguageDatabaseRepository::class],
-                // $db is a mandatory collaborator (see AddLanguageEntry's own
-                // constructor docblock) - it needs no database of its own
-                // beyond what updateModuleCache()'s default resolves via
+                // $db is a mandatory (non-nullable) collaborator - AddLanguageEntry needs no
+                // database of its own beyond what updateModuleCache()'s default resolves via
                 // this same $resolve_db closure, already shared by
                 // InstalledLanguageDatabaseRepository/LanguageInstallationManager.
                 $resolve_db,
@@ -189,14 +186,13 @@ class Language implements Component\Component
                 // docblock).
             );
 
-        // Same reasoning again, minus the Setup/forSetup() bridge, which does
-        // not apply here either - see SetLanguageDetectionEnabled's class
-        // docblock for why it has no Setup counterpart at all. Unlike every
-        // other Activity above, this needs no "lng" object enumeration, no
-        // ilObjLanguage-by-id closure and no installed-language repository -
-        // it only ever reads/writes the single "lang_detection" system
-        // setting, via the same $GLOBALS['DIC']->settings() call the
-        // extracted GUI code used directly (as $this->settings).
+        // Same reasoning again, minus the Setup/forSetup() bridge, which does not apply here
+        // either - toggling a system setting is a runtime-only action with no equivalent step
+        // during Setup. Unlike every other Activity above, this needs no "lng" object
+        // enumeration, no ilObjLanguage-by-id closure and no installed-language repository - it
+        // only ever reads/writes the single "lang_detection" system setting, via the same
+        // $GLOBALS['DIC']->settings() call the extracted GUI code used directly (as
+        // $this->settings).
         $internal[SetLanguageDetectionEnabled::class] = static fn() =>
             new SetLanguageDetectionEnabled(
                 $pull[\ILIAS\Refinery\Factory::class],
@@ -207,18 +203,15 @@ class Language implements Component\Component
                 $lang_folder_ref_id
             );
 
-        // Same reasoning again, minus the Setup/forSetup() bridge, which does
-        // not apply here either - see SetLanguageTranslationEnabled's class
-        // docblock for why it has no Setup counterpart at all. Like
-        // SetLanguageDetectionEnabled, this needs no "lng" object
-        // enumeration and no ilObjLanguage-by-id closure - it only ever
-        // reads/writes a single "lang_translate_<key>" system setting, via
-        // the same $GLOBALS['DIC']->settings() call the extracted GUI code
-        // used directly (as $DIC->settings() inside saveSettingsObject()).
-        // Unlike SetLanguageDetectionEnabled, it now also needs the
-        // installed-language repository (already built above for
-        // AddLanguageEntry) to validate the given language_key is actually
-        // installed - see SetLanguageTranslationEnabled's class docblock.
+        // Same reasoning again, minus the Setup/forSetup() bridge, which does not apply here
+        // either - toggling a per-language setting is a runtime-only action with no equivalent
+        // step during Setup. Like SetLanguageDetectionEnabled, this needs no "lng" object
+        // enumeration and no ilObjLanguage-by-id closure - it only ever reads/writes a single
+        // "lang_translate_<key>" system setting, via the same $GLOBALS['DIC']->settings() call
+        // the extracted GUI code used directly (as $DIC->settings() inside
+        // saveSettingsObject()). Unlike SetLanguageDetectionEnabled, it now also needs the
+        // installed-language repository (already built above for AddLanguageEntry) to validate
+        // that the given language_key is actually installed.
         $internal[SetLanguageTranslationEnabled::class] = static fn() =>
             new SetLanguageTranslationEnabled(
                 $pull[\ILIAS\Refinery\Factory::class],

@@ -51,12 +51,13 @@ class GrindsFormInputTest extends TestCase
 
     /**
      * getInputDescription() is declared to return the public FormInput
-     * interface - grind() must not blindly trust that a caller's
-     * implementation also satisfies the internal InputInternal interface
-     * it actually needs (see the trait's own class docblock, "Why the
-     * downcast ... is necessary and safe"). A FormInput that does NOT
-     * implement InputInternal must be reported as a clean Result\Error,
-     * never a fatal TypeError/uncaught exception.
+     * interface, which does not expose the machinery grind() actually needs
+     * (withNameFrom()/withInput()/getContent(), declared on InputInternal
+     * instead - see the trait's own class docblock and nameForGrinding()) -
+     * grind() must not blindly trust that a caller's implementation also
+     * satisfies InputInternal. A FormInput that does NOT implement
+     * InputInternal must be reported as a clean Result\Error, never a fatal
+     * TypeError/uncaught exception.
      */
     public function testGrindReturnsResultErrorInsteadOfCrashingWhenDescriptionIsNotInputInternal(): void
     {
@@ -89,8 +90,8 @@ class GrindsFormInputTest extends TestCase
     /**
      * Every raw value normalizeCheckboxRawValue() whitelists (including
      * 'checked'/'on', the two raw values a genuine HTML checkbox actually
-     * submits - see the method's own docblock) must grind through to the
-     * correct strict bool via the REAL Checkbox field, not a mock.
+     * submits) must grind through to the correct strict bool via the REAL
+     * Checkbox field, not a mock.
      */
     #[DataProvider('checkboxWhitelistAcceptsRawValueProvider')]
     public function testGrindNormalizesEveryWhitelistedCheckboxRawValue(mixed $raw_value, bool $expected): void
@@ -134,9 +135,9 @@ class GrindsFormInputTest extends TestCase
 
     /**
      * Anything outside the explicit whitelist must be rejected outright
-     * ("konservativ normalisieren", not "alles akzeptieren" - see the
-     * method's own docblock) rather than being guessed at - grind() must
-     * turn the resulting \InvalidArgumentException into a Result\Error,
+     * ("konservativ normalisieren", not "alles akzeptieren") rather than
+     * being guessed at - grind() must turn the resulting
+     * \InvalidArgumentException into a Result\Error,
      * never let it propagate uncaught.
      *
      * Regression test: grind()'s dedicated `catch (\InvalidArgumentException $e)`
@@ -192,8 +193,9 @@ class GrindsFormInputTest extends TestCase
      * InvalidInputException whose message identifies the field (via its
      * dedicated name) and the underlying InputInternal::getError() code -
      * "<field>: <error>" - rather than the generic, uninformative
-     * "ui_error_in_group" text Group::withInput() would otherwise surface
-     * (see describeInputError()'s own docblock).
+     * "ui_error_in_group" text Group::withInput() would otherwise surface;
+     * describeInputError() builds this "<field>: <error>" message itself,
+     * walking every field via collectFieldErrors().
      */
     public function testGrindReportsAFieldAttributedInvalidInputExceptionOnValidationFailure(): void
     {
@@ -239,6 +241,35 @@ class GrindsFormInputTest extends TestCase
 
         $this->assertTrue($result->isOk());
         $this->assertSame('de,fr', $result->value()['language_keys']);
+    }
+
+    /**
+     * Regression test for the asymmetry between the outermost level of
+     * $raw_parameters and any group nested inside it (see the
+     * $enforce_known_keys parameter's own docblock on collectRawValues()):
+     * grind() calls collectRawValues() for the outermost group with
+     * $enforce_known_keys defaulting to false, so an unrelated key
+     * anywhere in the top-level raw_parameters array (e.g. other form
+     * fields submitted alongside this Activity's own input) must be
+     * silently ignored - the known field(s) must still be collected and
+     * grind() must still return a Result\Ok, not a Result\Error.
+     */
+    public function testGrindSilentlyIgnoresAnUnknownKeyAtTheTopLevelOfRawParameters(): void
+    {
+        $name = $this->createRealFieldsUiFactory()->input()->field()->text('Name', '')
+            ->withDedicatedName('name');
+        $description = $this->createRealFieldsUiFactory()->input()->field()->group([
+            'name' => $name,
+        ]);
+
+        $result = $this->host()->callGrind($description, [
+            'name' => 'Foo',
+            // Not a field of the outermost group - must be tolerated, not rejected.
+            'some_unrelated_form_field' => 'bar',
+        ]);
+
+        $this->assertTrue($result->isOk());
+        $this->assertSame('Foo', $result->value()['name']);
     }
 
     /**

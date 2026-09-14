@@ -22,20 +22,13 @@ namespace ILIAS\Language\Activities;
 
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 
-/**
- * Shared by UpdateLanguage, UninstallLanguage and RemoveLocalLanguageChanges:
- * these three Activities take EXACTLY one input, a single 'language_keys'
- * text field (unlike InstallLanguage, which additionally needs a 'mode'
- * field and therefore declares its own getInputDescription()/
- * normalizeParameters() instead of using this trait).
- *
- * Requires the using class to extend LanguageActivity (for $this->ui_factory
- * and the abstract normalizeParameters() this trait implements).
- */
 trait DeclaresLanguageKeysOnlyInput
 {
     use ParsesLanguageKeyList;
 
+    // Requires the using class to provide `protected readonly \Closure $ui_factory`
+    // ((): UIFactory) - not declared here, since every Activity using this trait already gets
+    // it from extending LanguageActivity.
     public function getInputDescription(): FormInput
     {
         $ui_factory = ($this->ui_factory)();

@@ -784,9 +784,12 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     *
     * An unchecked HTML checkbox is not submitted at all, so a missing/empty
     * "translation" POST value means "disabled", exactly as the extracted
-    * code's `?? ""` default did - see SetLanguageTranslationEnabled's class
-    * docblock for why the Activity's own boolean-based contract is
-    * equivalent to the raw string value the form used to carry directly.
+    * code's `?? ""` default did. SetLanguageTranslationEnabled::perform()
+    * requires `enabled` as a strict bool and itself derives the setting's
+    * current state via `(bool) $this->settings->get($translate_key, '0')` -
+    * the same true/false convention the raw stored string already encoded -
+    * so this strict bool is equivalent to the raw value the form used to
+    * carry directly.
     */
     public function saveSettingsObject(): void
     {
@@ -814,8 +817,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $this->tpl->setOnScreenMessage('failure', $error_message);
         } elseif ($result->value()['changed']) {
             // Only shown if the value actually changed - exactly reproducing
-            // the extracted code's original behaviour (see
-            // SetLanguageTranslationEnabled's class docblock).
+            // the extracted code's original behaviour: 'changed' comes from
+            // SetLanguageTranslationEnabled::perform()'s own strict bool
+            // comparison against the previously stored setting.
             $this->tpl->setOnScreenMessage('success', $this->lng->txt("settings_saved"));
         }
 
@@ -1097,8 +1101,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
                 if ($error instanceof SafeToDisplayActivityError) {
                     // A genuine input rejection (e.g. a missing/blank "de"/
-                    // "en" translation, see AddLanguageEntry's class
-                    // docblock) - re-render the same form with the values
+                    // "en" translation - AddLanguageEntry::perform() rejects
+                    // the whole request if either is blank, mirroring the
+                    // legacy ilPropertyFormGUI's setRequired(true) on these
+                    // two fields; other languages left blank are merely
+                    // skipped) - re-render the same form with the values
                     // the user already entered still filled in, exactly like
                     // the $form->checkInput() === false branch below does,
                     // instead of redirecting to "view" and discarding them.

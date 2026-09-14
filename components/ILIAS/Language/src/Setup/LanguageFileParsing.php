@@ -37,13 +37,9 @@ trait LanguageFileParsing
     }
 
     /**
-     * Remove *.lang header information from '$content'.
-     *
-     * This function seeks for a special keyword where the language information starts.
-     * If found it returns the plain language information; otherwise returns false.
-     *
-     * @param string[] $content expect an ILIAS lang-file
-     * @return bool|string[]
+     * @param string[] $content expects an ILIAS lang-file
+     * @return bool|string[] the file's entries with the header stripped, or false if no header
+     *         marker was found
      */
     private function cutHeader(array $content)
     {

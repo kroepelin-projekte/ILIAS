@@ -21,7 +21,6 @@ declare(strict_types=1);
 namespace ILIAS\Language\ComponentTranslation;
 
 /**
- * @internal
  * @author Fabian Schmid <fabian@sr.solutions>
  */
 class LanguageFileDirectoryManager
@@ -41,7 +40,6 @@ class LanguageFileDirectoryManager
 
     private function check(): void
     {
-        // Basic checks
         if ($this->local_directory instanceof CustomizingLanguageFileDirectory) {
             if (!$this->local_directory->getPath()) {
                 throw new \InvalidArgumentException(

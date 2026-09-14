@@ -20,9 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
+// Only the Language component itself shall provide an instance of this.
 /**
- * @internal Only the Langauge-Component shall provide an Instance of this.
- * @author   Fabian Schmid <fabian@sr.solutions>
+ * @author Fabian Schmid <fabian@sr.solutions>
  */
 class MainLanguageFileDirectory implements LanguageFileDirectory
 {

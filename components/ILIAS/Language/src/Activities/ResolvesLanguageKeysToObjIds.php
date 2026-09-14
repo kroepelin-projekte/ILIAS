@@ -20,36 +20,21 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
-/**
- * Shared by UninstallLanguage and RemoveLocalLanguageChanges: resolves
- * every "lng" object's title (i.e. language key) to its object id, as
- * needed to construct the ilObjLanguage for a requested language key (see
- * either class' own docblock for why). A title shared by more than one
- * object - a data integrity anomaly that should never occur in a healthy
- * installation, but is not otherwise guarded against anywhere in this
- * component - is deliberately excluded from the returned map rather than
- * arbitrarily resolved to "whichever object happened to be enumerated
- * last": doing so could silently act on the wrong object. Instead its
- * title is returned separately, in $ambiguous_language_keys, so perform()
- * can reject a request naming it explicitly (see AmbiguousLanguageTitleException)
- * rather than mis-resolving it silently.
- *
- * Requires the using class to declare `private readonly \Closure $lng_objects;`
- * (() => list<array{obj_id: int, title: string}>) exactly like
- * UninstallLanguage/RemoveLocalLanguageChanges already do.
- */
 trait ResolvesLanguageKeysToObjIds
 {
+    // Requires the using class to declare and initialize its own
+    // `private readonly \Closure $lng_objects` ((): list<array{obj_id: int, title: string}>)
+    // - left to each using class (rather than declared here) since its default value differs
+    // per Activity.
+
     /**
+     * Language keys (titles) shared by more than one "lng" object are excluded from the first
+     * array and returned as keys of the second instead.
+     *
      * @return array{0: array<string, int>, 1: array<string, true>}
      */
     private function resolveObjIdsByLanguageKey(): array
     {
-        // Resolved exactly once here (rather than once per loop, as before
-        // this trait was extracted) - two separate calls could otherwise
-        // observe two different snapshots of the "lng" objects (an
-        // unlikely, but real, TOCTOU risk) and would always cost a second,
-        // entirely redundant enumeration/DB round trip.
         $lng_objects = ($this->lng_objects)();
 
         $title_occurrences = [];

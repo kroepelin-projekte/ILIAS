@@ -148,12 +148,11 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
      * installs a not-yet-installed key and is a no-op for an already
      * installed one; UpdateLanguage refreshes an already installed key and
      * is a no-op for one that is not installed. Neither call needs the
-     * caller to pre-filter by install status - see their own perform()
-     * docblocks. Running UpdateLanguage on the keys InstallLanguage just
-     * installed is intentional, not wasted work avoided: it keeps this
-     * method's behaviour simple (one full list, two independent Activities)
-     * and the freshly installed keys are also freshly refreshed, which is
-     * harmless.
+     * caller to pre-filter by install status. Running UpdateLanguage on the
+     * keys InstallLanguage just installed is intentional, not wasted work
+     * avoided: it keeps this method's behaviour simple (one full list, two
+     * independent Activities) and the freshly installed keys are also
+     * freshly refreshed, which is harmless.
      *
      * Each Activity validates and throws \RuntimeException only for the
      * keys it actually processes (see InstallLanguage::perform() and
