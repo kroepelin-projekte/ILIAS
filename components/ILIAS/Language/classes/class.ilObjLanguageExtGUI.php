@@ -20,11 +20,13 @@ declare(strict_types=1);
 
 use ILIAS\FileUpload\DTO\ProcessingStatus;
 use ILIAS\FileUpload\Location;
-use ILIAS\HTTP\Services as HTTPServices;
-use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use ILIAS\Language\RendersActivityErrors;
+use ILIAS\UI\URLBuilder;
+use ILIAS\UI\URLBuilderToken;
+use ILIAS\UI\Component\Input\Container\Filter\Filter as ilFilter;
+use ILIAS\UI\Implementation\Component\Table as DataTable;
 
 /**
 * Class ilObjLanguageExtGUI
@@ -48,6 +50,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
     private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
+    private URLBuilder $url_builder;
+    private URLBuilderToken $action_token;
+    private URLBuilderToken $row_id_token;
+    private ilLanguageEntriesTable $entries_table;
 
     /**
     * Constructor
@@ -104,6 +110,29 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         // read the lang mode
         $this->langmode = $ilClientIniFile->readVariable("system", "LANGMODE");
+
+        $here_uri = new ILIAS\Data\Factory()->uri($this->request->getUri()->__toString());
+        $url_builder = new URLBuilder($here_uri);
+        [$url_builder, $action_token, $row_id_token] = $url_builder->acquireParameters(
+            ['lang_entries'],
+            "table_action", //this is the actions's parameter name
+            "entry_names"   //this is the parameter name to be used for row-ids
+        );
+        $this->url_builder = $url_builder;
+        $this->action_token = $action_token;
+        $this->row_id_token = $row_id_token;
+
+        /** @var ilObjLanguageExt $obj */
+        $obj = $this->object;
+
+        $this->entries_table = new ilLanguageEntriesTable(
+            $obj,
+            $lng,
+            $this->ui_factory,
+            $url_builder,
+            $action_token,
+            $row_id_token
+        );
     }
 
     /**
@@ -139,10 +168,59 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             exit;
         }
 
+        // returns instead of falling through, editSelectedObject() may render the form itself
+        if ($action = $this->getCommandFromQueryToken($this->action_token->getName())) {
+            switch ($action) {
+                case 'edit':
+                    $names = $this->getIdsFromQueryToken();
+                    $this->editSelectedObject($names);
+                    $ilHelp->setScreenIdComponent("lng");
+                    return;
+            }
+        }
+
         $cmd = $this->ctrl->getCmd("view") . "Object";
         $this->$cmd();
 
         $ilHelp->setScreenIdComponent("lng");
+    }
+
+    private function getCommandFromQueryToken(string $param): ?string
+    {
+        if (!$this->request_wrapper->has($param)) {
+            return null;
+        }
+        $trafo = $this->refinery->byTrying([
+            $this->refinery->kindlyTo()->null(),
+            $this->refinery->kindlyTo()->string()
+        ]);
+        return $this->request_wrapper->retrieve($param, $trafo);
+    }
+
+    /** Only normalises the shape, initEditEntriesForm() drops unknown names. */
+    private function getIdsFromQueryToken(): array
+    {
+        if (!$this->request_wrapper->has($this->row_id_token->getName())) {
+            return [];
+        }
+
+        return $this->request_wrapper->retrieve(
+            $this->row_id_token->getName(),
+            $this->refinery->byTrying([
+                $this->refinery->container()->mapValues(
+                    $this->refinery->kindlyTo()->string()
+                ),
+                $this->refinery->custom()->transformation(
+                    static function ($value): array {
+                        if (!is_string($value)) {
+                            throw new \UnexpectedValueException('Not a string.');
+                        }
+                        return [$value];
+                    }
+                ),
+                $this->refinery->always([]),
+            ])
+        );
     }
 
     /**
@@ -153,301 +231,267 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $this->viewObject();
     }
 
-    /**
-     * Get the table to view language entries
-     */
-    protected function getViewTable(): ilLanguageExtTableGUI
+    /** Also used to resolve ALL_OBJECTS: the same filter id restores the same values from the session. */
+    private function initFilter(): ilFilter
     {
-        // create and configure the table object
-        $table_gui = new ilLanguageExtTableGUI($this, "view", array(
-            "langmode" => $this->langmode,
-            "lang_key" => $this->object->key,
-        ));
+        global $DIC;
 
-        return $table_gui;
+        $field_factory = $this->ui_factory->input()->field();
+        $filter_id = ilLanguageEntriesTable::tableId();
+        $fields = [];
+
+        if (!ilObjLanguageAccess::_isPageTranslation()) {
+            $fields['pattern'] = $field_factory->text($this->lng->txt('search'));
+
+            $module_options = ['all' => $this->lng->txt('language_all_modules')];
+            foreach (ilObjLanguageExt::_getModules($this->lng->getLangKey()) as $module) {
+                $module_options[$module] = $module;
+            }
+            $fields['module'] = $field_factory
+                ->select(ucfirst($this->lng->txt('module')), $module_options)
+                ->withValue('administration');
+
+            $fields['identifier'] = $field_factory->text(ucfirst($this->lng->txt('identifier')));
+
+            $mode_options = [
+                'all' => $this->lng->txt('language_scope_global'),
+                'changed' => $this->lng->txt('language_scope_local'),
+            ];
+            if ($this->langmode) {
+                $mode_options['added'] = $this->lng->txt('language_scope_added');
+            }
+            $mode_options['unchanged'] = $this->lng->txt('language_scope_unchanged');
+            $mode_options['equal'] = $this->lng->txt('language_scope_equal');
+            $mode_options['different'] = $this->lng->txt('language_scope_different');
+            $mode_options['commented'] = $this->lng->txt('language_scope_commented');
+            if ($this->langmode) {
+                $mode_options['dbremarks'] = $this->lng->txt('language_scope_dbremarks');
+            }
+            $mode_options['conflicts'] = $this->lng->txt('language_scope_conflicts');
+
+            $fields['mode'] = $field_factory
+                ->select($this->lng->txt('filter'), $mode_options)
+                ->withValue('all');
+        }
+
+        $compare_options = [];
+        foreach ($this->lng->getInstalledLanguages() as $lang_key) {
+            $compare_options[$lang_key] = $this->lng->txt('meta_l_' . $lang_key);
+        }
+        $fields['compare'] = $field_factory
+            ->select($this->lng->txt('language_compare'), $compare_options)
+            ->withValue($this->lng->getDefaultLanguage());
+
+        return $DIC->uiService()->filter()->standard(
+            $filter_id,
+            $this->ctrl->getLinkTarget($this, 'view'),
+            $fields,
+            array_fill(0, count($fields), true),
+            true,
+            true
+        );
+    }
+
+    /** Same gating as ilUIFilterService::getData(), but keeps the inputs for ilLanguageEntriesTable::filterValue(). */
+    private function resolveFilterData(ilFilter $filter): ?array
+    {
+        return $filter->isActivated() ? $filter->getInputs() : null;
     }
 
     /**
     * Show the edit screen
     */
-    public function viewObject(int $changesSuccessBool = 0): void
+    public function viewObject(): void
     {
-        global $DIC;
-        $tpl = $DIC["tpl"];
+        $filter = $this->initFilter();
+        $filter_data = $this->resolveFilterData($filter);
 
-        // get the view table
-        $table_gui = $this->getViewTable();
+        $this->resetEntriesTableRangeIfRequested();
 
-        // get the remarks in database
-        $comments = $this->object->getAllRemarks();
-
-        $compare_comments = [];
-        $missing_entries = [];
-
-        // set the language to compare with
-        // get the default values if the compare language is the same
-        $compare = $table_gui->getFilterItemByPostVar("compare")->getValue();
-        if ($compare == $this->object->key) {
-            $compare_object = $this->object->getGlobalLanguageFile();
-            $compare_content = $compare_object->getAllValues();
-            $compare_comments = $compare_object->getAllComments();
+        $notice = $this->entries_table->getConflictsNotice($filter_data);
+        if ($notice !== null) {
+            $this->tpl->setOnScreenMessage($notice['type'], $notice['text'], false);
         }
 
-        // page translation mode:
-        // - the table is filtered by a list of modules and topics
+        $table = $this->entries_table->getTable($filter_data)
+            ->withFilter($filter_data)
+            ->withRequest($this->request);
+
+        $missing_entries = [];
         if (ilObjLanguageAccess::_isPageTranslation()) {
-            // get the selection of modules and topics from request or session
             $modules = ilObjLanguageAccess::_getSavedModules();
             $topics = ilObjLanguageAccess::_getSavedTopics();
 
-            $reset_offset_get = false;
-            if ($this->http->wrapper()->query()->has("reset_offset")) {
-                $reset_offset_get = $this->http->wrapper()->query()->retrieve(
-                    "reset_offset",
-                    $this->refinery->kindlyTo()->bool()
-                );
-            }
-
-            // first call for translation
-            if ($reset_offset_get) {
-                $table_gui->resetOffset();
-            }
-
-            if (!isset($compare_content)) {
-                $compare_content = ilObjLanguageExt::_getValues(
-                    $compare,
-                    $modules,
-                    $topics
-                );
-
-                $compare_comments = ilObjLanguageExt::_getRemarks($compare);
-            }
-
-            $translations = ilObjLanguageExt::_getValues(
-                $this->object->key,
-                $modules,
-                $topics
-            );
-
-            // enable adding new entries
-            $db_found = array();
+            $translations = ilObjLanguageExt::_getValues($this->object->key, $modules, $topics);
+            $db_found = [];
             foreach ($translations as $name => $translation) {
                 $keys = explode($this->lng->separator, $name);
                 $db_found[] = $keys[1];
             }
             $missing_entries = array_diff($topics, $db_found);
-        } else { // normal view mode:
-            // - the table is filtered manually by module, mode and pattern
-            $filter_mode = $table_gui->getFilterItemByPostVar("mode")->getValue();
-            $filter_pattern = $table_gui->getFilterItemByPostVar("pattern")->getValue();
-            $filter_module = $table_gui->getFilterItemByPostVar("module")->getValue();
-            $filter_module = $filter_module === "all" ? "" : $filter_module;
-            $filter_modules = $filter_module ? array($filter_module) : array();
-            $filter_identifier = $table_gui->getFilterItemByPostVar("identifier")->getValue();
-            $filter_topics = $filter_identifier ? array($filter_identifier) : array();
-
-            if (!isset($compare_content)) {
-                $compare_content = ilObjLanguageExt::_getValues(
-                    $compare,
-                    $filter_modules,
-                    $filter_topics
-                );
-
-                $compare_comments = ilObjLanguageExt::_getRemarks($compare);
-            }
-
-            switch ($filter_mode) {
-                case "changed":
-                    $translations = $this->object->getChangedValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-                    break;
-
-                case "added":   //langmode only
-                    $translations = $this->object->getAddedValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-                    break;
-
-                case "unchanged":
-                    $translations = $this->object->getUnchangedValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-                    break;
-
-                case "commented":
-                    $translations = $this->object->getCommentedValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-                    break;
-
-                case "dbremarks":
-                    $translations = $this->object->getAllValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-
-                    $translations = array_intersect_key($translations, $comments);
-                    break;
-
-                case "equal":
-                    $translations = $this->object->getAllValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-
-                    $translations = array_intersect_assoc($translations, $compare_content);
-                    break;
-
-                case "different":
-                    $translations = $this->object->getAllValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-
-                    $translations = array_diff_assoc($translations, $compare_content);
-                    break;
-
-                case "conflicts":
-                    $former_file = $this->object->getDataPath() . "/ilias_" . $this->object->key . ".lang";
-                    if (!is_readable($former_file)) {
-                        $this->tpl->setOnScreenMessage('failure', sprintf($this->lng->txt("language_former_file_missing"), $former_file)
-                                        . '<br />' . $this->lng->txt("language_former_file_description"), false);
-                        $translations = array();
-                        break;
-                    }
-                    $global_file_obj = $this->object->getGlobalLanguageFile();
-                    $former_file_obj = new ilLanguageFile($former_file);
-                    $former_file_obj->read();
-                    $global_changes = array_diff_assoc(
-                        $global_file_obj->getAllValues(),
-                        $former_file_obj->getAllValues()
-                    );
-                    if (!count($global_changes)) {
-                        $this->tpl->setOnScreenMessage('info', sprintf($this->lng->txt("language_former_file_equal"), $former_file)
-                                        . '<br />' . $this->lng->txt("language_former_file_description"), false);
-                        $translations = array();
-                        break;
-                    }
-                    $translations = $this->object->getChangedValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-
-                    $translations = array_intersect_key($translations, $global_changes);
-                    break;
-
-                case "all":
-                default:
-                    $translations = $this->object->getAllValues(
-                        $filter_modules,
-                        $filter_pattern,
-                        $filter_topics
-                    );
-            }
         }
 
-        // prepare the the data for the table
-        $data = array();
-        foreach ($translations as $name => $translation) {
+        $this->tpl->setContent(
+            $this->ui_renderer->render([$filter, $table]) . $this->buildMissingEntries($missing_entries)
+        );
+    }
+
+    /**
+     * KS Data Table cannot reset only the range for "&reset_offset=true" of
+     * ilObjLanguageAccess::_getTranslationLink(), so its whole view-control state is cleared.
+     */
+    private function resetEntriesTableRangeIfRequested(): void
+    {
+        if (!ilObjLanguageAccess::_isPageTranslation()) {
+            return;
+        }
+
+        $reset_offset = $this->request_wrapper->has('reset_offset')
+            && $this->request_wrapper->retrieve('reset_offset', $this->refinery->kindlyTo()->bool());
+
+        if ($reset_offset) {
+            ilSession::clear(DataTable\Data::STORAGE_ID_PREFIX . ilLanguageEntriesTable::tableId());
+        }
+    }
+
+    /** Rejects selections whose form could not be posted back within max_input_vars. */
+    protected function editSelectedObject(array $names): void
+    {
+        if (in_array('ALL_OBJECTS', $names, true)) {
+            $filter = $this->initFilter();
+            $names = $this->entries_table->getFilteredEntryNames($this->resolveFilterData($filter));
+        }
+
+        if ($names === []) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_checkbox'), true);
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+
+        if ($this->exceedsMaxInputVars(count($names))) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('language_too_many_entries_selected'), true);
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+
+        $this->tpl->setContent($this->initEditEntriesForm($names)->getHTML());
+    }
+
+    /** Three fields per entry plus "expected_entry_count", see initEditEntriesForm(). */
+    private function exceedsMaxInputVars(int $entry_count): bool
+    {
+        $max_input_vars = ini_get('max_input_vars');
+        $limit = ($max_input_vars === false || $max_input_vars === '') ? 1000 : (int) $max_input_vars;
+
+        return ($entry_count * 3 + 1) > $limit;
+    }
+
+    /**
+     * Unknown names are dropped because field titles are rendered unescaped. Outside langmode the
+     * remark travels as a hidden field so that saving does not wipe it.
+     */
+    protected function initEditEntriesForm(array $names): ilPropertyFormGUI
+    {
+        $translations = $this->object->getAllValues();
+        $remarks = $this->object->getAllRemarks();
+
+        $names = array_values(array_filter(
+            $names,
+            static fn(string $name): bool => array_key_exists($name, $translations)
+        ));
+
+        $form = new ilPropertyFormGUI();
+        $form->setFormAction($this->ctrl->getFormAction($this, 'saveEditedEntries'));
+        $form->setTitle($this->lng->txt('edit'));
+
+        $expected_count = new ilHiddenInputGUI('expected_entry_count');
+        $expected_count->setValue((string) count($names));
+        $form->addItem($expected_count);
+
+        foreach (array_values($names) as $idx => $name) {
             $keys = explode($this->lng->separator, $name);
-            $row = array();
+            $module = $keys[0] ?? '';
+            $topic = $keys[1] ?? '';
 
-            $row["module"] = $keys[0];
-            $row["topic"] = $keys[1];
-            $row["name"] = $name;
-            $row["translation"] = $translation;
-            $row["comment"] = $comments[$name] ?? "";
-            $row["default"] = $compare_content[$name] ?? "";
-            $row["default_comment"] = $compare_comments[$name] ?? "";
+            $hidden = new ilHiddenInputGUI("entry_name[$idx]");
+            $hidden->setValue($name);
+            $form->addItem($hidden);
 
-            $data[] = $row;
+            $ti = new ilTextAreaInputGUI($module . ' / ' . $topic, "translation[$idx]");
+            $ti->setValue($translations[$name] ?? '');
+            $form->addItem($ti);
+
+            if ($this->langmode) {
+                // single line: a line break would break the .lang format, 250 as in replaceLangEntry()
+                $ci = new ilTextInputGUI($this->lng->txt('comment'), "comment[$idx]");
+                $ci->setMaxLength(250);
+                $ci->setSize(30);
+                $ci->setValue($remarks[$name] ?? '');
+                $form->addItem($ci);
+            } else {
+                $ci = new ilHiddenInputGUI("comment[$idx]");
+                $ci->setValue($remarks[$name] ?? '');
+                $form->addItem($ci);
+            }
         }
 
-        if ($changesSuccessBool) {
-            $tpl->setVariable("MESSAGE", $this->getSuccessMessage());
-        }
+        $form->addCommandButton('saveEditedEntries', $this->lng->txt('save'));
+        $form->addCommandButton('view', $this->lng->txt('cancel'));
 
-        // render and show the table
-        $table_gui->setData($data);
-        $tpl->setContent($table_gui->getHTML() . $this->buildMissingEntries($missing_entries));
-    }
-
-    /**
-     * Apply filter
-     */
-    public function applyFilterObject(): void
-    {
-        $table_gui = $this->getViewTable();
-        $table_gui->writeFilterToSession();    // writes filter to session
-        $table_gui->resetOffset();             // sets record offest to 0 (first page)
-        $this->viewObject();
-    }
-
-    /**
-     * Reset filter
-     */
-    public function resetFilterObject(): void
-    {
-        $table_gui = $this->getViewTable();
-        $table_gui->resetOffset();                // sets record offest to 0 (first page)
-        $table_gui->resetFilter();                // clears filter
-        $this->viewObject();
+        return $form;
     }
 
     /**
     * Save the changed translations
+    *
+    * Aborts if max_input_vars truncated the POST, instead of saving a partial selection.
     */
-    public function saveObject(): void
+    public function saveEditedEntriesObject(): void
     {
-        // no changes have been made yet
-        $changesSuccessBool = 0;
-        // prepare the values to be saved
-        $save_array = array();
-        $remarks_array = array();
         $post = (array) ($this->http->request()->getParsedBody() ?? []);
-        foreach ($post as $key => $value) {
-            $orginal_key = $key;
-            // mantis #25237
-            // @see https://php.net/manual/en/language.variables.external.php
-            $key = str_replace(["_POSTDOT_", "_POSTSPACE_"], [".", " "], $key);
+        $entry_names = (array) ($post['entry_name'] ?? []);
+        $translations = (array) ($post['translation'] ?? []);
+        $comments = (array) ($post['comment'] ?? []);
+        $expected_entry_count = (int) ($post['expected_entry_count'] ?? -1);
 
-            // example key of variable: 'common#:#access'
-            // example key of comment: 'common#:#access#:#comment'
-            $keys = explode($this->lng->separator, ilUtil::stripSlashes($key));
-
-            if (count($keys) === 2) {
-                // avoid line breaks
-                $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", $value);
-                $value = str_replace("<<", "«", $value);
-                $value = ilUtil::stripSlashes($value, true, "<strong><em><u><strike><ol><li><ul><p><div><i><b><code><sup><pre><gap><a><img><bdo><br><span>");
-                $save_array[$key] = $value;
-
-                // the comment has the key of the language with the suffix
-                $remarks_array[$key] = $post[$orginal_key . $this->lng->separator . "comment"];
-            }
+        if (count($entry_names) !== $expected_entry_count
+            || count($translations) !== $expected_entry_count
+            || count($comments) !== $expected_entry_count
+        ) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('language_too_many_entries_selected'), true);
+            $this->ctrl->redirect($this, 'view');
+            return;
         }
 
-        // save the translations
-        ilObjLanguageExt::_saveValues($this->object->key, $save_array, $remarks_array);
+        $save_array = [];
+        $remarks_array = [];
 
-        // set successful changes bool to true;
-        $changesSuccessBool = 1;
+        foreach ($entry_names as $idx => $key) {
+            $key = ilUtil::stripSlashes((string) $key);
 
-        // view the list
-        $this->viewObject($changesSuccessBool);
+            // example key of variable: 'common#:#access'
+            $keys = explode($this->lng->separator, $key);
+            if (count($keys) !== 2) {
+                continue;
+            }
+
+            $value = (string) ($translations[$idx] ?? '');
+            // avoid line breaks
+            $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", $value);
+            $value = str_replace("<<", "«", $value);
+            $value = ilUtil::stripSlashes($value, true, "<strong><em><u><strike><ol><li><ul><p><div><i><b><code><sup><pre><gap><a><img><bdo><br><span>");
+            $save_array[$key] = $value;
+
+            // the comment has the same index as the translation it belongs to
+            $remarks_array[$key] = (string) ($comments[$idx] ?? '');
+        }
+
+        if ($save_array !== []) {
+            ilObjLanguageExt::_saveValues($this->object->key, $save_array, $remarks_array);
+        }
+
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt('language_variables_saved'), true);
+        $this->ctrl->redirect($this, 'view');
     }
 
     /**
@@ -901,9 +945,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             switch ($cmd) {
                 case "":
                 case "view":
-                case "applyFilter":
-                case "resetFilter":
-                case "save":
+                case "saveEditedEntries":
                     $this->tabs_gui->activateTab("edit");
                     break;
                 default:
@@ -1092,18 +1134,6 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $form->setValuesByPost();
         $this->addNewEntryObject($form);
-    }
-
-    /**
-     * Get success message after variables were saved
-     */
-    protected function getSuccessMessage(): string
-    {
-        global $DIC;
-        $f = $DIC->ui()->factory();
-        $renderer = $DIC->ui()->renderer();
-
-        return $renderer->render($f->messageBox()->success($this->lng->txt("language_variables_saved")));
     }
 
     private function getSession(): array

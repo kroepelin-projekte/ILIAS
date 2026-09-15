@@ -14,6 +14,9 @@
 * Extracted language-installation state access into `InstalledLanguageRepository` and
   `LanguageInstallationManager` (repository pattern), and language-file-directory resolution into
   `ILIAS\Language\ComponentTranslation\*` - see the README
+* Replaced the deprecated `ilLanguageExtTableGUI` (`ilTable2GUI`) with a read-only KS Data Table
+  (`ilLanguageEntriesTable`) plus a separate `ilPropertyFormGUI` edit screen for the selected entries (KS Data Table
+  has no editable column type)
 
 ## Short Term
 
@@ -30,9 +33,6 @@
 
 ## Mid Term
 
-* Move LegacyUI Table2GUI to KS Data Table - `ilLanguageFolderTable` and `ilLanguageStatisticsTable`
-  already implement the KS `DataRetrieval` table; only `ilLanguageExtTableGUI` (still `extends ilTable2GUI`,
-  used by `ilObjLanguageExtGUI::getViewTable()`) remains to be migrated
 * Remove unused language variables from language files
 * Improving export and import of customised language files
 * Improving online translation tool
