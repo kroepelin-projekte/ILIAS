@@ -23,6 +23,7 @@ use ILIAS\UI\Component\Input\Field\Select;
 use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -525,7 +526,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
             $ui_factory
         );
 
-        $this->assertSame($group, $activity->getInputDescription());
+        $this->assertSame($group, $activity->getInputDescription($field));
     }
 
     public static function invalidLanguageKeysProvider(): array
@@ -602,6 +603,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation');
 
         $result = $this->createActivity($setup_language, null, $rbac)->maybePerformAs(
+            $this->createMock(InputFactory::class),
             6,
             ['language_keys' => ['de', 'fr'], 'mode' => InstallLanguage::MODE_INSTALL]
         );
@@ -632,7 +634,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
             null,
             $rbac,
             $language
-        )->maybePerformAs(6, ['language_keys' => 'de', 'mode' => InstallLanguage::MODE_INSTALL]);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de', 'mode' => InstallLanguage::MODE_INSTALL]);
 
         $this->assertTrue($result->isError());
     }

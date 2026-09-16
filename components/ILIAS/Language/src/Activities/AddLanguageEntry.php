@@ -27,6 +27,8 @@ use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
+use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Factory as UIFactory;
 
 class AddLanguageEntry extends LanguageActivity
@@ -112,7 +114,8 @@ MARKDOWN
         );
     }
 
-    public function getInputDescription(): FormInput
+    // $f is unused - see LanguageActivity::maybePerformAs() for why.
+    public function getInputDescription(FieldFactory $f): FormInput
     {
         return $this->buildInputDescription($this->installed_language_repository->getInstalledLanguages());
     }
@@ -266,7 +269,9 @@ MARKDOWN
         ];
     }
 
-    public function maybePerformAs(int $usr_id, array $raw_parameters): Result
+    // $input_factory is unused - see the comment on
+    // LanguageActivity::maybePerformAs() for why it must still be declared.
+    public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
     {
         // Resolved exactly once and reused both to build getInputDescription() and, via
         // perform()'s 'installed_language_keys' parameter, to decide which languages are

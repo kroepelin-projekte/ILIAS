@@ -803,6 +803,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $enabled = $post_translation !== null && $post_translation !== '';
 
         $result = $this->set_language_translation_enabled->maybePerformAs(
+            $this->ui_factory->input(),
             $ilUser->getId(),
             [
                 'language_key' => $this->object->key,
@@ -1087,6 +1088,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             }
 
             $result = $this->add_language_entry->maybePerformAs(
+                $this->ui_factory->input(),
                 $ilUser->getId(),
                 [
                     'module' => $mod,

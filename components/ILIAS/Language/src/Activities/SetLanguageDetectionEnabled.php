@@ -26,6 +26,7 @@ use ILIAS\Data\Text;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
+use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Factory as UIFactory;
 
 class SetLanguageDetectionEnabled extends LanguageActivity
@@ -57,7 +58,8 @@ MARKDOWN
         );
     }
 
-    public function getInputDescription(): FormInput
+    // $f is unused - see DeclaresLanguageKeysOnlyInput::getInputDescription() for why.
+    public function getInputDescription(FieldFactory $f): FormInput
     {
         $ui_factory = ($this->ui_factory)();
 

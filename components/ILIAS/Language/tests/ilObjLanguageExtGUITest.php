@@ -83,6 +83,27 @@ class ilObjLanguageExtGUITest extends TestCase
     }
 
     /**
+     * maybePerformAs() now takes the calling GUI's `ILIAS\UI\Factory::input()`
+     * as its (unused by these Activities, see LanguageActivity) first
+     * argument, so every reflection-/mock-builder-constructed GUI instance
+     * that reaches a maybePerformAs() call needs a `ui_factory` (a typed,
+     * non-nullable property on the ilObjectGUI ancestor) - otherwise PHP
+     * fatals with "must not be accessed before initialization" before the
+     * mocked Activity is ever reached. What input() actually returns is
+     * irrelevant to any of these tests (the Activities never use it), so a
+     * bare mock is enough.
+     */
+    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&MockObject
+    {
+        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory->method('input')->willReturn(
+            $this->createMock(\ILIAS\UI\Component\Input\Factory::class)
+        );
+
+        return $ui_factory;
+    }
+
+    /**
      * add_language_entry/set_language_translation_enabled are `private
      * readonly` properties declared directly on ilObjLanguageExtGUI (not an
      * ancestor) - on a PHPUnit mock subclass, plain `new
@@ -189,6 +210,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'lng', $lng ?? $this->createLanguageMockReturningTopicAsIs());
         $this->setProperty($gui, 'object', $this->createFakeLanguageObject('de'));
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         $this->setReadonlyPropertyDeclaredOnGuiClass(
             $gui,
             'set_language_translation_enabled',
@@ -217,7 +239,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
         $set_language_translation_enabled->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_key' => 'de', 'enabled' => true])
+            ->with($this->anything(), 6, ['language_key' => 'de', 'enabled' => true])
             ->willReturn(new ResultOk(['changed' => true]));
 
         $gui = $this->createGuiForSaveSettings(
@@ -243,7 +265,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
         $set_language_translation_enabled->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_key' => 'de', 'enabled' => false])
+            ->with($this->anything(), 6, ['language_key' => 'de', 'enabled' => false])
             ->willReturn(new ResultOk(['changed' => false]));
 
         $gui = $this->createGuiForSaveSettings(
@@ -369,6 +391,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->setProperty($gui, 'user', $user);
         $this->setProperty($gui, 'tpl', $tpl);
         $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'add_language_entry', $add_language_entry);
         $this->setReadonlyPropertyDeclaredOnGuiClass(
             $gui,
@@ -404,7 +427,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $add_language_entry = $this->createMock(AddLanguageEntry::class);
         $add_language_entry->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, [
+            ->with($this->anything(), 6, [
                 'module' => 'common',
                 'identifier' => 'sometopic',
                 'translations' => ['de' => 'Hallo', 'en' => 'Hello'],

@@ -323,6 +323,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         $result = $this->install_language->maybePerformAs(
+            $this->ui_factory->input(),
             $this->current_user_id,
             [
                 'language_keys' => $language_keys,
@@ -441,6 +442,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         $result = $this->uninstall_language->maybePerformAs(
+            $this->ui_factory->input(),
             $this->current_user_id,
             ['language_keys' => $language_keys]
         );
@@ -524,6 +526,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         $result = $this->remove_local_language_changes->maybePerformAs(
+            $this->ui_factory->input(),
             $this->current_user_id,
             ['language_keys' => $language_keys]
         );
@@ -611,6 +614,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
 
         $result = $this->update_language->maybePerformAs(
+            $this->ui_factory->input(),
             $this->current_user_id,
             ['language_keys' => $language_keys]
         );
@@ -1076,6 +1080,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
     private function setLanguageDetectionEnabledObject(bool $enabled): void
     {
         $result = $this->set_language_detection_enabled->maybePerformAs(
+            $this->ui_factory->input(),
             $this->current_user_id,
             ['enabled' => $enabled]
         );

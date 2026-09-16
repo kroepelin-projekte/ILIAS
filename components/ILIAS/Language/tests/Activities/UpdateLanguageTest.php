@@ -22,6 +22,7 @@ use ILIAS\UI\Component\Input\Field\Text;
 use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -313,7 +314,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             $ui_factory
         );
 
-        $this->assertSame($group, $activity->getInputDescription());
+        $this->assertSame($group, $activity->getInputDescription($field));
     }
 
     public function testPermissionDeniedBeforePerform(): void
@@ -339,7 +340,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             null,
             $rbac,
             $language
-        )->maybePerformAs(6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
     }
@@ -356,7 +357,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             $setup_language,
             null,
             $rbac
-        )->maybePerformAs(6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de'], $result->value()['updated_language_keys']);
@@ -384,7 +385,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         $result = $this->createActivity($setup_language, null, $rbac)
-            ->maybePerformAs(6, ['language_keys' => ['de', 'fr']]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de', 'fr'], $result->value()['updated_language_keys']);

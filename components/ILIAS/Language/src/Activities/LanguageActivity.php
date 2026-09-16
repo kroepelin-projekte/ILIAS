@@ -27,6 +27,7 @@ use ILIAS\Data\Text;
 use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Factory as UIFactory;
 
 abstract class LanguageActivity extends ActivityImpl
@@ -83,9 +84,14 @@ abstract class LanguageActivity extends ActivityImpl
         );
     }
 
-    public function maybePerformAs(int $usr_id, array $raw_parameters): Result
+    // $input_factory is only forwarded to getInputDescription() as the FieldFactory it is
+    // itself declared to require - it is not otherwise used here: fields are built from the
+    // $ui_factory closure injected via the constructor instead, exactly as
+    // getInputDescription() in this component always has (see e.g.
+    // AddLanguageEntry::getInputDescription()).
+    public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
     {
-        $grind_result = $this->grind($this->getInputDescription(), $raw_parameters);
+        $grind_result = $this->grind($this->getInputDescription($input_factory->field()), $raw_parameters);
         if ($grind_result->isError()) {
             return new Result\Error($grind_result->error());
         }

@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Language\Activities;
 
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
+use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 
 trait DeclaresLanguageKeysOnlyInput
 {
@@ -29,7 +30,13 @@ trait DeclaresLanguageKeysOnlyInput
     // Requires the using class to provide `protected readonly \Closure $ui_factory`
     // ((): UIFactory) - not declared here, since every Activity using this trait already gets
     // it from extending LanguageActivity.
-    public function getInputDescription(): FormInput
+    //
+    // $f is unused: fields are built from the $ui_factory closure above instead, exactly as
+    // every getInputDescription() in this component always has - LanguageActivity's
+    // maybePerformAs() forwards the InputFactory it receives from the Activity interface
+    // to this parameter only because getInputDescription() itself requires it, not because
+    // it is put to any use here.
+    public function getInputDescription(FieldFactory $f): FormInput
     {
         $ui_factory = ($this->ui_factory)();
 

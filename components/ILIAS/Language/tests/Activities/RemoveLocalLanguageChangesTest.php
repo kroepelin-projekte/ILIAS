@@ -22,6 +22,7 @@ use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -187,7 +188,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         };
 
         $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs(6, ['language_keys' => 'de']);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(\RuntimeException::class, $result->error());
@@ -300,7 +301,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         };
 
         $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs(6, ['language_keys' => ['de', 'fr']]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(AmbiguousLanguageTitleException::class, $result->error());
@@ -592,7 +593,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             null,
             $rbac,
             $language
-        )->maybePerformAs(6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
         $this->assertSame(0, $fakes[1]->removeLocalChangesCallCount());
@@ -612,7 +613,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             $obj_language_factory,
             null,
             $rbac
-        )->maybePerformAs(6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de'], $result->value()['removed_local_changes_language_keys']);
@@ -643,7 +644,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         ]);
 
         $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs(6, ['language_keys' => ['de', 'fr']]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de', 'fr'], $result->value()['removed_local_changes_language_keys']);
@@ -673,7 +674,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             $obj_language_factory,
             null,
             $rbac
-        )->maybePerformAs(6, ['language_keys' => ' , ']);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ' , ']);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -700,7 +701,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             static fn(int $id) => null,
             null,
             $rbac
-        )->maybePerformAs(6, []);
+        )->maybePerformAs($this->createMock(InputFactory::class), 6, []);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());

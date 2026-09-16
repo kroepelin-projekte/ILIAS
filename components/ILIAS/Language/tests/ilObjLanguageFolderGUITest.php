@@ -131,8 +131,30 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
         $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
 
         return $gui;
+    }
+
+    /**
+     * maybePerformAs() now takes the calling GUI's `ILIAS\UI\Factory::input()`
+     * as its (unused by these Activities, see LanguageActivity) first
+     * argument, so every reflection-constructed GUI instance that reaches a
+     * maybePerformAs() call needs a `ui_factory` (a typed, non-nullable
+     * property on the ilObjectGUI ancestor) - otherwise PHP fatals with
+     * "must not be accessed before initialization" before the mocked
+     * Activity is ever reached. What input() actually returns is irrelevant
+     * to any of these tests (the Activities never use it), so a bare mock
+     * is enough.
+     */
+    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\MockObject
+    {
+        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory->method('input')->willReturn(
+            $this->createMock(\ILIAS\UI\Component\Input\Factory::class)
+        );
+
+        return $ui_factory;
     }
 
     private function setProperty(object $object, string $property_name, mixed $value): void
@@ -211,6 +233,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
         $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
         $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         // 'current_user_id' is a private readonly property declared directly
         // on ilObjLanguageFolderGUI (not an ancestor). On a PHPUnit mock
         // subclass, plain `new ReflectionProperty($gui, name)` cannot locate
@@ -423,6 +446,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
         $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
 
         return $gui;
     }
@@ -529,6 +553,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
         $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
 
         return $gui;
     }
@@ -661,7 +686,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $uninstall_language = $this->createMock(UninstallLanguage::class);
         $uninstall_language->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_keys' => []])
+            ->with($this->anything(), 6, ['language_keys' => []])
             ->willReturn(new ResultError(
                 new \InvalidArgumentException('At least one language key is required.')
             ));
@@ -846,6 +871,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
         $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
 
         return $gui;
     }
@@ -992,7 +1018,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_keys' => []])
+            ->with($this->anything(), 6, ['language_keys' => []])
             ->willReturn(new ResultError(
                 new \InvalidArgumentException('At least one language key is required.')
             ));
@@ -1216,6 +1242,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $lng);
         $this->setProperty($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
 
         return $gui;
     }
@@ -1232,7 +1259,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['enabled' => true])
+            ->with($this->anything(), 6, ['enabled' => true])
             ->willReturn(new ResultError(new \RuntimeException('boom')));
 
         $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
@@ -1255,7 +1282,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['enabled' => false])
+            ->with($this->anything(), 6, ['enabled' => false])
             ->willReturn(new ResultError(new \RuntimeException('boom')));
 
         $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
@@ -1333,6 +1360,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
         $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
         $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
         $this->setReadonlyPropertyDeclaredOnGuiClass(
             $gui,
@@ -1470,7 +1498,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $install_language = $this->createMock(InstallLanguage::class);
         $install_language->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_keys' => ['de'], 'mode' => InstallLanguage::MODE_INSTALL])
+            ->with($this->anything(), 6, ['language_keys' => ['de'], 'mode' => InstallLanguage::MODE_INSTALL])
             ->willReturn(new ResultOk($this->emptyPerformResult()));
 
         $ctrl = $this->createMock(ilCtrl::class);
@@ -1530,7 +1558,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $uninstall_language = $this->createMock(UninstallLanguage::class);
         $uninstall_language->expects($this->once())
             ->method('maybePerformAs')
-            ->with(6, ['language_keys' => ['de']])
+            ->with($this->anything(), 6, ['language_keys' => ['de']])
             ->willReturn(new ResultOk($this->uninstallPerformResult([], [], [], [])));
 
         $ctrl = $this->createMock(ilCtrl::class);

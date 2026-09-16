@@ -25,6 +25,7 @@ use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Data\Description\Description;
 use ILIAS\Administration\Setting;
 use ILIAS\Refinery\Factory as RefineryFactory;
+use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -191,7 +192,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_detection', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs(6, ['enabled' => true]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => true]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['enabled' => true], $result->value());
@@ -225,7 +226,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
-            ->maybePerformAs(6, ['enabled' => true]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => true]);
 
         $this->assertTrue($result->isError());
     }
@@ -245,7 +246,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs(6, ['enabled' => 'not-a-bool']);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => 'not-a-bool']);
 
         $this->assertTrue($result->isError());
         // 'not-a-bool' is outside normalizeCheckboxRawValue()'s explicit
@@ -277,7 +278,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->once())->method('set')->with('lang_detection', '0');
 
-        $result = $this->createActivity(rbac_system: $rbac, settings: $settings)->maybePerformAs(6, []);
+        $result = $this->createActivity(rbac_system: $rbac, settings: $settings)->maybePerformAs($this->createMock(InputFactory::class), 6, []);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['enabled' => false], $result->value());
@@ -321,7 +322,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_detection', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs(6, ['enabled' => $value]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => $value]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['enabled' => true], $result->value());
@@ -341,7 +342,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_detection', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs(6, ['enabled' => $value]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => $value]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['enabled' => false], $result->value());
@@ -370,7 +371,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs(6, ['enabled' => $value]);
+            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['enabled' => $value]);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -412,7 +413,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(ui_factory: $ui_factory);
 
-        $this->assertSame($group, $activity->getInputDescription());
+        $this->assertSame($group, $activity->getInputDescription($field));
     }
 
     public function testOutputDescriptionDescribesASingleBooleanEnabledField(): void
