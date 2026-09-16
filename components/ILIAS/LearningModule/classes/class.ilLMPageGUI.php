@@ -85,17 +85,22 @@ class ilLMPageGUI extends ilPageObjectGUI
         $lng = $this->lng;
         $refinery = $this->refinery;
         $component_repository = $this->component_repository;
+        $component_factory = $this->component_factory;
 
         parent::processAnswer();
-
-        //
-        // Send notifications to authors that want to be informed on blocked users
-        //
 
         $parent_id = ilPageObject::lookupParentId(
             $this->pres_request->getQuestionPageId(),
             "lm"
         );
+
+        if ($ilUser->getId() != ANONYMOUS_USER_ID) {
+            ilLPStatusWrapper::_updateStatus($parent_id, $ilUser->getId());
+        }
+
+        //
+        // Send notifications to authors that want to be informed on blocked users
+        //
 
         // is restriction mode set?
         if (ilObjContentObject::_lookupRestrictForwardNavigation($parent_id)) {
@@ -104,7 +109,7 @@ class ilLMPageGUI extends ilPageObjectGUI
 
             $as = ilPageQuestionProcessor::getAnswerStatus($id, $ilUser->getId());
             // get question information
-            $qlist = new ilAssQuestionList($ilDB, $lng, $refinery, $component_repository);
+            $qlist = new ilAssQuestionList($ilDB, $lng, $refinery, $component_repository, $component_factory);
             $qlist->setParentObjId(0);
             $qlist->setJoinObjectData(false);
             $qlist->addFieldFilter("question_id", array($id));

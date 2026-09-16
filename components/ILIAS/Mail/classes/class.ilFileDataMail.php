@@ -92,9 +92,15 @@ class ilFileDataMail extends ilFileData
     public function getAttachmentPathAndFilenameByMd5Hash(string $md5FileHash, int $mail_id): array
     {
         $res = $this->db->queryF(
-            'SELECT path FROM mail_attachment WHERE mail_id = %s',
-            ['integer'],
-            [$mail_id]
+            '
+                SELECT mail_attachment.path
+                FROM mail_attachment
+                INNER JOIN mail ON mail.mail_id = mail_attachment.mail_id
+                WHERE mail_attachment.mail_id = %s
+                AND mail.user_id = %s
+            ',
+            ['integer', 'integer'],
+            [$mail_id, $this->user_id]
         );
 
         if ($this->db->numRows($res) !== 1) {
@@ -250,22 +256,21 @@ class ilFileDataMail extends ilFileData
         return $name;
     }
 
-    /**
-     * @param array{name:string, tmp_name:string} $file
-     */
-    public function storeUploadedFile(array $file): string
+    public function storeUploadedFile(UploadResult $result): string
     {
-        $file['name'] = ilFileUtils::_sanitizeFilemame($file['name']);
-
-        $this->rotateFiles($this->getMailPath() . '/' . $this->user_id . '_' . $file['name']);
-
-        ilFileUtils::moveUploadedFile(
-            $file['tmp_name'],
-            $file['name'],
-            $this->getMailPath() . '/' . $this->user_id . '_' . $file['name']
+        $filename = ilFileUtils::_sanitizeFilemame(
+            $result->getName()
         );
 
-        return $file['name'];
+        $this->rotateFiles($this->getMailPath() . '/' . $this->user_id . '_' . $filename);
+
+        ilFileUtils::moveUploadedFile(
+            $result->getPath(),
+            $filename,
+            $this->getMailPath() . '/' . $this->user_id . '_' . $filename
+        );
+
+        return $filename;
     }
 
     public function copyAttachmentFile(string $a_abs_path, string $a_new_name): bool
@@ -301,8 +306,13 @@ class ilFileDataMail extends ilFileData
 
     public function unlinkFile(string $a_filename): bool
     {
-        if (is_file($this->mail_path . '/' . basename($this->user_id . '_' . $a_filename))) {
-            return unlink($this->mail_path . '/' . basename($this->user_id . '_' . $a_filename));
+        if (!$this->isValidAttachmentPoolFilename($a_filename)) {
+            return false;
+        }
+
+        $path = $this->getAbsoluteAttachmentPoolPathByFilename($a_filename);
+        if (is_file($path)) {
+            return unlink($path);
         }
 
         return false;
@@ -314,7 +324,19 @@ class ilFileDataMail extends ilFileData
      */
     public function getAbsoluteAttachmentPoolPathByFilename(string $filename): string
     {
+        if (!$this->isValidAttachmentPoolFilename($filename)) {
+            throw new InvalidArgumentException('The passed filename must not contain path separators.');
+        }
+
         return $this->getAbsoluteAttachmentPoolPathPrefix() . $filename;
+    }
+
+    private function isValidAttachmentPoolFilename(string $filename): bool
+    {
+        return $filename !== '' &&
+            !str_contains($filename, "\0") &&
+            !str_contains($filename, '/') &&
+            !str_contains($filename, '\\');
     }
 
     /**

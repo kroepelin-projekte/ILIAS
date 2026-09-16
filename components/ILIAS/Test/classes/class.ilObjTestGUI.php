@@ -469,13 +469,14 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->lng,
                     $this->getTestObject()->getTestlogger(),
                     $this->component_repository,
+                    $this->component_factory,
                     $this->tabs_manager,
                     $this->toolbar,
                     $this->tpl,
                     $this->ui_factory,
                     $this->ui_renderer,
                     $this->skills_service,
-                    $this->questionrepository,
+                    $this->content_style,
                     $this->toplist_repository,
                     $this->testrequest,
                     $this->http,
@@ -558,8 +559,11 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $this->tabs_manager->activateTab(TabsManager::TAB_ID_LEARNING_PROGRESS);
 
                 $test_session = $this->test_session_factory->getSessionByUserId($this->user->getId());
-                if (!$this->test_access->checkOtherParticipantsLearningProgressAccess()
-                    && !$this->getTestObject()->canShowTestResults($test_session)) {
+                if (
+                    !$this->test_access->checkOtherParticipantsLearningProgressAccess()
+                    && !$this->getTestObject()->canShowTestResults($test_session)
+                    && !\ilLearningProgressAccess::checkAccess($this->getTestObject()->getRefId())
+                ) {
                     $this->tpl->setOnScreenMessage(
                         'info',
                         $this->lng->txt('tst_res_tab_msg_no_lp_access'),
@@ -738,6 +742,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->db,
                     $this->getTestObject()->getTestlogger(),
                     $this->component_repository,
+                    $this->component_factory,
                     $this->getTestObject(),
                     $this->user,
                     $this->access,
@@ -774,6 +779,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->getTestObject()->getTestlogger(),
                     $this->tree,
                     $this->component_repository,
+                    $this->component_factory,
                     $this->getTestObject(),
                     $this->questionrepository,
                     $this->testrequest,
@@ -824,7 +830,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->lng,
                     $this->ctrl,
                     $this->tpl,
-                    $this->questionrepository,
+                    $this->content_style,
                     $this->testrequest
                 );
                 $forwarder->forward();
@@ -1038,7 +1044,8 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
             $this->ref_id
         );
 
-        if ($nr_of_participants_with_results > 0) {
+        if ($nr_of_participants_with_results > 0
+            && $this->getTestObject()->getGlobalSettings()->isAdjustingQuestionsWithResultsAllowed()) {
             $gui->addAdditionalCmd(
                 $this->lng->txt('tst_corrections_qst_form'),
                 $this->ctrl->getLinkTargetByClass(ilTestCorrectionsGUI::class, 'showQuestion')
@@ -1177,6 +1184,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
 
     private function executeAfterQuestionSaveTasks(assQuestionGUI $question_gui): void
     {
+        $this->addQuestionTitleToObjectTitle($question_gui->getObject()->getTitle());
         if ($this->getTestObject()->getTestLogger()->isLoggingEnabled()) {
             $this->getTestObject()->getTestLogger()->logQuestionAdministrationInteraction(
                 $question_gui->getObject()->toQuestionAdministrationInteraction(
@@ -2761,7 +2769,8 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $this->getTestObject()->getGlobalSettings()->isAdjustingQuestionsWithResultsAllowed(),
                 $this->getTestObject()->evalTotalPersons() !== 0,
                 $this->getTestObject()->isRandomTest(),
-                $this->test_question_set_config_factory
+                $this->test_question_set_config_factory,
+                $this->response_handler
             );
         }
         return $this->table_actions;

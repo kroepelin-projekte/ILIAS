@@ -59,6 +59,11 @@ class ImageMapGUIRequest
         return $this->int("item_id");
     }
 
+    public function getAreaNr(): int
+    {
+        return $this->int("area_nr");
+    }
+
     public function getLinkType(): string
     {
         return $this->str("linktype");
@@ -92,6 +97,11 @@ class ImageMapGUIRequest
     public function getAreaTitle(int $nr): string
     {
         return $this->str("name_" . $nr);
+    }
+
+    public function hasRow(int $nr): bool
+    {
+        return $this->has("name_" . $nr);
     }
 
     public function getAreaName(): string

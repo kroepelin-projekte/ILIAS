@@ -22,7 +22,6 @@ use ILIAS\Test\Participants\ParticipantRepository;
 use ILIAS\Test\RequestDataCollector;
 use ILIAS\Test\Presentation\TabsManager;
 use ILIAS\Test\Logging\TestLogger;
-use ILIAS\Test\Settings\ScoreReporting\SettingsResultSummary;
 use ILIAS\Test\Settings\ScoreReporting\ScoreReportingTypes;
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 use ILIAS\Test\Results\Toplist\TestTopListRepository;
@@ -32,6 +31,7 @@ use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\HTTP\GlobalHttpState;
 use ILIAS\Skill\Service\SkillService;
+use ILIAS\Style\Content\Service as ContentStyle;
 
 /**
  * Class ilTestResultsGUI
@@ -61,13 +61,14 @@ class ilTestResultsGUI
         private readonly ilLanguage $lng,
         private readonly TestLogger $logger,
         private readonly ilComponentRepository $component_repository,
+        private readonly ilComponentFactory $component_factory,
         private TabsManager $test_tabs,
         private readonly ilToolbarGUI $toolbar,
         private readonly ilGlobalTemplateInterface $main_tpl,
         private readonly UIFactory $ui_factory,
         private readonly UIRenderer $ui_renderer,
         private readonly SkillService $skills_service,
-        private readonly GeneralQuestionPropertiesRepository $questionrepository,
+        private readonly ContentStyle $content_style,
         private readonly TestTopListRepository $toplist_repository,
         private readonly RequestDataCollector $testrequest,
         private readonly GlobalHttpState $http,
@@ -102,7 +103,7 @@ class ilTestResultsGUI
                     $this->lng,
                     $this->ctrl,
                     $this->main_tpl,
-                    $this->questionrepository,
+                    $this->content_style,
                     $this->testrequest
                 );
                 $this->ctrl->forwardCommand($gui);
@@ -146,7 +147,13 @@ class ilTestResultsGUI
             case 'iltestskillevaluationgui':
                 $this->test_tabs->activateSubTab(TabsManager::SUBTAB_ID_SKILL_RESULTS);
 
-                $question_list = new ilAssQuestionList($this->db, $this->lng, $this->refinery, $this->component_repository);
+                $question_list = new ilAssQuestionList(
+                    $this->db,
+                    $this->lng,
+                    $this->refinery,
+                    $this->component_repository,
+                    $this->component_factory
+                );
                 $question_list->setParentObjId($this->test_object->getId());
                 $question_list->setQuestionInstanceTypeFilter(null);
                 $question_list->load();

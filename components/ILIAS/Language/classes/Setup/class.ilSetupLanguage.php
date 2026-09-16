@@ -127,7 +127,7 @@ class ilSetupLanguage extends ilLanguage
         }
 
         if ($translation === "") {
-            $log->writeLanguageLog($a_topic, $this->lang_key);
+            $log->debug("Language (" . $this->lang_key . "): topic -" . $a_topic . "- not present");
             return "-" . $a_topic . "-";
         }
 

@@ -179,8 +179,15 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
             }
         }
 
-        $tab = new ilExcDeliveredFilesTableGUI($this, "submissionScreen", $this->submission);
-        $this->tpl->setContent($tab->getHTML());
+        $table = $this->gui->deliveredFilesTableBuilder(
+            $this->submission,
+            $this,
+            'submissionScreen'
+        )->getTable();
+        if ($table->handleCommand()) {
+            return;
+        }
+        $this->tpl->setContent($table->render());
     }
 
     // Display form for single file upload
@@ -270,10 +277,10 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
                 "deliver",
                 $this->lng->txt("files"),
                 $this->handleUploadResult(...),
-                "mep_id",
+                "filename",
                 "",
                 $max_file
-            );
+            )->required(true);
         return $form_adapter;
     }
 
@@ -282,30 +289,40 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
         \ILIAS\FileUpload\DTO\UploadResult $result
     ): \ILIAS\FileUpload\Handler\BasicHandlerResult {
         $title = $result->getName();
-
-        //$this->submission->addFileUpload($result);
-        $subm = $this->domain->submission($this->assignment->getId());
-        $subm->addUpload(
-            $this->user->getid(),
-            $result,
-            $title
-        );
-
+        if ($result->isOK()) {
+            $subm = $this->domain->submission($this->assignment->getId());
+            $subm->addUpload(
+                $this->user->getId(),
+                $result,
+                $title
+            );
+            return new \ILIAS\FileUpload\Handler\BasicHandlerResult(
+                'filename',
+                \ILIAS\FileUpload\Handler\HandlerResult::STATUS_OK,
+                $title,
+                ''
+            );
+        }
         return new \ILIAS\FileUpload\Handler\BasicHandlerResult(
             '',
-            \ILIAS\FileUpload\Handler\HandlerResult::STATUS_OK,
-            $title,
-            ''
+            \ILIAS\FileUpload\Handler\HandlerResult::STATUS_FAILED,
+            '',
+            $result->getStatus()->getMessage()
         );
     }
 
     public function addUploadObject(): void
     {
         $ilCtrl = $this->ctrl;
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt("file_added"), true);
-        $this->handleNewUpload();
-
-        $ilCtrl->redirect($this, "submissionScreen");
+        $mt = $this->gui->ui()->mainTemplate();
+        $form = $this->getUploadForm();
+        if ($form->isValid()) {
+            $this->tpl->setOnScreenMessage('success', $this->lng->txt("file_added"), true);
+            $this->handleNewUpload();
+            $ilCtrl->redirect($this, "submissionScreen");
+        } else {
+            $mt->setContent($form->render());
+        }
     }
 
 
@@ -400,11 +417,15 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
      */
     public function confirmDeleteDeliveredObject(): void
     {
+        $file_ids = $this->request->getSubmittedFileIds();
+        $this->confirmDeleteDelivered($file_ids);
+    }
+
+    public function confirmDeleteDelivered(array $file_ids): void
+    {
         $ilCtrl = $this->ctrl;
-        $tpl = $this->tpl;
         $lng = $this->lng;
 
-        $file_ids = $this->request->getSubmittedFileIds();
         if (!$this->submission->canSubmit()) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt("exercise_time_over"), true);
             $ilCtrl->redirect($this, "submissionScreen");
@@ -414,28 +435,26 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
             $this->tpl->setOnScreenMessage('failure', $lng->txt("no_checkbox"), true);
             $ilCtrl->redirect($this, "submissionScreen");
         } else {
-            $this->tabs_gui->clearTargets();
-            $this->tabs_gui->setBackTarget(
-                $this->lng->txt("back"),
-                $this->ctrl->getLinkTarget($this, "submissionScreen")
-            );
-
-            $cgui = new ilConfirmationGUI();
-            $cgui->setFormAction($ilCtrl->getFormAction($this));
-            $cgui->setHeaderText($lng->txt("info_delete_sure"));
-            $cgui->setCancel($lng->txt("cancel"), "submissionScreen");
-            $cgui->setConfirm($lng->txt("delete"), "deleteDelivered");
-
             $subs = $this->subm->getSubmissionsOfUser(
                 $this->submission->getUserId(),
                 $file_ids
             );
 
+            $items = [];
             foreach ($subs as $sub) {
-                $cgui->addItem("delivered[]", $sub->getId(), $sub->getTitle());
+                $items[$sub->getId()] = $sub->getTitle();
             }
 
-            $tpl->setContent($cgui->getHTML());
+            $this->gui->deliveredFilesTableBuilder(
+                $this->submission,
+                $this,
+                'submissionScreen'
+            )->getTable()->renderDeletionConfirmation(
+                $lng->txt('info_delete_sure'),
+                $lng->txt('info_delete_sure'),
+                'deleteDelivered',
+                $items
+            );
         }
     }
 
@@ -446,7 +465,11 @@ class ilExSubmissionFileGUI extends ilExSubmissionBaseGUI
     {
         $ilCtrl = $this->ctrl;
 
-        $file_ids = $this->request->getSubmittedFileIds();
+        $file_ids = $this->gui->deliveredFilesTableBuilder(
+            $this->submission,
+            $this,
+            'submissionScreen'
+        )->getTable()->getItemIds();
 
         if (!$this->submission->canSubmit()) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt("exercise_time_over"), true);

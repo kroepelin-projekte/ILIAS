@@ -273,6 +273,7 @@ class ilRepositoryExplorerGUI extends ilTreeExplorerGUI
             $objDefinition::getGroupedRepositoryObjectTypes($parent_type);
 
         // #14465 - item groups
+        $type_white_list = $this->getTypeWhiteList();
         $group = [];
         $igroup = []; // used for item groups, see bug #0015978
         $in_any_group = [];
@@ -294,6 +295,9 @@ class ilRepositoryExplorerGUI extends ilTreeExplorerGUI
                     }
 
                     foreach ($items as $item) {
+                        if (count($type_white_list) > 0 && !in_array($item["type"], $type_white_list, true)) {
+                            continue;
+                        }
                         $in_any_group[] = $item["child"];
 
                         if ($may_read) {
@@ -424,11 +428,6 @@ class ilRepositoryExplorerGUI extends ilTreeExplorerGUI
             return [];
         }
 
-        $obj_id = ilObject::_lookupObjId($a_parent_node_id);
-        if (!ilConditionHandler::_checkAllConditionsOfTarget($a_parent_node_id, $obj_id)) {
-            return [];
-        }
-
         $childs = parent::getChildsOfNode($a_parent_node_id);
 
         foreach ($childs as $c) {
@@ -441,6 +440,10 @@ class ilRepositoryExplorerGUI extends ilTreeExplorerGUI
 
     public function isNodeClickable($a_node): bool
     {
+        if (in_array($a_node['type'], ['grpr', 'crsr', 'catr'], true)) {
+            return ilContainerReferenceAccess::_isAccessible($a_node['child']);
+        }
+
         return
             $this->access->checkAccess("read", "", (int) $a_node["child"]) ||
             $this->access->checkAccess("join", "", (int) $a_node["child"]);

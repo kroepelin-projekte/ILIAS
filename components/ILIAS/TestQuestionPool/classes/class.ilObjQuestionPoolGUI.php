@@ -309,7 +309,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                 $page_gui->setTemplateTargetVar('ADM_CONTENT');
                 $page_gui->setOutputMode('edit');
                 $page_gui->setHeader($question->getTitleForHTMLOutput());
-                $page_gui->setPresentationTitle($question->getTitleForHTMLOutput());
+                $page_gui->setPresentationTitle($question->getTitle());
                 $ret = $this->ctrl->forwardCommand($page_gui);
                 if ($ret != '') {
                     $this->tpl->setContent($ret);
@@ -429,6 +429,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                     $this->db,
                     $this->refinery,
                     $this->component_repository,
+                    $this->component_factory,
                     $this->ctrl,
                     $this->tabs_gui,
                     $this->lng,
@@ -456,6 +457,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                         $this->lng,
                         $this->db,
                         $this->component_repository,
+                        $this->component_factory,
                         $obj,
                         $this->http,
                         $this->toolbar,
@@ -658,6 +660,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                 if (!$question_gui->saveQuestion()) {
                     return;
                 }
+                $this->setTitleAndDescription($question_gui);
                 $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
                 if ($cmd === 'saveReturn') {
                     $this->ctrl->setParameterByClass(
@@ -1447,14 +1450,17 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
     /**
      * called by prepare output
      */
-    public function setTitleAndDescription(): void
-    {
+    public function setTitleAndDescription(
+        ?assQuestionGUI $question_gui = null
+    ): void {
         parent::setTitleAndDescription();
 
-        if (!is_array($this->request_data_collector->raw('q_id')) && $this->request_data_collector->raw('q_id') > 0 && $this->request_data_collector->raw(
-            'cmd'
-        ) !== self::DEFAULT_CMD) {
-            $question_gui = assQuestionGUI::_getQuestionGUI('', $this->request_data_collector->getQuestionId());
+        if ($question_gui !== null
+            || !is_array($this->request_data_collector->raw('q_id'))
+                && $this->request_data_collector->raw('q_id') > 0
+                && $this->request_data_collector->raw('cmd') !== self::DEFAULT_CMD
+        ) {
+            $question_gui ??= assQuestionGUI::_getQuestionGUI('', $this->request_data_collector->getQuestionId());
             if ($question_gui->getObject() instanceof assQuestion) {
                 $question = $question_gui->getObject();
                 $question->setObjId($this->object->getId());
@@ -1800,6 +1806,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
             $this->db,
             $this->lng,
             $this->component_repository,
+            $this->component_factory,
             $this->rbac_system,
             $this->user,
             $this->taxonomy->domain(),

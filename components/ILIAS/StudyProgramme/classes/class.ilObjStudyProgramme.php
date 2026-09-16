@@ -1068,11 +1068,14 @@ class ilObjStudyProgramme extends ilContainer
             [$user_id]
         );
 
-        usort($assignments, function ($a_one, $a_other) {
-            return strcmp(
-                $a_one->getLastChange()->format('Y-m-d'),
-                $a_other->getLastChange()->format('Y-m-d')
-            );
+        usort($assignments, static function (ilPRGAssignment $a_one, ilPRGAssignment $a_other): int {
+            $left = $a_one->getLastChange();
+            $right = $a_other->getLastChange();
+            if ($left === null || $right === null) {
+                return (int) ($left !== null) <=> (int) ($right !== null);
+            }
+
+            return $left->getTimestamp() <=> $right->getTimestamp();
         });
         return $assignments;
     }
@@ -1607,10 +1610,17 @@ class ilObjStudyProgramme extends ilContainer
 
         if ($subtype && $subtype->getIconIdentifier()) {
             $src = $this->type_repository->getIconPathFS($subtype);
+            if ($src === null || $src === '') {
+                // The subtype references an icon id that no longer resolves to a file, so delete it
+                $customIcon->remove();
+                return;
+            }
 
             //This is a horrible hack to allow Flysystem/LocalFilesystem to read the file.
             $tmp = 'ico_' . $this->getId();
-            copy($src, \ilFileUtils::getDataDir() . '/temp/' . $tmp);
+            if (!copy($src, ilFileUtils::getDataDir() . '/temp/' . $tmp)) {
+                return;
+            }
 
             $customIcon->saveFromTempFileName($tmp);
         } else {
@@ -1909,14 +1919,14 @@ class ilObjStudyProgramme extends ilContainer
 
     public function hasContentPage(): bool
     {
-        return \ilContainerPage::_exists(self::CP_TYPE, $this->getId());
+        return ilContainerPage::_exists(self::CP_TYPE, $this->getId());
     }
     public function createContentPage(): void
     {
         if ($this->hasContentPage()) {
-            throw new \LogicException('will not create content page - it already exists.');
+            throw new LogicException('will not create content page - it already exists.');
         }
-        $new_page_object = new \ilContainerPage();
+        $new_page_object = new ilContainerPage();
         $new_page_object->setId($this->getId());
         $new_page_object->setParentId($this->getId());
         $new_page_object->createFromXML();

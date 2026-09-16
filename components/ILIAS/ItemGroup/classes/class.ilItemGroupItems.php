@@ -177,14 +177,28 @@ class ilItemGroupItems
 
     public function getValidItems(): array
     {
-        $items = $this->getItems();
-        $ass_items = $this->getAssignableItems();
-        $valid_items = array();
-        foreach ($ass_items as $aitem) {
-            if (in_array($aitem["ref_id"], $items)) {
-                $valid_items[] = $aitem["ref_id"];
-            }
+        if ($this->getItemGroupRefId() <= 0) {
+            return $this->items;
         }
+
+        return $this->filterValidRefIds($this->items);
+    }
+
+    /**
+     * @param int[] $items
+     * @return int[]
+     */
+    protected function filterValidRefIds(array $items): array
+    {
+        $valid_items = [];
+        foreach ($this->getAssignableItems() as $assignable_item) {
+            if (!in_array($assignable_item['ref_id'], $items, true)) {
+                continue;
+            }
+
+            $valid_items[] = $assignable_item['ref_id'];
+        }
+
         return $valid_items;
     }
 
@@ -194,7 +208,7 @@ class ilItemGroupItems
     ): void {
         $ilLog = $this->log;
 
-        $ilLog->write(__METHOD__ . ': Begin cloning item group materials ... -' . $a_source_id . '-');
+        $ilLog->info('Begin cloning item group materials ... -' . $a_source_id . '-');
 
         $cwo = ilCopyWizardOptions::_getInstance($a_copy_id);
         $mappings = $cwo->getMappings();
@@ -202,17 +216,17 @@ class ilItemGroupItems
         $new_items = array();
         // check: is this a ref id!?
         $source_ig = new ilItemGroupItems($a_source_id);
-        foreach ($source_ig->getItems() as $item_ref_id) {
+        foreach ($source_ig->getValidItems() as $item_ref_id) {
             if (isset($mappings[$item_ref_id]) and $mappings[$item_ref_id]) {
-                $ilLog->write(__METHOD__ . ': Clone item group item nr. ' . $item_ref_id);
+                $ilLog->info('Clone item group item nr. ' . $item_ref_id);
                 $new_items[] = $mappings[$item_ref_id];
             } else {
-                $ilLog->write(__METHOD__ . ': No mapping found for item group item nr. ' . $item_ref_id);
+                $ilLog->info('No mapping found for item group item nr. ' . $item_ref_id);
             }
         }
         $this->setItems($new_items);
         $this->update();
-        $ilLog->write(__METHOD__ . ': Finished cloning item group items ...');
+        $ilLog->info('Finished cloning item group items ...');
     }
 
     public static function _getItemsOfContainer(int $a_ref_id): array
@@ -236,6 +250,35 @@ class ilItemGroupItems
         while ($row = $res->fetchRow(ilDBConstants::FETCHMODE_OBJECT)) {
             $items[] = $row->item_ref_id;
         }
-        return $items;
+
+        $container_child_ref_ids = [];
+        foreach ($tree->getChilds($a_ref_id) as $node) {
+            $container_child_ref_ids[] = (int) ($node['ref_id'] ?? $node['child']);
+        }
+
+        return array_values(array_intersect($items, $container_child_ref_ids));
+    }
+
+    public static function getItemGroupsAssociatedWithItem(int $ref_id, int $filter_item_group_id = 0): array
+    {
+        global $DIC;
+        $database = $DIC->database();
+
+        $item_groups = [];
+        $statement = $database->queryF(
+            'SELECT ref_id, title FROM item_group_item '
+            . 'LEFT JOIN object_data ON item_group_item.item_group_id = object_data.obj_id '
+            . 'LEFT JOIN object_reference ON object_data.obj_id = object_reference.obj_id '
+            . 'WHERE item_ref_id = %s '
+            . 'AND item_group_id != %s '
+            . 'AND object_data.type = \'itgr\'',
+            [ilDBConstants::T_INTEGER, ilDBConstants::T_INTEGER],
+            [$ref_id, $filter_item_group_id]
+        );
+        while ($row = $database->fetchAssoc($statement)) {
+            $item_groups[$row['ref_id']] = $row['title'];
+        }
+
+        return $item_groups;
     }
 }

@@ -16,8 +16,12 @@
  *
  *********************************************************************/
 
+use ILIAS\Data\Factory as DataFactory;
+use ILIAS\ILIASObject\Creation\AddNewItemGUI;
+use ILIAS\ItemGroup\Items\Table\ItemsTable;
 use ILIAS\ItemGroup\StandardGUIRequest;
 use ILIAS\ILIASObject\Properties\Translations\TranslationGUI;
+use ILIAS\UI\URLBuilder;
 
 /**
  * User Interface class for item groups
@@ -33,6 +37,7 @@ class ilObjItemGroupGUI extends ilObject2GUI
     protected StandardGUIRequest $ig_request;
     protected ilTabsGUI $tabs;
     protected ilHelpGUI $help;
+    private readonly DataFactory $data_factory;
 
     public function __construct(
         int $a_id = 0,
@@ -53,6 +58,7 @@ class ilObjItemGroupGUI extends ilObject2GUI
         $this->gui = $DIC->itemGroup()->internal()->gui();
         $this->ig_request = $this->gui
             ->standardRequest();
+        $this->data_factory = new DataFactory();
     }
 
     protected function afterConstructor(): void
@@ -147,17 +153,46 @@ class ilObjItemGroupGUI extends ilObject2GUI
         $pres->setTitle($this->lng->txt('obj_presentation'));
         $form->addItem($pres);
 
-        // show title
-        $cb = new ilCheckboxInputGUI($this->lng->txt("itgr_show_title"), "show_title");
-        $cb->setInfo($this->lng->txt("itgr_show_title_info"));
-        $form->addItem($cb);
+        // display
+        $display_radio_group = new ilRadioGroupInputGUI($this->lng->txt('itgr_display'), ilItemGroupAR::DISPLAY);
+        $display_radio_group->setRequired(true);
+        $form->addItem($display_radio_group);
 
-        // behaviour
-        $options = ilItemGroupBehaviour::getAll();
-        $si = new ilSelectInputGUI($this->lng->txt("itgr_behaviour"), "behaviour");
-        $si->setInfo($this->lng->txt("itgr_behaviour_info"));
-        $si->setOptions($options);
-        $cb->addSubItem($si);
+        $no_title_option = new ilRadioOption(
+            $this->lng->txt('itgr_display_without_title'),
+            ilItemGroupAR::DISPLAY_WITHOUT_TITLE
+        );
+        $display_radio_group->addOption($no_title_option);
+
+        $with_title_option = new ilRadioOption(
+            $this->lng->txt('itgr_display_with_title'),
+            ilItemGroupAR::DISPLAY_WITH_TITLE
+        );
+        $display_radio_group->addOption($with_title_option);
+
+        $with_title_and_toggleable_option = new ilRadioOption(
+            $this->lng->txt('itgr_display_with_title_and_toggleable'),
+            ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE
+        );
+        $with_title_and_toggleable_option_radio_group = new ilRadioGroupInputGUI(
+            $this->lng->txt('itgr_display_with_title_and_toggleable'),
+            ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY
+        );
+        $with_title_and_toggleable_option_radio_group->setRequired(true);
+        $with_title_and_toggleable_option_radio_group->addOption(
+            new ilRadioOption(
+                $this->lng->txt('itgr_display_with_title_and_toggleable_initially_closed'),
+                ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY_CLOSED
+            )
+        );
+        $with_title_and_toggleable_option_radio_group->addOption(
+            new ilRadioOption(
+                $this->lng->txt('itgr_display_with_title_and_toggleable_initially_open'),
+                ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY_OPEN
+            )
+        );
+        $with_title_and_toggleable_option->addSubItem($with_title_and_toggleable_option_radio_group);
+        $display_radio_group->addOption($with_title_and_toggleable_option);
 
         // tile/list
         $lpres = new ilRadioGroupInputGUI($this->lng->txt('itgr_list_presentation'), "list_presentation");
@@ -225,30 +260,67 @@ class ilObjItemGroupGUI extends ilObject2GUI
 
     public function listMaterials(): void
     {
-        $tree = $this->tree;
-        $ilTabs = $this->tabs;
-        $tpl = $this->tpl;
-
         $this->checkPermission("write");
 
-        $ilTabs->activateTab("materials");
+        $this->tabs->activateTab("materials");
 
-        $parent_ref_id = $tree->getParentId($this->object->getRefId());
+        $parent_ref_id = $this->tree->getParentId($this->object->getRefId());
         $parent_type = ilObject::_lookupType($parent_ref_id, true);
-        $parent_gui_class = 'ilObj' . $this->obj_definition->getClassName($parent_type) . 'GUI';
+        $parent_gui_class = "ilObj{$this->obj_definition->getClassName($parent_type)}GUI";
         $this->ctrl->setParameterByClass($parent_gui_class, 'ref_id', $parent_ref_id);
-        $gui = new ILIAS\ILIASObject\Creation\AddNewItemGUI(
+        $add_new_item_gui = $this->resolveAddNewItemGUI();
+        $add_new_item_gui->renderToolbarAction();
+        $this->ctrl->clearParameterByClass($parent_gui_class, 'ref_id');
+
+
+        $this->tpl->setContent(
+            $this->ui_renderer->render(
+                $this->configureItemsTable()->getComponents($this->getTableActionUrlBuilder())
+            )
+        );
+    }
+
+    public function resolveAddNewItemGUI(): AddNewItemGUI
+    {
+        $parent_ref_id = $this->tree->getParentId($this->object->getRefId());
+        $parent_type = ilObject::_lookupType($parent_ref_id, true);
+        $parent_gui_class = "ilObj{$this->obj_definition->getClassName($parent_type)}GUI";
+
+        return new AddNewItemGUI(
             $this->buildAddNewItemElements(
                 $this->getCreatableObjectTypes(),
                 $parent_gui_class,
                 $this->object->getRefId()
             )
         );
-        $gui->render();
-        $this->ctrl->clearParameterByClass($parent_gui_class, 'ref_id');
+    }
 
-        $tab = new ilItemGroupItemsTableGUI($this->gui, $this, "listMaterials");
-        $tpl->setContent($tab->getHTML());
+    public function executeTableAction(): void
+    {
+        $this->checkPermission('write');
+        $this->configureItemsTable()->execute($this->getTableActionUrlBuilder());
+    }
+
+    private function configureItemsTable(): ItemsTable
+    {
+        return new ItemsTable(
+            $this->ctrl,
+            $this->lng,
+            $this->tpl,
+            $this->ui_factory,
+            $this->ui_renderer,
+            $this->http,
+            $this->refinery,
+            $this->object->getRefId(),
+            $this->object->getId()
+        );
+    }
+
+    private function getTableActionUrlBuilder(): URLBuilder
+    {
+        return new URLBuilder($this->data_factory->uri(
+            ILIAS_HTTP_PATH . '/' . $this->ctrl->getLinkTarget($this, 'executeTableAction')
+        ));
     }
 
     public function getCreatableObjectTypes(): array
@@ -262,21 +334,6 @@ class ilObjItemGroupGUI extends ilObject2GUI
             unset($types[$type_to_remove]);
         }
         return $types;
-    }
-
-    public function saveItemAssignment(): void
-    {
-        $this->checkPermission("write");
-
-        $item_group_items = new ilItemGroupItems($this->object->getRefId());
-        $assignable_ref_ids = array_column($item_group_items->getAssignableItems(), 'ref_id');
-        $items = array_intersect($this->ig_request->getItems(), $assignable_ref_ids);
-
-        $item_group_items->setItems($items);
-        $item_group_items->update();
-
-        $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
-        $this->ctrl->redirect($this, 'listMaterials');
     }
 
     public function getTemplate(): void
@@ -401,21 +458,22 @@ class ilObjItemGroupGUI extends ilObject2GUI
      */
     protected function getEditFormCustomValues(array &$a_values): void
     {
-        $a_values["show_title"] = !$this->object->getHideTitle();
-        $a_values["behaviour"] = $this->object->getBehaviour();
-        $a_values["list_presentation"] = $this->object->getListPresentation();
-        $a_values["tile_size"] = $this->object->getTileSize();
+        /** @var ilObjItemGroup $object */
+        $object = $this->getObject();
+        $a_values[ilItemGroupAR::DISPLAY] = $object->getDisplay();
+        $a_values[ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY] = $object->getDisplayWithTitleAndToggleableInitially();
+        $a_values['list_presentation'] = $object->getListPresentation();
+        $a_values['tile_size'] = $object->getTileSize();
     }
 
     protected function updateCustom(ilPropertyFormGUI $form): void
     {
-        $this->object->setHideTitle(!$form->getInput("show_title"));
-        $behaviour = ($form->getInput("show_title"))
-            ? $form->getInput("behaviour")
-            : ilItemGroupBehaviour::ALWAYS_OPEN;
-        $this->object->setBehaviour($behaviour);
-        $this->object->setListPresentation($form->getInput("list_presentation"));
-        $this->object->setTileSize($form->getInput("tile_size"));
+        /** @var ilObjItemGroup $object */
+        $object = $this->getObject();
+        $object->setDisplay($form->getInput(ilItemGroupAR::DISPLAY));
+        $object->setDisplayWithTitleAndToggleableInitially($form->getInput(ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY));
+        $object->setListPresentation($form->getInput('list_presentation'));
+        $object->setTileSize($form->getInput('tile_size'));
     }
 
     protected function initCreateForm(string $new_type): \ILIAS\UI\Component\Input\Container\Form\Standard

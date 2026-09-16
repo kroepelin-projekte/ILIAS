@@ -44,6 +44,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     protected ilLocatorGUI $locator;
     protected ilSetting $settings;
     protected LOMServices $lom_services;
+    protected ilToolbarGUI $toolbar;
     protected int $node_id;
     protected PostingManager $posting_manager;
     protected ?object $access_handler = null;
@@ -114,6 +115,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
         $this->notes = $DIC->notes();
         $this->profile_gui = $DIC->blog()->internal()->gui()->profile();
         $this->posting_manager = $DIC->blog()->internal()->domain()->posting();
+        $this->toolbar = $DIC->toolbar();
     }
 
     public function executeCommand(): string
@@ -179,12 +181,11 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     public function preview(
         ?string $a_mode = null
     ): string {
-        global $DIC;
         $ilCtrl = $this->ctrl;
         $tpl = $this->tpl;
         $ilSetting = $this->settings;
 
-        $toolbar = $DIC->toolbar();
+        $toolbar = $this->toolbar;
         $append = "";
 
         $this->getBlogPosting()->increaseViewCnt();
@@ -216,7 +217,9 @@ class ilBlogPostingGUI extends ilPageObjectGUI
                 false,
                 $this->enable_public_notes,
                 $may_delete_comments,
-                $callback
+                $callback,
+                false,
+                !$this->isInWorkspace()
             ));
         }
         // permanent link
@@ -389,7 +392,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             $cnt_note_users = $this->notes->domain()->getUserCount(
                 $this->getBlogPosting()->getParentId(),
                 $this->getBlogPosting()->getId(),
-                "wpg"
+                "blp"
             );
             $dtpl->setVariable(
                 "TXT_NUMBER_USERS_NOTES_OR_COMMENTS",
@@ -571,7 +574,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
         // #10040 - get note text
         $note = $this->notes->domain()->getById($a_note_id);
         $text = $note->getText();
-        ilObjBlog::sendNotification("comment", $this->isInWorkspace(), $this->node_id, $a_posting_id, $text);
+        $this->domain->notification()->sendNotification("comment", $this->isInWorkspace(), $this->node_id, $a_posting_id, $text);
     }
 
     public function getActivationCaptions(): array
@@ -597,7 +600,13 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             $this->ctrl->redirect($this, "edit");
         } else {
             $this->ctrl->setParameterByClass("ilobjbloggui", "blpg", "");
-            $this->ctrl->redirectByClass("ilobjbloggui", "");
+            $this->ctrl->redirectByClass(
+                [
+                    ilObjBlogGUI::class,
+                    \ILIAS\Blog\Editing\EditingGUI::class,
+                ],
+                ""
+            );
         }
     }
 
@@ -609,7 +618,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     public function activatePage(bool $a_to_list = false): void
     {
         // send notifications
-        ilObjBlog::sendNotification("new", $this->isInWorkspace(), $this->node_id, $this->getBlogPosting()->getId());
+        $this->domain->notification()->sendNotification("new", $this->isInWorkspace(), $this->node_id, $this->getBlogPosting()->getId());
 
         if ($this->checkAccess("write") || $this->checkAccess("contribute")) {
             $this->getBlogPosting()->setActive(true);
@@ -619,7 +628,13 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             $this->ctrl->redirect($this, "edit");
         } else {
             $this->ctrl->setParameterByClass("ilobjbloggui", "blpg", "");
-            $this->ctrl->redirectByClass("ilobjbloggui", "");
+            $this->ctrl->redirectByClass(
+                [
+                    ilObjBlogGUI::class,
+                    \ILIAS\Blog\Editing\EditingGUI::class,
+                ],
+                ""
+            );
         }
     }
 
@@ -628,9 +643,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
      */
     public function editKeywords(): void
     {
-        global $DIC;
-
-        $renderer = $DIC->ui()->renderer();
+        $renderer = $this->blog_gui->ui()->renderer();
 
         $ilTabs = $this->tabs;
         $tpl = $this->tpl;
@@ -652,11 +665,9 @@ class ilBlogPostingGUI extends ilPageObjectGUI
      */
     protected function initKeywordsForm(): \ILIAS\UI\Component\Input\Container\Form\Standard
     {
-        global $DIC;
+        $ui_factory = $this->blog_gui->ui()->factory();
 
-        $ui_factory = $DIC->ui()->factory();
-
-        $keywords = ilBlogPosting::getKeywords(
+        $keywords = $this->posting_manager->getKeywords(
             $this->getBlogPosting()->getBlogId(),
             $this->getBlogPosting()->getId()
         );
@@ -668,7 +679,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             if ($pid !== $this->getBlogPosting()->getId()) {
                 $other = array_merge(
                     $other,
-                    ilBlogPosting::getKeywords($this->getBlogPosting()->getBlogId(), $pid)
+                    $this->posting_manager->getKeywords($this->getBlogPosting()->getBlogId(), $pid)
                 );
             }
         }
@@ -681,7 +692,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             $input_tag = $input_tag->withValue($keywords);
         }
 
-        $DIC->ctrl()->setParameter(
+        $this->ctrl->setParameter(
             $this,
             'tags',
             'tags_processing'
@@ -689,7 +700,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
 
         $section = $ui_factory->input()->field()->section([$input_tag], $this->lng->txt("blog_edit_keywords"), "");
 
-        $form_action = $DIC->ctrl()->getFormAction($this, "saveKeywordsForm");
+        $form_action = $this->ctrl->getFormAction($this, "saveKeywordsForm");
         return $ui_factory->input()->container()->form()->standard($form_action, ["tags" => $section]);
     }
 
@@ -707,9 +718,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
 
     public function saveKeywordsForm(): void
     {
-        global $DIC;
-
-        $request = $DIC->http()->request();
+        $request = $this->blog_gui->http()->request();
         $form = $this->initKeywordsForm();
 
         if ($request->getMethod() === "POST"
@@ -735,8 +744,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     /**
      * Get first text paragraph of page
      */
-    public static function getSnippet(
-        int $a_id,
+    public function getSnippet(
         bool $a_truncate = false,
         int $a_truncate_length = 500,
         string $a_truncate_sign = "...",
@@ -745,25 +753,23 @@ class ilBlogPostingGUI extends ilPageObjectGUI
         int $a_picture_height = 144,
         ?string $a_export_directory = null
     ): string {
-        $bpgui = new self(0, null, $a_id);
-
         // scan the full page for media objects
         $img = "";
         if ($a_include_picture) {
-            $img = $bpgui->getFirstMediaObjectAsTag($a_picture_width, $a_picture_height, $a_export_directory);
+            $img = $this->getFirstMediaObjectAsTag($a_picture_width, $a_picture_height, $a_export_directory);
         }
 
-        $bpgui->setRawPageContent(true);
-        $bpgui->setAbstractOnly(true);
+        $this->setRawPageContent(true);
+        $this->setAbstractOnly(true);
 
         // #8627: export won't work - should we set offline mode?
-        $bpgui->setFileDownloadLink(".");
-        $bpgui->setFullscreenLink(".");
-        $bpgui->setSourcecodeDownloadScript(".");
-        $bpgui->setProfileBackUrl(".");
+        $this->setFileDownloadLink(".");
+        $this->setFullscreenLink(".");
+        $this->setSourcecodeDownloadScript(".");
+        $this->setProfileBackUrl(".");
 
         // render without title
-        $page = $bpgui->showPage();
+        $page = $this->showPage();
 
         if ($a_truncate) {
             $page = ilPageObject::truncateHTML($page, $a_truncate_length, $a_truncate_sign);
@@ -808,7 +814,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
                             // see ilCOPageHTMLExport::exportHTMLMOB()
                             $mob_dir = "./mobs/mm_" . $mob_obj->getId();
                         }
-                        $mob_res = self::parseImage(
+                        $mob_res = $this->parseImage(
                             $mob_size["width"],
                             $mob_size["height"],
                             $a_width,
@@ -831,7 +837,7 @@ class ilBlogPostingGUI extends ilPageObjectGUI
         return "";
     }
 
-    protected static function parseImage(
+    protected function parseImage(
         int $src_width,
         int $src_height,
         int $tgt_width,
@@ -865,7 +871,8 @@ class ilBlogPostingGUI extends ilPageObjectGUI
             $this->enable_public_notes,
             false,
             null,
-            true
+            true,
+            !$this->isInWorkspace()
         );
     }
 
@@ -876,6 +883,12 @@ class ilBlogPostingGUI extends ilPageObjectGUI
     public function finishEditing(): void
     {
         $this->ctrl->setParameterByClass("ilobjbloggui", "bmn", "");
-        $this->ctrl->redirectByClass("ilobjbloggui", "render");
+        $this->ctrl->redirectByClass(
+            [
+                ilObjBlogGUI::class,
+                \ILIAS\Blog\Editing\EditingGUI::class
+            ],
+            ""
+        );
     }
 }

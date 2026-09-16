@@ -151,7 +151,7 @@ class ParticipantTable implements DataRetrieval
                     $record->getAttemptOverviewInformation()?->getNrOfAnsweredQuestions(),
                     $record->getAttemptOverviewInformation()?->getNrOfTotalQuestions()
                 );
-                $row['percent_of_available_points'] = $record->getAttemptOverviewInformation()?->getReachedPointsInPercent();
+                $row['percent_of_available_points'] = $record->getAttemptOverviewInformation()?->getReachedPointsInPercent() ?? 0.0;
             }
 
             if ($status_of_attempt->isFinished()) {
@@ -368,14 +368,17 @@ class ParticipantTable implements DataRetrieval
             'name' => $column_factory->text($this->lng->txt('name'))
                 ->withIsSortable(!$this->test_object->getAnonymity())
         ];
+
         if (!$this->test_object->getAnonymity()) {
-            $columns['login'] = $column_factory->text($this->lng->txt('login'))->withIsSortable(true);
+            $columns += [
+                'login' => $column_factory->text($this->lng->txt('login'))->withIsSortable(true),
+                'matriculation' => $column_factory->text($this->lng->txt('matriculation'))
+                    ->withIsOptional(true, false)
+                    ->withIsSortable(true)
+            ];
         }
 
         $columns += [
-            'matriculation' => $column_factory->text($this->lng->txt('matriculation'))
-                ->withIsOptional(true, false)
-                ->withIsSortable(true),
             'ip_range' => $column_factory->text($this->lng->txt('client_ip_range'))
                 ->withIsOptional(true, false)
                 ->withIsSortable(true),

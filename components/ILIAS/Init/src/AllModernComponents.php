@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Init;
 
+use ILIAS\WebDAV\Environment;
+
 /**
  * This entry point can be thought of as a list of all modern components.
  * Modern components are those initialised using the new component bootstrap
@@ -95,6 +97,10 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\UI\Implementation\Component\Input\UploadLimitResolver $ui_upload_limit_resolver,
         protected \ILIAS\Setup\AgentFinder $setup_agent_finder,
         protected \ILIAS\UI\Implementation\Component\Navigation\Factory $ui_factory_navigation,
+        protected Environment $webdav_environment,
+        protected \ILIAS\UI\Implementation\Render\JavaScriptBinding $ui_java_script_binding,
+        protected \ILIAS\UI\Implementation\Component\SignalGeneratorInterface $ui_signal_generator,
+        protected \ILIAS\UI\Implementation\Render\TemplateFactory $ui_template_factory,
         protected \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager,
         protected \ILIAS\Language\Activities\InstallLanguage $install_language,
         protected \ILIAS\Language\Activities\UpdateLanguage $update_language,
@@ -103,14 +109,6 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         protected \ILIAS\Language\Activities\AddLanguageEntry $add_language_entry,
         protected \ILIAS\Language\Activities\SetLanguageDetectionEnabled $set_language_detection_enabled,
         protected \ILIAS\Language\Activities\SetLanguageTranslationEnabled $set_language_translation_enabled,
-        // This constructor argument is evaluated by PHP before enter() runs,
-        // i.e. before the legacy $DIC even exists. That is only safe because
-        // the "default"/Init dependency_resolution.php disambiguates
-        // \ILIAS\Language\Language to LanguageLegacyInitialisationAdapter,
-        // which has no constructor and only lazily touches `global $DIC`
-        // inside its methods. \ilLanguage itself eagerly reads $DIC in its
-        // constructor and would crash if it were resolved here instead - if
-        // that disambiguation ever changes, this argument must be revisited.
         protected \ILIAS\Language\Language $language,
     ) {
     }
@@ -189,6 +187,10 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
         $DIC['ui.renderer'] = fn() => $this->ui_renderer;
         $DIC['setup.agentfinder'] = fn() => $this->setup_agent_finder;
         $DIC['ui.factory.navigation'] = fn() => $this->ui_factory_input_field;
+        $DIC[Environment::class] = fn() => $this->webdav_environment;
+        $DIC['ui.javascript_binding'] = fn() => $this->ui_java_script_binding;
+        $DIC['ui.signal_generator'] = fn() => $this->ui_signal_generator;
+        $DIC['ui.template_factory'] = fn() => $this->ui_template_factory;
         $DIC[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class] = fn() =>
             $this->language_file_directory_manager;
         $DIC[\ILIAS\Language\Activities\InstallLanguage::class] = fn() =>
@@ -205,13 +207,6 @@ class AllModernComponents implements \ILIAS\Component\EntryPoint
             $this->set_language_detection_enabled;
         $DIC[\ILIAS\Language\Activities\SetLanguageTranslationEnabled::class] = fn() =>
             $this->set_language_translation_enabled;
-        // Route legacy consumers of this FQCN through the instance the
-        // component graph actually resolved, instead of independently
-        // re-deriving it from $DIC->language(). See the constructor comment
-        // on $this->language for why this stays behaviorally equivalent
-        // today (both resolve to the same LanguageLegacyInitialisationAdapter
-        // pointing at $DIC->language()) without risking bootstrap-order
-        // crashes.
         $DIC[\ILIAS\Language\Language::class] = fn() => $this->language;
     }
 

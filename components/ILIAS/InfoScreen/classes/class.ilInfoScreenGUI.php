@@ -43,6 +43,8 @@ class ilInfoScreenGUI
     protected ilObjUser $user;
     protected ilTree $tree;
     protected ilSetting $settings;
+    protected ilObjectDefinition $obj_definition;
+    protected \ILIAS\PersonalWorkspace\InternalGUIService $personal_workspace_gui;
     protected Metadata $metadata;
     protected DataFactory $data_factory;
     public ilLanguage $lng;
@@ -83,6 +85,8 @@ class ilInfoScreenGUI
         $this->user = $DIC->user();
         $this->tree = $DIC->repositoryTree();
         $this->settings = $DIC->settings();
+        $this->obj_definition = $DIC["objDefinition"];
+        $this->personal_workspace_gui = $DIC->personalWorkspace()->internal()->gui();
         $ilCtrl = $DIC->ctrl();
         $lng = $DIC->language();
         $ilTabs = $DIC->tabs();
@@ -473,6 +477,16 @@ class ilInfoScreenGUI
             // permanent link
             $type = $a_obj->getType();
             $ref_id = $a_obj->getRefId();
+            $is_workspace_object = $this->gui_object instanceof ilObject2GUI
+                && $this->gui_object->getIdType() === ilObject2GUI::WORKSPACE_NODE_ID
+                && $this->gui_object->getRefId() > 0
+                && !$this->obj_definition->isContainer($type);
+
+            if ($is_workspace_object) {
+                $this->personal_workspace_gui->permanentLink(
+                    $this->gui_object->getRefId()
+                )->setPermanentLink();
+            }
 
             if ($ref_id) {
                 if (ilECSServerSettings::getInstance()->activeServerExists()) {
@@ -482,7 +496,9 @@ class ilInfoScreenGUI
                     );
                 }
 
-                $this->tpl->setPermanentLink($type, $ref_id);
+                if (!$is_workspace_object) {
+                    $this->tpl->setPermanentLink($type, $ref_id);
+                }
 
                 // links to resource
                 if ($ilAccess->checkAccess("write", "", $ref_id) ||
@@ -575,27 +591,6 @@ class ilInfoScreenGUI
                     }
                     if ($count_users > 0) {
                         $this->addProperty($this->lng->txt("accesscount_registered_users"), (string) $count_users);
-                    }
-                }
-            }
-        }
-
-        // WebDAV: Display locking information
-        if (ilDAVActivationChecker::_isActive()) {
-            if ($ilUser->getId() != ANONYMOUS_USER_ID) {
-                $webdav_dic = new ilWebDAVDIC();
-                $webdav_dic->initWithoutDIC();
-                $webdav_lock_backend = $webdav_dic->locksbackend();
-                // Show lock info
-                if ($ilUser->getId() != ANONYMOUS_USER_ID) {
-                    if ($lock = $webdav_lock_backend->getLocksOnObjectId($this->gui_object->getObject()->getId())) {
-                        /** @var ilWebDAVLockObject $lock */
-                        $lock_user = new ilObjUser($lock->getIliasOwner());
-                        $this->addProperty(
-                            $this->lng->txt("in_use_by"),
-                            $lock_user->getPublicName(),
-                            "./ilias.php?user=" . $lock_user->getId() . '&cmd=showUserProfile&cmdClass=ildashboardgui&cmdNode=1&baseClass=ilDashboardGUI'
-                        );
                     }
                 }
             }
