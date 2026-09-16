@@ -106,7 +106,6 @@ class Language implements Component\Component
         $internal[InstallLanguage::class] = static fn() =>
             new InstallLanguage(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 // The Activity needs no database of its own: every database
@@ -119,7 +118,6 @@ class Language implements Component\Component
         $internal[UpdateLanguage::class] = static fn() =>
             new UpdateLanguage(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 // Same reasoning as InstallLanguage above: no database of
@@ -137,7 +135,6 @@ class Language implements Component\Component
         $internal[UninstallLanguage::class] = static fn() =>
             new UninstallLanguage(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $lang_folder_ref_id
@@ -152,7 +149,6 @@ class Language implements Component\Component
         $internal[RemoveLocalLanguageChanges::class] = static fn() =>
             new RemoveLocalLanguageChanges(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $lang_folder_ref_id
@@ -171,7 +167,6 @@ class Language implements Component\Component
         $internal[AddLanguageEntry::class] = static fn() =>
             new AddLanguageEntry(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $internal[InstalledLanguageDatabaseRepository::class],
@@ -196,7 +191,6 @@ class Language implements Component\Component
         $internal[SetLanguageDetectionEnabled::class] = static fn() =>
             new SetLanguageDetectionEnabled(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $settings,
@@ -215,7 +209,6 @@ class Language implements Component\Component
         $internal[SetLanguageTranslationEnabled::class] = static fn() =>
             new SetLanguageTranslationEnabled(
                 $pull[\ILIAS\Refinery\Factory::class],
-                $use[\ILIAS\UI\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $rbac_system,
                 $settings,

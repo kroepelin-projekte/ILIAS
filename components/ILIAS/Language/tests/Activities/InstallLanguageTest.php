@@ -24,7 +24,6 @@ use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use ilSetupLanguage;
@@ -506,7 +505,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
                 InstallLanguage::MODE_INSTALL => 'Install',
                 InstallLanguage::MODE_INSTALL_LOCAL => 'Install local',
             ],
-            $this->isType('string')
+            self::callback(static fn(mixed $value): bool => is_string($value))
         )->willReturn($select);
 
         $group = $this->createMock(Group::class);
@@ -515,15 +514,8 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
             ->with(['language_keys' => $text, 'mode' => $select])
             ->willReturn($group);
 
-        $input = $this->createMock(\ILIAS\UI\Component\Input\Factory::class);
-        $input->method('field')->willReturn($field);
-
-        $ui_factory = $this->createMock(UIFactory::class);
-        $ui_factory->method('input')->willReturn($input);
-
         $activity = $this->createActivity(
-            $this->createSetupLanguageMock([], [], []),
-            $ui_factory
+            $this->createSetupLanguageMock([], [], [])
         );
 
         $this->assertSame($group, $activity->getInputDescription($field));
@@ -602,8 +594,8 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language->expects($this->exactly(2))->method('flushLanguageForInstallation');
         $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation');
 
-        $result = $this->createActivity($setup_language, null, $rbac)->maybePerformAs(
-            $this->createMock(InputFactory::class),
+        $result = $this->createActivity($setup_language, $rbac)->maybePerformAs(
+            $this->createRealFieldsUiFactory()->input(),
             6,
             ['language_keys' => ['de', 'fr'], 'mode' => InstallLanguage::MODE_INSTALL]
         );
@@ -631,23 +623,65 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
 
         $result = $this->createActivity(
             $setup_language,
-            null,
             $rbac,
             $language
-        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de', 'mode' => InstallLanguage::MODE_INSTALL]);
+        )->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de', 'mode' => InstallLanguage::MODE_INSTALL]);
 
         $this->assertTrue($result->isError());
     }
 
+    /**
+     * Regression test for LanguageActivity::maybePerformAs()'s generic
+     * catch(\Throwable) block (InstallLanguage itself does not override
+     * maybePerformAs() - this exercises the base class implementation):
+     * a \Throwable that is NOT an \Exception (here a \TypeError, the other
+     * half of the \Throwable hierarchy) raised from within perform() must
+     * still come back as a Result\Error carrying an \Exception instance
+     * (here a \RuntimeException wrapping the original \TypeError as its
+     * "previous"), per the Activity::maybePerformAs() contract ("Wraps the
+     * result and possible errors in the Result type"). Before the fix,
+     * `new Result\Error($e)` itself raised an uncaught
+     * \InvalidArgumentException for such a $e (Result\Error::__construct()
+     * only accepts string|\Exception), so maybePerformAs() aborted instead
+     * of returning a Result at all.
+     */
+    public function testAThrowableThatIsNotAnExceptionFromWithinPerformIsWrappedInARuntimeExceptionResultError(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $setup_language = $this->createSetupLanguageMock([], [], []);
+        // checkLanguageForInstallation() is called from within perform()'s
+        // own loop, well after isAllowedToPerform() succeeded - a realistic
+        // place for an unexpected \TypeError to surface (e.g. a
+        // misconfigured/incompatible collaborator), simulated here directly.
+        $setup_language->method('checkLanguageForInstallation')->willReturnCallback(
+            static function (): bool {
+                throw new \TypeError('simulated TypeError, not an \Exception');
+            }
+        );
+
+        $result = $this->createActivity($setup_language, $rbac)->maybePerformAs(
+            $this->createRealFieldsUiFactory()->input(),
+            6,
+            ['language_keys' => ['de'], 'mode' => InstallLanguage::MODE_INSTALL]
+        );
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(\RuntimeException::class, $error);
+        $this->assertNotInstanceOf(\TypeError::class, $error);
+        $this->assertSame('simulated TypeError, not an \Exception', $error->getMessage());
+        $this->assertInstanceOf(\TypeError::class, $error->getPrevious());
+    }
+
     private function createActivity(
         ilSetupLanguage $setup_language,
-        ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null
     ): InstallLanguage {
         return new InstallLanguage(
             $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createRealFieldsUiFactory(),
             $language ?? $this->createMock(Language::class),
             $rbac ?? $this->createMock(\ilRbacSystem::class),
             $setup_language

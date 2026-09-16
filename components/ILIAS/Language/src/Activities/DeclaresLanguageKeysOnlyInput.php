@@ -27,25 +27,14 @@ trait DeclaresLanguageKeysOnlyInput
 {
     use ParsesLanguageKeyList;
 
-    // Requires the using class to provide `protected readonly \Closure $ui_factory`
-    // ((): UIFactory) - not declared here, since every Activity using this trait already gets
-    // it from extending LanguageActivity.
-    //
-    // $f is unused: fields are built from the $ui_factory closure above instead, exactly as
-    // every getInputDescription() in this component always has - LanguageActivity's
-    // maybePerformAs() forwards the InputFactory it receives from the Activity interface
-    // to this parameter only because getInputDescription() itself requires it, not because
-    // it is put to any use here.
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        $ui_factory = ($this->ui_factory)();
-
-        $language_keys = $ui_factory->input()->field()->text(
+        $language_keys = $f->text(
             'Language keys',
             'Comma-separated list of language keys, e.g. de, fr, it.'
         )->withRequired(true)->withDedicatedName('language_keys');
 
-        return $ui_factory->input()->field()->group([
+        return $f->group([
             'language_keys' => $language_keys,
         ]);
     }

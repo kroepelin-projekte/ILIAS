@@ -24,7 +24,6 @@ use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -71,8 +70,8 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             throw new \LogicException('must never be called for an ambiguous title');
         };
 
-        $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(\RuntimeException::class, $result->error());
@@ -183,8 +182,8 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             throw new \LogicException('must never be called for an ambiguous title');
         };
 
-        $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(\RuntimeException::class, $result->error());
@@ -298,8 +297,8 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             throw new \LogicException('must never be called for the ambiguous "fr" title');
         };
 
-        $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
+        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(AmbiguousLanguageTitleException::class, $result->error());
@@ -590,16 +589,9 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             ->with(['language_keys' => $text])
             ->willReturn($group);
 
-        $input = $this->createMock(\ILIAS\UI\Component\Input\Factory::class);
-        $input->method('field')->willReturn($field);
-
-        $ui_factory = $this->createMock(UIFactory::class);
-        $ui_factory->method('input')->willReturn($input);
-
         $activity = $this->createActivity(
             static fn(): array => [],
-            static fn(int $id) => null,
-            $ui_factory
+            static fn(int $id) => null
         );
 
         $this->assertSame($group, $activity->getInputDescription($field));
@@ -622,10 +614,9 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $result = $this->createActivity(
             $lng_objects,
             $obj_language_factory,
-            null,
             $rbac,
             $language
-        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
         $this->assertSame(0, $fakes[1]->uninstallCallCount());
@@ -643,9 +634,8 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $result = $this->createActivity(
             $lng_objects,
             $obj_language_factory,
-            null,
             $rbac
-        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de'], $result->value()['uninstalled_language_keys']);
@@ -677,8 +667,8 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
             'fr' => [],
         ]);
 
-        $result = $this->createActivity($lng_objects, $obj_language_factory, null, $rbac)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
+        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de', 'fr'], $result->value()['uninstalled_language_keys']);
@@ -689,13 +679,11 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
     private function createActivity(
         \Closure $lng_objects,
         \Closure $obj_language_factory,
-        ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null
     ): UninstallLanguage {
         return new UninstallLanguage(
             $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createRealFieldsUiFactory(),
             $language ?? $this->createMock(Language::class),
             $rbac ?? $this->createMock(\ilRbacSystem::class),
             0,

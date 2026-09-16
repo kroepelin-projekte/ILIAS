@@ -26,7 +26,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class InstallLanguage extends LanguageActivity
 {
@@ -37,23 +36,18 @@ class InstallLanguage extends LanguageActivity
 
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         private readonly \ilSetupLanguage $setup_language,
         int|\Closure $language_folder_ref_id = 0,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
     }
 
     public static function forSetup(\ilSetupLanguage $setup_language): self
     {
         return new self(
             new RefineryFactory(new \ILIAS\Data\Factory(), $setup_language),
-            static fn(): UIFactory => throw new \LogicException(
-                'The UI Factory is not available during Setup; '
-                . self::class . '::getInputDescription() cannot be used here.'
-            ),
             $setup_language,
             static fn(): \ilRbacSystem => throw new \LogicException(
                 'RBAC is not available during Setup; '
@@ -80,17 +74,14 @@ MARKDOWN
         );
     }
 
-    // $f is unused - see DeclaresLanguageKeysOnlyInput::getInputDescription() for why.
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        $ui_factory = ($this->ui_factory)();
-
-        $language_keys = $ui_factory->input()->field()->text(
+        $language_keys = $f->text(
             'Language keys',
             'Comma-separated list of language keys, e.g. de, fr, it.'
         )->withRequired(true)->withDedicatedName('language_keys');
 
-        $mode = $ui_factory->input()->field()->select(
+        $mode = $f->select(
             'Mode',
             [
                 self::MODE_INSTALL => 'Install',
@@ -101,7 +92,7 @@ MARKDOWN
             'installation.'
         )->withRequired(true)->withDedicatedName('mode');
 
-        return $ui_factory->input()->field()->group([
+        return $f->group([
             'language_keys' => $language_keys,
             'mode' => $mode,
         ]);

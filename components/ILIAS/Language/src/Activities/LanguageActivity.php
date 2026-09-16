@@ -28,7 +28,6 @@ use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 abstract class LanguageActivity extends ActivityImpl
 {
@@ -36,22 +35,17 @@ abstract class LanguageActivity extends ActivityImpl
 
     protected readonly RefineryFactory $refinery;
     protected Language $lng;
-    protected readonly \Closure $ui_factory;
     private readonly \Closure $rbac_system;
     private readonly \Closure $language_folder_ref_id;
 
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         int|\Closure $language_folder_ref_id = 0,
     ) {
         $this->refinery = $refinery;
         $this->lng = $language;
-        $this->ui_factory = $ui_factory instanceof \Closure
-            ? $ui_factory
-            : static fn(): UIFactory => $ui_factory;
         $this->rbac_system = $rbac_system instanceof \Closure
             ? $rbac_system
             : static fn(): \ilRbacSystem => $rbac_system;
@@ -84,19 +78,19 @@ abstract class LanguageActivity extends ActivityImpl
         );
     }
 
-    // $input_factory is only forwarded to getInputDescription() as the FieldFactory it is
-    // itself declared to require - it is not otherwise used here: fields are built from the
-    // $ui_factory closure injected via the constructor instead, exactly as
-    // getInputDescription() in this component always has (see e.g.
-    // AddLanguageEntry::getInputDescription()).
     public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
     {
-        $grind_result = $this->grind($this->getInputDescription($input_factory->field()), $raw_parameters);
-        if ($grind_result->isError()) {
-            return new Result\Error($grind_result->error());
-        }
-
         try {
+            // getInputDescription() itself, or $input_factory->field(), might throw (e.g. a
+            // concrete Activity building its FormInput eagerly from other collaborators) - keep
+            // this call inside the try block so any such exception is still wrapped in a
+            // Result\Error, per the `maybePerformAs()` contract in Activity.php ("Wraps the
+            // result and possible errors in the Result type"), rather than escaping uncaught.
+            $grind_result = $this->grind($this->getInputDescription($input_factory->field()), $raw_parameters);
+            if ($grind_result->isError()) {
+                return new Result\Error($grind_result->error());
+            }
+
             $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
@@ -104,7 +98,9 @@ abstract class LanguageActivity extends ActivityImpl
 
             return new Result\Ok($this->perform($parameters));
         } catch (\Throwable $e) {
-            return new Result\Error($e);
+            return new Result\Error(
+                $e instanceof \Exception ? $e : new \RuntimeException($e->getMessage(), 0, $e)
+            );
         }
     }
 

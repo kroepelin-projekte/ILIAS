@@ -23,7 +23,6 @@ use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use ilSetupLanguage;
@@ -303,15 +302,8 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             ->with(['language_keys' => $text])
             ->willReturn($group);
 
-        $input = $this->createMock(\ILIAS\UI\Component\Input\Factory::class);
-        $input->method('field')->willReturn($field);
-
-        $ui_factory = $this->createMock(UIFactory::class);
-        $ui_factory->method('input')->willReturn($input);
-
         $activity = $this->createActivity(
-            $this->createSetupLanguageMock([], [], []),
-            $ui_factory
+            $this->createSetupLanguageMock([], [], [])
         );
 
         $this->assertSame($group, $activity->getInputDescription($field));
@@ -337,10 +329,9 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
         $result = $this->createActivity(
             $setup_language,
-            null,
             $rbac,
             $language
-        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertTrue($result->isError());
     }
@@ -355,9 +346,8 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
         $result = $this->createActivity(
             $setup_language,
-            null,
             $rbac
-        )->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => 'de']);
+        )->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de'], $result->value()['updated_language_keys']);
@@ -384,8 +374,8 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
-        $result = $this->createActivity($setup_language, null, $rbac)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_keys' => ['de', 'fr']]);
+        $result = $this->createActivity($setup_language, $rbac)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => ['de', 'fr']]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(['de', 'fr'], $result->value()['updated_language_keys']);
@@ -393,13 +383,11 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
     private function createActivity(
         ilSetupLanguage $setup_language,
-        ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null
     ): UpdateLanguage {
         return new UpdateLanguage(
             $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createRealFieldsUiFactory(),
             $language ?? $this->createMock(Language::class),
             $rbac ?? $this->createMock(\ilRbacSystem::class),
             $setup_language

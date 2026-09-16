@@ -27,7 +27,6 @@ use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class SetLanguageDetectionEnabled extends LanguageActivity
 {
@@ -35,13 +34,12 @@ class SetLanguageDetectionEnabled extends LanguageActivity
 
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         Setting|\Closure $settings,
         int|\Closure $language_folder_ref_id = 0,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
         $this->settings = $settings instanceof \Closure
             ? $settings
             : static fn(): Setting => $settings;
@@ -58,17 +56,14 @@ MARKDOWN
         );
     }
 
-    // $f is unused - see DeclaresLanguageKeysOnlyInput::getInputDescription() for why.
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        $ui_factory = ($this->ui_factory)();
-
-        $enabled = $ui_factory->input()->field()->checkbox(
+        $enabled = $f->checkbox(
             'Enabled',
             'Whether automatic language detection from the browser should be enabled.'
         )->withDedicatedName('enabled');
 
-        return $ui_factory->input()->field()->group([
+        return $f->group([
             'enabled' => $enabled,
         ]);
     }

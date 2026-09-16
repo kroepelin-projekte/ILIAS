@@ -29,7 +29,6 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\Refinery\String\Group as StringGroup;
 use ILIAS\Refinery\String\MarkdownFormattingToHTML;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -248,7 +247,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => true]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(
@@ -280,7 +279,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => true]);
 
         $this->assertTrue($result->isError());
         $this->assertSame('no write permission', $result->error());
@@ -302,7 +301,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->method('set')->willThrowException(new \RuntimeException('database write failed'));
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => true]);
 
         $this->assertTrue($result->isError());
         $error = $result->error();
@@ -325,7 +324,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $rbac = $this->createMock(\ilRbacSystem::class);
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
-        $result = $this->createActivity(rbac_system: $rbac)->maybePerformAs($this->createMock(InputFactory::class), 6, []);
+        $result = $this->createActivity(rbac_system: $rbac)->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, []);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -355,7 +354,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, $raw_parameters);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, $raw_parameters);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -391,7 +390,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, $raw_parameters);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, $raw_parameters);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -418,7 +417,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de']);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de']);
 
         $this->assertFalse($result->isError());
         $this->assertSame(
@@ -446,7 +445,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => '   ', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => '   ', 'enabled' => true]);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -490,7 +489,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de', 'enabled' => $value]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => $value]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(
@@ -514,7 +513,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'de', 'enabled' => $value]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => $value]);
 
         $this->assertFalse($result->isError());
         $this->assertSame(
@@ -591,7 +590,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('set');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => 'xx', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'xx', 'enabled' => true]);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -616,7 +615,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
-            ->maybePerformAs($this->createMock(InputFactory::class), 6, ['language_key' => '  de  ', 'enabled' => true]);
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => '  de  ', 'enabled' => true]);
 
         $this->assertFalse($result->isError());
         $this->assertSame('de', $result->value()['language_key']);
@@ -660,13 +659,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
             ->with(['language_key' => $text, 'enabled' => $checkbox])
             ->willReturn($group);
 
-        $input = $this->createMock(\ILIAS\UI\Component\Input\Factory::class);
-        $input->method('field')->willReturn($field);
-
-        $ui_factory = $this->createMock(UIFactory::class);
-        $ui_factory->method('input')->willReturn($input);
-
-        $activity = $this->createActivity(ui_factory: $ui_factory);
+        $activity = $this->createActivity();
 
         $this->assertSame($group, $activity->getInputDescription($field));
     }
@@ -705,7 +698,6 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     // -----------------------------------------------------------------
 
     private function createActivity(
-        ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac_system = null,
         ?Setting $settings = null,
         ?Language $language = null,
@@ -715,7 +707,6 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     ): SetLanguageTranslationEnabled {
         return new SetLanguageTranslationEnabled(
             $refinery ?? $this->createMock(RefineryFactory::class),
-            $ui_factory ?? $this->createRealFieldsUiFactory(),
             $language ?? $this->createMock(Language::class),
             $rbac_system ?? $this->createMock(\ilRbacSystem::class),
             $settings ?? $this->createMock(Setting::class),

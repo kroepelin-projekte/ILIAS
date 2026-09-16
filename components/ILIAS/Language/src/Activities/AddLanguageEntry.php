@@ -29,7 +29,6 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class AddLanguageEntry extends LanguageActivity
 {
@@ -47,7 +46,6 @@ class AddLanguageEntry extends LanguageActivity
      */
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         private readonly InstalledLanguageRepository $installed_language_repository,
@@ -57,7 +55,7 @@ class AddLanguageEntry extends LanguageActivity
         ?\Closure $update_module_cache = null,
         ?\Closure $user_login = null,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
         $this->replace_lang_entry = $replace_lang_entry
             ?? static fn(
                 string $module,
@@ -114,25 +112,22 @@ MARKDOWN
         );
     }
 
-    // $f is unused - see LanguageActivity::maybePerformAs() for why.
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        return $this->buildInputDescription($this->installed_language_repository->getInstalledLanguages());
+        return $this->buildInputDescription($f, $this->installed_language_repository->getInstalledLanguages());
     }
 
     /**
      * @param list<string> $installed_language_keys
      */
-    private function buildInputDescription(array $installed_language_keys): FormInput
+    private function buildInputDescription(FieldFactory $f, array $installed_language_keys): FormInput
     {
-        $ui_factory = ($this->ui_factory)();
-
-        $module = $ui_factory->input()->field()->text(
+        $module = $f->text(
             'Module',
             'Name of the language module the new entry belongs to.'
         )->withRequired(true)->withDedicatedName('module');
 
-        $identifier = $ui_factory->input()->field()->text(
+        $identifier = $f->text(
             'Identifier',
             'Identifier (topic) of the new language entry.'
         )->withRequired(true)->withDedicatedName('identifier');
@@ -140,12 +135,12 @@ MARKDOWN
         $translation_fields = [];
         foreach ($installed_language_keys as $lang_key) {
             $is_mandatory = in_array($lang_key, ['de', 'en'], true);
-            $translation_fields[$lang_key] = $ui_factory->input()->field()->text(
+            $translation_fields[$lang_key] = $f->text(
                 $this->lng->txt('meta_l_' . $lang_key)
             )->withRequired($is_mandatory)->withDedicatedName($lang_key);
         }
 
-        $translations = $ui_factory->input()->field()->group(
+        $translations = $f->group(
             $translation_fields,
             'Translations',
             'Value of the new entry for each installed language; "de" and "en" are mandatory ' .
@@ -154,7 +149,7 @@ MARKDOWN
             'and simply skipped if left blank.'
         )->withDedicatedName('translations');
 
-        return $ui_factory->input()->field()->group([
+        return $f->group([
             'module' => $module,
             'identifier' => $identifier,
             'translations' => $translations,
@@ -269,21 +264,26 @@ MARKDOWN
         ];
     }
 
-    // $input_factory is unused - see the comment on
-    // LanguageActivity::maybePerformAs() for why it must still be declared.
     public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
     {
-        // Resolved exactly once and reused both to build getInputDescription() and, via
-        // perform()'s 'installed_language_keys' parameter, to decide which languages are
-        // written - avoiding a second, possibly inconsistent snapshot.
-        $installed_language_keys = $this->installed_language_repository->getInstalledLanguages();
-
-        $grind_result = $this->grind($this->buildInputDescription($installed_language_keys), $raw_parameters);
-        if ($grind_result->isError()) {
-            return new Result\Error($grind_result->error());
-        }
-
         try {
+            // Resolved exactly once and reused both to build the input description and, via
+            // perform()'s 'installed_language_keys' parameter, to decide which languages are
+            // written - avoiding a second, possibly inconsistent snapshot. Kept inside the try
+            // block together with buildInputDescription()/$input_factory->field(), since either
+            // could throw and must still be wrapped in a Result\Error per the `maybePerformAs()`
+            // contract in Activity.php ("Wraps the result and possible errors in the Result
+            // type"), rather than escaping uncaught.
+            $installed_language_keys = $this->installed_language_repository->getInstalledLanguages();
+
+            $grind_result = $this->grind(
+                $this->buildInputDescription($input_factory->field(), $installed_language_keys),
+                $raw_parameters
+            );
+            if ($grind_result->isError()) {
+                return new Result\Error($grind_result->error());
+            }
+
             $parameters = $this->normalizeParameters($grind_result->value());
             if (!$this->isAllowedToPerform($usr_id, $parameters)) {
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
@@ -293,7 +293,9 @@ MARKDOWN
                 $parameters + ['usr_id' => $usr_id, 'installed_language_keys' => $installed_language_keys]
             ));
         } catch (\Throwable $e) {
-            return new Result\Error($e);
+            return new Result\Error(
+                $e instanceof \Exception ? $e : new \RuntimeException($e->getMessage(), 0, $e)
+            );
         }
     }
 

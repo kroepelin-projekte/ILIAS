@@ -24,7 +24,6 @@ use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class UpdateLanguage extends LanguageActivity
 {
@@ -32,23 +31,18 @@ class UpdateLanguage extends LanguageActivity
 
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         private readonly \ilSetupLanguage $setup_language,
         int|\Closure $language_folder_ref_id = 0,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
     }
 
     public static function forSetup(\ilSetupLanguage $setup_language): self
     {
         return new self(
             new RefineryFactory(new \ILIAS\Data\Factory(), $setup_language),
-            static fn(): UIFactory => throw new \LogicException(
-                'The UI Factory is not available during Setup; '
-                . self::class . '::getInputDescription() cannot be used here.'
-            ),
             $setup_language,
             static fn(): \ilRbacSystem => throw new \LogicException(
                 'RBAC is not available during Setup; '

@@ -24,7 +24,6 @@ use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class UninstallLanguage extends LanguageActivity
 {
@@ -40,14 +39,13 @@ class UninstallLanguage extends LanguageActivity
      */
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         int|\Closure $language_folder_ref_id = 0,
         ?\Closure $lng_objects = null,
         ?\Closure $obj_language_factory = null,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
         $this->lng_objects = $lng_objects
             ?? static fn(): array => \ilObject::_getObjectsByType('lng');
         $this->obj_language_factory = $obj_language_factory

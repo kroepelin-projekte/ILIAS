@@ -32,7 +32,6 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\Refinery\String\Group as StringGroup;
 use ILIAS\Refinery\String\MarkdownFormattingToHTML;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
-use ILIAS\UI\Factory as UIFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -319,7 +318,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => [
@@ -573,7 +572,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => ['de' => 'Hallo'],
@@ -591,7 +590,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['de', 'fr'], rbac: $rbac);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => ['de' => 'Hallo'],
@@ -628,7 +627,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['de'], rbac: $rbac, user_login: $user_login);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => ['de' => 'Hallo'],
@@ -661,7 +660,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             replace_lang_entry: $replace_lang_entry
         );
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => ['de' => 'Hallo'],
@@ -671,6 +670,50 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $error = $result->error();
         $this->assertInstanceOf(\RuntimeException::class, $error);
         $this->assertSame('database write failed', $error->getMessage());
+    }
+
+    /**
+     * Regression test for AddLanguageEntry::maybePerformAs()'s OWN
+     * overridden catch(\Throwable) block (distinct from
+     * LanguageActivity::maybePerformAs()'s generic one, which
+     * InstallLanguageTest exercises instead): a \Throwable that is NOT an
+     * \Exception (here a \TypeError) raised from within perform() - e.g. the
+     * $replace_lang_entry write closure failing in an unexpected way - must
+     * still come back as a Result\Error carrying an \Exception instance
+     * (a \RuntimeException wrapping the original \TypeError as its
+     * "previous"), per the Activity::maybePerformAs() contract. Before the
+     * fix, `new Result\Error($e)` itself raised an uncaught
+     * \InvalidArgumentException for such a $e (Result\Error::__construct()
+     * only accepts string|\Exception), so maybePerformAs() aborted instead
+     * of returning a Result at all.
+     */
+    public function testAThrowableThatIsNotAnExceptionFromWithinPerformIsWrappedInARuntimeExceptionResultError(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $replace_lang_entry = static function (): bool {
+            throw new \TypeError('simulated TypeError, not an \Exception');
+        };
+
+        $activity = $this->createActivity(
+            ['de'],
+            rbac: $rbac,
+            replace_lang_entry: $replace_lang_entry
+        );
+
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(\RuntimeException::class, $error);
+        $this->assertNotInstanceOf(\TypeError::class, $error);
+        $this->assertSame('simulated TypeError, not an \Exception', $error->getMessage());
+        $this->assertInstanceOf(\TypeError::class, $error->getPrevious());
     }
 
     /**
@@ -690,7 +733,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['de'], rbac: $rbac);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'identifier' => 'new_topic',
             'translations' => ['de' => 'Hallo'],
         ]);
@@ -724,7 +767,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             update_module_cache: $this->spyUpdateModuleCache($calls)
         );
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => [
@@ -748,7 +791,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     {
         $activity = $this->createActivity(['de']);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, []);
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, []);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -786,7 +829,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['de'], rbac: $rbac);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, $raw_parameters);
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, $raw_parameters);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -821,7 +864,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['de'], rbac: $rbac);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, $raw_parameters);
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, $raw_parameters);
 
         $this->assertTrue($result->isError());
         $this->assertInstanceOf(InvalidInputException::class, $result->error());
@@ -840,7 +883,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             replace_lang_entry: $this->spyReplaceLangEntry($calls)
         );
 
-        $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => '  common  ',
             'identifier' => '  new_topic  ',
             'translations' => ['de' => 'Hallo'],
@@ -867,7 +910,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivity(['fr', 'it'], rbac: $rbac);
 
-        $result = $activity->maybePerformAs($this->createMock(InputFactory::class), 6, [
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
             'module' => 'common',
             'identifier' => 'new_topic',
             'translations' => [],
@@ -950,19 +993,12 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             }
         );
 
-        $input = $this->createMock(\ILIAS\UI\Component\Input\Factory::class);
-        $input->method('field')->willReturn($field);
-
-        $ui_factory = $this->createMock(UIFactory::class);
-        $ui_factory->method('input')->willReturn($input);
-
         $language = $this->createMock(Language::class);
         $language->method('txt')->willReturnCallback(static fn(string $key): string => $key);
 
         $activity = $this->createActivity(
             ['de', 'fr'],
-            language: $language,
-            ui_factory: $ui_factory
+            language: $language
         );
 
         $this->assertSame($outer_group, $activity->getInputDescription($field));
@@ -1024,7 +1060,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     {
         return new AddLanguageEntry(
             refinery: $this->createMock(RefineryFactory::class),
-            ui_factory: $this->createRealFieldsUiFactory(),
             language: $this->createMock(Language::class),
             rbac_system: $this->createMock(\ilRbacSystem::class),
             installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
@@ -1175,7 +1210,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      */
     private function createActivity(
         array $installed_languages,
-        ?UIFactory $ui_factory = null,
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null,
         ?InstalledLanguageRepository $installed_language_repository = null,
@@ -1221,7 +1255,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         return new AddLanguageEntry(
             refinery: $refinery ?? $this->createMock(RefineryFactory::class),
-            ui_factory: $ui_factory ?? $this->createRealFieldsUiFactory(),
             language: $language ?? $this->createMock(Language::class),
             rbac_system: $rbac ?? $this->createMock(\ilRbacSystem::class),
             installed_language_repository: $installed_language_repository ?? new FakeInstalledLanguageRepository(

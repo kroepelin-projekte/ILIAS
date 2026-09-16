@@ -28,7 +28,6 @@ use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
-use ILIAS\UI\Factory as UIFactory;
 
 class SetLanguageTranslationEnabled extends LanguageActivity
 {
@@ -36,14 +35,13 @@ class SetLanguageTranslationEnabled extends LanguageActivity
 
     public function __construct(
         RefineryFactory $refinery,
-        UIFactory|\Closure $ui_factory,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         Setting|\Closure $settings,
         private readonly InstalledLanguageRepository $installed_language_repository,
         int|\Closure $language_folder_ref_id = 0,
     ) {
-        parent::__construct($refinery, $ui_factory, $language, $rbac_system, $language_folder_ref_id);
+        parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
         $this->settings = $settings instanceof \Closure
             ? $settings
             : static fn(): Setting => $settings;
@@ -61,22 +59,19 @@ MARKDOWN
         );
     }
 
-    // $f is unused - see DeclaresLanguageKeysOnlyInput::getInputDescription() for why.
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        $ui_factory = ($this->ui_factory)();
-
-        $language_key = $ui_factory->input()->field()->text(
+        $language_key = $f->text(
             'Language key',
             'Language key the page translation setting applies to, e.g. de, fr, it.'
         )->withRequired(true)->withDedicatedName('language_key');
 
-        $enabled = $ui_factory->input()->field()->checkbox(
+        $enabled = $f->checkbox(
             'Enabled',
             'Whether page translation should be enabled for this language.'
         )->withDedicatedName('enabled');
 
-        return $ui_factory->input()->field()->group([
+        return $f->group([
             'language_key' => $language_key,
             'enabled' => $enabled,
         ]);

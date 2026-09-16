@@ -33,8 +33,9 @@ use ILIAS\UI\Implementation\Component\Input\InputInternal;
 /**
  * getInputDescription() is declared to return the public FormInput interface, which does not
  * expose the machinery actually needed to collect input (withNameFrom()/withInput()/getContent());
- * that lives on InputInternal, which every concrete Input built via $ui_factory->input()->field()
- * implements. grind() therefore requires the given FormInput to also implement InputInternal.
+ * that lives on InputInternal, which every concrete Input built via the FieldFactory passed to
+ * getInputDescription() implements. grind() therefore requires the given FormInput to also
+ * implement InputInternal.
  */
 trait GrindsFormInput
 {
