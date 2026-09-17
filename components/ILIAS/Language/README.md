@@ -31,6 +31,59 @@ instead of on `ilSetupLanguage`, which still exists (delegating to both) as the 
 implementation used during Setup and as a stable entry point for callers not yet wired through `Language.php`.
 
 
+## Activities
+This component provides seven [Activities](../Component/src/Activities/README.md)
+(`ILIAS\Language\Activities\*`), each wired into `Language.php` (`$internal`/`$provide`/
+`$contribute`) and used by this component's own GUI classes via `maybePerformAs()`. All seven
+are `Command`s (they change installation/configuration state; none of them queries data without
+side effects). See each class's own `getDescription()` for its authoritative, up-to-date
+description rather than a copy here, which would drift out of sync:
+
+* **InstallLanguage** (`src/Activities/InstallLanguage.php`) - installs/re-applies one or more
+  languages, depending on the chosen mode.
+* **UpdateLanguage** (`src/Activities/UpdateLanguage.php`) - refreshes one or more already
+  installed languages from the current language files.
+* **UninstallLanguage** (`src/Activities/UninstallLanguage.php`) - uninstalls one or more already
+  installed languages.
+* **RemoveLocalLanguageChanges** (`src/Activities/RemoveLocalLanguageChanges.php`) - removes all
+  local changes of one or more already installed languages and reinstalls them from the
+  global/component language files.
+* **AddLanguageEntry** (`src/Activities/AddLanguageEntry.php`) - adds one new "adjust language
+  variables" entry to every currently installed language for which a value was given.
+* **SetLanguageDetectionEnabled** (`src/Activities/SetLanguageDetectionEnabled.php`) - enables or
+  disables the system-wide automatic language detection from the browser's Accept-Language
+  header.
+* **SetLanguageTranslationEnabled** (`src/Activities/SetLanguageTranslationEnabled.php`) - enables
+  or disables the "page translation" feature for one specific language.
+
+### Known, accepted deviations from the Activity contract
+
+* **AddLanguageEntry::perform()** additionally accepts an optional `usr_id` (int) key in its
+  `$parameters`, even though `getInputDescription()`'s `FormInput` never produces one - it is
+  supplied out-of-band by `maybePerformAs()` (never spoofable via form data) and recorded as the
+  author of the local change made to every written entry. A caller that omits it (e.g. a generic
+  caller following the plain `getInputDescription()` -> `withInput()` -> `getContent()` ->
+  `perform()` contract) is not rejected; the entries are simply written without an attributed
+  author.
+* **AddLanguageEntry::getInputDescription()** builds per-language field labels via
+  `$this->lng->txt('meta_l_' . $lang_key)`, which requires the caller to have already called
+  `loadLanguageModule('meta')` beforehand. This component's own GUI does so already (see
+  `classes/class.ilObjLanguageExtGUI.php`'s constructor). A caller that skips this gets the raw,
+  untranslated placeholder (e.g. `-meta_l_de-`) as the label instead of a crash. `getInputDescription()`
+  deliberately does not load the module itself, since `loadLanguageModule()` merges the module's
+  keys, unnamespaced, into the shared `$this->lng` state - doing so implicitly here could clobber
+  keys for an unrelated module if a future generic caller iterates over several Activities sharing
+  one `Language`/`ilLanguage` instance.
+* **AddLanguageEntry::getInputDescription()** resolves the current set of installed languages from
+  `InstalledLanguageRepository::getInstalledLanguages()` on every call, rather than being a pure,
+  static description of the input shape. Within one `maybePerformAs()` call, `getInputDescription()`
+  and `perform()` can therefore observe different snapshots if a language is installed/uninstalled
+  concurrently between the two calls: a newly installed optional language simply ends up in
+  `skipped_empty_language_keys`; a newly installed `de`/`en` makes `perform()` reject the whole
+  request (fail-closed, since no value could have been submitted for it); a language uninstalled
+  in the meantime has its submitted value silently dropped rather than written or reported. No
+  case crashes or writes partial data.
+
 ## Supported HTML Tags in Language Files
 Only a defined set of HTML tags are allowed to be used within the `text_content` of a language entry:
 

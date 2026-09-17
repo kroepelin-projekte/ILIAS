@@ -21,13 +21,11 @@ declare(strict_types=1);
 namespace ILIAS\Language\Activities;
 
 use ILIAS\Data\Description;
-use ILIAS\Data\Result;
 use ILIAS\Data\Text;
 use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Container\Form\FormInput;
-use ILIAS\UI\Component\Input\Factory as InputFactory;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 
 class AddLanguageEntry extends LanguageActivity
@@ -112,16 +110,33 @@ MARKDOWN
         );
     }
 
+    /**
+     * Must keep exactly `Activity::getInputDescription(FieldFactory $f): FormInput`'s signature.
+     * An earlier version added an optional `?array $installed_language_keys` parameter here to
+     * avoid a second repository round-trip; while PHP itself permits an optional extra parameter,
+     * a *subclass* overriding the method with the plain interface signature then has FEWER
+     * parameters than its own parent, which PHP rejects as a variance fatal error at class-load
+     * time (reproduced with a minimal subclass under PHP 8.5.4). Hence this resolves the
+     * installed-language snapshot itself, on every call, via the repository directly.
+     *
+     * Consequence: getInputDescription() and perform() can observe different installed-language
+     * snapshots if a language is installed/uninstalled between the two calls within one
+     * maybePerformAs() call. A newly installed optional language just ends up in
+     * `skipped_empty_language_keys`; a newly installed "de"/"en" makes perform() reject the whole
+     * request (fail-closed, since no value could have been submitted for it); a language
+     * uninstalled in the meantime has its submitted value silently dropped rather than written or
+     * reported. No case crashes or writes partial data.
+     */
     public function getInputDescription(FieldFactory $f): FormInput
     {
-        return $this->buildInputDescription($f, $this->installed_language_repository->getInstalledLanguages());
-    }
+        $installed_language_keys = $this->installed_language_repository->getInstalledLanguages();
 
-    /**
-     * @param list<string> $installed_language_keys
-     */
-    private function buildInputDescription(FieldFactory $f, array $installed_language_keys): FormInput
-    {
+        // Field labels use $this->lng->txt('meta_l_' . $lang_key), which requires the caller to
+        // have already loaded the "meta" language module. This method deliberately does not load
+        // it itself: loadLanguageModule() merges keys unnamespaced into the shared $lng instance,
+        // which could clobber another module's keys if this ran generically alongside other
+        // Activities. The GUI caller already loads it; a caller that doesn't gets the raw,
+        // untranslated placeholder (e.g. "-meta_l_de-") instead of a crash.
         $module = $f->text(
             'Module',
             'Name of the language module the new entry belongs to.'
@@ -182,11 +197,12 @@ MARKDOWN
     }
 
     /**
-     * @param mixed $parameters must additionally carry a `usr_id` (int) key (see maybePerformAs()
-     *        below - never part of getInputDescription(), so it can never be spoofed via form
-     *        data). May additionally carry an already-resolved `installed_language_keys`
-     *        (list<string>) key; if absent (a direct perform()/isAllowedToPerform() caller
-     *        bypassing maybePerformAs()), it is resolved here instead.
+     * @param mixed $parameters may additionally carry a `usr_id` (int) key, merged in by
+     *        LanguageActivity::maybePerformAs() via additionalPerformParameters() (never part of
+     *        getInputDescription(), so it can never be spoofed via form data): if given, it is
+     *        recorded as the author of the local change made to every written entry. It is
+     *        optional - a generic caller following the plain Activity contract never supplies it,
+     *        and the entries are then written without an attributed author instead.
      */
     public function perform(mixed $parameters): array
     {
@@ -202,15 +218,14 @@ MARKDOWN
         if (!is_string($module) || $module === ''
             || !is_string($identifier) || $identifier === ''
             || !is_array($translations)
-            || !is_int($usr_id)
+            || ($usr_id !== null && !is_int($usr_id))
         ) {
             throw new InvalidInputException(
-                'The module, identifier, translations and usr_id parameters are required.'
+                'The module, identifier and translations parameters are required; usr_id, if given, must be an int.'
             );
         }
 
-        $installed_language_keys = $parameters['installed_language_keys']
-            ?? $this->installed_language_repository->getInstalledLanguages();
+        $installed_language_keys = $this->installed_language_repository->getInstalledLanguages();
 
         $missing_mandatory_language_keys = [];
         foreach (['de', 'en'] as $mandatory_lang_key) {
@@ -232,7 +247,9 @@ MARKDOWN
             );
         }
 
-        $login = ($this->user_login)($usr_id);
+        // $login is '' when usr_id is absent; replaceLangEntry() treats '' as "no remarks", so
+        // the entry is written without an attributed author rather than the request failing.
+        $login = is_int($usr_id) ? ($this->user_login)($usr_id) : '';
         $local_change = gmdate('Y-m-d H:i:s');
 
         $added_language_keys = [];
@@ -264,39 +281,16 @@ MARKDOWN
         ];
     }
 
-    public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
+    /**
+     * Threads the trusted, server-resolved `usr_id` into perform()'s $parameters via
+     * LanguageActivity's template-method hook - see LanguageActivity::maybePerformAs()'s
+     * array_merge() for why this wins over a same-named key from form input.
+     *
+     * @return array{usr_id: int}
+     */
+    protected function additionalPerformParameters(int $usr_id): array
     {
-        try {
-            // Resolved exactly once and reused both to build the input description and, via
-            // perform()'s 'installed_language_keys' parameter, to decide which languages are
-            // written - avoiding a second, possibly inconsistent snapshot. Kept inside the try
-            // block together with buildInputDescription()/$input_factory->field(), since either
-            // could throw and must still be wrapped in a Result\Error per the `maybePerformAs()`
-            // contract in Activity.php ("Wraps the result and possible errors in the Result
-            // type"), rather than escaping uncaught.
-            $installed_language_keys = $this->installed_language_repository->getInstalledLanguages();
-
-            $grind_result = $this->grind(
-                $this->buildInputDescription($input_factory->field(), $installed_language_keys),
-                $raw_parameters
-            );
-            if ($grind_result->isError()) {
-                return new Result\Error($grind_result->error());
-            }
-
-            $parameters = $this->normalizeParameters($grind_result->value());
-            if (!$this->isAllowedToPerform($usr_id, $parameters)) {
-                return new Result\Error($this->lng->txt('msg_no_perm_write'));
-            }
-
-            return new Result\Ok($this->perform(
-                $parameters + ['usr_id' => $usr_id, 'installed_language_keys' => $installed_language_keys]
-            ));
-        } catch (\Throwable $e) {
-            return new Result\Error(
-                $e instanceof \Exception ? $e : new \RuntimeException($e->getMessage(), 0, $e)
-            );
-        }
+        return ['usr_id' => $usr_id];
     }
 
     /**

@@ -26,29 +26,26 @@ use ILIAS\UI\Component\Input\Field\Checkbox;
 use ILIAS\UI\Component\Input\Field\Text as TextField;
 use ILIAS\UI\Component\Input\Group as GroupInput;
 use ILIAS\UI\Component\Input\Input;
-use ILIAS\UI\Implementation\Component\Input\ArrayInputData;
-use ILIAS\UI\Implementation\Component\Input\FormInputNameSource;
-use ILIAS\UI\Implementation\Component\Input\InputInternal;
 
 /**
- * getInputDescription() is declared to return the public FormInput interface, which does not
- * expose the machinery actually needed to collect input (withNameFrom()/withInput()/getContent());
- * that lives on InputInternal, which every concrete Input built via the FieldFactory passed to
- * getInputDescription() implements. grind() therefore requires the given FormInput to also
- * implement InputInternal.
+ * getInputDescription() returns the public FormInput interface, which lacks the input-collection
+ * machinery grind() needs (withNameFrom()/withInput()/getContent()) - this trait never names the
+ * UI-internal classes that provide it; every touch point goes through GrindingInputAccess instead
+ * (see its own docblock for why).
  */
 trait GrindsFormInput
 {
-    // protected, not private: an Activity that overrides maybePerformAs() to inject
-    // additional parameters into perform() (e.g. AddLanguageEntry) still needs to call this
-    // directly, without re-declaring GrindsFormInput itself.
+    // private: only LanguageActivity::maybePerformAs() (which composes this trait) calls grind()
+    // in production. A subclass that needs to influence perform()'s arguments uses
+    // LanguageActivity::additionalPerformParameters() instead, so no subclass needs direct access.
+    // GrindsFormInputTestHost exposes it via a public wrapper for isolated testing.
     /**
      * @param array<mixed> $raw_parameters
      */
-    protected function grind(FormInput $description, array $raw_parameters): Result
+    private function grind(FormInput $description, array $raw_parameters): Result
     {
         try {
-            $named = $this->nameForGrinding($description);
+            $named = GrindingInputAccess::named($description, static::class);
 
             $flat_input = [];
             // Unknown keys are tolerated at this top level (getInputDescription()'s outermost
@@ -56,8 +53,8 @@ trait GrindsFormInput
             // nested group - see the $enforce_known_keys parameter below.
             $this->collectRawValues($named, $raw_parameters, $flat_input);
 
-            $with_input = $named->withInput(new ArrayInputData($flat_input));
-            $content = $with_input->getContent();
+            $with_input = GrindingInputAccess::withRawValues($named, $flat_input);
+            $content = GrindingInputAccess::content($with_input);
 
             if ($content->isError()) {
                 return new Result\Error($this->describeInputError($with_input));
@@ -67,6 +64,13 @@ trait GrindsFormInput
         } catch (InvalidInputException $e) {
             return new Result\Error($e);
         } catch (\InvalidArgumentException $e) {
+            // Every \InvalidArgumentException reachable in this try block - from
+            // collectRawValues()/normalizeCheckboxRawValue() above, or from the UI framework
+            // applying $flat_input to an already-built field tree - describes a malformed request
+            // value, never an internal misconfiguration, and never leaks anything sensitive - safe
+            // to convert into an InvalidInputException shown to the end user. One thrown while
+            // BUILDING the FormInput itself happens inside getInputDescription(), in the caller's
+            // own try block, and never reaches here.
             return new Result\Error(new InvalidInputException($e->getMessage(), 0, $e));
         } catch (\Throwable $e) {
             return new Result\Error(
@@ -75,38 +79,27 @@ trait GrindsFormInput
         }
     }
 
-    private function nameForGrinding(FormInput $description): FormInput&InputInternal
-    {
-        if (!$description instanceof InputInternal) {
-            throw new \LogicException(
-                static::class . '::getInputDescription() must return a FormInput built from the ' .
-                'UI framework (i.e. one that also implements ' . InputInternal::class . ') to be ' .
-                'grindable by maybePerformAs() - see the GrindsFormInput trait for why.'
-            );
-        }
-
-        /** @var FormInput&InputInternal $named */
-        $named = $description->withNameFrom(new FormInputNameSource());
-
-        return $named;
-    }
-
     /**
      * @param array<string, mixed> $flat
-     * @param bool $enforce_known_keys defaults to false, which is what grind() above uses for
-     *        the outermost group of getInputDescription() - so an unrelated key anywhere in
-     *        top-level $raw_parameters (e.g. a raw request array carrying other form fields
-     *        alongside this Activity's own input) is silently ignored rather than rejected.
-     *        Every nested group, however, is always recursed into with true (see the call
-     *        below), so an unknown key inside any such group IS rejected - unlike the top
-     *        level, a group's own keys come entirely from this Activity's own
-     *        getInputDescription(), so a typo or stale key there should fail loudly instead of
-     *        silently vanishing.
+     * @param bool $enforce_known_keys Defaults to false for the outermost group (grind() above),
+     *        so an unrelated key in top-level $raw_parameters is silently ignored. Every nested
+     *        group is always recursed into with true (below) instead - its keys come entirely
+     *        from this Activity's own getInputDescription(), so an unknown one should fail loudly
+     *        instead of vanishing.
      */
     private function collectRawValues(Input $named, mixed $raw_value, array &$flat, bool $enforce_known_keys = false): void
     {
         if ($named instanceof GroupInput) {
-            $sub_raw = is_array($raw_value) ? $raw_value : [];
+            // null means the group was omitted entirely (treated as an empty array, so every
+            // child gets null in turn); any other non-array value is a genuine type mismatch and
+            // must be rejected loudly instead.
+            if ($raw_value !== null && !is_array($raw_value)) {
+                throw new InvalidInputException(
+                    'Expected an array of values (or none at all) for '
+                    . $this->fieldLabelForErrorMessage($named) . ', got: ' . get_debug_type($raw_value)
+                );
+            }
+            $sub_raw = $raw_value ?? [];
 
             if ($enforce_known_keys) {
                 $unknown_keys = array_diff(array_keys($sub_raw), array_keys($named->getInputs()));
@@ -124,13 +117,13 @@ trait GrindsFormInput
             return;
         }
 
-        if (!$named instanceof InputInternal) {
-            throw new \LogicException(
-                'Every leaf field of a grindable FormInput must implement ' . InputInternal::class . '.'
-            );
-        }
+        GrindingInputAccess::requireNameable(
+            $named,
+            'Every leaf field of a grindable FormInput must implement the UI framework\'s ' .
+            'input-processing internals.'
+        );
 
-        $name = $named->getName();
+        $name = GrindingInputAccess::nameOf($named);
         if ($name === null) {
             throw new \LogicException('Every field of a grindable FormInput must have a name.');
         }
@@ -188,7 +181,7 @@ trait GrindsFormInput
         $this->collectFieldErrors($with_input, $field_errors);
 
         if ($field_errors === []) {
-            $error = $with_input instanceof InputInternal ? $with_input->getError() : null;
+            $error = GrindingInputAccess::errorOf($with_input);
             $field_errors[] = $error ?? 'Invalid input.';
         }
 
@@ -207,11 +200,11 @@ trait GrindsFormInput
             return;
         }
 
-        if (!$named instanceof InputInternal) {
+        if (!GrindingInputAccess::isNameable($named)) {
             return;
         }
 
-        $error = $named->getError();
+        $error = GrindingInputAccess::errorOf($named);
         if ($error !== null) {
             $field_errors[] = $this->fieldLabelForErrorMessage($named) . ': ' . $error;
         }
@@ -219,13 +212,11 @@ trait GrindsFormInput
 
     private function fieldLabelForErrorMessage(Input $named): string
     {
-        if ($named instanceof \ILIAS\UI\Implementation\Component\Input\Input) {
-            $dedicated_name = $named->getDedicatedName();
-            if ($dedicated_name !== null) {
-                return $dedicated_name;
-            }
+        $dedicated_name = GrindingInputAccess::dedicatedNameOf($named);
+        if ($dedicated_name !== null) {
+            return $dedicated_name;
         }
 
-        return $named instanceof InputInternal ? ($named->getName() ?? '?') : '?';
+        return GrindingInputAccess::nameOf($named) ?? '?';
     }
 }

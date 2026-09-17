@@ -25,7 +25,6 @@ use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
-use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\RendersActivityErrors;
 
 /**

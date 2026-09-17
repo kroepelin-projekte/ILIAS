@@ -29,16 +29,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Unit tests for the GrindsFormInput trait itself (see its own class
- * docblock), in isolation from any concrete Activity - via
- * GrindsFormInputTestHost, a minimal class that only mixes in the trait and
- * exposes its private grind() through a public wrapper.
- *
- * These tests are deliberately about the trait's OWN contract, not about
- * any one Activity's business rules - the Activity-level contract tests
- * (an array-of-strings raw value for 'language_keys' actually reaching
- * perform() correctly) live in InstallLanguageTest/UninstallLanguageTest/
- * UpdateLanguageTest/RemoveLocalLanguageChangesTest instead.
+ * Unit tests for the GrindsFormInput trait in isolation from any concrete Activity, via
+ * GrindsFormInputTestHost (mixes in the trait, exposes grind() through a public wrapper).
+ * Activity-specific contract tests live in each Activity's own test class instead.
  */
 class GrindsFormInputTest extends TestCase
 {
@@ -50,14 +43,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * getInputDescription() is declared to return the public FormInput
-     * interface, which does not expose the machinery grind() actually needs
-     * (withNameFrom()/withInput()/getContent(), declared on InputInternal
-     * instead - see the trait's own class docblock and nameForGrinding()) -
-     * grind() must not blindly trust that a caller's implementation also
-     * satisfies InputInternal. A FormInput that does NOT implement
-     * InputInternal must be reported as a clean Result\Error, never a fatal
-     * TypeError/uncaught exception.
+     * getInputDescription() returns the public FormInput interface, which doesn't guarantee
+     * InputInternal - grind() must not assume it does; a FormInput missing it must be a clean
+     * Result\Error, never a fatal TypeError.
      */
     public function testGrindReturnsResultErrorInsteadOfCrashingWhenDescriptionIsNotInputInternal(): void
     {
@@ -87,12 +75,8 @@ class GrindsFormInputTest extends TestCase
         ];
     }
 
-    /**
-     * Every raw value normalizeCheckboxRawValue() whitelists (including
-     * 'checked'/'on', the two raw values a genuine HTML checkbox actually
-     * submits) must grind through to the correct strict bool via the REAL
-     * Checkbox field, not a mock.
-     */
+    // Uses a REAL Checkbox field (not a mock) to also cover 'checked'/'on', the two raw values an
+    // actual HTML checkbox submits.
     #[DataProvider('checkboxWhitelistAcceptsRawValueProvider')]
     public function testGrindNormalizesEveryWhitelistedCheckboxRawValue(mixed $raw_value, bool $expected): void
     {
@@ -107,14 +91,10 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * Every field this trait grinds is, in every real Activity, nested
-     * inside a top-level Group (see e.g. SetLanguageTranslationEnabled::
-     * getInputDescription()) - collectRawValues() only narrows $raw_value
-     * down to one particular key (here 'enabled') when recursing INTO a
-     * Group's children, so a bare top-level Checkbox/Text field (with no
-     * enclosing Group) would incorrectly receive the *entire*
-     * $raw_parameters array as its own raw value instead. This helper
-     * mirrors the real shape every Activity actually uses.
+     * Every field this trait grinds is nested inside a top-level Group in real Activities -
+     * collectRawValues() only narrows $raw_value to one key when recursing into a Group's
+     * children, so a bare top-level field would wrongly receive the whole $raw_parameters array
+     * as its own value.
      */
     private function checkboxGroupDescription(): FormInput
     {
@@ -134,20 +114,11 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * Anything outside the explicit whitelist must be rejected outright
-     * ("konservativ normalisieren", not "alles akzeptieren") rather than
-     * being guessed at - grind() must turn the resulting
-     * \InvalidArgumentException into a Result\Error,
-     * never let it propagate uncaught.
-     *
-     * Regression test: grind()'s dedicated `catch (\InvalidArgumentException $e)`
-     * block (placed BEFORE the generic `catch (\Throwable $e)`) must convert
-     * this into an InvalidInputException (a SafeToDisplayActivityError) -
-     * NOT a raw \InvalidArgumentException, and NOT a generic
-     * \RuntimeException wrapper. A caller (e.g.
-     * RendersActivityErrors::activityErrorMessage()) relies on this to show
-     * the rejection to the end user directly instead of logging it as an
-     * internal failure.
+     * Anything outside the explicit whitelist must be rejected, not guessed at - grind()'s
+     * dedicated catch(\InvalidArgumentException) (before the generic catch(\Throwable)) must turn
+     * this into an InvalidInputException (a SafeToDisplayActivityError), which
+     * RendersActivityErrors relies on to show the rejection to the end user directly rather than
+     * logging it as an internal failure.
      */
     #[DataProvider('checkboxWhitelistRejectsRawValueProvider')]
     public function testGrindRejectsRawValueOutsideTheCheckboxWhitelist(mixed $raw_value): void
@@ -161,13 +132,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * The same conversion (\InvalidArgumentException -> InvalidInputException),
-     * but reached via the UI framework's own `Input::withValue()`/`checkArg()`
-     * (not normalizeCheckboxRawValue()): a non-string, non-array raw value
-     * for a Text field fails Text::isClientSideValueOk()'s own type check,
-     * which throws a blank \InvalidArgumentException ("Display value does
-     * not match input type.") - grind() must convert this one too, not just
-     * the Checkbox-specific one above.
+     * Same \InvalidArgumentException -> InvalidInputException conversion, but reached via the UI
+     * framework's own Text::isClientSideValueOk() type check instead of
+     * normalizeCheckboxRawValue().
      */
     public function testGrindConvertsAUiFrameworkInvalidArgumentExceptionFromANonStringTextValueIntoInvalidInputException(): void
     {
@@ -189,13 +156,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * A validation failure on a named field must be reported as an
-     * InvalidInputException whose message identifies the field (via its
-     * dedicated name) and the underlying InputInternal::getError() code -
-     * "<field>: <error>" - rather than the generic, uninformative
-     * "ui_error_in_group" text Group::withInput() would otherwise surface;
-     * describeInputError() builds this "<field>: <error>" message itself,
-     * walking every field via collectFieldErrors().
+     * A validation failure must produce "<field>: <error>" (via describeInputError()/
+     * collectFieldErrors()), identifying the field by its dedicated name - not the generic,
+     * uninformative "ui_error_in_group" text Group::withInput() would otherwise surface.
      */
     public function testGrindReportsAFieldAttributedInvalidInputExceptionOnValidationFailure(): void
     {
@@ -219,15 +182,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * A raw array-of-strings value for a Text field (e.g. the exact shape
-     * class.ilObjLanguageFolderGUI.php sends for 'language_keys') must be
-     * joined into the same comma-separated string a real HTML text input
-     * would carry (see joinListOfStringsRawValue()'s own docblock) BEFORE
-     * it reaches the field - covered end-to-end (through a real Activity,
-     * not this isolated host) by the *AcceptsAnArrayOfLanguageKeys*
-     * contract tests in InstallLanguageTest/UninstallLanguageTest/
-     * UpdateLanguageTest/RemoveLocalLanguageChangesTest; this is the
-     * trait-level counterpart pinning the join itself.
+     * A raw array-of-strings value (e.g. the shape class.ilObjLanguageFolderGUI.php sends for
+     * 'language_keys') must be joined into the same comma-separated string a real HTML text input
+     * would carry, before it reaches the field.
      */
     public function testGrindJoinsAnArrayOfStringsRawValueForATextFieldIntoACommaSeparatedString(): void
     {
@@ -244,15 +201,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * Regression test for the asymmetry between the outermost level of
-     * $raw_parameters and any group nested inside it (see the
-     * $enforce_known_keys parameter's own docblock on collectRawValues()):
-     * grind() calls collectRawValues() for the outermost group with
-     * $enforce_known_keys defaulting to false, so an unrelated key
-     * anywhere in the top-level raw_parameters array (e.g. other form
-     * fields submitted alongside this Activity's own input) must be
-     * silently ignored - the known field(s) must still be collected and
-     * grind() must still return a Result\Ok, not a Result\Error.
+     * Regression test for the outermost group's $enforce_known_keys=false default (see
+     * collectRawValues()): an unrelated key elsewhere in top-level $raw_parameters must be
+     * ignored, not rejected.
      */
     public function testGrindSilentlyIgnoresAnUnknownKeyAtTheTopLevelOfRawParameters(): void
     {
@@ -273,15 +224,9 @@ class GrindsFormInputTest extends TestCase
     }
 
     /**
-     * Regression test for collectRawValues()'s unknown-Group-key rejection
-     * (e.g. AddLanguageEntry's nested 'translations' group receiving an
-     * unrecognized language key): the resulting InvalidInputException
-     * message must embed the unknown key(s) RAW/unescaped - escaping for
-     * safe HTML display is deliberately NOT this domain-layer trait's job
-     * any more, but \ILIAS\Language\RendersActivityErrors::activityErrorMessage()'s
-     * (see that class's own docblock and its own test suite). If this
-     * message were escaped here, it would end up DOUBLE-escaped once it
-     * reaches that single rendering seam.
+     * The unknown-key message must embed the key RAW/unescaped - escaping is
+     * RendersActivityErrors::activityErrorMessage()'s job, the single rendering seam; escaping
+     * here too would double-escape it.
      */
     public function testGrindReportsUnknownNestedGroupKeysRawAndUnescaped(): void
     {
@@ -311,5 +256,45 @@ class GrindsFormInputTest extends TestCase
         // Not escaped here - htmlspecialchars() would turn '<'/'>' into
         // '&lt;'/'&gt;', which must NOT happen at this layer.
         $this->assertStringContainsString('<script>alert(1)</script>', $error->getMessage());
+    }
+
+    public static function nonArrayNonNullGroupRawValueProvider(): array
+    {
+        return [
+            'string' => ['not-an-array'],
+            'int' => [42],
+            'bool' => [true],
+        ];
+    }
+
+    /**
+     * A group's raw value that is neither null (omitted) nor an array is a genuine type mismatch
+     * and must be rejected - silently degrading it to an empty array would instead make every
+     * child field look merely "omitted", masking the real problem behind a misleading
+     * required-field error.
+     */
+    #[DataProvider('nonArrayNonNullGroupRawValueProvider')]
+    public function testGrindRejectsANonArrayNonNullRawValueForANestedGroupInsteadOfSilentlyDegradingToEmptyArray(
+        mixed $raw_value
+    ): void {
+        $de = $this->createRealFieldsUiFactory()->input()->field()->text('German', '')
+            ->withDedicatedName('de');
+        $translations = $this->createRealFieldsUiFactory()->input()->field()->group([
+            'de' => $de,
+        ])->withDedicatedName('translations');
+        $description = $this->createRealFieldsUiFactory()->input()->field()->group([
+            'translations' => $translations,
+        ]);
+
+        $result = $this->host()->callGrind($description, ['translations' => $raw_value]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(InvalidInputException::class, $error);
+        $this->assertInstanceOf(SafeToDisplayActivityError::class, $error);
+        $this->assertStringContainsString(
+            'Expected an array of values (or none at all) for translations, got: ' . get_debug_type($raw_value),
+            $error->getMessage()
+        );
     }
 }

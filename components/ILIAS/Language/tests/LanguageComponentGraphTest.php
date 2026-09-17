@@ -35,7 +35,6 @@ use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
 use ILIAS\Language\UserSettings\Settings as UserSettingsSettings;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Factory as UIFactory;
 use ILIAS\Component\Dependencies\OutType;
 use ILIAS\Component\Dependencies\Reader;
 use ILIAS\Component\Dependencies\RenamingDIC;
@@ -64,6 +63,12 @@ use PHPUnit\Framework\TestCase;
  * regression that only breaks when a real, mutable, lazily-evaluated
  * container is used (as opposed to a plain PHP array test double) would
  * still be caught here.
+ *
+ * $use only seeds \ILIAS\Language\Language::class: Language.php::init() does
+ * not (any longer) read a \ILIAS\UI\Factory entry from $use - seeding one
+ * here regardless would silently keep passing even if init() started reading
+ * it again incorrectly (e.g. the old $ui_factory dependency reappearing by
+ * accident), since a mock nobody asserts against never fails a test.
  */
 class LanguageComponentGraphTest extends TestCase
 {
@@ -74,7 +79,6 @@ class LanguageComponentGraphTest extends TestCase
     {
         $define = [];
         $use = [
-            UIFactory::class => $this->createMock(UIFactory::class),
             \ILIAS\Language\Language::class => $this->createMock(\ILIAS\Language\Language::class),
         ];
         $seek = [

@@ -81,11 +81,10 @@ abstract class LanguageActivity extends ActivityImpl
     public function maybePerformAs(InputFactory $input_factory, int $usr_id, array $raw_parameters): Result
     {
         try {
-            // getInputDescription() itself, or $input_factory->field(), might throw (e.g. a
-            // concrete Activity building its FormInput eagerly from other collaborators) - keep
-            // this call inside the try block so any such exception is still wrapped in a
-            // Result\Error, per the `maybePerformAs()` contract in Activity.php ("Wraps the
-            // result and possible errors in the Result type"), rather than escaping uncaught.
+            // getInputDescription()/$input_factory->field() might throw too (e.g. a concrete
+            // Activity building its FormInput eagerly) - kept inside the try so it is wrapped in
+            // a Result\Error like everything else, per Activity::maybePerformAs()'s contract,
+            // instead of escaping uncaught.
             $grind_result = $this->grind($this->getInputDescription($input_factory->field()), $raw_parameters);
             if ($grind_result->isError()) {
                 return new Result\Error($grind_result->error());
@@ -96,7 +95,16 @@ abstract class LanguageActivity extends ActivityImpl
                 return new Result\Error($this->lng->txt('msg_no_perm_write'));
             }
 
-            return new Result\Ok($this->perform($parameters));
+            // array_merge(), not `+`: `+` keeps the LEFT operand on a key collision, so a spoofed
+            // 'usr_id' from form input would win over the trusted value from
+            // additionalPerformParameters(). array_merge() keeps the RIGHT (last) operand instead
+            // - safe here since normalizeParameters()'s contract below is `array<string, mixed>`,
+            // never a numeric(-string) key, which is the one case array_merge() would not
+            // overwrite by key.
+
+            return new Result\Ok(
+                $this->perform(array_merge($parameters, $this->additionalPerformParameters($usr_id)))
+            );
         } catch (\Throwable $e) {
             return new Result\Error(
                 $e instanceof \Exception ? $e : new \RuntimeException($e->getMessage(), 0, $e)
@@ -108,4 +116,17 @@ abstract class LanguageActivity extends ActivityImpl
      * @return array<string, mixed>
      */
     abstract protected function normalizeParameters(array $grind_result): array;
+
+    /**
+     * Template-method hook: lets a subclass thread trusted, server-resolved extras (e.g. the
+     * caller's `usr_id`) into perform()'s $parameters without overriding maybePerformAs() itself.
+     * Returned keys win over a same-named key from normalizeParameters() - see the array_merge()
+     * call above.
+     *
+     * @return array<string, mixed>
+     */
+    protected function additionalPerformParameters(int $usr_id): array
+    {
+        return [];
+    }
 }

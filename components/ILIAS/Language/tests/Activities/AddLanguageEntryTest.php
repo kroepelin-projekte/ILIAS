@@ -25,6 +25,8 @@ use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\InvalidInputException;
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\Language;
+use ILIAS\UI\Component\Input\Container\Form\FormInput;
+use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Text;
 use ILIAS\Data\Description\Factory as DescriptionFactory;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
@@ -33,22 +35,13 @@ use ILIAS\Refinery\String\Group as StringGroup;
 use ILIAS\Refinery\String\MarkdownFormattingToHTML;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
- * AddLanguageEntry has no ilSetupLanguage collaborator and no
- * $lng_objects/$obj_language_factory closures (unlike UninstallLanguage/
- * RemoveLocalLanguageChanges) - instead it reads the set of installed
- * languages directly from an injected InstalledLanguageRepository (here a
- * small in-memory fake, never the real InstalledLanguageDatabaseRepository),
- * and writes single entries via the $replace_lang_entry/$update_module_cache
- * closures. Unlike every sibling Activity, it also needs a $user_login
- * closure to resolve the acting user's login for the audit trail (see
- * perform()'s own docblock on its $parameters argument for why this must
- * go through maybePerformAs() rather than being part of
- * getInputDescription()).
- *
- * None of these tests may touch real language files under lang/*.lang or a
- * real database - every collaborator is a fake/closure/mock.
+ * AddLanguageEntry reads installed languages via an injected InstalledLanguageRepository (a fake
+ * here) and writes entries via $replace_lang_entry/$update_module_cache closures; a $user_login
+ * closure resolves the acting user's login for the audit trail. No test here touches a real
+ * database or lang file - every collaborator is a fake/closure/mock.
  */
 class AddLanguageEntryTest extends ActivityContractTestCase
 {
@@ -84,12 +77,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertFalse($activity->isAllowedToPerform(6, ['module' => 'common', 'identifier' => 'foo']));
     }
 
-    /**
-     * isAllowedToPerform() must be a pure permission check: it must never
-     * touch the installed language repository, and therefore never call
-     * replace_lang_entry()/update_module_cache() - unlike perform(), which is
-     * the only place allowed to have side effects.
-     */
     public function testIsAllowedToPerformNeverTouchesRepositoryOrWriteClosures(): void
     {
         $repository = new FakeInstalledLanguageRepository(static function (): array {
@@ -188,17 +175,10 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
-     * Regression test documenting the deliberate, pre-existing limitation
-     * noted directly above perform()'s write loop ("Not transactional
-     * across multiple languages: a failure partway through ... leaves
-     * languages processed so far written"): if replace_lang_entry()
-     * throws while writing language n of m (here: the 3rd of 3, "fr"), the
-     * languages already written before it ("de", "en") must remain written
-     * - the exception propagates uncaught out of perform() rather than
-     * rolling anything back. This is NOT a bug to fix, only a behaviour to
-     * pin down so a future change does not silently alter it either way
-     * (e.g. by accidentally wrapping the loop in a transaction, or by
-     * accidentally swallowing the exception).
+     * Regression test for the deliberate "not transactional" behaviour noted above perform()'s
+     * write loop: if replace_lang_entry() throws partway through (here: the 3rd of 3 languages),
+     * languages already written must remain written, and the exception must propagate rather than
+     * roll back.
      */
     public function testAThrowingReplaceLangEntryPartwayThroughTheWriteLoopLeavesEarlierLanguagesWritten(): void
     {
@@ -266,12 +246,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // "de"/"en" mandatory, all-or-nothing (see getDescription()'s markdown)
     // -----------------------------------------------------------------
 
-    /**
-     * Regression test for the "de"/"en" mandatory, all-or-nothing rule:
-     * both installed, "de" given a perfectly valid value, "en" left blank -
-     * perform() must reject the WHOLE request and must not write anything
-     * for ANY language, not even "de" (whose value was valid).
-     */
     public function testDeAndEnBothInstalledOneBlankRejectsWholeRequestAndWritesNothingForAnyLanguage(): void
     {
         $calls = [];
@@ -299,12 +273,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         }
     }
 
-    /**
-     * Same rule, exercised end-to-end through maybePerformAs() (with a
-     * real, grinding UI Factory): "de" valid, "en" blank must still reject
-     * the whole request as a Result\Error, and must never write anything
-     * for "de" either.
-     */
+    // Same de/en rule as the perform() test above, exercised via maybePerformAs() with a real UI
+    // Factory.
     public function testMaybePerformAsRejectsWholeRequestAndWritesNothingWhenEnIsBlankWhileDeIsValid(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
@@ -334,11 +304,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertArrayNotHasKey('cache', $calls);
     }
 
-    /**
-     * The mirror case: "en" valid, "de" blank must likewise reject the
-     * whole request and write nothing for "en" either - the rule applies
-     * to each of "de"/"en" independently, not only to "de".
-     */
     public function testPerformRejectsWholeRequestAndWritesNothingWhenDeIsBlankWhileEnIsValid(): void
     {
         $calls = [];
@@ -362,14 +327,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         }
     }
 
-    /**
-     * If neither "de" nor "en" is installed at all, the mandatory rule
-     * imposes no requirement for them - exactly like the legacy form,
-     * which never rendered a field for a language that is not installed in
-     * the first place (see the 'translations' field's own description in
-     * buildInputDescription()). Every other installed language remains
-     * merely optional.
-     */
     public function testDeAndEnNotInstalledAtAllImposesNoMandatoryRequirement(): void
     {
         $calls = [];
@@ -393,9 +350,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testWhitespaceOnlyValueIsTreatedAsEmptyAndSkipped(): void
     {
-        // 'fr' (not 'de'/'en') is used here on purpose: this test isolates
-        // the whitespace-only-is-blank behaviour, not the "de"/"en"
-        // mandatory rule (see testDeAndEnAreMandatoryAllOrNothing... below).
+        // 'fr' avoids the separate 'de'/'en' mandatory-value rule tested elsewhere.
         $calls = [];
         $activity = $this->createActivity(
             ['fr'],
@@ -438,17 +393,12 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
-     * translations[$lang_key] ?? '' is only ever treated as a candidate
-     * value if it is actually a string - a non-string value (e.g. an int,
-     * bool or nested array smuggled in through a caller that bypassed
-     * normalizeParameters(), such as a direct perform() caller per the
-     * README's "As User of a Specific Activity") must be silently treated
-     * like an empty value, not cause a TypeError or be coerced/written as-is.
+     * A non-string translation value (e.g. from a direct perform() caller bypassing
+     * normalizeParameters()) must be treated as empty, not coerced or crash.
      */
     public function testNonStringTranslationValueIsTreatedAsEmptyAndSkippedRatherThanCoerced(): void
     {
-        // 'fr' (not 'de'/'en') is used here on purpose - see
-        // testWhitespaceOnlyValueIsTreatedAsEmptyAndSkipped().
+        // 'fr' avoids the separate 'de'/'en' mandatory-value rule tested elsewhere.
         $calls = [];
         $activity = $this->createActivity(
             ['fr'],
@@ -510,6 +460,37 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertSame([99], $login_calls);
     }
 
+    // A missing usr_id is explicitly allowed (see perform()'s own docblock): a generic caller
+    // following the plain Activity contract never supplies one.
+    public function testPerformWithoutUsrIdKeySucceedsWithAnAuthorlessAuditEntryAndNeverCallsUserLoginClosure(): void
+    {
+        $login_calls = [];
+        $user_login = static function (int $usr_id) use (&$login_calls): string {
+            $login_calls[] = $usr_id;
+            return 'must-not-be-used';
+        };
+
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de', 'en'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls),
+            user_login: $user_login
+        );
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo', 'en' => 'Hello'],
+            // 'usr_id' deliberately not present at all.
+        ]);
+
+        $this->assertSame(['de', 'en'], $result['added_language_keys']);
+        $this->assertSame([], $login_calls, 'user_login() must never be called when usr_id is absent.');
+        $this->assertSame('', $calls['replace'][0][5]);
+        $this->assertSame('', $calls['replace'][1][5]);
+    }
+
     public static function invalidPerformParametersProvider(): array
     {
         return [
@@ -521,9 +502,11 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             'non-string identifier' => [['module' => 'common', 'identifier' => [], 'translations' => [], 'usr_id' => 6]],
             'missing translations' => [['module' => 'common', 'identifier' => 'foo', 'usr_id' => 6]],
             'non-array translations' => [['module' => 'common', 'identifier' => 'foo', 'translations' => 'nope', 'usr_id' => 6]],
-            'missing usr_id' => [['module' => 'common', 'identifier' => 'foo', 'translations' => []]],
+            // A missing/null usr_id is explicitly ALLOWED (see
+            // testPerformWithoutUsrIdKeySucceedsWithAnAuthorlessAuditEntryAndNeverCallsUserLoginClosure()
+            // and testPerformSucceedsWhenUsrIdIsMissingOrNullGivenValidTranslations() below) - it must
+            // NOT appear here as an "invalid" case. Only a non-null usr_id of the wrong TYPE is invalid.
             'non-int usr_id' => [['module' => 'common', 'identifier' => 'foo', 'translations' => [], 'usr_id' => '6']],
-            'null usr_id' => [['module' => 'common', 'identifier' => 'foo', 'translations' => [], 'usr_id' => null]],
         ];
     }
 
@@ -535,11 +518,190 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->createActivity(['de'])->perform($parameters);
     }
 
+    /**
+     * A missing or null usr_id, given otherwise-valid translations, must succeed - not throw (see
+     * perform()'s own docblock: only a non-null usr_id of the wrong type is rejected).
+     */
+    public static function validUsrIdMissingOrNullWithValidTranslationsProvider(): array
+    {
+        return [
+            'missing usr_id' => [
+                ['module' => 'common', 'identifier' => 'foo', 'translations' => ['de' => 'Hallo', 'en' => 'Hello']],
+            ],
+            'null usr_id' => [
+                [
+                    'module' => 'common',
+                    'identifier' => 'foo',
+                    'translations' => ['de' => 'Hallo', 'en' => 'Hello'],
+                    'usr_id' => null,
+                ],
+            ],
+        ];
+    }
+
+    #[DataProvider('validUsrIdMissingOrNullWithValidTranslationsProvider')]
+    public function testPerformSucceedsWhenUsrIdIsMissingOrNullGivenValidTranslations(array $parameters): void
+    {
+        $activity = $this->createActivity(['de', 'en']);
+
+        $result = $activity->perform($parameters);
+
+        $this->assertSame('common', $result['module']);
+        $this->assertSame('foo', $result['identifier']);
+        $this->assertSame(['de', 'en'], $result['added_language_keys']);
+    }
+
     public function testPerformRejectsNonArrayParameters(): void
     {
         $this->expectException(InvalidInputException::class);
 
         $this->createActivity(['de'])->perform('not-an-array');
+    }
+
+    // -----------------------------------------------------------------
+    // Snapshot drift between getInputDescription() and perform() - see
+    // getInputDescription()'s own docblock.
+    // -----------------------------------------------------------------
+
+    /**
+     * The fake repository below returns different installed-language lists on its 1st
+     * (getInputDescription()) and 2nd (perform()) call, modeling this snapshot drift within one
+     * maybePerformAs() call.
+     */
+    public function testOptionalLanguageInstalledBetweenGetInputDescriptionAndPerformIsSkippedNotRejected(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $calls = 0;
+        $repository = new FakeInstalledLanguageRepository(static function () use (&$calls): array {
+            $calls++;
+            // 1st call: getInputDescription() - 'fr' not installed yet, so no
+            // field/value for it exists in the form.
+            // 2nd call: perform() - 'fr' has since been installed.
+            return $calls === 1 ? ['de', 'en'] : ['de', 'en', 'fr'];
+        });
+
+        $activity = $this->createActivity(
+            [],
+            rbac: $rbac,
+            installed_language_repository: $repository
+        );
+
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            // No 'fr' key at all - getInputDescription() (1st call) never
+            // asked for one, since it did not yet know 'fr' was installed.
+            'translations' => ['de' => 'Hallo', 'en' => 'Hello'],
+        ]);
+
+        $this->assertFalse($result->isError());
+        $value = $result->value();
+        $this->assertSame(['de', 'en'], $value['added_language_keys']);
+        $this->assertSame(['fr'], $value['skipped_empty_language_keys']);
+        // Two independent snapshots, not a cached one - see getInputDescription()'s own docblock.
+        $this->assertSame(2, $calls);
+    }
+
+    // Fail-closed branch: "en" becomes mandatory only after getInputDescription() already built
+    // the form without asking for it - the whole request must be rejected, not partially skipped.
+    public function testEnInstalledBetweenGetInputDescriptionAndPerformRejectsTheWholeRequestRatherThanSkippingEn(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $calls = 0;
+        $repository = new FakeInstalledLanguageRepository(static function () use (&$calls): array {
+            $calls++;
+            // 1st call: getInputDescription() - only "de" installed, "en" not
+            // yet, so no field/value for "en" exists in the form.
+            // 2nd call: perform() - "en" has since been installed.
+            return $calls === 1 ? ['de'] : ['de', 'en'];
+        });
+
+        $calls_to_write_closures = [];
+        $activity = $this->createActivity(
+            [],
+            rbac: $rbac,
+            installed_language_repository: $repository,
+            replace_lang_entry: $this->spyReplaceLangEntry($calls_to_write_closures),
+            update_module_cache: $this->spyUpdateModuleCache($calls_to_write_closures)
+        );
+
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            // No 'en' key - getInputDescription() (1st call) never asked for
+            // one, since "en" was not yet installed when the form was built.
+            'translations' => ['de' => 'Hallo'],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(InvalidInputException::class, $error);
+        // Only "en" is reported missing - "de" has a valid value, so the mandatory-value check
+        // doesn't flag it too.
+        $this->assertSame('A value is required for: en.', $error->getMessage());
+        // Nothing written for "de" either - fail-closed, not fail-partial.
+        $this->assertArrayNotHasKey('replace', $calls_to_write_closures);
+        $this->assertArrayNotHasKey('cache', $calls_to_write_closures);
+        // Two independent snapshots, not a cached one - see getInputDescription()'s own docblock.
+        $this->assertSame(2, $calls);
+    }
+
+    /**
+     * The opposite direction from the two tests above: an OPTIONAL language uninstalled between
+     * the two calls has a submitted value that is neither written nor rejected - it is silently
+     * dropped, unlike installing "de"/"en" (fail-closed) or installing an optional language
+     * (skipped normally). "fr" isolates this from the separate "de"/"en" mandatory rule tested
+     * elsewhere.
+     */
+    public function testOptionalLanguageUninstalledBetweenGetInputDescriptionAndPerformIsSilentlyDroppedNotWritten(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        $calls = 0;
+        $repository = new FakeInstalledLanguageRepository(static function () use (&$calls): array {
+            $calls++;
+            // 1st call: getInputDescription() - "fr" still installed, so a
+            // field/value for it exists in the form.
+            // 2nd call: perform() - "fr" has since been uninstalled.
+            return $calls === 1 ? ['de', 'en', 'fr'] : ['de', 'en'];
+        });
+
+        $calls_to_write_closures = [];
+        $activity = $this->createActivity(
+            [],
+            rbac: $rbac,
+            installed_language_repository: $repository,
+            replace_lang_entry: $this->spyReplaceLangEntry($calls_to_write_closures),
+            update_module_cache: $this->spyUpdateModuleCache($calls_to_write_closures)
+        );
+
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            // A valid value IS given for "fr" - getInputDescription() (1st
+            // call) still asked for it, since "fr" was installed at the time.
+            'translations' => ['de' => 'Hallo', 'en' => 'Hello', 'fr' => 'Bonjour'],
+        ]);
+
+        $this->assertFalse($result->isError());
+        $value = $result->value();
+        $this->assertSame(['de', 'en'], $value['added_language_keys']);
+        $this->assertSame([], $value['skipped_empty_language_keys']);
+        // "fr"'s given value is silently dropped: it appears in neither list.
+        $this->assertNotContains('fr', $value['added_language_keys']);
+        $this->assertNotContains('fr', $value['skipped_empty_language_keys']);
+        // The remaining, still-installed languages are written normally.
+        $this->assertArrayHasKey('replace', $calls_to_write_closures);
+        $written_lang_keys = array_column($calls_to_write_closures['replace'], 2);
+        $this->assertSame(['de', 'en'], $written_lang_keys);
+        $this->assertNotContains('fr', $written_lang_keys);
+        // Two independent snapshots, not a cached one - see getInputDescription()'s own docblock.
+        $this->assertSame(2, $calls);
     }
 
     // -----------------------------------------------------------------
@@ -604,13 +766,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertSame(['fr'], $value['skipped_empty_language_keys']);
     }
 
-    /**
-     * usr_id must never be taken from $raw_parameters (it is not part of
-     * normalizeParameters()'s accepted keys - see that method's own
-     * docblock) - it must come exclusively from maybePerformAs()'s own
-     * $usr_id argument,
-     * both for the permission check and for resolving the audit login.
-     */
     public function testUsrIdArgumentIsUsedForBothThePermissionCheckAndTheAuditLoginRegardlessOfRawParameters(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
@@ -639,12 +794,6 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertSame([6], $login_calls);
     }
 
-    /**
-     * A Throwable raised from within perform() (e.g. the write closure
-     * failing) must be turned into a Result\Error rather than propagating -
-     * this is the whole point of maybePerformAs() wrapping perform() in a
-     * try/catch.
-     */
     public function testThrowableFromWithinPerformIsTurnedIntoAResultError(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
@@ -673,19 +822,10 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
-     * Regression test for AddLanguageEntry::maybePerformAs()'s OWN
-     * overridden catch(\Throwable) block (distinct from
-     * LanguageActivity::maybePerformAs()'s generic one, which
-     * InstallLanguageTest exercises instead): a \Throwable that is NOT an
-     * \Exception (here a \TypeError) raised from within perform() - e.g. the
-     * $replace_lang_entry write closure failing in an unexpected way - must
-     * still come back as a Result\Error carrying an \Exception instance
-     * (a \RuntimeException wrapping the original \TypeError as its
-     * "previous"), per the Activity::maybePerformAs() contract. Before the
-     * fix, `new Result\Error($e)` itself raised an uncaught
-     * \InvalidArgumentException for such a $e (Result\Error::__construct()
-     * only accepts string|\Exception), so maybePerformAs() aborted instead
-     * of returning a Result at all.
+     * AddLanguageEntry inherits LanguageActivity::maybePerformAs()'s catch block unchanged; this
+     * exercises it with a real \TypeError (not an \Exception) from within perform() - `new
+     * Result\Error($e)` only accepts string|\Exception, so it must arrive wrapped in a
+     * \RuntimeException rather than crash maybePerformAs() itself.
      */
     public function testAThrowableThatIsNotAnExceptionFromWithinPerformIsWrappedInARuntimeExceptionResultError(): void
     {
@@ -717,15 +857,37 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
-     * A completely missing 'module' key is caught by grind() itself (see
-     * GrindsFormInput): the required Text field receives a blank raw value
-     * and fails its own required-field constraint before
-     * normalizeParameters()/isAllowedToPerform() are ever reached - so the
-     * rejection surfaces as a Result\Error carrying a field-attributed
-     * InvalidInputException (see GrindsFormInput::describeInputError()), not
-     * an InvalidArgumentException thrown by normalizeParameters(). Either
-     * way, the rbac system must never be touched (validation happens first).
+     * Same inherited try/catch (LanguageActivity::maybePerformAs()) as above, but triggered via
+     * AddLanguageEntry's real getInputDescription() - here failing inside
+     * `$this->lng->txt('meta_l_' . $lang_key)`. The rbac system must never be reached, since the
+     * failure happens before grinding/permission-checking.
      */
+    public function testExceptionWhileBuildingTheInputDescriptionItselfIsTurnedIntoAResultErrorNotPropagated(): void
+    {
+        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac->expects($this->never())->method('checkAccessOfUser');
+
+        $language = $this->createMock(Language::class);
+        $language->method('txt')->willThrowException(
+            new \RuntimeException('simulated failure while building the translation field label')
+        );
+
+        $activity = $this->createActivity(['de'], rbac: $rbac, language: $language);
+
+        $result = $activity->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, [
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+        ]);
+
+        $this->assertTrue($result->isError());
+        $error = $result->error();
+        $this->assertInstanceOf(\RuntimeException::class, $error);
+        $this->assertSame('simulated failure while building the translation field label', $error->getMessage());
+    }
+
+    // A missing 'module' fails the required Text field inside grind() itself, before
+    // normalizeParameters()/isAllowedToPerform() run - so rbac must never be touched.
     public function testMissingModuleViaMaybePerformAsIsAResultErrorAndNeverChecksPermission(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
@@ -743,17 +905,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $this->assertStringContainsString('module:', $result->error()->getMessage());
     }
 
-    /**
-     * Regression test for the asymmetry between the top level of
-     * raw_parameters (unknown keys tolerated, see GrindsFormInput's own
-     * $enforce_known_keys docblock) and a NESTED group such as
-     * 'translations' (unknown keys rejected): a language key inside
-     * 'translations' that is not one of the installed languages - and
-     * therefore not one of the 'translations' group's own fields - must be
-     * rejected with an InvalidInputException naming the unknown key,
-     * before isAllowedToPerform() (and therefore the rbac system) is ever
-     * reached, and without writing anything.
-     */
+    // Unlike the top level (unknown keys tolerated - see GrindsFormInput), a nested group like
+    // 'translations' rejects an unknown key outright, before isAllowedToPerform() runs.
     public function testMaybePerformAsRejectsAnUnknownLanguageKeyInsideTheNestedTranslationsGroup(): void
     {
         $rbac = $this->createMock(\ilRbacSystem::class);
@@ -799,16 +952,10 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
-     * These raw_parameters all leave the mandatory 'de' translation field
-     * (see the 'translations' field's own description in
-     * buildInputDescription(), "de"/"en" are mandatory) blank - either
-     * because 'translations' is not an array at all, or because it is an array
-     * that does not carry a 'de' key - so grind() itself rejects them, via
-     * the 'de' Text field's own required-field constraint (or, for a
-     * non-string key, GrindsFormInput's own unknown-key guard), before
-     * normalizeParameters()/isAllowedToPerform() are ever reached. The
-     * rejection surfaces as a Result\Error carrying an InvalidInputException,
-     * not an InvalidArgumentException.
+     * Both rejected by grind() itself, before normalizeParameters()/isAllowedToPerform() run, but
+     * for different reasons: a non-array 'translations' fails collectRawValues()'s type guard on
+     * the nested group; a non-string key can never match any of the group's string-keyed fields.
+     * Either way: an InvalidInputException, not an InvalidArgumentException.
      */
     public static function invalidRawParametersRejectedByGrindWithStringErrorProvider(): array
     {
@@ -900,11 +1047,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      */
     public function testEmptyTranslationsArrayIsAcceptedAndSkipsEveryInstalledLanguage(): void
     {
-        // 'fr'/'it' (not 'de'/'en') are used here on purpose: neither is
-        // mandatory, so an entirely empty translations array is legal and
-        // every installed language is simply skipped - unlike 'de'/'en',
-        // which reject a blank value outright (see the "de"/"en" mandatory
-        // regression tests below).
+        // 'fr'/'it' avoid the separate 'de'/'en' mandatory-value rule tested elsewhere.
         $rbac = $this->createMock(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
@@ -924,6 +1067,45 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // -----------------------------------------------------------------
     // getInputDescription()
     // -----------------------------------------------------------------
+
+    /**
+     * End-to-end companion to ActivityContractTestCase's reflection-based signature pin: actually
+     * defines a subclass overriding getInputDescription() with the plain interface signature,
+     * reproducing the PHP fatal error the old, buggy signature triggered (verified under PHP
+     * 8.5.4). A PHP variance fatal is a compile-time error, not a catchable \Throwable, hence
+     * #[RunInSeparateProcess] - so a regression fails this one test instead of crashing the suite.
+     */
+    #[RunInSeparateProcess]
+    public function testSubclassOverridingGetInputDescriptionWithThePlainInterfaceSignatureDoesNotTriggerAFatalError(): void
+    {
+        // txt() must be stubbed (getInputDescription() calls it per translation field) - a bare
+        // mock would trigger PHPUnit's "no expectations configured" notice. createActivity() can't
+        // be reused here since the point of this test is the inline `extends AddLanguageEntry`
+        // class declaration.
+        $language = $this->createMock(Language::class);
+        $language->method('txt')->willReturnCallback(static fn(string $k): string => $k);
+
+        $activity = new class (
+            refinery: $this->createMock(RefineryFactory::class),
+            language: $language,
+            rbac_system: $this->createMock(\ilRbacSystem::class),
+            installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
+            db: static fn(): \ilDBInterface => throw new \LogicException('db must not be resolved by this test'),
+        ) extends AddLanguageEntry {
+            // Declaring this override (the plain interface signature) is the point of the test -
+            // the old, buggy signature with an extra optional parameter would already fail to
+            // compile here.
+            public function getInputDescription(FieldFactory $f): FormInput
+            {
+                return parent::getInputDescription($f);
+            }
+        };
+
+        $this->assertInstanceOf(
+            FormInput::class,
+            $activity->getInputDescription($this->createRealFieldsUiFactory()->input()->field())
+        );
+    }
 
     public function testInputDescriptionBuildsModuleIdentifierAndPerLanguageTranslationFields(): void
     {
@@ -1039,21 +1221,11 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // -----------------------------------------------------------------
     // $db / default update_module_cache() guard clauses
     //
-    // Every other test in this class overrides $update_module_cache with a
-    // no-op or a spy, so the constructor's own $db-backed default closure
-    // (see the constructor body: it resolves $db_resolver and queries
-    // lng_modules to refresh the cached lang_array) is never exercised
-    // anywhere else. These tests inject
-    // a real \ilDBInterface mock instead, to pin down the is_string() guard
-    // added around unserialize() - the actual regression this class'
-    // constructor gained a $db parameter for. $replace_lang_entry is still
-    // overridden with a no-op (writing a single entry is unrelated to the
-    // cache refresh and would otherwise need the real global $DIC), so only
-    // ONE installed language ("de") with a non-blank value is used - just
-    // enough to reach update_module_cache() exactly once per test, without
-    // ever reaching \ilObjLanguage::replaceLangModule() (a real write to
-    // legacy statics): every case below returns from the guard before that
-    // point is reached.
+    // Every other test overrides update_module_cache with a no-op/spy, so the constructor's own
+    // $db-backed default (querying lng_modules) is otherwise never exercised. These tests inject a
+    // real \ilDBInterface mock to pin down the is_string() guard around unserialize(). Only "de"
+    // is installed, just enough to reach update_module_cache() once without ever reaching the real
+    // \ilObjLanguage::replaceLangModule() write.
     // -----------------------------------------------------------------
 
     private function createActivityWithRealUpdateModuleCacheDefault(\ilDBInterface $db): AddLanguageEntry
@@ -1100,9 +1272,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
         $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
 
-        // No exception/error of any kind must surface - a missing row is a
-        // normal, silently-ignored case (see the default update_module_cache
-        // closure's `if ($row === null ...) { return; }` guard).
+        // A missing row is normal and silently ignored - no exception must surface.
         $result = $activity->perform([
             'module' => 'common',
             'identifier' => 'new_topic',
@@ -1115,10 +1285,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNull(): void
     {
-        // Before the is_string() guard was added, unserialize(null, ...)
-        // would raise a \TypeError under declare(strict_types=1) instead of
-        // silently doing nothing (see the `!is_string($row['lang_array'] ??
-        // null)` guard in the default update_module_cache closure).
+        // Without the is_string() guard, unserialize(null, ...) throws a \TypeError under
+        // strict_types - this pins down the guard that prevents that.
         $db = $this->mockDbFetchingRow(['lang_array' => null]);
 
         $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
@@ -1220,14 +1388,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         ?\Closure $user_login = null,
         ?RefineryFactory $refinery = null,
     ): AddLanguageEntry {
-        // Benign no-op defaults: user_login() is invoked unconditionally by
-        // perform() (even when every installed language is skipped), so it
-        // must always have a safe default. replace_lang_entry()/
-        // update_module_cache() default to harmless no-ops too - never the
-        // real \ilObjLanguage-backed closures, which would need the real
-        // global $DIC. Tests asserting these must never be called (e.g.
-        // isAllowedToPerform() tests) pass their own throwing closures
-        // explicitly instead of relying on this default.
+        // Safe no-op defaults (never the real \ilObjLanguage-backed closures, which need global
+        // $DIC). user_login() runs unconditionally in perform(), so it always needs one too.
+        // Tests that must prove a closure is never called pass their own throwing closure instead.
         $replace_lang_entry ??= static fn(
             string $module,
             string $identifier,
@@ -1244,11 +1407,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         ): void {
         };
         $user_login ??= static fn(int $usr_id): string => 'default-login';
-        // Every test above passes its own $update_module_cache (a no-op or a
-        // spy), so the constructor's own $db-based default closure is never
-        // reached in practice - this deliberately throws rather than
-        // defaulting to a harmless stub, so a test that accidentally relies
-        // on the real default fails loudly instead of silently passing.
+        // $db defaults to a throwing stub: every test above overrides update_module_cache, so the
+        // constructor's real $db-based default should never be reached - a test that accidentally
+        // relies on it fails loudly instead of silently passing.
         $db ??= static fn(): \ilDBInterface => throw new \LogicException(
             'db must not be resolved when update_module_cache is overridden'
         );
