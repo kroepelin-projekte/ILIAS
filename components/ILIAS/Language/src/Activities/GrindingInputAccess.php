@@ -72,7 +72,7 @@ final class GrindingInputAccess
     {
         self::assertInternal($named, 'withInput()');
 
-        /** @var InputInternal $named */
+        /** @var InputInternal&FormInput $named */
         return $named->withInput(new ArrayInputData($flat_raw_values));
     }
 
