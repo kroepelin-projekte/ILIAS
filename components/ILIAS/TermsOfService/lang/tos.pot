@@ -1,0 +1,74 @@
+msgid ""
+msgstr ""
+"Content-Transfer-Encoding: 8bit\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"MIME-Version: 1.0\n"
+"X-Domain: tos\n"
+
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous_intro"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_account_reg_not_possible"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_agree_date"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_agreement"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_disabled_no_docs_left"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_last_reset_date"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_never_reset"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_no_documents_exist"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_no_documents_exist_cant_save"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_reset_for_all_users"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_reset_successful"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_status_desc"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_status_enable"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_sure_reset_tos"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion"
+msgstr ""
+
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion_desc"
+msgstr ""

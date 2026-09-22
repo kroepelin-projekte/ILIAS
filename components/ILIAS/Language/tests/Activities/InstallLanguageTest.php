@@ -65,6 +65,26 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->assertSame([], $result['invalid_local_language_files']);
     }
 
+    /**
+     * A genuine "install" (mode MODE_INSTALL, not-yet-installed language) must tell
+     * LanguageInstallationManager (via ilSetupLanguage) that it may bootstrap a migrated module's
+     * still-missing .mo file - see MigratedLanguageFileSync::sync()'s docblock and
+     * tools/po-migration/README.md. UpdateLanguage deliberately does not pass this flag.
+     */
+    public function testFullInstallPassesCreateMissingMoTrue(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], []);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->once())
+            ->method('insertLanguageForInstallation')
+            ->with('de', true);
+
+        $this->createActivity($setup_language)->perform([
+            'language_keys' => 'de',
+            'mode' => InstallLanguage::MODE_INSTALL,
+        ]);
+    }
+
     public function testMultipleLanguagesSeparatesNotInstalledFromAlreadyInstalledUnderInstallMode(): void
     {
         // Mode "install": 'de' is already installed and must be left
@@ -196,6 +216,27 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->assertSame([], $result['already_installed_language_keys']);
         $this->assertSame([], $result['not_installed_language_keys']);
         $this->assertSame([], $result['invalid_local_language_files']);
+    }
+
+    /**
+     * "install_local" is still an install action (see MigratedLanguageFileSync::sync()'s docblock) -
+     * it must pass $create_missing_mo = true too, not just the full-install branch above.
+     */
+    public function testInstallLocalModePassesCreateMissingMoTrue(): void
+    {
+        $setup_language = $this->createSetupLanguageMock(
+            ['de' => ['obj_id' => 1, 'status' => 'installed']],
+            ['de'],
+            ['de']
+        );
+        $setup_language->expects($this->once())
+            ->method('insertLanguageForApplyingLocalChanges')
+            ->with('de', true);
+
+        $this->createActivity($setup_language)->perform([
+            'language_keys' => 'de',
+            'mode' => InstallLanguage::MODE_INSTALL_LOCAL,
+        ]);
     }
 
     /**

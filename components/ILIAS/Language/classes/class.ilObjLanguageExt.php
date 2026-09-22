@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+
 /**
 * Class ilObjLanguageExt
 *
@@ -247,6 +250,13 @@ class ilObjLanguageExt extends ilObjLanguage
             $ilErr->raiseError($import_file_obj->getErrorMessage(), $ilErr->MESSAGE);
         }
 
+        // Only "delete" wipes lng_data/lng_modules for the whole language up front, independently of
+        // what the imported file actually contains - see below. The other three modes never remove a
+        // module's DB row without _saveValues() also (re-)writing it from $to_save in the same request,
+        // so they can never drift from a migrated module's .po/.mo mirror (see
+        // tools/po-migration/README.md); only "delete" needed the modules-before snapshot at all.
+        $modules_before_delete = ($a_mode_existing === "delete") ? self::_getModules($this->key) : [];
+
         switch ($a_mode_existing) {
             // keep all existing entries
             case "keepall":
@@ -283,6 +293,73 @@ class ilObjLanguageExt extends ilObjLanguage
             }
         }
         self::_saveValues($this->key, $to_save, $import_file_obj->getAllComments());
+
+        if ($a_mode_existing === "delete") {
+            $this->syncMigratedFilesAfterDeleteModeImport($modules_before_delete, $to_save);
+        }
+    }
+
+    /**
+     * "delete" mode above wipes lng_modules for the entire language before _saveValues() runs.
+     * _saveValues()'s own module loop (`class.ilObjLanguageExt.php::_saveValues()`) now reaches
+     * replaceLangModule() (and, through it, the ordinary PO/MO sync) again for every module present
+     * in $to_save - a previously pre-existing, unrelated bug that made it skip that write entirely
+     * for every module after a "delete" import is fixed. That still leaves one gap this method
+     * covers: _saveValues() only iterates modules present in $to_save, so a module that existed
+     * before the delete but has no entries at all in the imported file is never visited by it, and
+     * its now-orphaned PO/MO mirror (for a migrated module) would otherwise keep serving stale
+     * values forever. This method does not rely on _saveValues() having synced anything, migrated or
+     * not: it independently syncs every module this language previously had any lng_data row for,
+     * using exactly the entries $to_save just wrote back for it (or an empty map for a module the
+     * imported file did not mention at all) - "replace" semantics, matching every other write path.
+     * A module that has no entries in $to_save has none in $modules_before_delete either counted
+     * twice; array_unique below only matters for a module present in both sets (the common case: it
+     * already existed and is still in the file). For that common case, this duplicates the PO/MO sync
+     * replaceLangModule() already performed inside _saveValues() with the same entries - harmless
+     * (MigratedLanguageFileSync::sync() is idempotent, see its own docblock) but redundant; left as is
+     * since removing it would require distinguishing the two cases here without changing behavior.
+     *
+     * @param list<string> $modules_before_delete every module this language had any lng_data row for,
+     *        captured before the raw DELETE above ran.
+     * @param array<string, string> $to_save module.separator.topic => value, exactly what was just
+     *        written via _saveValues() - the complete, final DB content for this language now.
+     */
+    private function syncMigratedFilesAfterDeleteModeImport(array $modules_before_delete, array $to_save): void
+    {
+        global $DIC;
+
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return;
+        }
+
+        $entries_by_module = [];
+        foreach ($to_save as $key => $value) {
+            $parts = explode($this->separator, $key);
+            if (count($parts) === 2) {
+                $entries_by_module[$parts[0]][$parts[1]] = $value;
+            }
+        }
+
+        $manager = $DIC[LanguageFileDirectoryManager::class];
+        foreach (array_unique(array_merge($modules_before_delete, array_keys($entries_by_module))) as $module) {
+            try {
+                MigratedLanguageFileSync::sync(
+                    $manager,
+                    ILIAS_ABSOLUTE_PATH,
+                    $this->key,
+                    $module,
+                    $entries_by_module[$module] ?? []
+                );
+            } catch (\Throwable $t) {
+                $DIC->logger()->forComponent('lang')->warning(sprintf(
+                    'Could not sync migrated language file for module "%s", language "%s" after a' .
+                    ' "delete"-mode import: %s',
+                    $module,
+                    $this->key,
+                    $t->getMessage()
+                ));
+            }
+        }
     }
 
     /**
@@ -455,12 +532,12 @@ class ilObjLanguageExt extends ilObjLanguage
                 $ilDB->quote($module, "text")
             ));
             $row = $ilDB->fetchAssoc($set);
-            if (!$row) {
-                $DIC->logger()->forComponent('lang')->warning("Language module '{$module}' not found for language {$a_lang_key}.");
-                continue;
-            }
 
-            $entries = self::_mergeLanguageEntriesFromRow($row, $entries);
+            // No existing lng_modules row for this module (e.g. after a "delete"-mode import wiped
+            // it, see importLanguageFile()) - _mergeLanguageEntriesFromRow() treats a missing row as
+            // "nothing to merge" and returns $entries unchanged, so replaceLangModule() below still
+            // creates the row from scratch. Its own INSERT never depended on a prior row existing.
+            $entries = self::_mergeLanguageEntriesFromRow($row ?: null, $entries);
 
             ilObjLanguage::replaceLangModule($a_lang_key, $module, $entries);
         }

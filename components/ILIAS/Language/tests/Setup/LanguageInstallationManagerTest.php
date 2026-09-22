@@ -24,6 +24,11 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
+use Gettext\Generator\MoGenerator;
+use Gettext\Generator\PoGenerator;
+use Gettext\Loader\PoLoader;
+use Gettext\Translation;
+use Gettext\Translations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -39,6 +44,16 @@ use PHPUnit\Framework\TestCase;
  */
 class LanguageInstallationManagerTest extends TestCase
 {
+    /**
+     * Set by seedMigratedFixtureModule() - a throwaway .po/.mo fixture pair, living under the
+     * caller's own $root (see that method's docblock for why: MigratedLanguageFileSync::sync() now
+     * resolves a migrated module's files against the LanguageInstallationManager's own injected
+     * $absolute_path, not a global constant). $root is always a temp directory each test removes
+     * itself via removeDirectory($root) in its own finally block, which takes this fixture directory
+     * (nested inside $root) down with it - no separate cleanup needed here.
+     */
+    private ?string $fixture_directory = null;
+
     private function createDatabaseMock(): MockObject&ilDBInterface
     {
         $db = $this->createMock(ilDBInterface::class);
@@ -890,6 +905,550 @@ class LanguageInstallationManagerTest extends TestCase
             // value=second field - not the line's own first field as module.
             $this->assertStringContainsString("('file','add_file','de','Add File'", $insert[0]);
         } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * insertLanguage()'s mirroring calls MigratedLanguageFileSync::sync() with the manager's own
+     * injected $absolute_path (this test's $root) - not a global constant (see
+     * MigratedLanguageFileSync::sync()'s docblock on why: LanguageInstallationManager runs in Setup
+     * contexts where ILIAS_ABSOLUTE_PATH is not reliably defined). A migrated fixture module must
+     * therefore be seeded under the very same $root the LanguageInstallationManager under test is
+     * constructed with, not under an unrelated location such as this test file's own directory or a
+     * second, independent temp directory.
+     *
+     * @param array<string, string> $entries identifier => value
+     */
+    private function seedMigratedFixtureModule(string $root, string $module, string $lang_key, array $entries): LanguageFileDirectory
+    {
+        $this->fixture_directory = rtrim($root, '/') . '/migrated-fixtures';
+        if (!is_dir($this->fixture_directory)) {
+            mkdir($this->fixture_directory, 0775, true);
+        }
+
+        $translations = Translations::create($module, $lang_key);
+        foreach ($entries as $identifier => $value) {
+            $translations->add(Translation::create($module, $identifier)->translate($value));
+        }
+
+        $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
+        (new PoGenerator())->generateFile($translations, $base_path . '.po');
+        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+
+        return new class ($module, 'migrated-fixtures/') implements LanguageFileDirectory {
+            public function __construct(private string $prefix, private string $path)
+            {
+            }
+
+            public function getPrefix(): string
+            {
+                return $this->prefix;
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '';
+            }
+
+            public function isLocal(): bool
+            {
+                return false;
+            }
+        };
+    }
+
+    private function loadFixturePo(string $module, string $lang_key): Translations
+    {
+        return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
+    }
+
+    /**
+     * Writes a *.lang source file for a prefixed (component-style) directory under $root - two-field
+     * lines (identifier#:#value), matching testInsertLanguageUsesDirectoryPrefixAsModuleForComponentFiles's
+     * fixture convention: insertLanguage() unshifts the directory's own prefix as the module for these.
+     *
+     * @param list<string> $two_field_lines e.g. "greeting#:#Hallo, neu"
+     */
+    private function writePrefixedLangFile(
+        string $root,
+        LanguageFileDirectory $directory,
+        string $lang_key,
+        array $two_field_lines
+    ): void {
+        $dir = rtrim($root, '/') . '/' . ltrim($directory->getPath(), '/');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        file_put_contents(
+            $dir . 'ilias_' . $lang_key . '.lang',
+            "<!-- language file start -->\n" . implode("\n", $two_field_lines) . "\n"
+        );
+    }
+
+    /**
+     * Writes a customizing/local *.lang.local source file - three-field lines
+     * (module#:#identifier#:#value), matching CustomizingLanguageFileDirectory's empty prefix.
+     *
+     * @param list<string> $three_field_lines e.g. "pilot#:#greeting#:#Hallo, neu"
+     */
+    private function writeCustomizingLangFile(string $root, string $lang_key, array $three_field_lines): void
+    {
+        $dir = rtrim($root, '/') . '/lang/customizing/';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        file_put_contents(
+            $dir . 'ilias_' . $lang_key . '.lang.local',
+            "<!-- language file start -->\n" . implode("\n", $three_field_lines) . "\n"
+        );
+    }
+
+    /**
+     * insertLanguage() only logs (error_log()) and swallows a file-sync failure - it must never let a
+     * PHP-level warning from the underlying file write (e.g. Generator::generateFile()'s
+     * file_put_contents() call against a read-only target) escape as a PHPUnit-converted warning
+     * failure, exactly like the caller itself does not let it escape as an exception. The
+     * error_log() call itself is also redirected to a throwaway file for the duration of the call -
+     * insertLanguage() has no injected logger and deliberately falls back to error_log() (see its
+     * docblock), which would otherwise write to this process' stderr and trip
+     * beStrictAboutOutputDuringTests.
+     */
+    private function withWarningsSuppressed(callable $callback): mixed
+    {
+        set_error_handler(static fn(): bool => true, E_WARNING);
+        $previous_error_log = ini_set('error_log', sys_get_temp_dir() . '/ilias_lang_test_error_log_' . getmypid());
+        try {
+            return $callback();
+        } finally {
+            restore_error_handler();
+            ini_set('error_log', $previous_error_log);
+        }
+    }
+
+    /**
+     * Regression coverage for the PO/MO write-back mirroring added to insertLanguage() (see its
+     * docblock and tools/po-migration/README.md, "Bekannte Grenzen"): a new/changed value read from a
+     * migrated module's *.lang file during installation must also land in that module's .po/.mo files,
+     * not just in lng_modules - otherwise ilLanguage::txt() (which prefers the migrated file) would
+     * never show it.
+     */
+    public function testInsertLanguageForInstallationSyncsNewLangFileValueIntoMigratedPoAndMoFiles(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $this->assertNotNull($translation);
+            $this->assertSame('Hallo, neu', $translation->getTranslation());
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * "Replace" semantics: an entry that used to be in the .po file but is no longer produced by the
+     * freshly-read *.lang file must be removed, not just left stale - exactly like
+     * ilObjLanguage::replaceLangModule() already does (see PoMigrationWriteBackTest).
+     */
+    public function testInsertLanguageForInstallationRemovesPoEntryNoLongerPresentInLangFile(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', [
+            'greeting' => 'Hallo',
+            'farewell' => 'Tschüss',
+        ]);
+        // The freshly-read *.lang file only produces "greeting" this time.
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $translations = $this->loadFixturePo('pilot', 'de');
+            $this->assertNull($translations->find('pilot', 'farewell'));
+            $this->assertNotNull($translations->find('pilot', 'greeting'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * A module present in the freshly-read *.lang data (and therefore written to lng_modules) but
+     * never contributed as a LanguageFileDirectory must not cause any error and must not create any
+     * file - the vast majority of modules are not part of the PO/MO pilot.
+     */
+    public function testInsertLanguageDoesNotErrorForModuleWithoutContributedDirectory(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $this->writeLangFile($root . '/lang/ilias_de.lang', [['common', 'hello', 'Welt']]);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('common')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            // The DB write for the (non-migrated) module still happened despite going through the
+            // per-module sync loop.
+            $inserts = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')
+            ));
+            $this->assertCount(1, $inserts);
+            $this->assertStringContainsString("'common'", $inserts[0]);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * insertLanguageForInstallation()'s default ($create_missing_mo = false) is what UpdateLanguage
+     * uses to refresh an already-installed language: a contributed module that has no compiled .mo
+     * file yet must stay a no-op, exactly matching MigratedLanguageFileSync's own default contract
+     * (see its unit tests) - only an explicit install (see the test below) may bootstrap it.
+     */
+    public function testInsertLanguageDoesNotSyncContributedModuleWithoutCompiledMoFile(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        unlink($this->fixture_directory . '/pilot_de.mo');
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de');
+
+            $this->assertFileDoesNotExist($this->fixture_directory . '/pilot_de.mo');
+            $this->assertSame(
+                'Hallo',
+                $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * The counterpart to the test above: InstallLanguage (a genuine, first-time install - see
+     * ILIAS\Language\Activities\InstallLanguage::perform()) passes $create_missing_mo = true, which
+     * must compile a still-missing .mo from the module's shipped .po - this is the only place that
+     * ever creates a migrated module's .mo file now that convert_module_to_po.php no longer does (see
+     * tools/po-migration/README.md).
+     */
+    public function testInsertLanguageForInstallationCreatesMissingMoFileWhenBootstrapping(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        unlink($this->fixture_directory . '/pilot_de.mo');
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForInstallation('de', true);
+
+            $this->assertFileExists($this->fixture_directory . '/pilot_de.mo');
+            $this->assertSame(
+                'Hallo, neu',
+                $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * insertLanguageForRemovingLocalChanges() syncs migrated files too, deliberately (see
+     * insertLanguage()'s and this method's own docblocks): $lang_array here is exactly the shipped
+     * global/component content, so this is precisely what "remove local changes" needs for a
+     * migrated module - not just the DB side. This also covers a case the caller's own follow-up
+     * step, ilObjLanguage::removeLocalChanges()'s resetMigratedLocalChanges(), cannot reach on its
+     * own: an entry with no "original" comment (e.g. one added after migration via "add new
+     * variable") - resetMigratedLocalChanges() skips those by design, so without this sync they would
+     * survive a "remove local changes" pass forever in the .po/.mo file even though their DB row is
+     * gone.
+     */
+    public function testInsertLanguageForRemovingLocalChangesSyncsMigratedFiles(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, geändert']);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForRemovingLocalChanges('de');
+
+            // The DB write goes through with the freshly-read value...
+            $inserts = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')
+            ));
+            $this->assertCount(1, $inserts);
+            $this->assertStringContainsString('Hallo, ge', $inserts[0]);
+
+            // ...and the .po file is mirrored to match it.
+            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $this->assertNotNull($translation);
+            $this->assertSame('Hallo, geändert', $translation->getTranslation());
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * The scenario resetMigratedLocalChanges() alone cannot fix: an entry added after migration (no
+     * "original" comment at all) has no DB row once "remove local changes" flushes+reinstalls from
+     * the shipped .lang content alone - insertLanguageForRemovingLocalChanges()'s sync must remove it
+     * from the .po file too, or ilLanguage::txt() would keep serving it forever even though every DB
+     * view of this language has no trace of it left.
+     */
+    public function testInsertLanguageForRemovingLocalChangesRemovesAnEntryThatOnlyExistsInTheFile(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', [
+            'greeting' => 'Hallo',
+            'custom_hint' => 'Nur in der Datei, nie ausgeliefert',
+        ]);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForRemovingLocalChanges('de');
+
+            $translations = $this->loadFixturePo('pilot', 'de');
+            $this->assertNotNull($translations->find('pilot', 'greeting'));
+            $this->assertNull($translations->find('pilot', 'custom_hint'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * insertLanguageForApplyingLocalChanges() ("Install local" on an already-installed language) syncs
+     * migrated files just like insertLanguageForInstallation() does (its $sync_migrated_files default
+     * is true too) - reading a *.lang.local override for a migrated module must update that module's
+     * .po/.mo files as well.
+     */
+    public function testInsertLanguageForApplyingLocalChangesSyncsMigratedFiles(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo, alt']);
+        $this->writeCustomizingLangFile($root, 'de', ['pilot#:#greeting#:#Hallo, neu']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+            $repository->method('getLanguageEntries')->willReturn(['pilot' => ['greeting' => 'Hallo, alt']]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForApplyingLocalChanges('de');
+
+            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $this->assertNotNull($translation);
+            $this->assertSame('Hallo, neu', $translation->getTranslation());
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * $create_missing_mo = true on insertLanguageForApplyingLocalChanges() is what InstallLanguage
+     * passes for mode "install_local" (still an install action, see MigratedLanguageFileSync::sync()'s
+     * docblock) - a still-missing .mo for a migrated module must be bootstrapped here too, not just via
+     * insertLanguageForInstallation().
+     */
+    public function testInsertLanguageForApplyingLocalChangesCreatesMissingMoFileWhenBootstrapping(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo, alt']);
+        unlink($this->fixture_directory . '/pilot_de.mo');
+        $this->writeCustomizingLangFile($root, 'de', ['pilot#:#greeting#:#Hallo, neu']);
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+            $repository->method('getLanguageEntries')->willReturn(['pilot' => ['greeting' => 'Hallo, alt']]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $manager->insertLanguageForApplyingLocalChanges('de', true);
+
+            $this->assertFileExists($this->fixture_directory . '/pilot_de.mo');
+            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $this->assertNotNull($translation);
+            $this->assertSame('Hallo, neu', $translation->getTranslation());
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * A failure writing a migrated module's .po/.mo files (e.g. a read-only lang/ directory in
+     * production) must not abort or roll back the lng_data/lng_modules DB write that already
+     * succeeded - insertLanguage() catches and error_log()s per-module sync failures individually (see
+     * its docblock/implementation) for exactly this reason.
+     */
+    public function testInsertLanguageStillWritesToDatabaseWhenFileSyncFails(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        chmod($this->fixture_directory . '/pilot_de.po', 0444);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository
+            );
+
+            $this->withWarningsSuppressed(static function () use ($manager): void {
+                $manager->insertLanguageForInstallation('de');
+            });
+
+            $inserts = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')
+            ));
+            $this->assertCount(1, $inserts, 'The lng_modules write must happen despite the file-sync failure.');
+            $this->assertStringContainsString("'pilot'", $inserts[0]);
+
+            // The read-only file itself was of course never actually updated.
+            $this->assertSame(
+                'Hallo',
+                $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
+        } finally {
+            chmod($this->fixture_directory . '/pilot_de.po', 0664);
             $this->removeDirectory($root);
         }
     }

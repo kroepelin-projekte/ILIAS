@@ -202,9 +202,9 @@ class ilSetupLanguage extends ilLanguage
         $this->manager->flushLanguageForUninstallation($lang_key);
     }
 
-    public function insertLanguageForInstallation(string $lang_key): void
+    public function insertLanguageForInstallation(string $lang_key, bool $create_missing_mo = false): void
     {
-        $this->manager->insertLanguageForInstallation($lang_key);
+        $this->manager->insertLanguageForInstallation($lang_key, $create_missing_mo);
     }
 
     /**
@@ -213,9 +213,9 @@ class ilSetupLanguage extends ilLanguage
      * LanguageInstallationManager::insertLanguageForApplyingLocalChanges()
      * for why.
      */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    public function insertLanguageForApplyingLocalChanges(string $lang_key, bool $create_missing_mo = false): void
     {
-        $this->manager->insertLanguageForApplyingLocalChanges($lang_key);
+        $this->manager->insertLanguageForApplyingLocalChanges($lang_key, $create_missing_mo);
     }
 
     /**

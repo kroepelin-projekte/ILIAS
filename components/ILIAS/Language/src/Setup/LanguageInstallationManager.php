@@ -22,6 +22,7 @@ namespace ILIAS\Language\Setup;
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 
 /**
  * Write access to the language installation domain: installing, flushing
@@ -210,7 +211,14 @@ class LanguageInstallationManager
         }
     }
 
-    public function insertLanguageForInstallation(string $lang_key): void
+    /**
+     * @param bool $create_missing_mo Whether a migrated module's compiled `.mo` file may be created
+     *        from scratch if it doesn't exist yet for this language (see
+     *        MigratedLanguageFileSync::sync()). Pass `true` only for a genuine install of a language
+     *        that was not previously installed - an update/refresh of an already-installed language
+     *        must leave a still-missing `.mo` missing, only recompiling one that already exists.
+     */
+    public function insertLanguageForInstallation(string $lang_key, bool $create_missing_mo = false): void
     {
         // Every directory the LanguageFileDirectoryManager knows about,
         // including the customizing/local one - so an existing custom
@@ -219,7 +227,8 @@ class LanguageInstallationManager
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getAllDirectories(),
-            $this->repository->getLocalChanges($lang_key)
+            $this->repository->getLocalChanges($lang_key),
+            $create_missing_mo
         );
     }
 
@@ -233,11 +242,30 @@ class LanguageInstallationManager
      * customizing directory's file would immediately be re-applied (and
      * re-marked with a fresh local_change timestamp), silently undoing the
      * removal it was just asked to perform.
+     *
+     * $sync_migrated_files stays at its default (true) here, deliberately: $lang_array is exactly
+     * the shipped global/component content (no customizing), so syncing it is precisely what
+     * "remove local changes" needs for a migrated module too - including a case the caller's own
+     * follow-up step, ilObjLanguage::removeLocalChanges()'s resetMigratedLocalChanges(), cannot
+     * handle by itself. resetMigratedLocalChanges() only resets entries that carry an "original"
+     * comment (the value shipped at migration time, see tools/po-migration/README.md); an entry
+     * added *after* migration via "add new variable" never has one, so it would survive a "remove
+     * local changes" pass forever if this method's generic sync were skipped - the DB row for it is
+     * gone (flush("all") + this method's empty customizing seed dropped it), but the .po/.mo file,
+     * untouched, would keep serving it through ilLanguage's migrated-file read path regardless.
+     * Running both is intentional, not redundant: this sync (a full "replace with $lang_array")
+     * removes exactly that kind of orphaned entry and resets every value+local_change timestamp to
+     * the current shipped state; resetMigratedLocalChanges() afterwards then finds nothing left to
+     * do for any entry this sync already brought back in line, which is what makes it safe to keep
+     * calling unconditionally rather than needing to know in advance whether this ran first.
      */
     public function insertLanguageForRemovingLocalChanges(string $lang_key): void
     {
         // Global/component directories only, and an empty seed - a clean
-        // slate with nothing to preserve or merge.
+        // slate with nothing to preserve or merge. Never bootstraps a missing
+        // `.mo`: this reinstalls an already-installed language's shipped
+        // state, it does not install it for the first time (see
+        // insertLanguageForInstallation()'s $create_missing_mo docblock).
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getDirectories(),
@@ -270,12 +298,19 @@ class LanguageInstallationManager
      * overridden by the customizing file silently disappear from that
      * module's cache row.
      */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    /**
+     * @param bool $create_missing_mo see insertLanguageForInstallation()'s docblock - pass `true` only
+     *        for the "install_local" mode of a genuine install (an already-installed language whose
+     *        customizing/local file is being (re-)applied as part of installing it), not for an
+     *        unrelated later re-application of local changes.
+     */
+    public function insertLanguageForApplyingLocalChanges(string $lang_key, bool $create_missing_mo = false): void
     {
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getCustomizingDirectories(),
-            $this->repository->getLanguageEntries($lang_key)
+            $this->repository->getLanguageEntries($lang_key),
+            $create_missing_mo
         );
     }
 
@@ -285,11 +320,30 @@ class LanguageInstallationManager
      * the caller (see the three call sites above, each of which already states its intent in its
      * own name).
      *
+     * After writing lng_modules, also mirrors the final per-module content into a PO/MO pilot
+     * module's .po/.mo files too (see tools/po-migration/README.md, "Schreibpfad-Lücken
+     * (geschlossen)": until this was added, an install/update never touched a migrated module's
+     * files at all, so a new/changed key added only to the .lang file would land in lng_modules but
+     * stay invisible to ilLanguage::txt(), which reads the stale .mo file first for a migrated
+     * module). $lang_array is exactly the same complete, final identifier => value map per module
+     * that the lng_modules INSERT below uses - the exact shape MigratedLanguageFileSync::sync()
+     * expects, mirroring replaceLangModule()'s contract. All three callers above want this: even
+     * insertLanguageForRemovingLocalChanges() needs it, since its own DB-side "remove local
+     * changes" reinstall can drop entries (e.g. one added after migration via "add new variable")
+     * that the caller's separate resetMigratedLocalChanges() step cannot reach on its own - see that
+     * method's docblock.
+     *
      * @param iterable<LanguageFileDirectory> $directories
      * @param array<string, array<string, string>> $lang_array module => identifier => value
+     * @param bool $create_missing_mo forwarded verbatim to MigratedLanguageFileSync::sync() for every
+     *        module - see insertLanguageForInstallation()'s docblock for what it controls.
      */
-    private function insertLanguage(string $lang_key, iterable $directories, array $lang_array): void
-    {
+    private function insertLanguage(
+        string $lang_key,
+        iterable $directories,
+        array $lang_array,
+        bool $create_missing_mo = false
+    ): void {
         $ilDB = $this->db();
         $working_dir = getcwd();
 
@@ -425,6 +479,32 @@ class LanguageInstallationManager
                 . implode(',', $modulesValuesSql)
                 . ";";
             $ilDB->manipulate($query);
+
+            foreach ($lang_array as $module => $entries) {
+                try {
+                    MigratedLanguageFileSync::sync(
+                        $this->language_file_directory_manager,
+                        $this->absolute_path,
+                        $lang_key,
+                        $module,
+                        $entries,
+                        $create_missing_mo
+                    );
+                } catch (\Throwable $t) {
+                    // No injected logger here (unlike ilObjLanguage's $DIC-based write paths) -
+                    // this class is constructed in Setup contexts too, before a full logging
+                    // service is guaranteed to exist. error_log() is the one sink guaranteed to
+                    // work everywhere this class runs. The lng_modules write above already
+                    // succeeded and must not be undone by a problem with the file mirror (e.g. a
+                    // read-only lang/ directory).
+                    error_log(sprintf(
+                        'Could not sync migrated language file for module "%s", language "%s": %s',
+                        $module,
+                        $lang_key,
+                        $t->getMessage()
+                    ));
+                }
+            }
         } finally {
             chdir($working_dir);
         }

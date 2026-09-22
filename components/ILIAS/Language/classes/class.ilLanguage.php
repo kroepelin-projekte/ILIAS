@@ -18,6 +18,12 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use Gettext\Loader\MoLoader;
+use Gettext\Translations;
+use Gettext\Translator;
+
 /**
  * language handling
  *
@@ -53,6 +59,35 @@ class ilLanguage implements \ILIAS\Language\Language
     public array $loaded_modules = array();
     protected static array $used_topics = array();
     protected static array $used_modules = array();
+
+    /**
+     * Per-request cache for loadFromMigratedLanguageFile(), keyed "<module>|<lang_key>". Static
+     * (not per-instance) because _lookupEntry() - used by txtlng() and txt()'s fallback-module
+     * branch - is itself static and has no ilLanguage instance to cache on; re-parsing the same
+     * .mo file on every txtlng() call would otherwise be wasteful. Safe across requests because
+     * PHP resets static state between requests; only needs resetting between test methods that run
+     * in the same process, which ilLanguageBaseTestCase-based tests do via reflection.
+     */
+    private static array $migrated_language_file_cache = [];
+
+    /**
+     * Per-request cache of the raw Gettext\Translations for a migrated module+language, keyed the
+     * same way as $migrated_language_file_cache. Kept separate from that flat-array cache so the
+     * already-tested singular lookup path doesn't change at all; used only by ntxt() (plural lookups,
+     * see FR "PO-Files for improving language handling", 2.2) where the plural forms and the CLDR
+     * plural formula are needed, not just a flat topic => value map.
+     */
+    private static array $migrated_translations_cache = [];
+
+    /**
+     * Tracks, for topics loaded via the migrated .mo path (not the legacy lng_modules path), which
+     * module last supplied a given topic - independent of $map_modules_txt, which is only populated
+     * when usage logging is enabled and serves a different purpose. Used solely to detect and log
+     * cross-module identifier collisions (FR "PO-Files for improving language handling", 2.4)
+     * instead of silently overwriting one module's value with another's during the array_merge()
+     * into $this->text.
+     */
+    protected array $migrated_topic_modules = array();
     protected array $cached_modules = array();
     protected array $map_modules_txt = array();
     protected bool $usage_log_enabled = false;
@@ -243,6 +278,33 @@ class ilLanguage implements \ILIAS\Language\Language
             $lang_key = $this->lang_user;
         }
 
+        // PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md): a module whose
+        // owning component contributes a LanguageFileDirectory for $a_module, and that actually has a
+        // compiled .mo file for $lang_key sitting there, is read from that .mo instead of lng_modules.
+        // Modules that haven't been migrated yet (no contribution, or no .mo present for this
+        // language) fall through to the unchanged DB/cache path below. This check must run before the
+        // cached_modules check: ilCachedLanguage::isActive() is hard-coded to true, so cached_modules
+        // is always populated from lng_modules for every module that still has a DB row there - which
+        // migrated modules do on purpose (dual-write, see ilObjLanguage::syncMigratedLanguageFile()).
+        // Checking cached_modules first would therefore always win and the .mo file would never be read.
+        $mo_text = self::loadFromMigratedLanguageFile($a_module, $lang_key);
+        if ($mo_text !== null) {
+            $this->logCrossModuleKeyCollisions($a_module, $mo_text);
+            $this->text = array_merge($this->text, $mo_text);
+
+            foreach (array_keys($mo_text) as $key) {
+                $this->migrated_topic_modules[$key] = $a_module;
+            }
+
+            if ($this->usage_log_enabled) {
+                foreach (array_keys($mo_text) as $key) {
+                    $this->map_modules_txt[$key] = $a_module;
+                }
+            }
+
+            return;
+        }
+
         if (isset($this->cached_modules[$a_module]) && is_array($this->cached_modules[$a_module])) {
             $this->text = array_merge($this->text, $this->cached_modules[$a_module]);
 
@@ -278,6 +340,193 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
+     * FR "PO-Files for improving language handling" (2.4) wants cross-module identifier collisions
+     * to stop being silently overwritten. Fully eliminating them for existing txt($topic) callers
+     * isn't possible without changing that signature - which the same FR (2.5) explicitly rules out
+     * for existing callers - since txt() has no way to know which module's value it means when two
+     * modules independently pick the same identifier. Short of that signature change, this turns
+     * "silently overwritten" into "logged", for topics whose *previous* value also came from an
+     * already-loaded migrated module (collisions against the legacy lng_modules path aren't tracked
+     * here, since that path stores no per-topic module attribution to compare against).
+     */
+    private function logCrossModuleKeyCollisions(string $a_module, array $mo_text): void
+    {
+        foreach ($mo_text as $topic => $value) {
+            $existing_module = $this->migrated_topic_modules[$topic] ?? null;
+            if (
+                $existing_module !== null
+                && $existing_module !== $a_module
+                && ($this->text[$topic] ?? null) !== $value
+            ) {
+                $this->log->warning(sprintf(
+                    'Language key collision: identifier "%s" is defined by both module "%s" and'
+                    . ' module "%s" - the value from "%s" now wins for txt("%s") (see'
+                    . ' components/ILIAS/Language/tools/po-migration/README.md, "Uniqueness").',
+                    $topic,
+                    $existing_module,
+                    $a_module,
+                    $a_module,
+                    $topic
+                ));
+            }
+        }
+    }
+
+    /**
+     * Returns $a_module's translations for $lang_key as a flat topic => value array, read from a
+     * compiled .mo file, if (and only if) $a_module's owning component contributes a
+     * LanguageFileDirectory for it (see components/ILIAS/Language/src/ComponentTranslation/) and that
+     * directory actually contains a "<module>_<lang_key>.mo" file. Returns null in every other case -
+     * including "directory contributed but no .mo there yet" - so the caller can fall back to
+     * lng_modules without having to know why.
+     *
+     * Static so _lookupEntry() (itself static, used by txtlng() and txt()'s fallback-module branch)
+     * can share it with loadLanguageModule() instead of duplicating the lookup. Result is cached per
+     * "<module>|<lang_key>" for the rest of the request, since _lookupEntry() may be called once per
+     * topic rather than once per module.
+     */
+    /**
+     * Invalidates the two per-request caches above for one module+language, so a write that just
+     * happened (see ilObjLanguage::syncMigratedLanguageFile(), called from replaceLangModule()) is
+     * visible to the rest of the same request instead of serving what was cached before the write.
+     * Public: the writer lives in a different class (ilObjLanguage) that has no other access to
+     * these private static caches.
+     */
+    public static function invalidateMigratedLanguageFileCache(string $a_module, string $lang_key): void
+    {
+        $cache_key = $a_module . '|' . $lang_key;
+        unset(self::$migrated_language_file_cache[$cache_key]);
+        unset(self::$migrated_translations_cache[$cache_key]);
+    }
+
+    private static function loadFromMigratedLanguageFile(string $a_module, string $lang_key): ?array
+    {
+        $cache_key = $a_module . '|' . $lang_key;
+        if (array_key_exists($cache_key, self::$migrated_language_file_cache)) {
+            return self::$migrated_language_file_cache[$cache_key];
+        }
+
+        $directory = self::findLanguageFileDirectory($a_module);
+        if ($directory === null) {
+            return self::$migrated_language_file_cache[$cache_key] = null;
+        }
+
+        $mo_file = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
+            . $a_module . '_' . $lang_key . '.mo';
+        if (!is_file($mo_file)) {
+            return self::$migrated_language_file_cache[$cache_key] = null;
+        }
+
+        $translations = (new MoLoader())->loadFile($mo_file);
+        $text = [];
+        foreach ($translations->getTranslations() as $translation) {
+            $text[$translation->getOriginal()] = $translation->getTranslation() ?? '';
+        }
+
+        return self::$migrated_language_file_cache[$cache_key] = $text;
+    }
+
+    /**
+     * Same resolution as loadFromMigratedLanguageFile() (contributed directory + existing .mo file),
+     * but returns the raw Gettext\Translations instead of a flattened topic => value array, so ntxt()
+     * can reach the plural forms and the Plural-Forms header that a flat array would throw away.
+     * Deliberately does not share loadFromMigratedLanguageFile()'s cache/code so that method - and
+     * every test covering it - stays exactly as it was before plural support was added.
+     */
+    private static function loadMigratedTranslations(string $a_module, string $lang_key): ?Translations
+    {
+        $cache_key = $a_module . '|' . $lang_key;
+        if (array_key_exists($cache_key, self::$migrated_translations_cache)) {
+            return self::$migrated_translations_cache[$cache_key];
+        }
+
+        $directory = self::findLanguageFileDirectory($a_module);
+        if ($directory === null) {
+            return self::$migrated_translations_cache[$cache_key] = null;
+        }
+
+        $mo_file = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
+            . $a_module . '_' . $lang_key . '.mo';
+        if (!is_file($mo_file)) {
+            return self::$migrated_translations_cache[$cache_key] = null;
+        }
+
+        $translations = (new MoLoader())->loadFile($mo_file);
+        // MO is a pure key/value binary format with no dedicated domain field; Translations::getDomain()
+        // only round-trips via the (optional, header-block) X-Domain entry, so it cannot be relied on.
+        // Translator::createFromTranslations() indexes its dictionary by exactly this domain, and $a_module
+        // is already authoritative (it is how this .mo file was found), so set it explicitly rather than
+        // depend on the file having kept a header that may not even have been written.
+        $translations->setDomain($a_module);
+
+        return self::$migrated_translations_cache[$cache_key] = $translations;
+    }
+
+    /**
+     * Quantity-dependent counterpart to txt(), matching what the FR "PO-Files for improving language
+     * handling" (2.2) calls the wrapper around ngettext(): the caller passes only the count, and the
+     * correct plural form is picked automatically using the target language's CLDR plural formula
+     * (evaluated by Gettext\Translator, not hand-rolled here - plural rules are genuinely intricate
+     * for languages with 3-6 forms, and this is the same vetted parser the vendored gettext/translator
+     * package already ships).
+     *
+     * Only usable for a migrated module that actually has a plural pair for $a_topic - there is no
+     * legacy lng_data/lng_modules fallback, because the old scheme has no structured plural data to
+     * fall back to (that lack is exactly what this FR entry addresses). Returns the same "-topic-"
+     * placeholder txt() uses for an unresolved topic, for a consistent "not found" signal.
+     */
+    public function ntxt(string $a_module, string $a_topic, string $a_topic_plural, int $a_num): string
+    {
+        $translations = self::loadMigratedTranslations($a_module, $this->lang_key);
+        if ($translations === null) {
+            return "-" . $a_topic . "-";
+        }
+
+        $translation = $translations->find($a_module, $a_topic);
+        if ($translation === null || implode('', $translation->getPluralTranslations()) === '') {
+            return "-" . $a_topic . "-";
+        }
+
+        if ($this->usage_log_enabled) {
+            $this->map_modules_txt[$a_topic] = $a_module;
+            self::logUsage($a_module, $a_topic);
+        }
+
+        return Translator::createFromTranslations($translations)->dnpgettext(
+            $a_module,
+            $translation->getContext() ?? '',
+            $a_topic,
+            $a_topic_plural,
+            $a_num
+        );
+    }
+
+    /**
+     * The LanguageFileDirectoryManager is assembled by Language.php's Component Revision graph
+     * from every component's $contribute[LanguageFileDirectory::class] and re-exposed to legacy
+     * $DIC-based code (this class included) by AllModernComponents.php under its own class name -
+     * see that file and Language.php's $provide block.
+     */
+    private static function findLanguageFileDirectory(string $a_module): ?LanguageFileDirectory
+    {
+        global $DIC;
+
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return null;
+        }
+
+        /** @var LanguageFileDirectoryManager $manager */
+        $manager = $DIC[LanguageFileDirectoryManager::class];
+        foreach ($manager->getDirectories() as $directory) {
+            if ($directory->getPrefix() === $a_module) {
+                return $directory;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get installed languages
      */
     public function getInstalledLanguages(): array
@@ -310,6 +559,22 @@ class ilLanguage implements \ILIAS\Language\Language
 
     public static function _lookupEntry(string $a_lang_key, string $a_mod, string $a_id): string
     {
+        // PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md): same migrated
+        // .mo lookup as loadLanguageModule(), extended to this static, DB-based (lng_data) sibling
+        // used by txtlng() and txt()'s fallback-module branch. Falls through to lng_data unchanged
+        // when the module isn't migrated, has no .mo for $a_lang_key, or doesn't have this $a_id.
+        $migrated = self::loadFromMigratedLanguageFile($a_mod, $a_lang_key);
+        if ($migrated !== null && isset($migrated[$a_id]) && $migrated[$a_id] !== '') {
+            self::$used_topics[$a_id] = $a_id;
+            self::$used_modules[$a_mod] = $a_mod;
+
+            if (self::isUsageLogEnabled()) {
+                self::logUsage($a_mod, $a_id);
+            }
+
+            return $migrated[$a_id];
+        }
+
         global $DIC;
         $ilDB = $DIC->database();
 

@@ -1,0 +1,98 @@
+msgid ""
+msgstr ""
+"Content-Transfer-Encoding: 8bit\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Plural-Forms: nplurals=3; plural=(n == 0 || n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2);\n"
+"X-Domain: tos\n"
+
+# original: Terms of Service
+#, fuzzy
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous"
+msgstr "Terms of Service"
+
+# original: Before you proceed to ILIAS you accept the following Terms of Service.
+#, fuzzy
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous_intro"
+msgstr "Before you proceed to ILIAS you accept the following Terms of Service."
+
+# original: A self registration is not possible because of a missing user agreement. Please contact your <a href="%1$s">system administrator</a> for further information.
+msgctxt "tos"
+msgid "tos_account_reg_not_possible"
+msgstr "A self registration is not possible because of a missing user agreement. Please contact your <a href=\"%1$s\">system administrator</a> for further information."
+
+# original: ToS agreed on
+#, fuzzy
+msgctxt "tos"
+msgid "tos_agree_date"
+msgstr "ToS agreed on"
+
+# original: Conditions d'Utilisation
+msgctxt "tos"
+msgid "tos_agreement"
+msgstr "Conditions d'Utilisation"
+
+# original: The user agreements are now disabled, because all documents have been deleted. Please create at least one document before enabling the user agreements again.
+msgctxt "tos"
+msgid "tos_disabled_no_docs_left"
+msgstr "The user agreements are now disabled, because all documents have been deleted. Please create at least one document before enabling the user agreements again."
+
+# original: Les conditions d'utilisation ont été réinitialisées le %s.
+msgctxt "tos"
+msgid "tos_last_reset_date"
+msgstr "Les conditions d'utilisation ont été réinitialisées le %s."
+
+# original: The terms of service have not been reset, yet.
+msgctxt "tos"
+msgid "tos_never_reset"
+msgstr "The terms of service have not been reset, yet."
+
+# original: Il n'y a actuellement aucune condition d'utilisation définie pour les langues installées.
+msgctxt "tos"
+msgid "tos_no_documents_exist"
+msgstr "Il n'y a actuellement aucune condition d'utilisation définie pour les langues installées."
+
+# original: Il n’y a actuellement aucun terme de service pour aucune des langues installées. Veuillez ajouter au moins un document pour l’une des langues installées.
+msgctxt "tos"
+msgid "tos_no_documents_exist_cant_save"
+msgstr "Il n’y a actuellement aucun terme de service pour aucune des langues installées. Veuillez ajouter au moins un document pour l’une des langues installées."
+
+# original: Reset Terms of Service
+#, fuzzy
+msgctxt "tos"
+msgid "tos_reset_for_all_users"
+msgstr "Reset Terms of Service"
+
+# original: The terms of service have been reset successfully.
+msgctxt "tos"
+msgid "tos_reset_successful"
+msgstr "The terms of service have been reset successfully."
+
+# original: Lorsque activé, les utilisateurs doivent accepter les conditions d'utilisation avant de pouvoir entrer dans ILIAS.
+msgctxt "tos"
+msgid "tos_status_desc"
+msgstr "Lorsque activé, les utilisateurs doivent accepter les conditions d'utilisation avant de pouvoir entrer dans ILIAS."
+
+# original: Activer
+msgctxt "tos"
+msgid "tos_status_enable"
+msgstr "Activer"
+
+# original: Etes-vous sûr de vouloir réinitialiser les conditions d'utilisation pour tous les utilisateurs du système ? Ceci s'applique aussi aux comptes qui sont utilisés pour les WebServices SOAP, serveur de Chat et tâches Cron.
+msgctxt "tos"
+msgid "tos_sure_reset_tos"
+msgstr "Etes-vous sûr de vouloir réinitialiser les conditions d'utilisation pour tous les utilisateurs du système ? Ceci s'applique aussi aux comptes qui sont utilisés pour les WebServices SOAP, serveur de Chat et tâches Cron."
+
+# original: Account Deletion on Terms Of Service Withdrawal
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion"
+msgstr "Account Deletion on Terms Of Service Withdrawal"
+
+# original: If a user withdraws their acceptance from  a previously accepted Terms of Service document, this will result in the deletion of the user’s account.
+#, fuzzy
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion_desc"
+msgstr "If a user withdraws their acceptance from  a previously accepted Terms of Service document, this will result in the deletion of the user’s account."

@@ -1,0 +1,93 @@
+msgid ""
+msgstr ""
+"Content-Transfer-Encoding: 8bit\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Domain: tos\n"
+
+# original: 利用規約
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous"
+msgstr "利用規約"
+
+# original: ILIASを利用する前に次の利用規約を承諾するものとします。
+msgctxt "tos"
+msgid "tos_accept_usr_agreement_anonymous_intro"
+msgstr "ILIASを利用する前に次の利用規約を承諾するものとします。"
+
+# original: ユーザ許諾が無いので自己登録はできません。詳細に関しては<a href="%1$s">システム管理者</a>へコンタクトしてください。
+msgctxt "tos"
+msgid "tos_account_reg_not_possible"
+msgstr "ユーザ許諾が無いので自己登録はできません。詳細に関しては<a href=\"%1$s\">システム管理者</a>へコンタクトしてください。"
+
+# original: 使用許諾 承諾日
+msgctxt "tos"
+msgid "tos_agree_date"
+msgstr "使用許諾 承諾日"
+
+# original: サービス使用許諾
+msgctxt "tos"
+msgid "tos_agreement"
+msgstr "サービス使用許諾"
+
+# original: 全てのドキュメントが削除されたのでユーザ許諾書は現在無効です。ユーザ許諾書を再度有効にする前に一つはドキュメントを作成してください。
+msgctxt "tos"
+msgid "tos_disabled_no_docs_left"
+msgstr "全てのドキュメントが削除されたのでユーザ許諾書は現在無効です。ユーザ許諾書を再度有効にする前に一つはドキュメントを作成してください。"
+
+# original: サービス使用許諾は%sにリセットされました。
+msgctxt "tos"
+msgid "tos_last_reset_date"
+msgstr "サービス使用許諾は%sにリセットされました。"
+
+# original: サービス規約はまだリセットされていません。
+msgctxt "tos"
+msgid "tos_never_reset"
+msgstr "サービス規約はまだリセットされていません。"
+
+# original: 現在インストール済言語のサービス使用許諾書はありません
+msgctxt "tos"
+msgid "tos_no_documents_exist"
+msgstr "現在インストール済言語のサービス使用許諾書はありません"
+
+# original: インストール済の言語にはサービス用語が現在何もありません。どれかインストール済の言語用に一つはドキュメントを追加してください。
+msgctxt "tos"
+msgid "tos_no_documents_exist_cant_save"
+msgstr "インストール済の言語にはサービス用語が現在何もありません。どれかインストール済の言語用に一つはドキュメントを追加してください。"
+
+# original: サービス使用許諾をリセット
+msgctxt "tos"
+msgid "tos_reset_for_all_users"
+msgstr "サービス使用許諾をリセット"
+
+# original: サービス規約は正しくリセットされました。
+msgctxt "tos"
+msgid "tos_reset_successful"
+msgstr "サービス規約は正しくリセットされました。"
+
+# original: アクティブにするとユーザはILIASログイン前にサービス使用許諾への承諾を要求されます。
+msgctxt "tos"
+msgid "tos_status_desc"
+msgstr "アクティブにするとユーザはILIASログイン前にサービス使用許諾への承諾を要求されます。"
+
+# original: 有効
+msgctxt "tos"
+msgid "tos_status_enable"
+msgstr "有効"
+
+# original: 本当にシステム内の全ユーザのサービス使用許諾をリセットしますか?SOAP webサービス、chatサービス、クローンjobを使用しているユーザアカウントに対しても適用される事になります。
+msgctxt "tos"
+msgid "tos_sure_reset_tos"
+msgstr "本当にシステム内の全ユーザのサービス使用許諾をリセットしますか?SOAP webサービス、chatサービス、クローンjobを使用しているユーザアカウントに対しても適用される事になります。"
+
+# original: 利用許諾撤回の削除
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion"
+msgstr "利用許諾撤回の削除"
+
+# original: ユーザが事前に承諾したサービス使用許諾ドキュメントの承諾を破棄すると、ユーザのアカウント削除につながります。
+msgctxt "tos"
+msgid "tos_withdrawal_usr_deletion_desc"
+msgstr "ユーザが事前に承諾したサービス使用許諾ドキュメントの承諾を破棄すると、ユーザのアカウント削除につながります。"
