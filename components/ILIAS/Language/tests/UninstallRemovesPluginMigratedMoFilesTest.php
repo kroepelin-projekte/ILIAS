@@ -29,9 +29,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
  * Covers ilPluginLanguage::uninstall()'s overlay-file cleanup - the plugin-level counterpart to
- * ilObjLanguage::removeMigratedMoFiles() (see UninstallRemovesMigratedMoFilesTest.php and
- * components/ILIAS/Language/tools/po-migration/README.md, "Dieselbe Lücke bei der
- * Plugin-Deinstallation").
+ * ilObjLanguage::removeMigratedMoFiles() (see UninstallRemovesMigratedMoFilesTest.php).
  *
  * Before this, uninstalling a plugin only ever deleted its lng_data/lng_modules rows via raw SQL - a
  * migrated plugin's compiled overlay .po/.mo files (for every language it ships) were left completely
@@ -107,7 +105,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 
     /**
      * Seeds only the SHIPPED `.po` file for a throwaway module/language - never a shipped `.mo`, which
-     * the current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * the current design never writes at all. Returns the
      * LanguageFileDirectory that makes it discoverable the same way a real ComponentLanguageFileDirectory
      * contribution would.
      */

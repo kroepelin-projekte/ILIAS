@@ -41,8 +41,7 @@ use PHPUnit\Framework\TestCase;
  * Uses a throwaway fixture module, exactly like PoMigrationWriteBackTest.php - never real pilot
  * (tos) data.
  *
- * Two independent roots are used throughout, mirroring the production split (see
- * tools/po-migration/README.md, "Overlay: Installations-eigene `.po`/`.mo`-Dateien"):
+ * Two independent roots are used throughout, mirroring the production split:
  * - $this->fixture_directory (rooted so it resolves under ILIAS_ABSOLUTE_PATH) holds the SHIPPED
  *   `.po`/`.mo` pair - written once by seedFixtureModule(), and MigratedLanguageFileSync must never
  *   write to it again, ever, after this class' own constructor-time setup.
@@ -408,9 +407,8 @@ class MigratedLanguageFileSyncTest extends TestCase
     }
 
     /**
-     * Core overlay-continuity guarantee (see tools/po-migration/README.md, "Overlay": "danach dient
-     * jeweils das Overlay selbst ... als Ausgangspunkt für den nächsten Sync"): once an overlay
-     * exists, every following sync() must read FROM THE OVERLAY, never from the shipped `.po` again -
+     * Core overlay-continuity guarantee: once an overlay exists, every following sync() must read
+     * FROM THE OVERLAY, never from the shipped `.po` again -
      * otherwise an already-set "local_change" timestamp for one identifier would be spuriously
      * refreshed just because a sync() call touched a different identifier of the same module/language.
      *

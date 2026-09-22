@@ -64,6 +64,13 @@ class ilCachedLanguage implements Request
 
     /**
      * Return whether the global cache is active
+     *
+     * Hardcoded true: this.cached_modules is therefore populated from lng_modules on every real
+     * ilLanguage instantiation, unconditionally. That is why ilLanguage::loadLanguageModule() must
+     * check a migrated module's PO/MO overlay *before* consulting cached_modules, not after - the
+     * DB-backed cache this method gates would otherwise always win for a migrated module, silently
+     * hiding the overlay content. Verified live as a real bug during the PO/MO pilot; do not reorder
+     * that check without understanding this dependency.
      */
     public function isActive(): bool
     {

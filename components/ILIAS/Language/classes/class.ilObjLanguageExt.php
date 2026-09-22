@@ -103,6 +103,10 @@ class ilObjLanguageExt extends ilObjLanguage
     /**
     * Get all remarks from the database
     *
+    * DB-only, unlike the value getters below: a migrated module's PO overlay has no "remarks"
+    * equivalent (see _getRemarks()'s docblock) - remarks for a migrated module are therefore always
+    * missing here, not merely stale.
+    *
     * Return array  module.separator.topic => remark
     */
     public function getAllRemarks(): array
@@ -111,7 +115,9 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-    * Get all values from the database
+    * Get all values from the database - and, for a module migrated to the PO/MO pilot, from its
+    * overlay instead (see _getValues()'s docblock below); "the database" is only accurate for a
+    * module that hasn't migrated yet.
     *
     * $a_modules       list of modules
     * $a_pattern       search pattern
@@ -125,8 +131,9 @@ class ilObjLanguageExt extends ilObjLanguage
 
 
     /**
-    * Get only the changed values from the database
-    * which differ from the original language file.
+    * Get only the changed values from the database - and, for a module migrated to the PO/MO pilot,
+    * from its overlay instead (see _getValues()'s docblock) - which differ from the original
+    * language file.
     *
     * $a_modules       list of modules
     * $a_pattern       search pattern
@@ -140,8 +147,9 @@ class ilObjLanguageExt extends ilObjLanguage
 
 
     /**
-    * Get only the unchanged values from the database
-    * which are equal to the original language file.
+    * Get only the unchanged values from the database - and, for a module migrated to the PO/MO
+    * pilot, from its overlay instead (see _getValues()'s docblock) - which are equal to the
+    * original language file.
     *
     * Return array    module.separator.topic => value
     */
@@ -151,7 +159,8 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-    * Get only the entries which don't exist in the global language file
+    * Get only the entries which don't exist in the global language file - read the same way as
+    * getAllValues() (DB, or a migrated module's overlay - see _getValues()'s docblock)
     *
     * $a_modules       list of modules
     * $a_pattern       search pattern
@@ -169,7 +178,8 @@ class ilObjLanguageExt extends ilObjLanguage
 
 
     /**
-    * Get all values from the database for wich the global language file has a comment.
+    * Get all values for which the global language file has a comment - read the same way as
+    * getAllValues() (DB, or a migrated module's overlay - see _getValues()'s docblock)
     *
     * Note: This function checks the comments in the globel lang file,
     *       not the remarks in the database!
@@ -190,7 +200,8 @@ class ilObjLanguageExt extends ilObjLanguage
 
 
     /**
-    * Get the local values merged into the values of the global language file
+    * Get the local values merged into the values of the global language file - read the same way as
+    * getAllValues() (DB, or a migrated module's overlay - see _getValues()'s docblock)
     *
     * The returned array contains:
     * 1. all entries that exist globally, with their local values,
@@ -211,6 +222,9 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get the local remarks merged into the remarks of the global language file
+    *
+    * DB-only, same caveat as getAllRemarks(): a migrated module has no remarks to contribute here
+    * (see _getRemarks()'s docblock).
     *
     * The returned array contains:
     * 1. all remarks that exist globally, with their local values,
@@ -253,8 +267,8 @@ class ilObjLanguageExt extends ilObjLanguage
         // Only "delete" wipes lng_data/lng_modules for the whole language up front, independently of
         // what the imported file actually contains - see below. The other three modes never remove a
         // module's DB row without _saveValues() also (re-)writing it from $to_save in the same request,
-        // so they can never drift from a migrated module's .po/.mo mirror (see
-        // tools/po-migration/README.md); only "delete" needed the modules-before snapshot at all.
+        // so they can never drift from a migrated module's .po/.mo mirror; only "delete" needed the
+        // modules-before snapshot at all.
         $modules_before_delete = ($a_mode_existing === "delete") ? self::_getModules($this->key) : [];
 
         switch ($a_mode_existing) {
@@ -385,9 +399,9 @@ class ilObjLanguageExt extends ilObjLanguage
             $modules[] = $rec["module"];
         }
 
-        // A migrated module (see tools/po-migration/README.md) is included even if - unlike today's
-        // dual-write guarantee - lng_data ever stopped holding a row for it: its .po/.mo file is now
-        // its authoritative source, independent of lng_data's content.
+        // A migrated module is included even if - unlike today's dual-write guarantee - lng_data
+        // ever stopped holding a row for it: its .po/.mo file is now its authoritative source,
+        // independent of lng_data's content.
         if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             $migrated_modules = MigratedLanguageFileSync::getMigratedModules(
                 $DIC[LanguageFileDirectoryManager::class],
@@ -404,6 +418,11 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get all remarks of a language
+    *
+    * Always reads lng_data, unlike _getValues()/_getModules() below - deliberately not extended to
+    * a migrated module's PO overlay: a free-text remark has no representation in the .po format the
+    * overlay uses, so there is simply no file-based source to read it from. A migrated module
+    * therefore never contributes a remark here, dual-write or not.
     *
     * $a_lang_key          language key
     * $a_all_changed       include empty remarks for local changes
@@ -456,9 +475,9 @@ class ilObjLanguageExt extends ilObjLanguage
         $ilDB = $DIC->database();
         $lng = $DIC->language();
 
-        // Migrated modules (see tools/po-migration/README.md) are read from their .po file, not
-        // lng_data - it is now their authoritative source, exactly matching what ilLanguage::txt()
-        // itself would serve for them. Every filter below ($a_topics/$a_pattern/$a_state) is
+        // Migrated modules are read from their .po file, not lng_data - it is now their
+        // authoritative source, exactly matching what ilLanguage::txt() itself would serve for
+        // them. Every filter below ($a_topics/$a_pattern/$a_state) is
         // re-applied in PHP against this file-sourced data, mirroring the SQL WHERE clauses further
         // down for the still DB-backed, non-migrated modules.
         $migrated_values = [];
@@ -504,10 +523,9 @@ class ilObjLanguageExt extends ilObjLanguage
             " lang_key = " . $ilDB->quote($a_lang_key, "text") . " ";
 
         if ($migrated_modules_found !== []) {
-            // Excluded entirely, not merely overridden below: lng_data still holds a dual-written copy
-            // of a migrated module's row (see "Schreibpfad" in the README), but it must not also
-            // surface here and produce a duplicate, stale-if-ever-diverged entry alongside the
-            // file-sourced one above.
+            // Excluded entirely, not merely overridden below: lng_data still holds a dual-written
+            // copy of a migrated module's row, but it must not also surface here and produce a
+            // duplicate, stale-if-ever-diverged entry alongside the file-sourced one above.
             $q .= " AND " . $ilDB->in("module", $migrated_modules_found, true, "text");
         }
         if (is_array($a_modules) && count($a_modules) > 0) {

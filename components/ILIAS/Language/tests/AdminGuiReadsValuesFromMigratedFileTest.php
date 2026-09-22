@@ -29,8 +29,7 @@ use Gettext\Translation;
 use Gettext\Translations;
 
 /**
- * Covers the admin-GUI read side of the PO/MO pilot (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Admin-GUI-Lesestellen"):
+ * Covers the admin-GUI read side of the PO/MO pilot:
  * ilObjLanguageExt::_getValues()/_getModules() - which back the "Sprachvariablen anpassen" table - now
  * read a migrated module's value from its `.po` file instead of `lng_data`, which is no longer
  * authoritative for it even though it is still dual-written. lng_data remains the sole source for
@@ -56,10 +55,8 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         }
         // The read side (MigratedLanguageFileSync::loadModuleTranslations()/getMigratedModules(), and
         // ilObjLanguageExt's admin-GUI methods that call them) now resolves a migrated module's
-        // OVERLAY location from CLIENT_DATA_DIR - never from ILIAS_ABSOLUTE_PATH - see
-        // components/ILIAS/Language/tools/po-migration/README.md, "Overlay: Installations-eigene
-        // `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so this is guarded exactly like
-        // ILIAS_ABSOLUTE_PATH above.
+        // OVERLAY location from CLIENT_DATA_DIR - never from ILIAS_ABSOLUTE_PATH. A PHP constant
+        // cannot be redefined, so this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
         }

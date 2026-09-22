@@ -24,10 +24,10 @@ use DateTimeImmutable;
 use Gettext\Translation;
 
 /**
- * PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md, "Schreibpfad"): tracks,
- * per entry, whether the current value still matches the one shipped in the reference `.lang` file at
- * migration time - the same distinction `lng_data.local_change`/`remarks` draws against the DB's
- * merged default, now carried on the entry itself instead of in a separate table.
+ * PO/MO pilot: tracks, per entry, whether the current value still matches the one shipped in the
+ * reference `.lang` file at migration time - the same distinction `lng_data.local_change`/`remarks`
+ * draws against the DB's merged default, now carried on the entry itself instead of in a separate
+ * table.
  *
  * Stored as plain gettext translator comments (`# ...`), the only place this can live: the compiled
  * `.mo` format has no comment section at all, so this metadata is `.po`-only, exactly mirroring the

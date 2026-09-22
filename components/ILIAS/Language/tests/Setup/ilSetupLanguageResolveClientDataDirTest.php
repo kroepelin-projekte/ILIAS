@@ -23,8 +23,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Focused unit coverage for ilSetupLanguage::resolveClientDataDir() (private) - the Setup-context,
  * constant-free equivalent of the CLIENT_DATA_DIR global constant (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Overlay: Installations-eigene
- * `.po`/`.mo`-Dateien", and ILIAS\Setup\Objective\ClientIdReadObjective for the production logic this
+ * ILIAS\Setup\Objective\ClientIdReadObjective for the production logic this
  * mirrors without depending on a Setup\Environment).
  *
  * ilSetupLanguage's constructor always computes its own $absolute_path via realpath() relative to this

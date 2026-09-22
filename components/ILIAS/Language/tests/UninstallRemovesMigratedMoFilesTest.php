@@ -30,9 +30,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
  * Covers ilObjLanguage::removeMigratedMoFiles() - the overlay-file counterpart to uninstall()'s DB-side
- * flush() for every module migrated to the PO/MO pilot (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Deinstallation entfernt automatisch die
- * Overlay-Dateien").
+ * flush() for every module migrated to the PO/MO pilot.
  *
  * Without this method, uninstalling a language left a migrated module's compiled overlay .po/.mo pair
  * completely untouched: lng_data/lng_modules are gone and the language shows "not_installed" in
@@ -43,9 +41,9 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
  * Under the current design, the SHIPPED `.po` (e.g. components/ILIAS/TermsOfService/lang/tos_de.po) is
  * written exactly once, by tools/po-migration/convert_module_to_po.php, and never again - there is no
  * shipped `.mo` at all any more. Every actual read/write goes through a per-installation "overlay"
- * `.po`+`.mo` pair under CLIENT_DATA_DIR, mirroring the shipped file's own relative location (see the
- * README's "Overlay: Installations-eigene `.po`/`.mo`-Dateien"). removeMigratedMoFiles() therefore now
- * removes BOTH overlay files together via MigratedLanguageFileSync::removeOverlay() - unlike the old
+ * `.po`+`.mo` pair under CLIENT_DATA_DIR, mirroring the shipped file's own relative location.
+ * removeMigratedMoFiles() therefore now removes BOTH overlay files together via
+ * MigratedLanguageFileSync::removeOverlay() - unlike the old
  * removeMoFile() (which removed only the .mo, deliberately leaving the then-precious shipped .po alone) -
  * and must leave the shipped .po (which was never written to begin with) completely untouched.
  *
@@ -114,7 +112,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
     /**
      * Seeds only the SHIPPED `.po` file for a throwaway module - never a shipped `.mo`, which the
-     * current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * current design never writes at all. Returns the
      * LanguageFileDirectory that makes it discoverable the same way a real ComponentLanguageFileDirectory
      * contribution would.
      *

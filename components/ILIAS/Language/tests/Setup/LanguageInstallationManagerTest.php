@@ -1084,9 +1084,9 @@ class LanguageInstallationManagerTest extends TestCase
 
     /**
      * Regression coverage for the PO/MO write-back mirroring added to insertLanguage() (see its
-     * docblock and tools/po-migration/README.md, "Bekannte Grenzen"): a new/changed value read from a
-     * migrated module's *.lang file during installation must also land in that module's .po/.mo files,
-     * not just in lng_modules - otherwise ilLanguage::txt() (which prefers the migrated file) would
+     * docblock): a new/changed value read from a migrated module's *.lang file during installation
+     * must also land in that module's .po/.mo files, not just in lng_modules - otherwise
+     * ilLanguage::txt() (which prefers the migrated file) would
      * never show it.
      */
     public function testInsertLanguageForInstallationSyncsNewLangFileValueIntoMigratedPoAndMoFiles(): void
@@ -1265,8 +1265,7 @@ class LanguageInstallationManagerTest extends TestCase
      * The counterpart to the test above: InstallLanguage (a genuine, first-time install - see
      * ILIAS\Language\Activities\InstallLanguage::perform()) passes $create_missing_mo = true, which
      * must compile a still-missing .mo from the module's shipped .po - this is the only place that
-     * ever creates a migrated module's .mo file now that convert_module_to_po.php no longer does (see
-     * tools/po-migration/README.md).
+     * ever creates a migrated module's .mo file now that convert_module_to_po.php no longer does.
      */
     public function testInsertLanguageForInstallationCreatesMissingMoFileWhenBootstrapping(): void
     {

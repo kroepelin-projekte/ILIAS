@@ -32,7 +32,7 @@ use Gettext\Translations;
 /**
  * Covers ilObjLanguage::resetMigratedLocalChanges() - the .po/.mo counterpart to
  * removeLocalChanges()'s DB-side flush("all") + insertLanguageForRemovingLocalChanges() for every
- * module migrated to the PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md).
+ * module migrated to the PO/MO pilot.
  *
  * Without this method, "Lokale Änderungen entfernen" left a migrated module's .po/.mo files
  * completely untouched: the DB looked clean, but ilLanguage::txt() reads a migrated module's .mo
@@ -77,8 +77,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
     /**
      * ilObjLanguage::resetMigratedLocalChanges() resolves its .po/.mo location via its
      * $client_data_dir parameter now, exactly like ilLanguage::migratedOverlayMoFile() does for
-     * reading (see class.ilObjLanguage.php and tools/po-migration/README.md, "Overlay:
-     * Installations-eigene `.po`/`.mo`-Dateien") - never via ILIAS_ABSOLUTE_PATH any more.
+     * reading - never via ILIAS_ABSOLUTE_PATH any more.
      *
      * seedFixtureModule() below writes the fixture's .po/.mo pair into a bare temp directory
      * ($this->fixture_directory), not literally under a CLIENT_DATA_DIR tree - this creates a single

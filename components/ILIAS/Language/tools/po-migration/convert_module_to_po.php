@@ -19,8 +19,7 @@
 declare(strict_types=1);
 
 /**
- * Pilot conversion tool for the PO/MO migration (see
- * components/ILIAS/Language/tools/po-migration/README.md).
+ * Pilot conversion tool for the PO/MO migration.
  *
  * Reads the legacy `lang/ilias_<lang>.lang` files for one ILIAS language module and emits, via the
  * `gettext/gettext` + `gettext/languages` Composer packages already vendored in this project:

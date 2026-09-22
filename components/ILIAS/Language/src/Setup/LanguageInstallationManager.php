@@ -261,7 +261,7 @@ class LanguageInstallationManager
      * "remove local changes" needs for a migrated module too - including a case the caller's own
      * follow-up step, ilObjLanguage::removeLocalChanges()'s resetMigratedLocalChanges(), cannot
      * handle by itself. resetMigratedLocalChanges() only resets entries that carry an "original"
-     * comment (the value shipped at migration time, see tools/po-migration/README.md); an entry
+     * comment (the value shipped at migration time); an entry
      * added *after* migration via "add new variable" never has one, so it would survive a "remove
      * local changes" pass forever if this method's generic sync were skipped - the DB row for it is
      * gone (flush("all") + this method's empty customizing seed dropped it), but the .po/.mo file,
@@ -334,11 +334,10 @@ class LanguageInstallationManager
      * own name).
      *
      * After writing lng_modules, also mirrors the final per-module content into a PO/MO pilot
-     * module's .po/.mo files too (see tools/po-migration/README.md, "Schreibpfad-Lücken
-     * (geschlossen)": until this was added, an install/update never touched a migrated module's
-     * files at all, so a new/changed key added only to the .lang file would land in lng_modules but
-     * stay invisible to ilLanguage::txt(), which reads the stale .mo file first for a migrated
-     * module). $lang_array is exactly the same complete, final identifier => value map per module
+     * module's .po/.mo files too: until this was added, an install/update never touched a migrated
+     * module's files at all, so a new/changed key added only to the .lang file would land in
+     * lng_modules but stay invisible to ilLanguage::txt(), which reads the stale .mo file first for
+     * a migrated module. $lang_array is exactly the same complete, final identifier => value map per module
      * that the lng_modules INSERT below uses - the exact shape MigratedLanguageFileSync::sync()
      * expects, mirroring replaceLangModule()'s contract. All three callers above want this: even
      * insertLanguageForRemovingLocalChanges() needs it, since its own DB-side "remove local

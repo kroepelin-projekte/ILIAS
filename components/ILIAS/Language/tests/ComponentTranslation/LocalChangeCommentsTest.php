@@ -24,8 +24,7 @@ use Gettext\Translation;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Covers the PO/MO pilot's "locally changed" tracking (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Schreibpfad"): the DB-backed scheme's
+ * Covers the PO/MO pilot's "locally changed" tracking: the DB-backed scheme's
  * lng_data.local_change/remarks, reimplemented as plain gettext translator comments so it works
  * without lng_data at all. Pure unit tests of the comment bookkeeping itself, isolated from
  * ilObjLanguage::syncMigratedLanguageFile() (covered end-to-end in PoMigrationWriteBackTest.php).

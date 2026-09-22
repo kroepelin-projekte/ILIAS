@@ -34,6 +34,16 @@ namespace ILIAS\Language\ComponentTranslation;
  * The prefix is the component-prefix (e.g. "file") and the path to return is a relative to the Component-Directory,
  * `lang/` in most cases. The files there must follow the same rules as the global language files exept for the prefix.
  * Global langauge variables consists of three parts, Component files only of two (like Plugins did before).
+ *
+ * A contributed ComponentLanguageFileDirectory now also has a second, unrelated meaning: it is how a
+ * module opts into the PO/MO migration pilot (see MigratedLanguageFileSync and ilLanguage's
+ * loadFromMigratedLanguageFile()). For a module that took this route (e.g. TermsOfService
+ * contributing prefix "tos"), getPath() no longer
+ * only locates that module's legacy `ilias_<lang>.lang` file - it also locates its shipped `<prefix>.pot`/
+ * `<prefix>_<lang>.po` files and, mirrored under CLIENT_DATA_DIR, its per-installation `<prefix>_<lang>.po`/
+ * `.mo` overlay (see MigratedLanguageFileSync). ilLanguage/MigratedLanguageFileSync resolve a migrated
+ * module purely via a contributed directory's getPrefix() - the same directory object serves both the old
+ * `.lang` convention and the new `.po`/`.mo` one, with no separate interface or marker distinguishing them.
  */
 interface LanguageFileDirectory
 {

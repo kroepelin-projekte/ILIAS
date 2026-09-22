@@ -28,14 +28,18 @@ use Gettext\Translator;
  * language handling
  *
  * this class offers the language handling for an application.
- * it works initially on one file: languages.txt
- * from this file the class can generate many single language files.
  * the constructor is called with a small language abbreviation
  * e.g. $lng = new Language("en");
- * the constructor reads the single-languagefile en.lang and puts this into an array.
  * with
  * e.g. $lng->txt("user_updated");
  * you can translate a lang-topic into the actual language
+ *
+ * Two coexisting backends per module: the legacy DB tables lng_data/lng_modules (still the
+ * fallback for every not-yet-migrated module, and read by default), and - for a module that
+ * contributed a LanguageFileDirectory and has a compiled overlay .mo for the requested language -
+ * a file-based overlay under CLIENT_DATA_DIR (see loadFromMigratedLanguageFile() below), which then
+ * takes priority over the DB. The DB path exists to be fully replaced and eventually removed as
+ * more modules migrate onto the file-based one, not to be maintained forever alongside it.
  *
  * @author Peter Gabriel <pgabriel@databay.de>
  * @version $Id$
@@ -273,9 +277,9 @@ class ilLanguage implements \ILIAS\Language\Language
             $lang_key = $this->lang_user;
         }
 
-        // PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md): a module whose
-        // owning component contributes a LanguageFileDirectory for $a_module, and that actually has a
-        // compiled .mo file for $lang_key sitting there, is read from that .mo instead of lng_modules.
+        // PO/MO pilot: a module whose owning component contributes a LanguageFileDirectory for
+        // $a_module, and that actually has a compiled .mo file for $lang_key sitting there, is read
+        // from that .mo instead of lng_modules.
         // Modules that haven't been migrated yet (no contribution, or no .mo present for this
         // language) fall through to the unchanged DB/cache path below. This check must run before the
         // cached_modules check: ilCachedLanguage::isActive() is hard-coded to true, so cached_modules
@@ -355,8 +359,7 @@ class ilLanguage implements \ILIAS\Language\Language
             ) {
                 $this->log->warning(sprintf(
                     'Language key collision: identifier "%s" is defined by both module "%s" and'
-                    . ' module "%s" - the value from "%s" now wins for txt("%s") (see'
-                    . ' components/ILIAS/Language/tools/po-migration/README.md, "Uniqueness").',
+                    . ' module "%s" - the value from "%s" now wins for txt("%s").',
                     $topic,
                     $existing_module,
                     $a_module,
@@ -510,8 +513,7 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
-     * The read-side counterpart to MigratedLanguageFileSync's overlay path (see that class' docblock,
-     * and tools/po-migration/README.md, "Overlay: Installations-eigene `.mo`/`.po`-Dateien"): a
+     * The read-side counterpart to MigratedLanguageFileSync's overlay path (see that class' docblock): a
      * migrated module's compiled `.mo` lives under CLIENT_DATA_DIR, never in the git-tracked component
      * tree the shipped `.po` ships in - so this, not ILIAS_ABSOLUTE_PATH, is what txt()/ntxt() actually
      * read from at runtime. Returns `null` (never falls back to the shipped path) when the module
@@ -567,8 +569,8 @@ class ilLanguage implements \ILIAS\Language\Language
 
     public static function _lookupEntry(string $a_lang_key, string $a_mod, string $a_id): string
     {
-        // PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md): same migrated
-        // .mo lookup as loadLanguageModule(), extended to this static, DB-based (lng_data) sibling
+        // PO/MO pilot: same migrated .mo lookup as loadLanguageModule(), extended to this static,
+        // DB-based (lng_data) sibling
         // used by txtlng() and txt()'s fallback-module branch. Falls through to lng_data unchanged
         // when the module isn't migrated, has no .mo for $a_lang_key, or doesn't have this $a_id.
         $migrated = self::loadFromMigratedLanguageFile($a_mod, $a_lang_key);

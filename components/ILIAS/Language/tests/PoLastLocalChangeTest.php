@@ -29,11 +29,10 @@ use Gettext\Translations;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
- * Covers ilObjLanguage::_getLastLocalChange()'s new PO/MO-aware behavior (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Lokale Änderungen nachvollziehen"): a
- * migrated module's OVERLAY .po file (rooted under CLIENT_DATA_DIR, see "Overlay:
- * Installations-eigene `.po`/`.mo`-Dateien") can carry a local_change that lng_data.local_change never
- * sees at all (direct .po edit, or any future tool bypassing replaceLangModule()'s DB dual-write). The
+ * Covers ilObjLanguage::_getLastLocalChange()'s new PO/MO-aware behavior: a
+ * migrated module's OVERLAY .po file (rooted under CLIENT_DATA_DIR) can carry a local_change that
+ * lng_data.local_change never sees at all (direct .po edit, or any future tool bypassing
+ * replaceLangModule()'s DB dual-write). The
  * overview admin table ("Sprachen" -> "Letzte Änderung") must not silently ignore that.
  * _getLastMigratedLocalChange() reads exclusively from that CLIENT_DATA_DIR-rooted overlay location -
  * never from the shipped, git-tracked `.po` under ILIAS_ABSOLUTE_PATH - so every fixture below is
@@ -61,8 +60,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
         // ilObjLanguage::_getLastMigratedLocalChange() resolves a migrated module's overlay `.po` under
-        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH - see tools/po-migration/README.md,
-        // "Overlay: Installations-eigene `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so
+        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so
         // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');

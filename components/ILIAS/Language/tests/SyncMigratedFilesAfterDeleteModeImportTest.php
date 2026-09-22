@@ -38,14 +38,13 @@ use Gettext\Translations;
  * anything: it independently syncs every module the language previously had any lng_data row for,
  * unioned with every module actually present in $to_save, each with exactly the entries $to_save just
  * wrote back for it (or an empty map for a module the imported file did not mention at all) -
- * "replace" semantics, matching every other write path. Without this method, a migrated module (see
- * tools/po-migration/README.md) would keep serving stale/orphaned values forever via ilLanguage's
+ * "replace" semantics, matching every other write path. Without this method, a migrated module
+ * would keep serving stale/orphaned values forever via ilLanguage's
  * migrated-file read path after a "delete"-mode import, regardless of whether the imported file
  * mentioned it or not.
  *
  * Under the current design, the sync targets the per-installation OVERLAY `.po`/`.mo` pair under
- * CLIENT_DATA_DIR - never the SHIPPED `.po` (written exactly once by the conversion tool, see
- * tools/po-migration/README.md, "Overlay: Installations-eigene `.po`/`.mo`-Dateien"). The method passes
+ * CLIENT_DATA_DIR - never the SHIPPED `.po` (written exactly once by the conversion tool). The method passes
  * $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null as MigratedLanguageFileSync::
  * sync()'s trailing argument, with $create_missing_mo = false (an import is not an install) - so every
  * test that expects a real write needs an already-compiled overlay .mo to update, exactly like an
@@ -123,7 +122,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
     /**
      * Seeds only the SHIPPED `.po` file for a throwaway module - never a shipped `.mo`, which the
-     * current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * current design never writes at all. Returns the
      * LanguageFileDirectory that makes it discoverable.
      *
      * @param array<string, string> $entries identifier => value

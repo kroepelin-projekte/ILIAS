@@ -28,16 +28,15 @@ use Gettext\Translation;
 use Gettext\Translations;
 
 /**
- * Covers the PO/MO pilot's addition to ilLanguage::loadLanguageModule() (see
- * components/ILIAS/Language/tools/po-migration/README.md): a module whose owning component
- * contributes a LanguageFileDirectory, and that has a compiled .mo file for the requested language,
- * is read from that .mo file instead of lng_modules - everything else falls through unchanged.
+ * Covers the PO/MO pilot's addition to ilLanguage::loadLanguageModule(): a module whose owning
+ * component contributes a LanguageFileDirectory, and that has a compiled .mo file for the requested
+ * language, is read from that .mo file instead of lng_modules - everything else falls through
+ * unchanged.
  *
  * Uses TermsOfService's real, already-contributed 'tos' directory and its already-compiled .mo
  * files - the pilot script itself only ever produces the .pot/.po files (a real installation
- * compiles the .mo from those, see MigratedLanguageFileSync::sync() and
- * tools/po-migration/README.md) - so this also doubles as a regression test for that contribution
- * staying wired up.
+ * compiles the .mo from those, see MigratedLanguageFileSync::sync()) - so this also doubles as a
+ * regression test for that contribution staying wired up.
  */
 class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
 {
@@ -49,10 +48,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
         // ilLanguage::migratedOverlayMoFile() resolves a migrated module's compiled `.mo` under
-        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH - see
-        // components/ILIAS/Language/tools/po-migration/README.md, "Overlay: Installations-eigene
-        // `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so this is guarded exactly like
-        // ILIAS_ABSOLUTE_PATH above.
+        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so
+        // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
         }
@@ -92,14 +89,14 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
 
     /**
      * The pilot script (convert_module_to_po.php) only ever produces .pot/.po - the compiled .mo is a
-     * runtime artifact created when a language is installed (see MigratedLanguageFileSync::sync() and
-     * tools/po-migration/README.md), not something shipped in the repository. The tests below read
+     * runtime artifact created when a language is installed (see MigratedLanguageFileSync::sync()),
+     * not something shipped in the repository. The tests below read
      * TermsOfService's real, already-contributed 'tos' directory directly (not through the
      * install/Setup machinery), so they compile tos_de.mo themselves here - exactly mirroring what a
      * real installation of 'de' would produce from the real (shipped, git-tracked) tos_de.po, but at
      * the OVERLAY location under CLIENT_DATA_DIR, which is what ilLanguage::migratedOverlayMoFile()
      * actually reads at runtime - never the shipped, git-tracked directory itself (see that method's
-     * docblock and tools/po-migration/README.md, "Overlay: Installations-eigene `.po`/`.mo`-Dateien").
+     * docblock).
      * Cleaned back up in tearDown() so no test ever leaves a compiled artifact behind, under either
      * location.
      */

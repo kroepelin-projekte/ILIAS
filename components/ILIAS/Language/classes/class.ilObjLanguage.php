@@ -297,10 +297,10 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-     * The overlay counterpart to flush() above, for every module migrated to the PO/MO pilot (see
-     * tools/po-migration/README.md, "Rollback"). Without this, uninstalling a language left a migrated
-     * module's compiled overlay .mo/.po completely untouched on disk: the DB-backed lng_data/lng_modules
-     * rows are gone and the language shows "not_installed", but ilLanguage::txtlng() never checks
+     * The overlay counterpart to flush() above, for every module migrated to the PO/MO pilot. Without
+     * this, uninstalling a language left a migrated module's compiled overlay .mo/.po completely
+     * untouched on disk: the DB-backed lng_data/lng_modules rows are gone and the language shows
+     * "not_installed", but ilLanguage::txtlng() never checks
      * whether its $lang_key argument is actually installed before reading a migrated module's overlay
      * .mo file - it would keep serving the now-stale, uninstalled content forever.
      *
@@ -452,6 +452,13 @@ class ilObjLanguage extends ilObject
 
     /**
     * get locally changed language entries
+    *
+    * Reads lng_data only - unlike _getLastLocalChange() below, this is not merged with a migrated
+    * module's PO overlay local_change data. Correct today only because lng_data is still
+    * dual-written for every migrated module as a rollback safeguard (see replaceLangModule()'s
+    * docblock); once that DB write is ever dropped for a migrated module - the stated long-term goal
+    * - this would silently stop reporting that module's local changes.
+    *
     * $a_min_date    minimum change date "yyyy-mm-dd hh:mm:ss"
     * $a_max_date    maximum change date "yyyy-mm-dd hh:mm:ss"
     * Return array       [module][identifier] => value
@@ -524,8 +531,8 @@ class ilObjLanguage extends ilObject
 
     /**
      * Get the most recent "local_change" timestamp across every migrated module's overlay .po file for
-     * a language (see tools/po-migration/README.md, "Lokale Änderungen nachvollziehen") - the overlay
-     * equivalent of MAX(lng_data.local_change) for a module that is still backed by the DB.
+     * a language - the overlay equivalent of MAX(lng_data.local_change) for a module that is still
+     * backed by the DB.
      *
      * $a_key          language key
      * Return   ?string      most recent local_change in "Y-m-d H:i:s" (DB format), or null if no
@@ -581,6 +588,13 @@ class ilObjLanguage extends ilObject
 
     /**
      * Get the local changes of a language module
+     *
+     * Reads lng_data only, same caveat as getLocalChanges() above: correct today only because
+     * lng_data is still dual-written for a migrated module (see replaceLangModule()'s docblock).
+     * Used by ilPluginLanguage::updateLanguages() to preserve local changes across an update - for a
+     * migrated plugin module, that write path stays correct only as long as this DB dual-write does
+     * too.
+     *
      * $a_key          Language key
      * $a_module       Module key
      * Return array    identifier => value
@@ -655,9 +669,9 @@ class ilObjLanguage extends ilObject
 
     /**
      * The overlay counterpart to flush("all") + insertLanguageForRemovingLocalChanges() above, for
-     * every module migrated to the PO/MO pilot (see tools/po-migration/README.md). Without this, a
-     * migrated module's overlay .po/.mo files were left completely untouched by "remove local
-     * changes": the DB-backed edit table would look clean (lng_data/lng_modules were just wiped and
+     * every module migrated to the PO/MO pilot. Without this, a migrated module's overlay .po/.mo
+     * files were left completely untouched by "remove local changes": the DB-backed edit table would
+     * look clean (lng_data/lng_modules were just wiped and
      * reinstalled), but ilLanguage::txt() reads a migrated module's overlay .mo file, not the DB, so
      * it would keep serving the stale, locally-changed value - and the "Letzte Änderung" column (see
      * _getLastMigratedLocalChange()) would keep showing the old timestamp, correctly revealing that
@@ -759,8 +773,21 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-    * Replace language module array
-    */
+     * Replace language module array
+     *
+     * The central write path for a module's language data: every admin-GUI edit, "add new variable",
+     * local-change delete and ilPluginLanguage update ends up here. Fully rewrites the lng_modules
+     * row for $a_module/$a_key with $a_array, and - via syncMigratedLanguageFile() below -
+     * dual-writes the exact same content into a migrated module's PO/MO overlay, so lng_data/
+     * lng_modules and the overlay never drift apart for the modules that opted into the pilot.
+     * lng_data/lng_modules remain the write target that never gets skipped: they stay the
+     * rollback-safe source of truth while the PO/MO pilot is still proving itself, not because they
+     * are meant to remain the permanent store.
+     *
+     * Declared final per the FR ("PO-Files for improving language handling") this pilot implements -
+     * its signature only transports identifier => value, no per-entry reason text (unlike
+     * replaceLangEntry()'s $a_remarks); do not widen it to carry one.
+     */
     final public static function replaceLangModule(string $a_key, string $a_module, array $a_array): void
     {
         global $DIC;
@@ -809,8 +836,7 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-     * Mirrors a migrated module's PO/MO files (see
-     * components/ILIAS/Language/tools/po-migration/README.md) after replaceLangModule() rewrote the
+     * Mirrors a migrated module's PO/MO files after replaceLangModule() rewrote the
      * lng_modules row for $a_module/$a_key - the DB write above is never skipped (it stays the
      * rollback-safe source of truth); this only keeps the file-based copy that ilLanguage reads from
      * in sync for modules that opted into the pilot. $a_array is the exact same complete
@@ -822,8 +848,8 @@ class ilObjLanguage extends ilObject
      * that hasn't contributed a LanguageFileDirectory, or that doesn't have a compiled .mo file for
      * $a_key yet; this never creates a new migrated module or a new language on its own. Gated on the
      * .mo file specifically (not just the .po), matching exactly what ilLanguage's read path checks -
-     * otherwise removing only the .mo file (the pilot's "roll back one language" lever, see README)
-     * would get silently undone by the next edit, which would regenerate it from the .po that is
+     * otherwise removing only the .mo file (the pilot's "roll back one language" lever) would get
+     * silently undone by the next edit, which would regenerate it from the .po that is
      * still there. Failures are logged and swallowed rather than thrown, since the lng_data/lng_modules
      * write above already succeeded and must not be undone by a problem with the file mirror (e.g. a
      * read-only lang/ directory).

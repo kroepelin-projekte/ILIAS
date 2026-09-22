@@ -29,14 +29,12 @@ use Gettext\Translation;
 use Gettext\Translations;
 
 /**
- * Covers the PO/MO pilot's write-back path (see components/ILIAS/Language/tools/po-migration/README.md):
- * ilObjLanguage::replaceLangModule() - the primitive every language-admin write (GUI edit, add new
- * variable, delete, plugin-language update) funnels through to rewrite a module's lng_modules row -
- * now also mirrors a migrated module's .po/.mo files, without ever skipping the lng_modules write
- * itself (dual-write, so the DB stays a valid rollback target).
+ * Covers the PO/MO pilot's write-back path: ilObjLanguage::replaceLangModule() - the primitive every
+ * language-admin write (GUI edit, add new variable, delete, plugin-language update) funnels through
+ * to rewrite a module's lng_modules row - now also mirrors a migrated module's .po/.mo files, without
+ * ever skipping the lng_modules write itself (dual-write, so the DB stays a valid rollback target).
  *
- * As of the overlay split (see README, "Overlay: Installations-eigene `.po`/`.mo`-Dateien"), the
- * git-tracked SHIPPED `.po`/`.mo` pair (rooted under ILIAS_ABSOLUTE_PATH, exactly where
+ * As of the overlay split, the git-tracked SHIPPED `.po`/`.mo` pair (rooted under ILIAS_ABSOLUTE_PATH, exactly where
  * convert_module_to_po.php would have written it) is never written to again by replaceLangModule() -
  * every actual write goes to a separate, per-installation OVERLAY `.po`/`.mo` pair rooted under
  * CLIENT_DATA_DIR instead (see MigratedLanguageFileSyncTest.php for the same two-root fixture
@@ -60,9 +58,9 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
-        // MigratedLanguageFileSync's overlay location (see this class' own docblock, and
-        // tools/po-migration/README.md, "Overlay") is rooted at the CLIENT_DATA_DIR constant, never
-        // at ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so this is guarded exactly like
+        // MigratedLanguageFileSync's overlay location (see this class' own docblock) is rooted at the
+        // CLIENT_DATA_DIR constant, never at ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined,
+        // so this is guarded exactly like
         // ILIAS_ABSOLUTE_PATH above - see PoMigrationLoadLanguageModuleTest.php for the same pattern.
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
@@ -274,8 +272,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * The pilot's "roll back one language" lever is removing just the overlay's .mo file (see README,
-     * "Rollback") - the overlay .po (and the shipped pair entirely) stay. If the write path only
+     * The pilot's "roll back one language" lever is removing just the overlay's .mo file - the
+     * overlay .po (and the shipped pair entirely) stay. If the write path only
      * checked for the .po, the very next admin edit would silently regenerate the .mo and undo that
      * rollback. Gating on the .mo file too (matching exactly what ilLanguage's read path checks)
      * prevents that.
@@ -390,8 +388,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
     /**
      * The flip side: writing the value back to what the conversion tool originally shipped clears the
-     * local_change marker again - the pilot's equivalent of the DB-backed scheme's "reset to default"
-     * (see README, "Schreibpfad"), without a dedicated reset action.
+     * local_change marker again - the pilot's equivalent of the DB-backed scheme's "reset to default",
+     * without a dedicated reset action.
      */
     public function testWritingBackTheOriginalValueClearsAnExistingLocalChangeTimestamp(): void
     {

@@ -68,8 +68,8 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
     /**
      * A genuine "install" (mode MODE_INSTALL, not-yet-installed language) must tell
      * LanguageInstallationManager (via ilSetupLanguage) that it may bootstrap a migrated module's
-     * still-missing .mo file - see MigratedLanguageFileSync::sync()'s docblock and
-     * tools/po-migration/README.md. UpdateLanguage deliberately does not pass this flag.
+     * still-missing .mo file - see MigratedLanguageFileSync::sync()'s docblock.
+     * UpdateLanguage deliberately does not pass this flag.
      */
     public function testFullInstallPassesCreateMissingMoTrue(): void
     {

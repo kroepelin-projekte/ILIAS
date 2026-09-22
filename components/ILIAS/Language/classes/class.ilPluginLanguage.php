@@ -160,9 +160,8 @@ class ilPluginLanguage
     }
 
     /**
-     * The overlay counterpart to the raw DB deletes above, for a plugin migrated to the PO/MO pilot
-     * (see components/ILIAS/Language/tools/po-migration/README.md, "Rollback") - analogous to
-     * ilObjLanguage::removeMigratedMoFiles(), which closes the same gap for uninstalling a whole
+     * The overlay counterpart to the raw DB deletes above, for a plugin migrated to the PO/MO pilot -
+     * analogous to ilObjLanguage::removeMigratedMoFiles(), which closes the same gap for uninstalling a whole
      * language. Without this, uninstalling a plugin left its compiled overlay .mo/.po files completely
      * untouched on disk for every language: lng_data/lng_modules are gone, but
      * ilLanguage::loadLanguageModule()/txtlng() never check whether $prefix still belongs to an
