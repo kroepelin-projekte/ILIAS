@@ -33,8 +33,10 @@ use Gettext\Translation;
  * `.mo` format has no comment section at all, so this metadata is `.po`-only, exactly mirroring the
  * pre-existing `lng_data` (has metadata) vs. `lng_modules` (flat runtime cache, no metadata) split.
  *
- * - "original" is written once, by the conversion tool, when a module is first converted from its
- *   `.lang` file - and never touched again afterward, by anything.
+ * - "original" is written once, by MigratedLanguageFileSync::sync(), when a module+language's overlay
+ *   is first created - seeded from the value the shipped `.po` (itself undecorated, see
+ *   convert_module_to_po.php) carries for that entry at that moment - and never touched again
+ *   afterward, by anything.
  * - "local_change" is maintained solely by ilObjLanguage::syncMigratedLanguageFile() on every write:
  *   present, with the write's timestamp, whenever the current value differs from "original" (or there
  *   is no "original" at all - a key added after migration never had one to begin with); absent
@@ -47,9 +49,10 @@ final class LocalChangeComments
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
 
     /**
-     * Called once by the conversion tool while building a module's initial `.po` from its `.lang`
-     * file. Deliberately does not touch "local_change": a freshly migrated entry has none, same as a
-     * freshly installed language's lng_data row has local_change IS NULL until actually edited.
+     * Called once by MigratedLanguageFileSync::sync() while seeding a module+language's overlay for
+     * the very first time, for each entry that already existed in the shipped `.po`. Deliberately does
+     * not touch "local_change": a freshly created overlay entry has none, same as a freshly installed
+     * language's lng_data row has local_change IS NULL until actually edited.
      */
     public static function setOriginal(Translation $translation, string $value): void
     {

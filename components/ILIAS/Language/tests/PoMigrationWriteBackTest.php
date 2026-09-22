@@ -94,8 +94,11 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
      * would. Never creates an overlay by itself - see bootstrapOverlayFromShipped() below.
      *
      * @param array<string, array{value: string, fuzzy?: bool, original?: string}> $entries 'original',
-     *   when given, seeds the entry exactly as convert_module_to_po.php would (see LocalChangeComments)
-     *   - omit it to simulate a key that never went through the conversion tool.
+     *   when given, seeds the entry the way it would already look in an OVERLAY that
+     *   MigratedLanguageFileSync::sync() bootstrapped from this shipped fixture at some earlier point
+     *   (see LocalChangeComments) - the shipped `.po` itself never carries this comment, only the
+     *   overlay does, once sync() has added it. Omit it to simulate a key that has no "original"
+     *   baseline at all, e.g. one added only after migration.
      */
     private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
     {

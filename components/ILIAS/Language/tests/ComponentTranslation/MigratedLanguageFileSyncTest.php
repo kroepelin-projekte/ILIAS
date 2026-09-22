@@ -103,8 +103,11 @@ class MigratedLanguageFileSyncTest extends TestCase
      *        identifier => details; 'context' defaults to $module - pass a different value to seed a
      *        translation belonging to a different module's context inside the same fixture file (see
      *        testLeavesTranslationsOfADifferentContextAloneWhenWipingAllEntries()). 'original', if
-     *        given, seeds an "original:" LocalChangeComments comment (see LocalChangeCommentsTest.php),
-     *        the value the conversion tool would have written at migration time.
+     *        given, seeds an "original:" LocalChangeComments comment (see LocalChangeCommentsTest.php)
+     *        directly into this SHIPPED fixture - a shortcut standing in for "an overlay that
+     *        sync() already bootstrapped from here earlier", since the real shipped `.po` never
+     *        carries this comment itself (only MigratedLanguageFileSync::sync() adds it, into the
+     *        overlay, the first time it seeds one from a shipped file).
      */
     private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
     {

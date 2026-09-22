@@ -42,7 +42,6 @@ use Gettext\Translation;
 use Gettext\Translations;
 use Gettext\Generator\PoGenerator;
 use Gettext\Loader\PoLoader;
-use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 
 final class LegacyLangFileParser
 {
@@ -164,10 +163,11 @@ function buildTranslations(
         if (!$isTemplate) {
             $own = $translationEntries[$key] ?? null;
             $translation->translate($own['value'] ?? '');
-            // The value this entry shipped with at migration time (see LocalChangeComments) - written
-            // once, here, and never touched again; ilObjLanguage::syncMigratedLanguageFile() diffs
-            // future writes against it to decide whether an entry counts as locally changed.
-            LocalChangeComments::setOriginal($translation, $own['value'] ?? '');
+            // Deliberately does NOT write a LocalChangeComments "original" comment: the shipped .po
+            // stays plain, undecorated translation content. "original" is instead added later, once,
+            // by MigratedLanguageFileSync::sync() when a module+language's overlay is first created -
+            // seeded from this shipped value at that moment - so the git-tracked file never carries
+            // per-installation bookkeeping that has nothing to do with the translation itself.
             $ownComment = $own['comment'] ?? null;
 
             if ($ownComment !== null && CommentClassifier::isFuzzyMarker($ownComment)) {

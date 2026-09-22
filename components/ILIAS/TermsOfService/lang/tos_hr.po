@@ -7,92 +7,75 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n % 10 == 1 && n % 100 != 11) ? 0 : ((n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 1 : 2);\n"
 "X-Domain: tos\n"
 
-# original: Terms of Service
 #, fuzzy
 msgctxt "tos"
 msgid "tos_accept_usr_agreement_anonymous"
 msgstr "Terms of Service"
 
-# original: Before you proceed to ILIAS you accept the following Terms of Service.
 #, fuzzy
 msgctxt "tos"
 msgid "tos_accept_usr_agreement_anonymous_intro"
 msgstr "Before you proceed to ILIAS you accept the following Terms of Service."
 
-# original: Samoregistracija nije moguća zbog nedostatka korisničkog sporazuma. Za dodatne informacije obratite se svom <a href="%1$s"> administratoru sustava</a>.
 msgctxt "tos"
 msgid "tos_account_reg_not_possible"
 msgstr "Samoregistracija nije moguća zbog nedostatka korisničkog sporazuma. Za dodatne informacije obratite se svom <a href=\"%1$s\"> administratoru sustava</a>."
 
-# original: ToS agreed on
 #, fuzzy
 msgctxt "tos"
 msgid "tos_agree_date"
 msgstr "ToS agreed on"
 
-# original: Uvjeti pružanja usluge
 msgctxt "tos"
 msgid "tos_agreement"
 msgstr "Uvjeti pružanja usluge"
 
-# original: Korisnički ugovori sada su onemogućeni jer su svi dokumenti izbrisani. Izradite barem jedan dokument prije ponovnog omogućavanja korisničkih sporazuma.
 msgctxt "tos"
 msgid "tos_disabled_no_docs_left"
 msgstr "Korisnički ugovori sada su onemogućeni jer su svi dokumenti izbrisani. Izradite barem jedan dokument prije ponovnog omogućavanja korisničkih sporazuma."
 
-# original: Uvjeti korištenja usluge resetirani su dana %s.
 msgctxt "tos"
 msgid "tos_last_reset_date"
 msgstr "Uvjeti korištenja usluge resetirani su dana %s."
 
-# original: Uvjeti korištenja usluge još nisu resetirani.
 msgctxt "tos"
 msgid "tos_never_reset"
 msgstr "Uvjeti korištenja usluge još nisu resetirani."
 
-# original: Trenutačno uopće ne postoje dokumenti o uvjetima korištenja usluge.
 msgctxt "tos"
 msgid "tos_no_documents_exist"
 msgstr "Trenutačno uopće ne postoje dokumenti o uvjetima korištenja usluge."
 
-# original: Trenutačno uopće ne postoje dokumenti o uvjetima korištenja. Prije aktiviranja ove usluge dodajte barem jedan dokument ..
 msgctxt "tos"
 msgid "tos_no_documents_exist_cant_save"
 msgstr "Trenutačno uopće ne postoje dokumenti o uvjetima korištenja. Prije aktiviranja ove usluge dodajte barem jedan dokument .."
 
-# original: Reset Terms of Service
 #, fuzzy
 msgctxt "tos"
 msgid "tos_reset_for_all_users"
 msgstr "Reset Terms of Service"
 
-# original: Uvjeti korištenja usluge uspješno su resetirani.
 msgctxt "tos"
 msgid "tos_reset_successful"
 msgstr "Uvjeti korištenja usluge uspješno su resetirani."
 
-# original: Ako je aktivirano, korisnici su prisiljeni prihvatiti uvjete korištenja usluge prije nego što uđu u ILIAS.
 msgctxt "tos"
 msgid "tos_status_desc"
 msgstr "Ako je aktivirano, korisnici su prisiljeni prihvatiti uvjete korištenja usluge prije nego što uđu u ILIAS."
 
-# original: Omogući
 msgctxt "tos"
 msgid "tos_status_enable"
 msgstr "Omogući"
 
-# original: Jeste li sigurni da želite resetirati uvjete korištenja usluge za sve korisnike u sustavu? To se također odnosi na one račune koji se na primjer koriste za internetsku uslugu SOAP.
 msgctxt "tos"
 msgid "tos_sure_reset_tos"
 msgstr "Jeste li sigurni da želite resetirati uvjete korištenja usluge za sve korisnike u sustavu? To se također odnosi na one račune koji se na primjer koriste za internetsku uslugu SOAP."
 
-# original: Account Deletion on Terms Of Service Withdrawal 
 #, fuzzy
 msgctxt "tos"
 msgid "tos_withdrawal_usr_deletion"
 msgstr "Account Deletion on Terms Of Service Withdrawal "
 
-# original: If a user withdraws their acceptance from  a previously accepted Terms of Service document, this will result in the deletion of the user’s account.
 #, fuzzy
 msgctxt "tos"
 msgid "tos_withdrawal_usr_deletion_desc"

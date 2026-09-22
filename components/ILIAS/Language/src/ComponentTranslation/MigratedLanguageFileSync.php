@@ -118,9 +118,12 @@ final class MigratedLanguageFileSync
         // so that an already-set "local_change" timestamp (see LocalChangeComments) survives an
         // unrelated write to a different identifier of the same module/language instead of being
         // spuriously bumped on every single sync() call. Only the very first sync for a module+
-        // language (overlay does not exist yet) seeds from the shipped `.po`, which is the only place
-        // carrying every identifier's "original" comment to begin with.
-        $translations = new PoLoader()->loadFile(is_file($overlay_po) ? $overlay_po : $shipped_po);
+        // language (overlay does not exist yet) seeds from the shipped `.po`, which - unlike the
+        // overlay - carries no "original" comment of its own (see LocalChangeComments and
+        // convert_module_to_po.php): the loop below adds it there and then, exactly once, from each
+        // entry's shipped value at this precise moment.
+        $overlay_exists = is_file($overlay_po);
+        $translations = new PoLoader()->loadFile($overlay_exists ? $overlay_po : $shipped_po);
 
         $stale = [];
         foreach ($translations->getTranslations() as $translation) {
@@ -143,16 +146,23 @@ final class MigratedLanguageFileSync
             if ($translation === null) {
                 $translation = Translation::create($module, $identifier);
                 $translations->add($translation);
+            } elseif (!$overlay_exists) {
+                // This entry already existed in the shipped `.po` this overlay is being seeded from
+                // - capture the value it carries there, once, as this module+language's "original"
+                // baseline (see LocalChangeComments), before it is overwritten below. An entry with no
+                // shipped counterpart (added only after migration) takes the branch above instead and
+                // never gets one - same as before this baseline moved out of the shipped file.
+                LocalChangeComments::setOriginal($translation, $previous_value);
             }
             // an explicit write via this path always provides a real value, so it is by
             // definition no longer just an untranslated placeholder
             $translation->translate($value);
             $translation->getFlags()->delete('fuzzy');
 
-            // "locally changed" tracking (see LocalChangeComments): compares this write against
-            // the value the conversion tool shipped at migration time, not against $previous_value
-            // - that one is only used to avoid bumping an already-current timestamp on a no-op
-            // re-save of an already locally-changed value.
+            // "locally changed" tracking (see LocalChangeComments): compares this write against the
+            // value the module shipped with when this entry's overlay was first created, not against
+            // $previous_value - that one is only used to avoid bumping an already-current timestamp on
+            // a no-op re-save of an already locally-changed value.
             LocalChangeComments::refresh($translation, $previous_value, $value, $now);
         }
 
