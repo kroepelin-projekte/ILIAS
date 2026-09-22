@@ -25,11 +25,8 @@ use PHPUnit\Framework\MockObject\Stub;
 /**
  * Guards the database handling of ilLanguagesInstalledAndUpdatedObjective.
  *
- * The class used to overwrite $GLOBALS['ilDB'] with the Setup-provided
- * database for the duration of the install and restore it afterwards, with a
- * "@todo remove this once ilSetupLanguage supports proper DI" attached. That
- * is gone: ilSetupLanguage resolves its database lazily, so setDbHandler()
- * is authoritative for everything the install path touches. These tests pin
+ * ilSetupLanguage resolves its database lazily, so setDbHandler() is
+ * authoritative for everything the install path touches. These tests pin
  * both halves of that down, because a regression would be silent - the
  * global fallback would simply take over again.
  */

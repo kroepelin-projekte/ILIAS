@@ -125,8 +125,7 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
      *
      * achieve() must call this before reading anything from
      * ilSetupLanguage, so that the language list is determined against the
-     * Setup database too. Overwriting $GLOBALS['ilDB'] around the install -
-     * which this used to do, with a TODO attached - is no longer necessary.
+     * Setup database too.
      */
     protected function useSetupDatabase(Setup\Environment $environment): void
     {

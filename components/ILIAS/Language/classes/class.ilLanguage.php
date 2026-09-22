@@ -39,11 +39,6 @@ use Gettext\Translator;
  *
  * @author Peter Gabriel <pgabriel@databay.de>
  * @version $Id$
- *
- *
- * @todo Das Datefeld wird bei Aenderungen einer Sprache (update, install, deinstall) nicht richtig gesetzt!!!
- *  Die Formatfunktionen gehoeren nicht in class.Language. Die sind auch woanders einsetzbar!!!
- *  Daher->besser in class.Format
  */
 class ilLanguage implements \ILIAS\Language\Language
 {
