@@ -406,14 +406,8 @@ class ilLanguage implements \ILIAS\Language\Language
             return self::$migrated_language_file_cache[$cache_key];
         }
 
-        $directory = self::findLanguageFileDirectory($a_module);
-        if ($directory === null) {
-            return self::$migrated_language_file_cache[$cache_key] = null;
-        }
-
-        $mo_file = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
-            . $a_module . '_' . $lang_key . '.mo';
-        if (!is_file($mo_file)) {
+        $mo_file = self::migratedOverlayMoFile($a_module, $lang_key);
+        if ($mo_file === null || !is_file($mo_file)) {
             return self::$migrated_language_file_cache[$cache_key] = null;
         }
 
@@ -440,14 +434,8 @@ class ilLanguage implements \ILIAS\Language\Language
             return self::$migrated_translations_cache[$cache_key];
         }
 
-        $directory = self::findLanguageFileDirectory($a_module);
-        if ($directory === null) {
-            return self::$migrated_translations_cache[$cache_key] = null;
-        }
-
-        $mo_file = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
-            . $a_module . '_' . $lang_key . '.mo';
-        if (!is_file($mo_file)) {
+        $mo_file = self::migratedOverlayMoFile($a_module, $lang_key);
+        if ($mo_file === null || !is_file($mo_file)) {
             return self::$migrated_translations_cache[$cache_key] = null;
         }
 
@@ -524,6 +512,31 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         return null;
+    }
+
+    /**
+     * The read-side counterpart to MigratedLanguageFileSync's overlay path (see that class' docblock,
+     * and tools/po-migration/README.md, "Overlay: Installations-eigene `.mo`/`.po`-Dateien"): a
+     * migrated module's compiled `.mo` lives under CLIENT_DATA_DIR, never in the git-tracked component
+     * tree the shipped `.po` ships in - so this, not ILIAS_ABSOLUTE_PATH, is what txt()/ntxt() actually
+     * read from at runtime. Returns `null` (never falls back to the shipped path) when the module
+     * hasn't contributed a LanguageFileDirectory, or CLIENT_DATA_DIR isn't defined yet - the latter is
+     * only ever true before ilInitialisation::initClientDataDir() has run, i.e. never for a fully
+     * bootstrapped request that could reach txt() in the first place.
+     */
+    private static function migratedOverlayMoFile(string $a_module, string $lang_key): ?string
+    {
+        if (!defined('CLIENT_DATA_DIR')) {
+            return null;
+        }
+
+        $directory = self::findLanguageFileDirectory($a_module);
+        if ($directory === null) {
+            return null;
+        }
+
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . ltrim($directory->getPath(), '/')
+            . $a_module . '_' . $lang_key . '.mo';
     }
 
     /**

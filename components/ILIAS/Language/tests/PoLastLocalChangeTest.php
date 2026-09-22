@@ -31,9 +31,14 @@ use PHPUnit\Framework\MockObject\MockObject;
 /**
  * Covers ilObjLanguage::_getLastLocalChange()'s new PO/MO-aware behavior (see
  * components/ILIAS/Language/tools/po-migration/README.md, "Lokale Änderungen nachvollziehen"): a
- * migrated module's .po file can carry a local_change that lng_data.local_change never sees at all
- * (direct .po edit, or any future tool bypassing replaceLangModule()'s DB dual-write). The overview
- * admin table ("Sprachen" -> "Letzte Änderung") must not silently ignore that.
+ * migrated module's OVERLAY .po file (rooted under CLIENT_DATA_DIR, see "Overlay:
+ * Installations-eigene `.po`/`.mo`-Dateien") can carry a local_change that lng_data.local_change never
+ * sees at all (direct .po edit, or any future tool bypassing replaceLangModule()'s DB dual-write). The
+ * overview admin table ("Sprachen" -> "Letzte Änderung") must not silently ignore that.
+ * _getLastMigratedLocalChange() reads exclusively from that CLIENT_DATA_DIR-rooted overlay location -
+ * never from the shipped, git-tracked `.po` under ILIAS_ABSOLUTE_PATH - so every fixture below is
+ * built directly at the overlay location, exactly like PoMigrationLoadLanguageModuleTest's
+ * contributeFixtureModule() does for ilLanguage's own overlay read path.
  *
  * The bulk of the new logic lives in the private static _getLastMigratedLocalChange() helper, which
  * is exercised directly, thoroughly, via reflection (same pattern PoMigrationLoadLanguageModuleTest
@@ -55,6 +60,13 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
+        // ilObjLanguage::_getLastMigratedLocalChange() resolves a migrated module's overlay `.po` under
+        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH - see tools/po-migration/README.md,
+        // "Overlay: Installations-eigene `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so
+        // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
     }
 
     protected function tearDown(): void
@@ -68,9 +80,12 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * Builds a real .po/.mo pair for a throwaway module, exactly like the real conversion tool
-     * would, and returns the LanguageFileDirectory that makes it discoverable the same way a real
-     * ComponentLanguageFileDirectory contribution would.
+     * Builds a real .po/.mo pair for a throwaway module, exactly like a real installation would
+     * compile it, directly at the OVERLAY location under CLIENT_DATA_DIR -
+     * _getLastMigratedLocalChange() only ever reads there, never under the git-tracked tests/
+     * directory - via a minimal anonymous LanguageFileDirectory pointing at it, the same contract
+     * ComponentLanguageFileDirectory fulfills for real components. Returns the LanguageFileDirectory
+     * that makes it discoverable the same way a real contribution would.
      *
      * @param array<string, array{value: string, original?: string}> $entries keyed by identifier;
      *   'original', when given, seeds LocalChangeComments::setOriginal() so refresh() below has a
@@ -85,7 +100,8 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         array $entries,
         array $local_changes = []
     ): LanguageFileDirectory {
-        $this->fixture_directory ??= __DIR__ . '/tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
+        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . 'tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
             mkdir($this->fixture_directory, 0775, true);
         }
@@ -274,7 +290,8 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
 
     public function testSkipsATranslationWhoseContextDoesNotMatchTheModule(): void
     {
-        $this->fixture_directory ??= __DIR__ . '/tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
+        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . 'tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
             mkdir($this->fixture_directory, 0775, true);
         }

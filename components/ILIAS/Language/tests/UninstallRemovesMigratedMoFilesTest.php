@@ -26,22 +26,33 @@ use Gettext\Generator\PoGenerator;
 use Gettext\Loader\PoLoader;
 use Gettext\Translation;
 use Gettext\Translations;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
- * Covers ilObjLanguage::removeMigratedMoFiles() - the .mo-file counterpart to uninstall()'s DB-side
+ * Covers ilObjLanguage::removeMigratedMoFiles() - the overlay-file counterpart to uninstall()'s DB-side
  * flush() for every module migrated to the PO/MO pilot (see
- * components/ILIAS/Language/tools/po-migration/README.md, "Rollback").
+ * components/ILIAS/Language/tools/po-migration/README.md, "Deinstallation entfernt automatisch die
+ * Overlay-Dateien").
  *
- * Without this method, uninstalling a language left a migrated module's compiled .mo file completely
- * untouched: lng_data/lng_modules are gone and the language shows "not_installed" in administration,
- * but ilLanguage::txtlng() never checks whether its $lang_key argument is actually installed before
- * reading a migrated module's .mo file - it would keep serving the now-stale, uninstalled content
- * forever. Deliberately leaves the .po file untouched - it ships like a .lang file, and is what a
- * later re-install compiles a fresh .mo from again (see LanguageInstallationManager's
- * $create_missing_mo).
+ * Without this method, uninstalling a language left a migrated module's compiled overlay .po/.mo pair
+ * completely untouched: lng_data/lng_modules are gone and the language shows "not_installed" in
+ * administration, but ilLanguage::txtlng() never checks whether its $lang_key argument is actually
+ * installed before reading a migrated module's overlay .mo file - it would keep serving the now-stale,
+ * uninstalled content forever.
+ *
+ * Under the current design, the SHIPPED `.po` (e.g. components/ILIAS/TermsOfService/lang/tos_de.po) is
+ * written exactly once, by tools/po-migration/convert_module_to_po.php, and never again - there is no
+ * shipped `.mo` at all any more. Every actual read/write goes through a per-installation "overlay"
+ * `.po`+`.mo` pair under CLIENT_DATA_DIR, mirroring the shipped file's own relative location (see the
+ * README's "Overlay: Installations-eigene `.po`/`.mo`-Dateien"). removeMigratedMoFiles() therefore now
+ * removes BOTH overlay files together via MigratedLanguageFileSync::removeOverlay() - unlike the old
+ * removeMoFile() (which removed only the .mo, deliberately leaving the then-precious shipped .po alone) -
+ * and must leave the shipped .po (which was never written to begin with) completely untouched.
  *
  * Uses throwaway fixture modules (not tos's real files) so these tests never touch real pilot data.
- * Follows the same fixture pattern as PoMigrationWriteBackTest/ResetMigratedLocalChangesTest.
+ * Follows the same fixture pattern as PoMigrationWriteBackTest/ResetMigratedLocalChangesTest, extended
+ * with a second, independent root for the overlay - mirroring
+ * ComponentTranslation/MigratedLanguageFileSyncTest.php's "two independent roots" pattern.
  */
 class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 {
@@ -81,17 +92,35 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             $this->removeDirectoryRecursively($this->fixture_directory);
         }
 
+        if (defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
+        }
+
         parent::tearDown();
     }
 
     /**
-     * Seeds a real .po/.mo pair for a throwaway module, exactly like a real installation would, and
-     * returns the LanguageFileDirectory that makes it discoverable the same way a real
-     * ComponentLanguageFileDirectory contribution would.
+     * A PHP constant cannot be redefined - guarded exactly like ILIAS_ABSOLUTE_PATH above. Deliberately
+     * NOT called from setUp(): the "CLIENT_DATA_DIR cannot be resolved" test below must observe it as
+     * undefined, and runs in its own process (see #[RunInSeparateProcess]) precisely so that an earlier
+     * test in this class having defined it does not leak into that one.
+     */
+    private function ensureClientDataDirDefined(): void
+    {
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_uninstall_mo_test_' . bin2hex(random_bytes(4)));
+        }
+    }
+
+    /**
+     * Seeds only the SHIPPED `.po` file for a throwaway module - never a shipped `.mo`, which the
+     * current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * LanguageFileDirectory that makes it discoverable the same way a real ComponentLanguageFileDirectory
+     * contribution would.
      *
      * @param array<string, string> $entries identifier => value
      */
-    private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
+    private function seedShippedModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
     {
         $this->fixture_directory ??= __DIR__ . '/tmp-uninstall-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
@@ -105,7 +134,6 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
         (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -136,6 +164,34 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         };
     }
 
+    /**
+     * Seeds the OVERLAY `.po`+`.mo` pair for a module/language directly under CLIENT_DATA_DIR,
+     * mirroring the shipped file's relative path one-to-one - simulating an already-installed language
+     * whose overlay was compiled by an earlier install (see MigratedLanguageFileSync's private
+     * overlayBasePath()). Requires seedShippedModule() to have run first for this fixture's directory.
+     *
+     * @param array<string, string> $entries identifier => value
+     */
+    private function seedOverlay(string $module, string $lang_key, array $entries): void
+    {
+        $this->ensureClientDataDirDefined();
+
+        $translations = Translations::create($module, $lang_key);
+        foreach ($entries as $identifier => $value) {
+            $translations->add(Translation::create($module, $identifier)->translate($value));
+        }
+
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/';
+        if (!is_dir($overlay_dir)) {
+            mkdir($overlay_dir, 0775, true);
+        }
+
+        $base_path = $overlay_dir . $module . '_' . $lang_key;
+        (new PoGenerator())->generateFile($translations, $base_path . '.po');
+        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+    }
+
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
     {
         $this->setGlobalVariable(
@@ -144,14 +200,20 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function fixturePath(string $module, string $lang_key, string $extension): string
+    private function shippedPath(string $module, string $lang_key, string $extension): string
     {
         return $this->fixture_directory . '/' . $module . '_' . $lang_key . '.' . $extension;
     }
 
-    private function loadFixturePo(string $module, string $lang_key): Translations
+    private function overlayPath(string $module, string $lang_key, string $extension): string
     {
-        return (new PoLoader())->loadFile($this->fixturePath($module, $lang_key, 'po'));
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
+    }
+
+    private function loadShippedPo(string $module, string $lang_key): Translations
+    {
+        return (new PoLoader())->loadFile($this->shippedPath($module, $lang_key, 'po'));
     }
 
     /**
@@ -167,7 +229,8 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
     /**
      * ilLanguage's own migrated-file cache is private static - invoked the same way
-     * PoMigrationLoadLanguageModuleTest::callLoadFromMigratedLanguageFile() invokes its sibling.
+     * PoMigrationLoadLanguageModuleTest::callLoadFromMigratedLanguageFile() invokes its sibling. Reads
+     * exclusively from the overlay (see ilLanguage::migratedOverlayMoFile()), never the shipped file.
      *
      * @return array<string, string>|null
      */
@@ -178,70 +241,78 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             ->invoke(null, $module, $lang_key);
     }
 
-    public function testRemovesTheMoFileButLeavesThePoFileUntouched(): void
+    public function testRemovesBothOverlayFilesButLeavesTheShippedPoUntouched(): void
     {
-        $directory = $this->seedFixtureModule('utest', 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory);
-        $po_before = file_get_contents($this->fixturePath('utest', 'de', 'po'));
+        $po_before = file_get_contents($this->shippedPath('utest', 'de', 'po'));
 
         $this->callRemoveMigratedMoFiles('de');
 
-        $this->assertFileDoesNotExist($this->fixturePath('utest', 'de', 'mo'));
-        $this->assertFileExists($this->fixturePath('utest', 'de', 'po'));
-        $this->assertSame($po_before, file_get_contents($this->fixturePath('utest', 'de', 'po')));
+        $this->assertFileDoesNotExist($this->overlayPath('utest', 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath('utest', 'de', 'po'));
+        $this->assertFileExists($this->shippedPath('utest', 'de', 'po'));
+        $this->assertSame($po_before, file_get_contents($this->shippedPath('utest', 'de', 'po')));
     }
 
     public function testRemovesEachContributedModuleIndependently(): void
     {
-        $first = $this->seedFixtureModule('uone', 'de', ['greeting' => 'Hallo']);
-        $second = $this->seedFixtureModule('utwo', 'de', ['greeting' => 'Servus']);
+        $first = $this->seedShippedModule('uone', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('uone', 'de', ['greeting' => 'Hallo']);
+        $second = $this->seedShippedModule('utwo', 'de', ['greeting' => 'Servus']);
+        $this->seedOverlay('utwo', 'de', ['greeting' => 'Servus']);
         $this->registerDirectoryManager($first, $second);
 
         $this->callRemoveMigratedMoFiles('de');
 
-        $this->assertFileDoesNotExist($this->fixturePath('uone', 'de', 'mo'));
-        $this->assertFileDoesNotExist($this->fixturePath('utwo', 'de', 'mo'));
-        $this->assertFileExists($this->fixturePath('uone', 'de', 'po'));
-        $this->assertFileExists($this->fixturePath('utwo', 'de', 'po'));
+        $this->assertFileDoesNotExist($this->overlayPath('uone', 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath('uone', 'de', 'po'));
+        $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'po'));
+        $this->assertFileExists($this->shippedPath('uone', 'de', 'po'));
+        $this->assertFileExists($this->shippedPath('utwo', 'de', 'po'));
     }
 
-    public function testOnlyRemovesTheMoFileForTheRequestedLanguageNotOtherLanguages(): void
+    public function testOnlyRemovesTheOverlayForTheRequestedLanguageNotOtherLanguages(): void
     {
-        $directory = $this->seedFixtureModule('utest', 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
         // Same module, different language - must survive uninstalling only 'de'.
-        (new MoGenerator())->includeHeaders(true)->generateFile(
-            Translations::create('utest', 'fr')->add(Translation::create('utest', 'greeting')->translate('Bonjour')),
-            $this->fixturePath('utest', 'fr', 'mo')
-        );
+        $this->seedOverlay('utest', 'fr', ['greeting' => 'Bonjour']);
         $this->registerDirectoryManager($directory);
 
         $this->callRemoveMigratedMoFiles('de');
 
-        $this->assertFileDoesNotExist($this->fixturePath('utest', 'de', 'mo'));
-        $this->assertFileExists($this->fixturePath('utest', 'fr', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath('utest', 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath('utest', 'fr', 'mo'));
+        $this->assertFileExists($this->overlayPath('utest', 'fr', 'po'));
     }
 
-    public function testIsANoOpWhenNoMoFileExistsForThatLanguage(): void
+    public function testIsANoOpWhenNoOverlayExistsForThatLanguage(): void
     {
-        $directory = $this->seedFixtureModule('utest', 'de', ['greeting' => 'Hallo']);
-        unlink($this->fixturePath('utest', 'de', 'mo'));
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $this->registerDirectoryManager($directory);
+        // deliberately no seedOverlay() call - nothing to remove at all
 
-        // must not throw even though there is nothing left to remove
+        // must not throw even though there is nothing to remove
         $this->callRemoveMigratedMoFiles('de');
 
         $this->addToAssertionCount(1);
-        $this->assertFileExists($this->fixturePath('utest', 'de', 'po'));
+        $this->assertFileExists($this->shippedPath('utest', 'de', 'po'));
     }
 
-    public function testIsANoOpForALanguageThatHasNeitherPoNorMoAtAll(): void
+    public function testIsANoOpForALanguageThatHasNoOverlayAtAll(): void
     {
-        $directory = $this->seedFixtureModule('utest', 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory);
 
         // "fr" was never seeded at all -> must not throw, must not affect the "de" fixture
         $this->callRemoveMigratedMoFiles('fr');
 
-        $this->assertFileExists($this->fixturePath('utest', 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath('utest', 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath('utest', 'de', 'po'));
     }
 
     public function testReturnsImmediatelyWithoutErrorWhenNoDirectoryManagerIsRegisteredAtAll(): void
@@ -252,9 +323,31 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->addToAssertionCount(1);
     }
 
+    /**
+     * The central overlay-vs-shipped behavior change (see MigratedLanguageFileSyncTest's identically
+     * named guarantee for sync()/removeOverlay() themselves): when CLIENT_DATA_DIR cannot be resolved at
+     * all, removeMigratedMoFiles() must no-op entirely - never fall back to touching the shipped `.po`.
+     * Runs in a separate process because CLIENT_DATA_DIR, once defined, cannot be undefined again for
+     * the rest of this test class' shared process (other tests above define it via seedOverlay()).
+     */
+    #[RunInSeparateProcess]
+    public function testIsANoOpWhenClientDataDirIsNotResolvable(): void
+    {
+        $this->assertFalse(defined('CLIENT_DATA_DIR'));
+
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $shipped_po_before = file_get_contents($this->shippedPath('utest', 'de', 'po'));
+        $this->registerDirectoryManager($directory);
+
+        $this->callRemoveMigratedMoFiles('de');
+
+        $this->assertSame($shipped_po_before, file_get_contents($this->shippedPath('utest', 'de', 'po')));
+    }
+
     public function testInvalidatesIlLanguagesCacheSoTheRemovalIsVisibleImmediately(): void
     {
-        $directory = $this->seedFixtureModule('utest', 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory);
 
         // populates loadFromMigratedLanguageFile()'s static cache for 'utest'|'de'
@@ -263,12 +356,12 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
         $this->callRemoveMigratedMoFiles('de');
 
-        // the .mo is gone - a stale cached hit from before the removal must not leak through
+        // the overlay is gone - a stale cached hit from before the removal must not leak through
         $this->assertNull($this->callLoadFromMigratedLanguageFile('utest', 'de'));
     }
 
     /**
-     * The catch(\Throwable) branch: a failure removing one module's .mo must be logged via
+     * The catch(\Throwable) branch: a failure removing one module's overlay must be logged via
      * $DIC->logger()->forComponent('lang')->warning(...) and swallowed - not thrown - and must not
      * abort processing of other contributed modules. $DIC->logger() is a real \ILIAS\DI\LoggingServices
      * object (not an offsetGet-based service, see class.ilObjLanguage.php's other DIC calls), so it is
@@ -276,9 +369,10 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
      * ResetMigratedLocalChangesTest::testLogsAndSwallowsAReadFailureForOneModuleWithoutAbortingOthers().
      *
      * unlink() fails on a directory permission, not a file permission, so the "failing" module's own
-     * subdirectory (not the whole fixture tree, which would also make the "working" module fail) is
-     * made unwritable to force it - unlink() also emits a PHP warning before returning false, silenced
-     * the same way testThrowsWhenThePoFileCannotBeWritten() does in MigratedLanguageFileSyncTest.
+     * overlay subdirectory (not the whole CLIENT_DATA_DIR tree, which would also make the "working"
+     * module fail) is made unwritable to force it - unlink() also emits a PHP warning before returning
+     * false, silenced the same way testThrowsWhenTheOverlayPoFileCannotBeWritten() does in
+     * MigratedLanguageFileSyncTest.
      */
     public function testLogsAndSwallowsARemovalFailureForOneModuleWithoutAbortingOthers(): void
     {
@@ -286,16 +380,26 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             $this->markTestSkipped('Cannot force an unremovable file while running as root; skipping.');
         }
 
+        $this->ensureClientDataDirDefined();
         $this->fixture_directory ??= __DIR__ . '/tmp-uninstall-fixtures-' . bin2hex(random_bytes(4));
-        $readonly_dir = $this->fixture_directory . '/readonly';
-        mkdir($readonly_dir, 0775, true);
+        if (!is_dir($this->fixture_directory)) {
+            mkdir($this->fixture_directory, 0775, true);
+        }
 
-        $translations = Translations::create('uone', 'de');
-        $translations->add(Translation::create('uone', 'greeting')->translate('Hallo'));
-        (new PoGenerator())->generateFile($translations, $readonly_dir . '/uone_de.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $readonly_dir . '/uone_de.mo');
+        // The "failing" module lives in its own shipped + overlay "readonly" sub-path, distinct from
+        // the "working" module's normal fixture root, so only its overlay directory gets locked down.
+        $shipped_readonly_dir = $this->fixture_directory . '/readonly';
+        mkdir($shipped_readonly_dir, 0775, true);
+        $shipped_translations = Translations::create('uone', 'de');
+        $shipped_translations->add(Translation::create('uone', 'greeting')->translate('Hallo'));
+        (new PoGenerator())->generateFile($shipped_translations, $shipped_readonly_dir . '/uone_de.po');
 
         $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
+        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_readonly_path;
+        mkdir($overlay_readonly_dir, 0775, true);
+        (new PoGenerator())->generateFile($shipped_translations, $overlay_readonly_dir . 'uone_de.po');
+        (new MoGenerator())->includeHeaders(true)->generateFile($shipped_translations, $overlay_readonly_dir . 'uone_de.mo');
+
         $failing = new class ('uone', $relative_readonly_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
             {
@@ -321,10 +425,11 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
                 return false;
             }
         };
-        $working = $this->seedFixtureModule('utwo', 'de', ['greeting' => 'Servus']);
+        $working = $this->seedShippedModule('utwo', 'de', ['greeting' => 'Servus']);
+        $this->seedOverlay('utwo', 'de', ['greeting' => 'Servus']);
         $this->registerDirectoryManager($failing, $working);
 
-        chmod($readonly_dir, 0555);
+        chmod($overlay_readonly_dir, 0555);
 
         $logger = $this->createMock(ilLogger::class);
         $logger->expects($this->once())->method('warning')->with($this->stringContains('uone'));
@@ -337,13 +442,15 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             $this->callRemoveMigratedMoFiles('de');
         } finally {
             restore_error_handler();
-            chmod($readonly_dir, 0775);
+            chmod($overlay_readonly_dir, 0775);
         }
 
-        // the failing module's .mo was never actually removed
-        $this->assertFileExists($readonly_dir . '/uone_de.mo');
+        // the failing module's overlay was never actually removed
+        $this->assertFileExists($overlay_readonly_dir . 'uone_de.mo');
+        $this->assertFileExists($overlay_readonly_dir . 'uone_de.po');
 
-        // the other, unaffected module's .mo was still removed despite the first module's failure
-        $this->assertFileDoesNotExist($this->fixturePath('utwo', 'de', 'mo'));
+        // the other, unaffected module's overlay was still removed despite the first module's failure
+        $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'po'));
     }
 }

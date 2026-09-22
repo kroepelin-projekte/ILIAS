@@ -97,8 +97,61 @@ class ilSetupLanguage extends ilLanguage
             $db_resolver,
             $this->language_file_directory_manager,
             $this->absolute_path,
-            $this->repository
+            $this->repository,
+            null,
+            $this->resolveClientDataDir(...)
         );
+    }
+
+    /**
+     * The Setup-context equivalent of the CLIENT_DATA_DIR global constant (see
+     * MigratedLanguageFileSync's docblock for why this class cannot simply read that constant like the
+     * fully-bootstrapped $DIC-based write paths do): CLIENT_DATA_DIR is only defined once
+     * ilInitialisation::initClientDataDir() has run, which never happens during Setup, and this class
+     * is also constructed standalone before any client is guaranteed to even exist yet (e.g.
+     * `new ilSetupLanguage('en')` for plugin-language Setup Objectives - see that constructor's other
+     * call sites). Mirrors ILIAS\Setup\Objective\ClientIdReadObjective's own resolution (a single
+     * subdirectory of the configured data directory - ILIAS has not supported more than one client per
+     * installation since https://docu.ilias.de/goto.php?target=wiki_1357_Setup_-_Abandon_Multi_Client)
+     * without depending on a Setup\Environment, which this class is never given one of.
+     *
+     * Returns `null` - rather than throwing - for every way this can legitimately fail to resolve
+     * (most commonly: no client has been created yet at all, i.e. a from-scratch installation before
+     * its first client exists). A `null` result only ever means MigratedLanguageFileSync::sync()
+     * cannot maintain a migrated module's overlay files for this call - it never blocks the
+     * DB-backed install/update itself, which is the rollback-safe source of truth regardless (see that
+     * class' own docblock).
+     */
+    private function resolveClientDataDir(): ?string
+    {
+        $ini_file = $this->absolute_path . '/ilias.ini.php';
+        if (!is_file($ini_file)) {
+            return null;
+        }
+        $ini = parse_ini_file($ini_file, true);
+        $data_dir = $ini['clients']['datadir'] ?? null;
+        if (!is_string($data_dir) || $data_dir === '') {
+            return null;
+        }
+        if (!str_starts_with($data_dir, '/')) {
+            $data_dir = $this->absolute_path . '/' . $data_dir;
+        }
+        if (!is_dir($data_dir)) {
+            return null;
+        }
+
+        $candidates = array_values(array_filter(
+            scandir($data_dir) ?: [],
+            static fn(string $entry): bool => $entry !== '.' && $entry !== '..'
+                && is_dir($data_dir . '/' . $entry)
+        ));
+        if (count($candidates) !== 1) {
+            // Either no client has been created yet, or (long unsupported, see above) more than one -
+            // either way, there is no single unambiguous client data directory to resolve.
+            return null;
+        }
+
+        return $data_dir . '/' . $candidates[0];
     }
 
     /**

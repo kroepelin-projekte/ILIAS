@@ -297,23 +297,23 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-     * The .mo-file counterpart to flush() above, for every module migrated to the PO/MO pilot (see
+     * The overlay counterpart to flush() above, for every module migrated to the PO/MO pilot (see
      * tools/po-migration/README.md, "Rollback"). Without this, uninstalling a language left a migrated
-     * module's compiled .mo file completely untouched on disk: the DB-backed lng_data/lng_modules rows
-     * are gone and the language shows "not_installed", but ilLanguage::txtlng() never checks whether
-     * its $lang_key argument is actually installed before reading a migrated module's .mo file - it
-     * would keep serving the now-stale, uninstalled content forever.
+     * module's compiled overlay .mo/.po completely untouched on disk: the DB-backed lng_data/lng_modules
+     * rows are gone and the language shows "not_installed", but ilLanguage::txtlng() never checks
+     * whether its $lang_key argument is actually installed before reading a migrated module's overlay
+     * .mo file - it would keep serving the now-stale, uninstalled content forever.
      *
-     * Deliberately leaves the .po file untouched, exactly like Rollback-Ebene 1 from the README: the
-     * .po ships like a .lang file, the .mo is the derived runtime artifact reinstated automatically the
-     * next time this language is (re-)installed (see LanguageInstallationManager's
-     * $create_missing_mo).
+     * Unlike the shipped .po (untouched, ships like a .lang file), the overlay is purely derived,
+     * per-instance state - both its .po and .mo are removed together (see
+     * MigratedLanguageFileSync::removeOverlay()), reinstated automatically the next time this language
+     * is (re-)installed (see LanguageInstallationManager's $create_missing_mo).
      *
      * Same no-op/failure posture as syncMigratedLanguageFile()/resetMigratedLocalChanges(): silently
-     * skips a module that never contributed a LanguageFileDirectory or has no .mo for $a_key to begin
-     * with, and logs and swallows any removal failure per module rather than throwing or aborting the
-     * remaining modules - the DB-side uninstall above already succeeded and must not be undone or
-     * blocked by a problem with the file mirror (e.g. a read-only lang/ directory).
+     * skips a module that never contributed a LanguageFileDirectory or has no overlay for $a_key to
+     * begin with, and logs and swallows any removal failure per module rather than throwing or aborting
+     * the remaining modules - the DB-side uninstall above already succeeded and must not be undone or
+     * blocked by a problem with the file mirror (e.g. a read-only overlay directory).
      */
     private static function removeMigratedMoFiles(string $a_key): void
     {
@@ -325,14 +325,15 @@ class ilObjLanguage extends ilObject
 
         /** @var LanguageFileDirectoryManager $manager */
         $manager = $DIC[LanguageFileDirectoryManager::class];
+        $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
 
         foreach ($manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
             try {
-                MigratedLanguageFileSync::removeMoFile($manager, ILIAS_ABSOLUTE_PATH, $a_key, $module);
+                MigratedLanguageFileSync::removeOverlay($manager, $a_key, $module, $client_data_dir);
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
-                    'Could not remove migrated MO file for module "%s", language "%s": %s',
+                    'Could not remove migrated overlay file for module "%s", language "%s": %s',
                     $module,
                     $a_key,
                     $t->getMessage()
@@ -522,8 +523,8 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-     * Get the most recent "local_change" timestamp across every migrated module's .po file for a
-     * language (see tools/po-migration/README.md, "Lokale Änderungen nachvollziehen") - the .po-file
+     * Get the most recent "local_change" timestamp across every migrated module's overlay .po file for
+     * a language (see tools/po-migration/README.md, "Lokale Änderungen nachvollziehen") - the overlay
      * equivalent of MAX(lng_data.local_change) for a module that is still backed by the DB.
      *
      * $a_key          language key
@@ -534,7 +535,7 @@ class ilObjLanguage extends ilObject
     {
         global $DIC;
 
-        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class) || !defined('CLIENT_DATA_DIR')) {
             return null;
         }
 
@@ -545,11 +546,11 @@ class ilObjLanguage extends ilObject
         $last_change = null;
         foreach ($manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
-            $base_path = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
+            $base_path = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . ltrim($directory->getPath(), '/')
                 . $module . '_' . $a_key;
 
             // same "migrated" resolution ilLanguage::loadFromMigratedLanguageFile() uses for reading
-            // translations: a contributed directory with a compiled .mo file for this language
+            // translations: a contributed directory with a compiled overlay .mo file for this language
             if (!is_file($base_path . '.mo') || !is_file($base_path . '.po')) {
                 continue;
             }
@@ -644,7 +645,7 @@ class ilObjLanguage extends ilObject
 
         $this->flush("all");
         $this->manager->insertLanguageForRemovingLocalChanges($this->key);
-        self::resetMigratedLocalChanges($this->key);
+        self::resetMigratedLocalChanges($this->key, defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null);
         $this->setTitle($this->getKey());
         $this->setDescription("installed");
         $this->update();
@@ -653,14 +654,20 @@ class ilObjLanguage extends ilObject
     }
 
     /**
-     * The .po-file counterpart to flush("all") + insertLanguageForRemovingLocalChanges() above, for
+     * The overlay counterpart to flush("all") + insertLanguageForRemovingLocalChanges() above, for
      * every module migrated to the PO/MO pilot (see tools/po-migration/README.md). Without this, a
-     * migrated module's .po/.mo files were left completely untouched by "remove local changes": the
-     * DB-backed edit table would look clean (lng_data/lng_modules were just wiped and reinstalled),
-     * but ilLanguage::txt() reads a migrated module's *.mo file, not the DB, so it would keep serving
-     * the stale, locally-changed value - and the "Letzte Änderung" column (see
+     * migrated module's overlay .po/.mo files were left completely untouched by "remove local
+     * changes": the DB-backed edit table would look clean (lng_data/lng_modules were just wiped and
+     * reinstalled), but ilLanguage::txt() reads a migrated module's overlay .mo file, not the DB, so
+     * it would keep serving the stale, locally-changed value - and the "Letzte Änderung" column (see
      * _getLastMigratedLocalChange()) would keep showing the old timestamp, correctly revealing that
      * nothing was actually reset for that module.
+     *
+     * insertLanguageForRemovingLocalChanges() above cannot reach a migrated module's overlay itself:
+     * it rebuilds $lang_array by parsing each directory's ilias_<key>.lang file, which a migrated
+     * module no longer ships (superseded by its .po) - so that directory is silently skipped and
+     * MigratedLanguageFileSync::sync() is never invoked for it from there. This method is the
+     * dedicated path that closes exactly that gap.
      *
      * Only resets entries that have both a local_change (i.e. actually diverged) and an "original"
      * comment (the value the conversion tool shipped at migration time, see LocalChangeComments) -
@@ -671,15 +678,16 @@ class ilObjLanguage extends ilObject
      * .lang content and never inventing data for a key that isn't in it.
      *
      * Same no-op/failure posture as syncMigratedLanguageFile(): silently skips a module that never
-     * contributed a LanguageFileDirectory or has no compiled .mo/.po pair for $a_key, and logs and
-     * swallows any write failure rather than throwing - the DB-side reset above already succeeded and
-     * must not be undone by a problem with the file mirror (e.g. a read-only lang/ directory).
+     * contributed a LanguageFileDirectory, has no compiled overlay .mo/.po pair for $a_key, or when
+     * $client_data_dir cannot be resolved - and logs and swallows any write failure rather than
+     * throwing - the DB-side reset above already succeeded and must not be undone by a problem with
+     * the file mirror (e.g. a read-only overlay directory).
      */
-    private static function resetMigratedLocalChanges(string $a_key): void
+    private static function resetMigratedLocalChanges(string $a_key, ?string $client_data_dir): void
     {
         global $DIC;
 
-        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class) || $client_data_dir === null) {
             return;
         }
 
@@ -690,7 +698,7 @@ class ilObjLanguage extends ilObject
 
         foreach ($manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
-            $base_path = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/' . ltrim($directory->getPath(), '/')
+            $base_path = rtrim($client_data_dir, '/') . '/lang/' . ltrim($directory->getPath(), '/')
                 . $module . '_' . $a_key;
 
             if (!is_file($base_path . '.mo') || !is_file($base_path . '.po')) {
@@ -834,7 +842,9 @@ class ilObjLanguage extends ilObject
                 ILIAS_ABSOLUTE_PATH,
                 $a_key,
                 $a_module,
-                $a_array
+                $a_array,
+                false,
+                defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null
             );
         } catch (\Throwable $t) {
             $DIC->logger()->forComponent('lang')->warning(sprintf(

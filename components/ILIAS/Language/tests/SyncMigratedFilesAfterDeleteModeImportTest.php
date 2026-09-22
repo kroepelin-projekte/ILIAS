@@ -43,6 +43,14 @@ use Gettext\Translations;
  * migrated-file read path after a "delete"-mode import, regardless of whether the imported file
  * mentioned it or not.
  *
+ * Under the current design, the sync targets the per-installation OVERLAY `.po`/`.mo` pair under
+ * CLIENT_DATA_DIR - never the SHIPPED `.po` (written exactly once by the conversion tool, see
+ * tools/po-migration/README.md, "Overlay: Installations-eigene `.po`/`.mo`-Dateien"). The method passes
+ * $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null as MigratedLanguageFileSync::
+ * sync()'s trailing argument, with $create_missing_mo = false (an import is not an install) - so every
+ * test that expects a real write needs an already-compiled overlay .mo to update, exactly like an
+ * ordinary admin-GUI edit would find.
+ *
  * Deliberately tests this private method directly via reflection instead of driving the whole
  * importLanguageFile() end-to-end: importLanguageFile()'s "delete" mode routes through
  * ilObjLanguageExt::_saveValues(), which in turn requires a real global language file
@@ -68,7 +76,8 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
      * be able to rely on the constant being defined, including one that never calls
      * seedFixtureModule() itself (e.g. a non-migrated-module scenario) - defining it here in setUp()
      * rather than lazily inside seedFixtureModule() avoids a test-order dependency on some other test
-     * happening to run first in the same process (executionOrder="random" in phpunit.xml).
+     * happening to run first in the same process (executionOrder="random" in phpunit.xml). The same
+     * applies to CLIENT_DATA_DIR, which the method resolves the exact same way.
      */
     protected function setUp(): void
     {
@@ -76,6 +85,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
+        }
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_sync_delete_import_test_' . bin2hex(random_bytes(4)));
         }
     }
 
@@ -86,10 +98,34 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             rmdir($this->fixture_directory);
         }
 
+        if (is_dir(CLIENT_DATA_DIR)) {
+            $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
+        }
+
         parent::tearDown();
     }
 
+    private function removeDirectoryRecursively(string $dir): void
+    {
+        foreach (scandir($dir) ?: [] as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $item;
+            if (is_dir($path)) {
+                $this->removeDirectoryRecursively($path);
+            } else {
+                unlink($path);
+            }
+        }
+        rmdir($dir);
+    }
+
     /**
+     * Seeds only the SHIPPED `.po` file for a throwaway module - never a shipped `.mo`, which the
+     * current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * LanguageFileDirectory that makes it discoverable.
+     *
      * @param array<string, string> $entries identifier => value
      */
     private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
@@ -106,7 +142,6 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
         (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -137,6 +172,36 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         };
     }
 
+    /**
+     * Bootstraps the OVERLAY `.po`+`.mo` pair for $module/$lang_key from its current shipped `.po`
+     * content, mirroring the shipped file's relative path under CLIENT_DATA_DIR - simulating an
+     * already-migrated module whose overlay was compiled by an earlier install. Required for any test
+     * that expects syncMigratedFilesAfterDeleteModeImport() to actually write something:
+     * MigratedLanguageFileSync::sync() is called with $create_missing_mo = false (an import is not an
+     * install, see this class' own docblock), so a still-missing overlay .mo stays missing.
+     */
+    private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
+    {
+        $overlay_dir = $this->overlayDirectory();
+        if (!is_dir($overlay_dir)) {
+            mkdir($overlay_dir, 0775, true);
+        }
+        copy(
+            $this->fixture_directory . '/' . $module . '_' . $lang_key . '.po',
+            $overlay_dir . $module . '_' . $lang_key . '.po'
+        );
+        (new MoGenerator())->includeHeaders(true)->generateFile(
+            (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po'),
+            $overlay_dir . $module . '_' . $lang_key . '.mo'
+        );
+    }
+
+    private function overlayDirectory(): string
+    {
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/';
+    }
+
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
     {
         $this->setGlobalVariable(
@@ -148,6 +213,16 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     private function loadFixturePo(string $module, string $lang_key): Translations
     {
         return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
+    }
+
+    private function loadOverlayPo(string $module, string $lang_key): Translations
+    {
+        return (new PoLoader())->loadFile($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
+    }
+
+    private function overlayMoExists(string $module, string $lang_key): bool
+    {
+        return is_file($this->overlayDirectory() . $module . '_' . $lang_key . '.mo');
     }
 
     /**
@@ -167,19 +242,24 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     /**
      * A module that existed before the "delete"-mode wipe and has no entries at all in $to_save (the
      * imported file did not mention it) must be synced with an empty map - i.e. every one of its
-     * entries removed from the .po/.mo files, matching "replace" semantics for a module that is now
-     * genuinely gone.
+     * entries removed from the OVERLAY .po/.mo files, matching "replace" semantics for a module that is
+     * now genuinely gone. The shipped `.po` (never written to by this path) must stay untouched.
      */
     public function testSyncsAModuleMissingFromTheImportWithAnEmptyMap(): void
     {
         $directory = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
+        $this->bootstrapOverlayFromShipped('dtest', 'de');
         $this->registerDirectoryManager($directory);
 
         // "dtest" existed before the "delete"-mode wipe, but the imported file contained nothing for
         // it at all.
         $this->invoke(['dtest'], []);
 
-        $this->assertNull($this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting'));
+        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
+        $this->assertNotNull(
+            $this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting'),
+            'the shipped .po must never be touched by this sync path'
+        );
     }
 
     /**
@@ -187,18 +267,23 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
      * be synced with exactly its identifier => value subset from $to_save - not ignored (the old,
      * buggy assumption that _saveValues() already handled it via replaceLangModule(), which does not
      * hold in "delete" mode - see this class' and the method's own docblock) and not wiped empty
-     * either.
+     * either. The write lands in the OVERLAY, never the shipped `.po`.
      */
     public function testSyncsAModulePresentInTheImportWithItsToSaveSubset(): void
     {
         $directory = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
+        $this->bootstrapOverlayFromShipped('dtest', 'de');
         $this->registerDirectoryManager($directory);
 
         $this->invoke(['dtest'], ['dtest#:#greeting' => 'Hallo, neu']);
 
-        $translation = $this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting');
+        $translation = $this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo, neu', $translation->getTranslation());
+
+        $shipped_translation = $this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting');
+        $this->assertNotNull($shipped_translation);
+        $this->assertSame('Hallo', $shipped_translation->getTranslation(), 'the shipped .po must never be touched');
     }
 
     public function testDoesNotThrowForANonMigratedModuleMissingFromTheImport(): void
@@ -229,6 +314,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     public function testAToSaveKeyWithoutASeparatorDoesNotAccidentallyAttachToAnyModule(): void
     {
         $directory = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
+        $this->bootstrapOverlayFromShipped('dtest', 'de');
         $this->registerDirectoryManager($directory);
 
         // A malformed/unexpected key with no "#:#" in it at all - "dtest" is still only reached via
@@ -236,7 +322,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // had been empty.
         $this->invoke(['dtest'], ['not_a_valid_key' => 'value']);
 
-        $this->assertNull($this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting'));
+        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
     }
 
     /**
@@ -249,14 +335,34 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     public function testSyncsEachOfSeveralModulesWithItsOwnCorrectEntries(): void
     {
         $missing = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
+        $this->bootstrapOverlayFromShipped('dtest', 'de');
         $kept = $this->seedFixtureModule('ktest', 'de', ['greeting' => 'Hallo']);
+        $this->bootstrapOverlayFromShipped('ktest', 'de');
         $this->registerDirectoryManager($missing, $kept);
 
         $this->invoke(['dtest', 'ktest'], ['ktest#:#greeting' => 'Hallo, neu']);
 
-        $this->assertNull($this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting'));
-        $updated = $this->loadFixturePo('ktest', 'de')->find('ktest', 'greeting');
+        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
+        $updated = $this->loadOverlayPo('ktest', 'de')->find('ktest', 'greeting');
         $this->assertNotNull($updated);
         $this->assertSame('Hallo, neu', $updated->getTranslation());
+    }
+
+    /**
+     * $create_missing_mo is not passed by this call site (defaults to false, see the method's own
+     * docblock: "an import is not an install") - a module whose overlay .mo does not exist yet at all
+     * must stay without one, exactly mirroring MigratedLanguageFileSync::sync()'s own
+     * testIsANoOpWhenNoCompiledOverlayMoFileExistsYet(). Pins that this call site really does leave
+     * $create_missing_mo at its default rather than accidentally passing `true`.
+     */
+    public function testDoesNotCreateAMissingOverlayMoFile(): void
+    {
+        $directory = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
+        // deliberately no bootstrapOverlayFromShipped() call - no overlay exists at all yet
+        $this->registerDirectoryManager($directory);
+
+        $this->invoke(['dtest'], ['dtest#:#greeting' => 'Hallo, neu']);
+
+        $this->assertFalse($this->overlayMoExists('dtest', 'de'));
     }
 }

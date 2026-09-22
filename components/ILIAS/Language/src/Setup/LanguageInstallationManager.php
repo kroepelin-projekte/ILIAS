@@ -47,6 +47,13 @@ class LanguageInstallationManager
      * @param (\Closure():\DateTimeImmutable)|null $now Injectable clock, defaults to
      *        the current UTC time. Exists so change/update timestamps can be
      *        asserted in tests without depending on wall-clock time.
+     * @param (\Closure():?string)|null $client_data_dir_resolver Resolved lazily and re-read on every
+     *        call, exactly like $db - see ilSetupLanguage::resolveClientDataDir(), the one production
+     *        implementation, for why this cannot simply be a plain string computed once in the
+     *        constructor (no client may exist yet at construction time). `null` (the default) means
+     *        "cannot resolve one" unconditionally, forwarded as-is to MigratedLanguageFileSync::sync(),
+     *        which treats it as "no overlay can be maintained for this call" rather than falling back
+     *        to writing into the shipped, git-tracked directory.
      */
     public function __construct(
         private readonly \ilDBInterface|\Closure $db,
@@ -54,12 +61,18 @@ class LanguageInstallationManager
         private readonly string $absolute_path,
         private readonly InstalledLanguageRepository $repository,
         private readonly ?\Closure $now = null,
+        private readonly ?\Closure $client_data_dir_resolver = null,
     ) {
     }
 
     private function db(): \ilDBInterface
     {
         return $this->db instanceof \Closure ? ($this->db)() : $this->db;
+    }
+
+    private function clientDataDir(): ?string
+    {
+        return $this->client_data_dir_resolver !== null ? ($this->client_data_dir_resolver)() : null;
     }
 
     private function utcTimestamp(?int $unix_timestamp = null): string
@@ -480,6 +493,7 @@ class LanguageInstallationManager
                 . ";";
             $ilDB->manipulate($query);
 
+            $client_data_dir = $this->clientDataDir();
             foreach ($lang_array as $module => $entries) {
                 try {
                     MigratedLanguageFileSync::sync(
@@ -488,7 +502,8 @@ class LanguageInstallationManager
                         $lang_key,
                         $module,
                         $entries,
-                        $create_missing_mo
+                        $create_missing_mo,
+                        $client_data_dir
                     );
                 } catch (\Throwable $t) {
                     // No injected logger here (unlike ilObjLanguage's $DIC-based write paths) -

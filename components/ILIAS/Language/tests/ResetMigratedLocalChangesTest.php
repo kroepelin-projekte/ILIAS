@@ -45,6 +45,7 @@ use Gettext\Translations;
 class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    private ?string $overlay_alias_symlink = null;
 
     protected function setUp(): void
     {
@@ -60,12 +61,49 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
 
     protected function tearDown(): void
     {
+        if ($this->overlay_alias_symlink !== null && (is_link($this->overlay_alias_symlink) || file_exists($this->overlay_alias_symlink))) {
+            unlink($this->overlay_alias_symlink);
+        }
+        $this->overlay_alias_symlink = null;
+
         if (isset($this->fixture_directory) && is_dir($this->fixture_directory)) {
             array_map('unlink', glob($this->fixture_directory . '/*') ?: []);
             rmdir($this->fixture_directory);
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * ilObjLanguage::resetMigratedLocalChanges() resolves its .po/.mo location via its
+     * $client_data_dir parameter now, exactly like ilLanguage::migratedOverlayMoFile() does for
+     * reading (see class.ilObjLanguage.php and tools/po-migration/README.md, "Overlay:
+     * Installations-eigene `.po`/`.mo`-Dateien") - never via ILIAS_ABSOLUTE_PATH any more.
+     *
+     * seedFixtureModule() below writes the fixture's .po/.mo pair into a bare temp directory
+     * ($this->fixture_directory), not literally under a CLIENT_DATA_DIR tree - this creates a single
+     * leaf symlink so that the CLIENT_DATA_DIR-rooted overlay path callResetMigratedLocalChanges()
+     * passes resolves to that very same physical directory, without having to duplicate every fixture
+     * file into a second location. This aliases only this fixture's own path - every other test in
+     * this suite (which never defines CLIENT_DATA_DIR at all) is unaffected.
+     */
+    private function aliasOverlayToShippedFixture(string $module, string $lang_key): void
+    {
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
+
+        $relative_path = 'components/ILIAS/Language/tests/' . basename((string) $this->fixture_directory);
+        $overlay_parent = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . dirname($relative_path);
+        if (!is_dir($overlay_parent)) {
+            mkdir($overlay_parent, 0775, true);
+        }
+
+        $overlay_leaf = $overlay_parent . '/' . basename($relative_path);
+        if (!file_exists($overlay_leaf)) {
+            symlink($this->fixture_directory, $overlay_leaf);
+        }
+        $this->overlay_alias_symlink = $overlay_leaf;
     }
 
     /**
@@ -161,12 +199,23 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
     /**
      * The method under test is private static - invoked the same way
      * PoMigrationLoadLanguageModuleTest::callLoadFromMigratedLanguageFile() invokes its sibling.
+     * Aliases the fixture directory into the CLIENT_DATA_DIR-rooted overlay location first (see
+     * aliasOverlayToShippedFixture()'s docblock) whenever a fixture was actually seeded - a no-op
+     * fixture-less call (e.g. "no directory manager registered at all") has nothing to alias and
+     * passes $client_data_dir purely so the method's new required parameter is satisfied.
      */
     private function callResetMigratedLocalChanges(string $lang_key): void
     {
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
+        if ($this->fixture_directory !== null) {
+            $this->aliasOverlayToShippedFixture('', '');
+        }
+
         (new ReflectionClass(ilObjLanguage::class))
             ->getMethod('resetMigratedLocalChanges')
-            ->invoke(null, $lang_key);
+            ->invoke(null, $lang_key, CLIENT_DATA_DIR);
     }
 
     public function testResetsAnEntryWithLocalChangeAndOriginalBackToItsOriginalValueInPoAndMo(): void
@@ -312,6 +361,29 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $this->assertSame('Servus', $two->getTranslation());
     }
 
+    /**
+     * $client_data_dir === null (CLIENT_DATA_DIR unresolvable, see ilSetupLanguage::
+     * resolveClientDataDir()) must be a pure no-op - never a fallback to writing the shipped/
+     * ILIAS_ABSOLUTE_PATH-based location, which would reintroduce exactly the git-dirtying problem
+     * the overlay split exists to avoid. Runs in its own process (see #[RunInSeparateProcess]) since
+     * CLIENT_DATA_DIR, once defined by any other test in this class, cannot be undefined again.
+     */
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    public function testIsANoOpWhenClientDataDirCannotBeResolved(): void
+    {
+        $directory = $this->seedFixtureModule('rtest', 'de', [
+            'greeting' => ['value' => 'Hallo, geändert', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+        ]);
+        $this->registerDirectoryManager($directory);
+
+        (new ReflectionClass(ilObjLanguage::class))
+            ->getMethod('resetMigratedLocalChanges')
+            ->invoke(null, 'de', null);
+
+        $translation = $this->loadFixturePo('rtest', 'de')->find('rtest', 'greeting');
+        $this->assertSame('Hallo, geändert', $translation->getTranslation());
+    }
+
     public function testReturnsImmediatelyWithoutErrorWhenNoDirectoryManagerIsRegisteredAtAll(): void
     {
         // must not throw even though nothing was contributed and no fixture file exists anywhere
@@ -352,6 +424,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
             'greeting' => ['value' => 'Hallo, geändert', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
         ]);
         $this->registerDirectoryManager($directory);
+        $this->aliasOverlayToShippedFixture('rtest', 'de');
 
         $before = (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
         (new ReflectionObject($before))->getProperty('lang_key')->setValue($before, 'de');

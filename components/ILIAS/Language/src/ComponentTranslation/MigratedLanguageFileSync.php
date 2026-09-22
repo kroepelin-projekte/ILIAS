@@ -30,9 +30,22 @@ use RuntimeException;
 
 /**
  * PO/MO pilot (see components/ILIAS/Language/tools/po-migration/README.md, "Schreibpfad"): mirrors a
- * migrated module's complete identifier => value map into its `.po`/`.mo` files, with the exact same
- * "full replace" semantics the caller just applied to lng_modules - entries no longer present are
- * removed, not just left stale.
+ * migrated module's complete identifier => value map into a per-instance "overlay" `.po`/`.mo` pair
+ * kept entirely outside the git-tracked component tree, with the exact same "full replace" semantics
+ * the caller just applied to lng_modules - entries no longer present are removed, not just left stale.
+ *
+ * Where the shipped `.po` (e.g. components/ILIAS/TermsOfService/lang/tos_de.po) and this overlay live
+ * is a deliberate split, see the README's "Overlay: Installations-eigene `.mo`/`.po`-Dateien" section:
+ * - the shipped `.po`/`.pot` is written exactly once, by tools/po-migration/convert_module_to_po.php,
+ *   and never again by anything at runtime - it ships like the legacy `.lang` file did, and stays
+ *   git-clean forever after that initial conversion.
+ * - the overlay - one complete `.po`+`.mo` pair per migrated module+language, under
+ *   CLIENT_DATA_DIR . '/lang/' . <the same path the shipped file lives at, relative to the ILIAS root> -
+ *   is what every install/update/admin-GUI edit actually writes, and what ilLanguage actually reads at
+ *   runtime. It mirrors exactly what `lng_modules` already did for the legacy DB path: one full,
+ *   per-installation, per-language materialized copy, kept outside version control (CLIENT_DATA_DIR is
+ *   never part of the git-tracked ILIAS_ABSOLUTE_PATH tree - see ClientIdReadObjective and
+ *   ilFileSystemComponentDataDirectoryCreatedObjective for the same convention used elsewhere).
  *
  * Extracted from what used to be ilObjLanguage::syncMigratedLanguageFile() so that both DIC-based
  * legacy write paths (ilObjLanguage::replaceLangModule(), ilObjLanguageExt::importLanguageFile()) and
@@ -45,25 +58,29 @@ use RuntimeException;
 final class MigratedLanguageFileSync
 {
     /**
-     * A pure no-op for any module that hasn't contributed a LanguageFileDirectory, or that has no
-     * `.po` file for $lang_key at all - this never creates a new migrated module or a new language on
-     * its own. Gated on the `.po` file (the shipped, version-controlled source of truth - see
-     * tools/po-migration/README.md - exactly like the legacy `.lang` files before it), not the
-     * compiled `.mo`: the `.mo` is a derived runtime artifact that $create_missing_mo below controls.
+     * A pure no-op for any module that hasn't contributed a LanguageFileDirectory, that has no `.po`
+     * file for $lang_key at all (the shipped, version-controlled source of truth - see
+     * tools/po-migration/README.md - exactly like the legacy `.lang` files before it), or for which
+     * $client_data_dir cannot (yet) be resolved by the caller - this never creates a new migrated
+     * module or a new language on its own, and never falls back to writing into the shipped directory
+     * instead (that would reintroduce exactly the git-dirtying problem the overlay exists to avoid).
      *
      * $create_missing_mo distinguishes an install action (a language installed for the first time, via
      * ILIAS Setup or the language administration GUI) from an update or edit action (refreshing an
      * already-installed language, or an ordinary admin-GUI translation edit): only an install may
-     * compile a `.mo` that doesn't exist yet. An update leaves a still-missing `.mo` missing - it only
-     * recompiles a `.mo` that is already there. This also preserves the pilot's "roll back one
-     * language" lever (see README, "Rollback"): removing only the `.mo` file stays rolled back across
-     * ordinary update/edit calls, and is only ever undone by an explicit re-install of that language.
+     * compile an overlay `.mo` that doesn't exist yet. An update leaves a still-missing overlay `.mo`
+     * missing - it only recompiles one that is already there. This also preserves the pilot's "roll
+     * back one language" lever (see README, "Rollback"): removing only the overlay files stays rolled
+     * back across ordinary update/edit calls, and is only ever undone by an explicit re-install of that
+     * language.
      *
      * $ilias_absolute_path is taken as a parameter rather than read from the ILIAS_ABSOLUTE_PATH
      * global constant: this class also runs from Setup contexts (LanguageInstallationManager, which
      * is constructed before a full DIC/bootstrap exists and is itself given its base path via
      * constructor injection - see ilSetupLanguage, which computes it the same, constant-free way),
-     * where that constant is not reliably defined yet.
+     * where that constant is not reliably defined yet. $client_data_dir is `null` whenever a caller
+     * cannot (yet) resolve one the same way - see ilSetupLanguage::resolveClientDataDir() for the one
+     * context where that can genuinely happen (Setup, before any client exists at all).
      *
      * @param array<string, string> $entries identifier => value, the complete, final set for this
      *        module/language - exactly what the caller just wrote to lng_modules.
@@ -74,32 +91,37 @@ final class MigratedLanguageFileSync
         string $lang_key,
         string $module,
         array $entries,
-        bool $create_missing_mo = false
+        bool $create_missing_mo = false,
+        ?string $client_data_dir = null
     ): void {
-        $directory = null;
-        foreach ($language_file_directory_manager->getDirectories() as $candidate) {
-            if ($candidate->getPrefix() === $module) {
-                $directory = $candidate;
-                break;
-            }
-        }
+        $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null) {
             return;
         }
 
-        $base_path = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
-            . $module . '_' . $lang_key;
-        $po_file = $base_path . '.po';
-        if (!is_file($po_file)) {
+        $shipped_po = self::shippedBasePath($ilias_absolute_path, $directory, $module, $lang_key) . '.po';
+        if (!is_file($shipped_po)) {
             return;
         }
-        $mo_file = $base_path . '.mo';
-        $mo_is_missing = !is_file($mo_file);
-        if ($mo_is_missing && !$create_missing_mo) {
+        if ($client_data_dir === null) {
             return;
         }
 
-        $translations = new PoLoader()->loadFile($po_file);
+        $overlay_base = self::overlayBasePath($client_data_dir, $directory, $module, $lang_key);
+        $overlay_po = $overlay_base . '.po';
+        $overlay_mo = $overlay_base . '.mo';
+        $overlay_mo_missing = !is_file($overlay_mo);
+        if ($overlay_mo_missing && !$create_missing_mo) {
+            return;
+        }
+
+        // The overlay, once it exists, is the base for every further write - not the shipped file -
+        // so that an already-set "local_change" timestamp (see LocalChangeComments) survives an
+        // unrelated write to a different identifier of the same module/language instead of being
+        // spuriously bumped on every single sync() call. Only the very first sync for a module+
+        // language (overlay does not exist yet) seeds from the shipped `.po`, which is the only place
+        // carrying every identifier's "original" comment to begin with.
+        $translations = new PoLoader()->loadFile(is_file($overlay_po) ? $overlay_po : $shipped_po);
 
         $stale = [];
         foreach ($translations->getTranslations() as $translation) {
@@ -143,23 +165,25 @@ final class MigratedLanguageFileSync
         // content (not just $stale/$entries) also covers every side effect above - "original"
         // comments, fuzzy flags, LocalChangeComments::refresh()'s local_change timestamp - not just
         // the translated value, without duplicating that logic here. A bootstrap install still needs
-        // to compile the .mo even when the .po content itself didn't change - $mo_is_missing keeps
-        // that case from being swallowed by this guard.
+        // to compile the .mo even when the .po content itself didn't change - $overlay_mo_missing
+        // keeps that case from being swallowed by this guard.
         $po_content = new PoGenerator()->generateString($translations);
-        $po_unchanged = $po_content === file_get_contents($po_file);
-        if ($po_unchanged && !$mo_is_missing) {
+        $po_unchanged = is_file($overlay_po) && $po_content === file_get_contents($overlay_po);
+        if ($po_unchanged && !$overlay_mo_missing) {
             return;
         }
 
-        if (!$po_unchanged && file_put_contents($po_file, $po_content) === false) {
-            throw new RuntimeException(sprintf('Could not write PO file "%s".', $po_file));
+        self::ensureDirectoryExists(dirname($overlay_po));
+
+        if (!$po_unchanged && file_put_contents($overlay_po, $po_content) === false) {
+            throw new RuntimeException(sprintf('Could not write PO file "%s".', $overlay_po));
         }
         // Written strictly after the .po succeeds: if only the .mo turns out to be unwritable
         // (e.g. that one file, not the directory, is read-only), the two files would otherwise be
         // left in different states - .po updated, .mo stale - both silently, since generateFile()
         // reports failure via a return value, not an exception.
-        if (!new MoGenerator()->includeHeaders(true)->generateFile($translations, $mo_file)) {
-            throw new RuntimeException(sprintf('Could not write MO file "%s".', $mo_file));
+        if (!new MoGenerator()->includeHeaders(true)->generateFile($translations, $overlay_mo)) {
+            throw new RuntimeException(sprintf('Could not write MO file "%s".', $overlay_mo));
         }
 
         \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
@@ -167,86 +191,88 @@ final class MigratedLanguageFileSync
 
     /**
      * The uninstall counterpart to sync()'s $create_missing_mo: removes this migrated module's
-     * compiled `.mo` file for $lang_key, if one exists, deliberately leaving the `.po` untouched - the
-     * `.po` ships like the legacy `.lang` file did (see tools/po-migration/README.md), the `.mo` is the
-     * derived runtime artifact tied to whether the language is actually installed. A pure no-op for a
-     * module that hasn't contributed a LanguageFileDirectory, or that has no `.mo` file for $lang_key
-     * to begin with - same posture as sync() above, including "always throws instead of swallowing",
-     * since it has no logger of its own; the caller decides whether/how to log a failure, exactly like
-     * sync()'s three call sites already do.
+     * overlay `.po`+`.mo` pair for $lang_key, if present. Unlike the shipped `.po` (which never gets
+     * removed - it ships like the legacy `.lang` file did), the overlay is purely derived, per-instance
+     * state with no "precious source" status of its own, so both files are removed together rather
+     * than keeping one of them around the way the old (pre-overlay) design kept the shipped `.po`.
+     * A pure no-op for a module that hasn't contributed a LanguageFileDirectory, that has no overlay
+     * for $lang_key to begin with, or for which $client_data_dir cannot be resolved - same posture as
+     * sync() above, including "always throws instead of swallowing", since it has no logger of its
+     * own; the caller decides whether/how to log a failure, exactly like sync()'s call sites already
+     * do.
      *
-     * This is exactly Rollback-Ebene 1 from the README ("nur die .mo-Datei entfernen"), now applied
-     * automatically whenever a language is uninstalled instead of only ever being a manual lever -
-     * without it, a stale `.mo` kept serving a migrated module's now-uninstalled content forever (e.g.
-     * via ilLanguage::txtlng(), which never checks whether $lang_key is still installed).
+     * This is exactly Rollback-Ebene 1 from the README ("nur die Overlay-Dateien entfernen"), now
+     * applied automatically whenever a language is uninstalled instead of only ever being a manual
+     * lever - without it, a stale overlay kept serving a migrated module's now-uninstalled content
+     * forever (e.g. via ilLanguage::txtlng(), which never checks whether $lang_key is still
+     * installed).
      *
      * One module per call, mirroring sync()'s contract - a caller uninstalling a language iterates
      * every contributed directory itself (see ilObjLanguage::removeMigratedMoFiles()), the same way
      * insertLanguage() iterates every module before calling sync() once per module.
      */
-    public static function removeMoFile(
+    public static function removeOverlay(
         LanguageFileDirectoryManager $language_file_directory_manager,
-        string $ilias_absolute_path,
         string $lang_key,
-        string $module
+        string $module,
+        ?string $client_data_dir
     ): void {
-        $directory = null;
-        foreach ($language_file_directory_manager->getDirectories() as $candidate) {
-            if ($candidate->getPrefix() === $module) {
-                $directory = $candidate;
-                break;
-            }
+        if ($client_data_dir === null) {
+            return;
         }
+        $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null) {
             return;
         }
 
-        $mo_file = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
-            . $module . '_' . $lang_key . '.mo';
-        if (!is_file($mo_file)) {
-            return;
-        }
-        if (!unlink($mo_file)) {
-            throw new RuntimeException(sprintf('Could not remove MO file "%s".', $mo_file));
+        $base = self::overlayBasePath($client_data_dir, $directory, $module, $lang_key);
+        $removed_anything = false;
+        foreach ([$base . '.po', $base . '.mo'] as $file) {
+            if (!is_file($file)) {
+                continue;
+            }
+            if (!unlink($file)) {
+                throw new RuntimeException(sprintf('Could not remove overlay file "%s".', $file));
+            }
+            $removed_anything = true;
         }
 
-        \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
+        if ($removed_anything) {
+            \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
+        }
     }
 
     /**
      * The read-side counterpart to sync() (see components/ILIAS/Language/tools/po-migration/README.md,
-     * "Admin-GUI-Lesestellen"): for a module+language this pilot has migrated, the `.po` file - not
-     * `lng_data` - is now the authoritative content, exactly matching what ilLanguage::txt() itself
-     * would serve (gated on `.mo` existing, same as ilLanguage's own loadFromMigratedLanguageFile()).
-     * Used by ilObjLanguageExt's admin-GUI listing methods (_getValues(), _getModules()) to source a
-     * migrated module's values instead of the (still dual-written, but no longer authoritative)
-     * `lng_data` row.
+     * "Admin-GUI-Lesestellen"): for a module+language this pilot has migrated, the overlay `.po` file -
+     * not `lng_data` - is now the authoritative content, exactly matching what ilLanguage::txt() itself
+     * would serve (gated on the overlay `.mo` existing too, same as ilLanguage's own
+     * loadFromMigratedLanguageFile()). Used by ilObjLanguageExt's admin-GUI listing methods
+     * (_getValues(), _getModules()) to source a migrated module's values instead of the (still
+     * dual-written, but no longer authoritative) `lng_data` row.
      *
-     * A pure no-op (returns `null`) for any module that hasn't contributed a LanguageFileDirectory, or
-     * that has no compiled `.mo` file for $lang_key yet.
+     * A pure no-op (returns `null`) for any module that hasn't contributed a LanguageFileDirectory,
+     * that has no compiled overlay `.mo` file for $lang_key yet, or for which $client_data_dir cannot
+     * be resolved.
      *
      * @return array<string, array{value: string, local_change: bool}>|null identifier => details, or
      *         `null` if this module+language isn't (yet) migrated.
      */
     public static function loadModuleTranslations(
         LanguageFileDirectoryManager $language_file_directory_manager,
-        string $ilias_absolute_path,
         string $lang_key,
-        string $module
+        string $module,
+        ?string $client_data_dir
     ): ?array {
-        $directory = null;
-        foreach ($language_file_directory_manager->getDirectories() as $candidate) {
-            if ($candidate->getPrefix() === $module) {
-                $directory = $candidate;
-                break;
-            }
+        if ($client_data_dir === null) {
+            return null;
         }
+        $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null) {
             return null;
         }
 
-        $base_path = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
-            . $module . '_' . $lang_key;
+        $base_path = self::overlayBasePath($client_data_dir, $directory, $module, $lang_key);
         if (!is_file($base_path . '.mo') || !is_file($base_path . '.po')) {
             return null;
         }
@@ -267,28 +293,85 @@ final class MigratedLanguageFileSync
 
     /**
      * Every module currently migrated for $lang_key - i.e. every contributed LanguageFileDirectory
-     * that also has a compiled `.mo` for it (see loadModuleTranslations()'s docblock for why `.mo`,
-     * not just `.po`, is the gate). Used by ilObjLanguageExt::_getModules() to list a migrated module
-     * even on the (today purely hypothetical, thanks to the dual-write - see "Schreibpfad" in
+     * that also has a compiled overlay `.mo` for it (see loadModuleTranslations()'s docblock for why
+     * `.mo`, not just `.po`, is the gate). Used by ilObjLanguageExt::_getModules() to list a migrated
+     * module even on the (today purely hypothetical, thanks to the dual-write - see "Schreibpfad" in
      * tools/po-migration/README.md) chance that it has no `lng_data` row at all.
+     *
+     * Returns an empty list (not every contributed module) when $client_data_dir cannot be resolved -
+     * with no overlay location, nothing can be "migrated" from this pilot's point of view yet.
      *
      * @return list<string>
      */
     public static function getMigratedModules(
         LanguageFileDirectoryManager $language_file_directory_manager,
-        string $ilias_absolute_path,
-        string $lang_key
+        string $lang_key,
+        ?string $client_data_dir
     ): array {
+        if ($client_data_dir === null) {
+            return [];
+        }
+
         $modules = [];
         foreach ($language_file_directory_manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
-            $base_path = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
-                . $module . '_' . $lang_key;
+            $base_path = self::overlayBasePath($client_data_dir, $directory, $module, $lang_key);
             if (is_file($base_path . '.mo') && is_file($base_path . '.po')) {
                 $modules[] = $module;
             }
         }
 
         return $modules;
+    }
+
+    private static function findDirectory(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $module
+    ): ?LanguageFileDirectory {
+        foreach ($language_file_directory_manager->getDirectories() as $candidate) {
+            if ($candidate->getPrefix() === $module) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static function shippedBasePath(
+        string $ilias_absolute_path,
+        LanguageFileDirectory $directory,
+        string $module,
+        string $lang_key
+    ): string {
+        return rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
+            . $module . '_' . $lang_key;
+    }
+
+    /**
+     * Mirrors the shipped file's own location one-to-one, just rooted under the per-instance
+     * $client_data_dir instead of the git-tracked ILIAS root - see this class' own docblock for why.
+     * $directory->getPath() already returns the exact, correctly-cased path segment (e.g.
+     * "components/ILIAS/TermsOfService/lang/"), so no separate vendor/component-name bookkeeping is
+     * needed here - CLIENT_DATA_DIR itself is the same base ilObjLanguageExt::getDataPath() already
+     * uses for its own "lang_data" subdirectory.
+     */
+    private static function overlayBasePath(
+        string $client_data_dir,
+        LanguageFileDirectory $directory,
+        string $module,
+        string $lang_key
+    ): string {
+        return rtrim($client_data_dir, '/') . '/lang/' . ltrim($directory->getPath(), '/')
+            . $module . '_' . $lang_key;
+    }
+
+    private static function ensureDirectoryExists(string $directory): void
+    {
+        if (is_dir($directory)) {
+            return;
+        }
+        if (!mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new RuntimeException(sprintf('Could not create directory "%s".', $directory));
+        }
     }
 }

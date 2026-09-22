@@ -160,26 +160,27 @@ class ilPluginLanguage
     }
 
     /**
-     * The .mo-file counterpart to the raw DB deletes above, for a plugin migrated to the PO/MO pilot
+     * The overlay counterpart to the raw DB deletes above, for a plugin migrated to the PO/MO pilot
      * (see components/ILIAS/Language/tools/po-migration/README.md, "Rollback") - analogous to
      * ilObjLanguage::removeMigratedMoFiles(), which closes the same gap for uninstalling a whole
-     * language. Without this, uninstalling a plugin left its compiled .mo files completely untouched
-     * on disk for every language: lng_data/lng_modules are gone, but ilLanguage::loadLanguageModule()/
-     * txtlng() never check whether $prefix still belongs to an installed plugin before reading a
-     * migrated module's .mo file - it would keep serving the now-uninstalled plugin's content forever.
+     * language. Without this, uninstalling a plugin left its compiled overlay .mo/.po files completely
+     * untouched on disk for every language: lng_data/lng_modules are gone, but
+     * ilLanguage::loadLanguageModule()/txtlng() never check whether $prefix still belongs to an
+     * installed plugin before reading a migrated module's overlay .mo file - it would keep serving the
+     * now-uninstalled plugin's content forever.
      *
      * Iterates every language the plugin ships a `.lang` file for (not just currently installed
      * languages, see getAvailableLangFiles()) rather than ilObjLanguage::getLangKeysOfInstalledLanguages():
-     * a rollback-relevant .mo can exist for a language that was itself uninstalled later, and removing
-     * it too is exactly what a plugin uninstall should do - MigratedLanguageFileSync::removeMoFile() is
-     * a no-op per language/module pair anyway when there is nothing to remove, so scanning every
-     * shipped language costs nothing extra.
+     * a rollback-relevant overlay can exist for a language that was itself uninstalled later, and
+     * removing it too is exactly what a plugin uninstall should do -
+     * MigratedLanguageFileSync::removeOverlay() is a no-op per language/module pair anyway when there
+     * is nothing to remove, so scanning every shipped language costs nothing extra.
      *
      * Same no-op/failure posture as ilObjLanguage::removeMigratedMoFiles(): silently does nothing if no
      * LanguageFileDirectoryManager is registered at all, and logs and swallows a removal failure per
      * language rather than throwing or aborting the remaining languages - the DB-side uninstall above
      * already succeeded and must not be undone or blocked by a problem with the file mirror (e.g. a
-     * read-only lang/ directory).
+     * read-only overlay directory).
      */
     private function removeMigratedMoFiles(string $prefix): void
     {
@@ -191,13 +192,14 @@ class ilPluginLanguage
 
         /** @var LanguageFileDirectoryManager $manager */
         $manager = $DIC[LanguageFileDirectoryManager::class];
+        $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
 
         foreach ($this->getAvailableLangFiles() as $lang) {
             try {
-                MigratedLanguageFileSync::removeMoFile($manager, ILIAS_ABSOLUTE_PATH, $lang['key'], $prefix);
+                MigratedLanguageFileSync::removeOverlay($manager, $lang['key'], $prefix, $client_data_dir);
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
-                    'Could not remove migrated MO file for module "%s", language "%s": %s',
+                    'Could not remove migrated overlay file for module "%s", language "%s": %s',
                     $prefix,
                     $lang['key'],
                     $t->getMessage()

@@ -54,23 +54,38 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
+        // The read side (MigratedLanguageFileSync::loadModuleTranslations()/getMigratedModules(), and
+        // ilObjLanguageExt's admin-GUI methods that call them) now resolves a migrated module's
+        // OVERLAY location from CLIENT_DATA_DIR - never from ILIAS_ABSOLUTE_PATH - see
+        // components/ILIAS/Language/tools/po-migration/README.md, "Overlay: Installations-eigene
+        // `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so this is guarded exactly like
+        // ILIAS_ABSOLUTE_PATH above.
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
     }
 
     protected function tearDown(): void
     {
-        if (isset($this->fixture_directory) && is_dir($this->fixture_directory)) {
-            array_map('unlink', glob($this->fixture_directory . '/*') ?: []);
-            rmdir($this->fixture_directory);
+        if (isset($this->fixture_directory)) {
+            $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+                . $this->fixture_directory;
+            if (is_dir($overlay_dir)) {
+                array_map('unlink', glob($overlay_dir . '/*') ?: []);
+                rmdir($overlay_dir);
+            }
         }
 
         parent::tearDown();
     }
 
     /**
-     * Builds a real .po/.mo pair for a throwaway module, exactly like the real conversion tool would,
-     * and returns the LanguageFileDirectory that makes it discoverable the same way a real
-     * ComponentLanguageFileDirectory contribution would. Follows the same fixture pattern as
-     * PoLastLocalChangeTest.php.
+     * Builds a real .po/.mo pair for a throwaway module, exactly like a real installation's first sync
+     * would produce, directly at the OVERLAY location (under CLIENT_DATA_DIR) - not the shipped,
+     * git-tracked location - since loadModuleTranslations()/getMigratedModules() (and therefore
+     * ilObjLanguageExt's admin-GUI read methods) only ever read the overlay. Returns the
+     * LanguageFileDirectory that makes it discoverable the same way a real ComponentLanguageFileDirectory
+     * contribution would. Follows the same fixture pattern as PoLastLocalChangeTest.php.
      *
      * @param array<string, array{value: string, original?: string}> $entries keyed by identifier;
      *   'original', when given, seeds LocalChangeComments::setOriginal() so a later value change is
@@ -84,9 +99,11 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         array $entries,
         array $changed_identifiers = []
     ): LanguageFileDirectory {
-        $this->fixture_directory ??= __DIR__ . '/tmp-admingui-values-fixtures-' . bin2hex(random_bytes(4));
-        if (!is_dir($this->fixture_directory)) {
-            mkdir($this->fixture_directory, 0775, true);
+        $this->fixture_directory ??= 'tmp-admingui-values-fixtures-' . bin2hex(random_bytes(4));
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . $this->fixture_directory;
+        if (!is_dir($overlay_dir)) {
+            mkdir($overlay_dir, 0775, true);
         }
 
         $now = new DateTimeImmutable('2026-01-02T03:04:05Z', new DateTimeZone('UTC'));
@@ -108,11 +125,11 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
             $translations->add($translation);
         }
 
-        $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
+        $base_path = $overlay_dir . '/' . $module . '_' . $lang_key;
         (new PoGenerator())->generateFile($translations, $base_path . '.po');
         (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
 
-        $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
+        $relative_path = 'components/ILIAS/Language/tests/' . $this->fixture_directory . '/';
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
@@ -139,6 +156,17 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
                 return false;
             }
         };
+    }
+
+    /**
+     * The overlay path a fixture module seeded via seedFixtureModule() was actually written to (see
+     * that method) - used to reach in and remove one of the two files to simulate an incomplete/
+     * not-yet-migrated overlay.
+     */
+    private function overlayFile(string $module, string $lang_key, string $extension): string
+    {
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . $this->fixture_directory . '/' . $module . '_' . $lang_key . '.' . $extension;
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
@@ -200,7 +228,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         );
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
 
-        $result = MigratedLanguageFileSync::loadModuleTranslations($manager, ILIAS_ABSOLUTE_PATH, 'de', 'mtest');
+        $result = MigratedLanguageFileSync::loadModuleTranslations($manager, 'de', 'mtest', CLIENT_DATA_DIR);
 
         $this->assertSame(
             [
@@ -216,18 +244,18 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory());
 
         $this->assertNull(
-            MigratedLanguageFileSync::loadModuleTranslations($manager, ILIAS_ABSOLUTE_PATH, 'de', 'mtest')
+            MigratedLanguageFileSync::loadModuleTranslations($manager, 'de', 'mtest', CLIENT_DATA_DIR)
         );
     }
 
     public function testLoadModuleTranslationsReturnsNullWhenThereIsNoMoFileForThisLanguageYet(): void
     {
         $directory = $this->seedFixtureModule('mtest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        unlink($this->fixture_directory . '/mtest_de.mo');
+        unlink($this->overlayFile('mtest', 'de', 'mo'));
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
 
         $this->assertNull(
-            MigratedLanguageFileSync::loadModuleTranslations($manager, ILIAS_ABSOLUTE_PATH, 'de', 'mtest')
+            MigratedLanguageFileSync::loadModuleTranslations($manager, 'de', 'mtest', CLIENT_DATA_DIR)
         );
     }
 
@@ -235,10 +263,10 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
     {
         $with_mo = $this->seedFixtureModule('mone', 'de', ['greeting' => ['value' => 'Hallo']]);
         $without_mo = $this->seedFixtureModule('mtwo', 'de', ['greeting' => ['value' => 'Hallo']]);
-        unlink($this->fixture_directory . '/mtwo_de.mo');
+        unlink($this->overlayFile('mtwo', 'de', 'mo'));
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $with_mo, $without_mo);
 
-        $this->assertSame(['mone'], MigratedLanguageFileSync::getMigratedModules($manager, ILIAS_ABSOLUTE_PATH, 'de'));
+        $this->assertSame(['mone'], MigratedLanguageFileSync::getMigratedModules($manager, 'de', CLIENT_DATA_DIR));
     }
 
     // -----------------------------------------------------------------

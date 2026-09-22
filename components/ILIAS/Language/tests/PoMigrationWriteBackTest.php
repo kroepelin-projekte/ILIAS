@@ -35,6 +35,18 @@ use Gettext\Translations;
  * now also mirrors a migrated module's .po/.mo files, without ever skipping the lng_modules write
  * itself (dual-write, so the DB stays a valid rollback target).
  *
+ * As of the overlay split (see README, "Overlay: Installations-eigene `.po`/`.mo`-Dateien"), the
+ * git-tracked SHIPPED `.po`/`.mo` pair (rooted under ILIAS_ABSOLUTE_PATH, exactly where
+ * convert_module_to_po.php would have written it) is never written to again by replaceLangModule() -
+ * every actual write goes to a separate, per-installation OVERLAY `.po`/`.mo` pair rooted under
+ * CLIENT_DATA_DIR instead (see MigratedLanguageFileSyncTest.php for the same two-root fixture
+ * pattern, applied there directly against MigratedLanguageFileSync itself rather than through this
+ * class' caller). Every test below therefore seeds the SHIPPED pair, bootstraps the OVERLAY pair from
+ * it (simulating a module whose language was already installed - sync()'s default $create_missing_mo
+ * = false, exactly what replaceLangModule() passes, never creates a still-missing overlay .mo), reads
+ * its assertions from the OVERLAY, and additionally verifies the SHIPPED pair stayed byte-identical
+ * throughout (the git-dirtying bug this split exists to prevent).
+ *
  * Uses a throwaway fixture module (not tos's real files) so these tests never touch real pilot data.
  */
 class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
@@ -48,6 +60,13 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
+        // MigratedLanguageFileSync's overlay location (see this class' own docblock, and
+        // tools/po-migration/README.md, "Overlay") is rooted at the CLIENT_DATA_DIR constant, never
+        // at ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so this is guarded exactly like
+        // ILIAS_ABSOLUTE_PATH above - see PoMigrationLoadLanguageModuleTest.php for the same pattern.
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
 
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_translations_cache')->setValue(null, []);
@@ -60,13 +79,21 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             rmdir($this->fixture_directory);
         }
 
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . ($this->fixture_directory !== null ? basename($this->fixture_directory) : '');
+        if (isset($this->fixture_directory) && is_dir($overlay_dir)) {
+            array_map('unlink', glob($overlay_dir . '/*') ?: []);
+            rmdir($overlay_dir);
+        }
+
         parent::tearDown();
     }
 
     /**
      * Seeds a real .po/.mo pair for a throwaway module, exactly like the real conversion tool would,
-     * and returns the LanguageFileDirectory that makes it discoverable the same way a real
-     * ComponentLanguageFileDirectory contribution would.
+     * at the SHIPPED (ILIAS_ABSOLUTE_PATH-rooted) location - and returns the LanguageFileDirectory
+     * that makes it discoverable the same way a real ComponentLanguageFileDirectory contribution
+     * would. Never creates an overlay by itself - see bootstrapOverlayFromShipped() below.
      *
      * @param array<string, array{value: string, fuzzy?: bool, original?: string}> $entries 'original',
      *   when given, seeds the entry exactly as convert_module_to_po.php would (see LocalChangeComments)
@@ -124,6 +151,29 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         };
     }
 
+    /**
+     * Copies the current shipped `.po`/`.mo` pair for $module/$lang_key into the overlay location,
+     * simulating a module whose language was already installed by an earlier run - the normal starting
+     * point for every write-back test here, since replaceLangModule() always passes sync()'s default
+     * $create_missing_mo = false (see MigratedLanguageFileSync::sync()'s docblock): it only ever
+     * refreshes an overlay that already exists, never bootstraps a still-missing one.
+     */
+    private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
+    {
+        $overlay_base = $this->overlayBase($module, $lang_key);
+        if (!is_dir(dirname($overlay_base))) {
+            mkdir(dirname($overlay_base), 0775, true);
+        }
+        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po', $overlay_base . '.po');
+        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.mo', $overlay_base . '.mo');
+    }
+
+    private function overlayBase(string $module, string $lang_key): string
+    {
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key;
+    }
+
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
     {
         $this->setGlobalVariable(
@@ -152,20 +202,31 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
+    private function loadOverlayPo(string $module, string $lang_key): Translations
+    {
+        return (new PoLoader())->loadFile($this->overlayBase($module, $lang_key) . '.po');
+    }
+
     public function testUpdatesAnExistingEntryAndClearsItsFuzzyFlag(): void
     {
         $this->stubDatabaseForReplaceLangModule();
         $directory = $this->seedFixtureModule('wtest', 'de', [
             'greeting' => ['value' => 'Hallo', 'fuzzy' => true],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $translation = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo, geändert', $translation->getTranslation());
         $this->assertFalse($translation->getFlags()->has('fuzzy'));
+
+        // the shipped file must never be touched by an ordinary admin edit, no matter what
+        $shipped = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
+        $this->assertSame('Hallo', $shipped->getTranslation());
+        $this->assertTrue($shipped->getFlags()->has('fuzzy'));
     }
 
     public function testAddsANewEntryThatDidNotExistInTheFileBefore(): void
@@ -174,6 +235,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $directory = $this->seedFixtureModule('wtest', 'de', [
             'greeting' => ['value' => 'Hallo'],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         ilObjLanguage::replaceLangModule('de', 'wtest', [
@@ -181,9 +243,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             'farewell' => 'Tschüss',
         ]);
 
-        $translation = $this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell');
         $this->assertNotNull($translation);
         $this->assertSame('Tschüss', $translation->getTranslation());
+
+        // never added to the shipped file
+        $this->assertNull($this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell'));
     }
 
     public function testRemovesAnEntryThatIsNoLongerInTheReplacedArray(): void
@@ -193,32 +258,45 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             'greeting' => ['value' => 'Hallo'],
             'farewell' => ['value' => 'Tschüss'],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         // "farewell" is deleted server-side before replaceLangModule() rebuilds the row from what
         // remains - exactly what _deleteValues() does (see class.ilObjLanguageExt.php)
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo']);
 
-        $this->assertNull($this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell'));
+        $this->assertNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell'));
+        $this->assertNotNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting'));
+
+        // the shipped file keeps both entries - it is never touched
+        $this->assertNotNull($this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell'));
         $this->assertNotNull($this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting'));
     }
 
     /**
-     * The pilot's "roll back one language" lever is removing just the .mo file (see README,
-     * "Rollback") - the .po stays. If the write path only checked for the .po, the very next admin
-     * edit would silently regenerate the .mo and undo that rollback. Gating on the .mo file too
-     * (matching exactly what ilLanguage's read path checks) prevents that.
+     * The pilot's "roll back one language" lever is removing just the overlay's .mo file (see README,
+     * "Rollback") - the overlay .po (and the shipped pair entirely) stay. If the write path only
+     * checked for the .po, the very next admin edit would silently regenerate the .mo and undo that
+     * rollback. Gating on the .mo file too (matching exactly what ilLanguage's read path checks)
+     * prevents that.
      */
     public function testIsANoOpWhenOnlyTheMoFileWasRemovedAsAPerLanguageRollback(): void
     {
         $this->stubDatabaseForReplaceLangModule();
         $directory = $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
-        unlink($this->fixture_directory . '/wtest_de.mo');
+        unlink($this->overlayBase('wtest', 'de') . '.mo');
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $this->assertFileDoesNotExist($this->fixture_directory . '/wtest_de.mo');
+        $this->assertFileDoesNotExist($this->overlayBase('wtest', 'de') . '.mo');
+        $this->assertSame(
+            'Hallo',
+            $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
+        );
+        // shipped pair untouched throughout
+        $this->assertFileExists($this->fixture_directory . '/wtest_de.mo');
         $this->assertSame(
             'Hallo',
             $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
@@ -239,6 +317,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
         );
         $this->assertFileDoesNotExist($this->fixture_directory . '/other_module_de.po');
+        $this->assertDirectoryDoesNotExist(rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename($this->fixture_directory) . '/other_module_de.po');
     }
 
     public function testIsANoOpWhenNoDirectoryManagerIsRegisteredAtAll(): void
@@ -253,12 +333,16 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
     /**
      * The whole point of invalidateMigratedLanguageFileCache(): without it, ilLanguage would keep
-     * serving the value it cached before this write for the rest of the request.
+     * serving the value it cached before this write for the rest of the request. ilLanguage's read
+     * path (ilLanguage::migratedOverlayMoFile()) reads exclusively from the CLIENT_DATA_DIR-rooted
+     * overlay - never the shipped file - so the overlay must already be bootstrapped for the "before"
+     * read to see anything at all.
      */
     public function testInvalidatesIlLanguagesCacheSoTheNewValueIsVisibleImmediately(): void
     {
         $this->stubDatabaseForReplaceLangModule();
         $directory = $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         $before = (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
@@ -278,7 +362,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
      * End-to-end coverage of LocalChangeComments (see its own unit tests in
      * components/ILIAS/Language/tests/ComponentTranslation/LocalChangeCommentsTest.php) through the
      * actual write path an admin edit funnels through: editing an entry away from the value the
-     * conversion tool shipped it with ("original") must leave a local_change timestamp behind.
+     * conversion tool shipped it with ("original") must leave a local_change timestamp behind - in the
+     * overlay, since that is the only file this write path ever touches.
      */
     public function testWritingADifferentValueThanTheOriginalSetsALocalChangeTimestamp(): void
     {
@@ -286,14 +371,21 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $directory = $this->seedFixtureModule('wtest', 'de', [
             'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $translation = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
         $this->assertNotNull(LocalChangeComments::getLocalChange($translation));
+
+        // the shipped "original" baseline is never touched by this or any other write
+        $this->assertSame(
+            'Hallo',
+            $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
+        );
     }
 
     /**
@@ -307,18 +399,18 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $directory = $this->seedFixtureModule('wtest', 'de', [
             'greeting' => ['value' => 'Hallo, geändert', 'original' => 'Hallo'],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         // sanity check: the fixture starts out already locally changed
-        $before = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
         $this->assertNotNull(LocalChangeComments::getLocalChange(
-            $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting')
+            $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')
         ));
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo']);
 
-        $translation = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertSame('Hallo', $translation->getTranslation());
         $this->assertNull(LocalChangeComments::getLocalChange($translation));
     }
@@ -334,6 +426,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $directory = $this->seedFixtureModule('wtest', 'de', [
             'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
         ]);
+        $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
         ilObjLanguage::replaceLangModule('de', 'wtest', [
@@ -341,7 +434,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             'farewell' => 'Tschüss',
         ]);
 
-        $translation = $this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell');
         $this->assertNotNull($translation);
         $this->assertNull(LocalChangeComments::getOriginal($translation));
         $this->assertNotNull(LocalChangeComments::getLocalChange($translation));

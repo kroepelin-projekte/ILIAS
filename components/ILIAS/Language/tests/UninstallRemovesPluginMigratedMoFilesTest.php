@@ -25,17 +25,26 @@ use Gettext\Generator\MoGenerator;
 use Gettext\Generator\PoGenerator;
 use Gettext\Translation;
 use Gettext\Translations;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
- * Covers ilPluginLanguage::uninstall()'s new .mo-file cleanup - the plugin-level counterpart to
+ * Covers ilPluginLanguage::uninstall()'s overlay-file cleanup - the plugin-level counterpart to
  * ilObjLanguage::removeMigratedMoFiles() (see UninstallRemovesMigratedMoFilesTest.php and
- * components/ILIAS/Language/tools/po-migration/README.md, "Rollback").
+ * components/ILIAS/Language/tools/po-migration/README.md, "Dieselbe Lücke bei der
+ * Plugin-Deinstallation").
  *
  * Before this, uninstalling a plugin only ever deleted its lng_data/lng_modules rows via raw SQL - a
- * migrated plugin's compiled .mo files (for every language it ships) were left completely untouched on
- * disk. ilLanguage::loadLanguageModule()/txtlng() never check whether a module's owning plugin is still
- * installed before reading its .mo file, so a stale one would keep serving the uninstalled plugin's
- * content forever, exactly the same class of gap that existed for whole-language uninstalls.
+ * migrated plugin's compiled overlay .po/.mo files (for every language it ships) were left completely
+ * untouched on disk. ilLanguage::loadLanguageModule()/txtlng() never check whether a module's owning
+ * plugin is still installed before reading its overlay .mo file, so a stale one would keep serving the
+ * uninstalled plugin's content forever, exactly the same class of gap that existed for whole-language
+ * uninstalls.
+ *
+ * Under the current design, the SHIPPED `.po` is written exactly once by the conversion tool and never
+ * again - there is no shipped `.mo` at all. Every actual read/write goes through a per-installation
+ * "overlay" `.po`+`.mo` pair under CLIENT_DATA_DIR, mirroring the shipped file's own relative location.
+ * removeMigratedMoFiles() removes BOTH overlay files together via
+ * MigratedLanguageFileSync::removeOverlay() and must leave the (never-written) shipped `.po` untouched.
  *
  * Uses a throwaway fixture module/prefix (not any real plugin) so these tests never touch real data.
  */
@@ -61,6 +70,9 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         if (isset($this->plugin_root_directory) && is_dir($this->plugin_root_directory)) {
             $this->removeDirectoryRecursively($this->plugin_root_directory);
         }
+        if (defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
+        }
 
         parent::tearDown();
     }
@@ -82,11 +94,24 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * Seeds a real .po/.mo pair for a throwaway module/language, exactly like a real installation
-     * would, and returns the LanguageFileDirectory that makes it discoverable the same way a real
-     * ComponentLanguageFileDirectory contribution would.
+     * A PHP constant cannot be redefined - guarded exactly like ILIAS_ABSOLUTE_PATH above. Deliberately
+     * NOT called from setUp(): the "CLIENT_DATA_DIR cannot be resolved" test below must observe it as
+     * undefined, and runs in its own process (see #[RunInSeparateProcess]).
      */
-    private function seedMigratedFixture(string $module, string $lang_key, array $entries): LanguageFileDirectory
+    private function ensureClientDataDirDefined(): void
+    {
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_plugin_uninstall_mo_test_' . bin2hex(random_bytes(4)));
+        }
+    }
+
+    /**
+     * Seeds only the SHIPPED `.po` file for a throwaway module/language - never a shipped `.mo`, which
+     * the current design never writes at all (see tools/po-migration/README.md, "Overlay"). Returns the
+     * LanguageFileDirectory that makes it discoverable the same way a real ComponentLanguageFileDirectory
+     * contribution would.
+     */
+    private function seedShippedModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
     {
         $this->fixture_directory ??= __DIR__ . '/tmp-plugin-uninstall-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
@@ -100,7 +125,6 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
         (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -131,6 +155,31 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         };
     }
 
+    /**
+     * Seeds the OVERLAY `.po`+`.mo` pair for a module/language directly under CLIENT_DATA_DIR,
+     * mirroring the shipped file's relative path one-to-one. Requires seedShippedModule() to have run
+     * first for this fixture's directory.
+     */
+    private function seedOverlay(string $module, string $lang_key, array $entries): void
+    {
+        $this->ensureClientDataDirDefined();
+
+        $translations = Translations::create($module, $lang_key);
+        foreach ($entries as $identifier => $value) {
+            $translations->add(Translation::create($module, $identifier)->translate($value));
+        }
+
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/';
+        if (!is_dir($overlay_dir)) {
+            mkdir($overlay_dir, 0775, true);
+        }
+
+        $base_path = $overlay_dir . $module . '_' . $lang_key;
+        (new PoGenerator())->generateFile($translations, $base_path . '.po');
+        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+    }
+
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
     {
         $this->setGlobalVariable(
@@ -139,9 +188,15 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function fixturePath(string $module, string $lang_key, string $extension): string
+    private function shippedPath(string $module, string $lang_key, string $extension): string
     {
         return $this->fixture_directory . '/' . $module . '_' . $lang_key . '.' . $extension;
+    }
+
+    private function overlayPath(string $module, string $lang_key, string $extension): string
+    {
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
     }
 
     /**
@@ -181,38 +236,45 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         return $db;
     }
 
-    public function testUninstallRemovesTheMoFileForEveryLanguageThePluginShipsButLeavesThePoFileUntouched(): void
+    public function testUninstallRemovesBothOverlayFilesForEveryLanguageThePluginShipsButLeavesTheShippedPoUntouched(): void
     {
         // getPrefix() = "comp_slot_ptest" (see createPluginInfo()'s component/slot mocks)
         $module = 'comp_slot_ptest';
-        $directory = $this->seedMigratedFixture($module, 'de', ['greeting' => 'Hallo']);
-        $this->seedMigratedFixture($module, 'fr', ['greeting' => 'Bonjour']);
+        $directory = $this->seedShippedModule($module, 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay($module, 'de', ['greeting' => 'Hallo']);
+        $this->seedShippedModule($module, 'fr', ['greeting' => 'Bonjour']);
+        $this->seedOverlay($module, 'fr', ['greeting' => 'Bonjour']);
         $this->registerDirectoryManager($directory);
         $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
 
         $plugin_language = new ilPluginLanguage($this->createPluginInfo('ptest', ['de', 'fr']));
         $plugin_language->uninstall();
 
-        $this->assertFileDoesNotExist($this->fixturePath($module, 'de', 'mo'));
-        $this->assertFileDoesNotExist($this->fixturePath($module, 'fr', 'mo'));
-        $this->assertFileExists($this->fixturePath($module, 'de', 'po'));
-        $this->assertFileExists($this->fixturePath($module, 'fr', 'po'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'de', 'po'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'fr', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'fr', 'po'));
+        $this->assertFileExists($this->shippedPath($module, 'de', 'po'));
+        $this->assertFileExists($this->shippedPath($module, 'fr', 'po'));
     }
 
-    public function testUninstallDoesNotTouchAnotherModulesMoFile(): void
+    public function testUninstallDoesNotTouchAnotherModulesOverlay(): void
     {
         $module = 'comp_slot_ptest';
         $other_module = 'comp_slot_other';
-        $directory = $this->seedMigratedFixture($module, 'de', ['greeting' => 'Hallo']);
-        $other_directory = $this->seedMigratedFixture($other_module, 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule($module, 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay($module, 'de', ['greeting' => 'Hallo']);
+        $other_directory = $this->seedShippedModule($other_module, 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay($other_module, 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory, $other_directory);
         $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
 
         $plugin_language = new ilPluginLanguage($this->createPluginInfo('ptest', ['de']));
         $plugin_language->uninstall();
 
-        $this->assertFileDoesNotExist($this->fixturePath($module, 'de', 'mo'));
-        $this->assertFileExists($this->fixturePath($other_module, 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath($other_module, 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath($other_module, 'de', 'po'));
     }
 
     public function testIsANoOpWhenNoDirectoryManagerIsRegisteredAtAll(): void
@@ -226,22 +288,46 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testIsANoOpWhenTheModuleHasNoMoFileForALanguageItShips(): void
+    public function testIsANoOpWhenTheModuleHasNoOverlayForALanguageItShips(): void
     {
         $module = 'comp_slot_ptest';
-        $directory = $this->seedMigratedFixture($module, 'de', ['greeting' => 'Hallo']);
+        $directory = $this->seedShippedModule($module, 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay($module, 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory);
         $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
 
-        // the plugin claims to ship "es" too, but no es .po/.mo fixture exists for it
+        // the plugin claims to ship "es" too, but no es .po/.mo fixture exists for it at all
         $plugin_language = new ilPluginLanguage($this->createPluginInfo('ptest', ['de', 'es']));
         $plugin_language->uninstall();
 
-        $this->assertFileDoesNotExist($this->fixturePath($module, 'de', 'mo'));
+        $this->assertFileDoesNotExist($this->overlayPath($module, 'de', 'mo'));
     }
 
     /**
-     * The catch(\Throwable) branch: a failure removing one language's .mo must be logged via
+     * The central overlay-vs-shipped behavior change: when CLIENT_DATA_DIR cannot be resolved at all,
+     * uninstall()'s overlay cleanup must no-op entirely - never fall back to touching the shipped `.po`.
+     * Runs in a separate process because CLIENT_DATA_DIR, once defined, cannot be undefined again for
+     * the rest of this test class' shared process.
+     */
+    #[RunInSeparateProcess]
+    public function testIsANoOpWhenClientDataDirIsNotResolvable(): void
+    {
+        $this->assertFalse(defined('CLIENT_DATA_DIR'));
+
+        $module = 'comp_slot_ptest';
+        $directory = $this->seedShippedModule($module, 'de', ['greeting' => 'Hallo']);
+        $shipped_po_before = file_get_contents($this->shippedPath($module, 'de', 'po'));
+        $this->registerDirectoryManager($directory);
+        $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
+
+        $plugin_language = new ilPluginLanguage($this->createPluginInfo('ptest', ['de']));
+        $plugin_language->uninstall();
+
+        $this->assertSame($shipped_po_before, file_get_contents($this->shippedPath($module, 'de', 'po')));
+    }
+
+    /**
+     * The catch(\Throwable) branch: a failure removing one language's overlay must be logged via
      * $DIC->logger()->forComponent('lang')->warning(...) and swallowed - not thrown - and must not
      * abort processing of the plugin's other shipped languages. Same technique as
      * UninstallRemovesMigratedMoFilesTest::testLogsAndSwallowsARemovalFailureForOneModuleWithoutAbortingOthers().
@@ -255,22 +341,27 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         // Unlike ilObjLanguage::removeMigratedMoFiles() (which loops over *modules*, each potentially
         // in its own directory), this method loops over *languages* for one single module/directory -
         // unlink()'s failure mode is a directory permission, not a file permission, so both languages'
-        // .mo necessarily live in (and fail to remove from) the same directory here. The loop
+        // overlay necessarily live in (and fail to remove from) the same directory here. The loop
         // continuing past a failure is instead proven by both languages being attempted and logged
         // individually, rather than by one succeeding while the other fails.
         $module = 'comp_slot_ptest';
+        $this->ensureClientDataDirDefined();
         $this->fixture_directory ??= __DIR__ . '/tmp-plugin-uninstall-fixtures-' . bin2hex(random_bytes(4));
-        $readonly_dir = $this->fixture_directory . '/readonly';
-        mkdir($readonly_dir, 0775, true);
+        $shipped_readonly_dir = $this->fixture_directory . '/readonly';
+        mkdir($shipped_readonly_dir, 0775, true);
+
+        $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
+        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_readonly_path;
+        mkdir($overlay_readonly_dir, 0775, true);
 
         foreach (['de' => 'Hallo', 'fr' => 'Bonjour'] as $lang_key => $value) {
             $translations = Translations::create($module, $lang_key);
             $translations->add(Translation::create($module, 'greeting')->translate($value));
-            (new PoGenerator())->generateFile($translations, "$readonly_dir/{$module}_{$lang_key}.po");
-            (new MoGenerator())->includeHeaders(true)->generateFile($translations, "$readonly_dir/{$module}_{$lang_key}.mo");
+            (new PoGenerator())->generateFile($translations, "$shipped_readonly_dir/{$module}_{$lang_key}.po");
+            (new PoGenerator())->generateFile($translations, "$overlay_readonly_dir/{$module}_{$lang_key}.po");
+            (new MoGenerator())->includeHeaders(true)->generateFile($translations, "$overlay_readonly_dir/{$module}_{$lang_key}.mo");
         }
 
-        $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
         $directory = new class ($module, $relative_readonly_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
             {
@@ -299,7 +390,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->registerDirectoryManager($directory);
         $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
 
-        chmod($readonly_dir, 0555);
+        chmod($overlay_readonly_dir, 0555);
 
         $warnings = [];
         $logger = $this->createStub(ilLogger::class);
@@ -318,15 +409,15 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             $plugin_language->uninstall();
         } finally {
             restore_error_handler();
-            chmod($readonly_dir, 0775);
+            chmod($overlay_readonly_dir, 0775);
         }
 
-        // both languages failed to remove (same read-only directory) and were each logged
+        // both languages failed to remove (same read-only overlay directory) and were each logged
         // individually - proving the loop attempted 'fr' too instead of aborting after 'de' failed.
         $this->assertCount(2, $warnings);
         $this->assertStringContainsString('de', $warnings[0] ?? '');
         $this->assertStringContainsString('fr', $warnings[1] ?? '');
-        $this->assertFileExists("$readonly_dir/{$module}_de.mo");
-        $this->assertFileExists("$readonly_dir/{$module}_fr.mo");
+        $this->assertFileExists("$overlay_readonly_dir/{$module}_de.mo");
+        $this->assertFileExists("$overlay_readonly_dir/{$module}_fr.mo");
     }
 }

@@ -973,6 +973,53 @@ class LanguageInstallationManagerTest extends TestCase
     }
 
     /**
+     * The overlay location for a fixture module seeded via seedMigratedFixtureModule(): mirrors
+     * MigratedLanguageFileSync's own overlayBasePath(), rooted under $root . '/client-data' - the
+     * throwaway CLIENT_DATA_DIR-equivalent this test class uses (see clientDataDirResolver()).
+     */
+    private function overlayBase(string $root, LanguageFileDirectory $directory, string $module, string $lang_key): string
+    {
+        return rtrim($root, '/') . '/client-data/lang/' . ltrim($directory->getPath(), '/')
+            . $module . '_' . $lang_key;
+    }
+
+    private function loadOverlayPo(string $root, LanguageFileDirectory $directory, string $module, string $lang_key): Translations
+    {
+        return (new PoLoader())->loadFile($this->overlayBase($root, $directory, $module, $lang_key) . '.po');
+    }
+
+    /**
+     * Copies the shipped `.po`/`.mo` fixture pair (seeded by seedMigratedFixtureModule()) into the
+     * overlay location, simulating an already-migrated module whose overlay was already compiled by an
+     * earlier install - the normal starting point for a test exercising an "update" sync (as opposed to
+     * a first-ever "install" bootstrap, see $create_missing_mo).
+     */
+    private function bootstrapOverlayFromShipped(
+        string $root,
+        LanguageFileDirectory $directory,
+        string $module,
+        string $lang_key
+    ): void {
+        $overlay_base = $this->overlayBase($root, $directory, $module, $lang_key);
+        if (!is_dir(dirname($overlay_base))) {
+            mkdir(dirname($overlay_base), 0775, true);
+        }
+        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po', $overlay_base . '.po');
+        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.mo', $overlay_base . '.mo');
+    }
+
+    /**
+     * A throwaway CLIENT_DATA_DIR-equivalent nested inside $root, so it is cleaned up automatically by
+     * removeDirectory($root) in every test's own finally block - exactly like $this->fixture_directory
+     * (see its own docblock).
+     */
+    private function clientDataDirResolver(string $root): \Closure
+    {
+        $client_data_dir = rtrim($root, '/') . '/client-data';
+        return static fn(): string => $client_data_dir;
+    }
+
+    /**
      * Writes a *.lang source file for a prefixed (component-style) directory under $root - two-field
      * lines (identifier#:#value), matching testInsertLanguageUsesDirectoryPrefixAsModuleForComponentFiles's
      * fixture convention: insertLanguage() unshifts the directory's own prefix as the module for these.
@@ -1046,6 +1093,11 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        // Simulates an already-installed language whose overlay was compiled by an earlier install -
+        // insertLanguageForInstallation()'s default ($create_missing_mo = false) only ever refreshes an
+        // existing overlay, it never bootstraps one from nothing (see the "does not sync ... without
+        // compiled .mo" test below for that case).
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
 
         try {
@@ -1059,14 +1111,21 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForInstallation('de');
 
-            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $translation = $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting');
             $this->assertNotNull($translation);
             $this->assertSame('Hallo, neu', $translation->getTranslation());
+
+            // The shipped file must never be touched - only the overlay is written to.
+            $this->assertSame(
+                'Hallo',
+                $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
         } finally {
             $this->removeDirectory($root);
         }
@@ -1084,6 +1143,7 @@ class LanguageInstallationManagerTest extends TestCase
             'greeting' => 'Hallo',
             'farewell' => 'Tschüss',
         ]);
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
         // The freshly-read *.lang file only produces "greeting" this time.
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo']);
 
@@ -1098,12 +1158,13 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForInstallation('de');
 
-            $translations = $this->loadFixturePo('pilot', 'de');
+            $translations = $this->loadOverlayPo($root, $directory, 'pilot', 'de');
             $this->assertNull($translations->find('pilot', 'farewell'));
             $this->assertNotNull($translations->find('pilot', 'greeting'));
         } finally {
@@ -1157,15 +1218,18 @@ class LanguageInstallationManagerTest extends TestCase
 
     /**
      * insertLanguageForInstallation()'s default ($create_missing_mo = false) is what UpdateLanguage
-     * uses to refresh an already-installed language: a contributed module that has no compiled .mo
-     * file yet must stay a no-op, exactly matching MigratedLanguageFileSync's own default contract
-     * (see its unit tests) - only an explicit install (see the test below) may bootstrap it.
+     * uses to refresh an already-installed language: a contributed module that has no compiled overlay
+     * .mo file yet must stay a no-op, exactly matching MigratedLanguageFileSync's own default contract
+     * (see its unit tests) - only an explicit install (see the test below) may bootstrap it. Note this
+     * is the OVERLAY .mo that gates the write, not the shipped one - seedMigratedFixtureModule() writes
+     * a shipped .mo too, but that file is irrelevant to sync() (see its docblock); what matters here is
+     * that no bootstrapOverlayFromShipped() call happened, so no overlay .mo exists at all yet.
      */
     public function testInsertLanguageDoesNotSyncContributedModuleWithoutCompiledMoFile(): void
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
-        unlink($this->fixture_directory . '/pilot_de.mo');
+        // deliberately no bootstrapOverlayFromShipped() call - no overlay exists at all yet
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
 
         try {
@@ -1179,12 +1243,15 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForInstallation('de');
 
-            $this->assertFileDoesNotExist($this->fixture_directory . '/pilot_de.mo');
+            $overlay_base = $this->overlayBase($root, $directory, 'pilot', 'de');
+            $this->assertFileDoesNotExist($overlay_base . '.mo');
+            $this->assertFileDoesNotExist($overlay_base . '.po');
             $this->assertSame(
                 'Hallo',
                 $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
@@ -1205,7 +1272,8 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
-        unlink($this->fixture_directory . '/pilot_de.mo');
+        // deliberately no bootstrapOverlayFromShipped() call - $create_missing_mo = true below must
+        // bootstrap the overlay from scratch, out of the shipped .po alone.
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
 
         try {
@@ -1219,14 +1287,21 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForInstallation('de', true);
 
-            $this->assertFileExists($this->fixture_directory . '/pilot_de.mo');
+            $overlay_base = $this->overlayBase($root, $directory, 'pilot', 'de');
+            $this->assertFileExists($overlay_base . '.mo');
             $this->assertSame(
                 'Hallo, neu',
+                $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
+            // Bootstrapped FROM the shipped .po, which must stay untouched.
+            $this->assertSame(
+                'Hallo',
                 $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
             );
         } finally {
@@ -1249,6 +1324,10 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        // insertLanguageForRemovingLocalChanges() never passes $create_missing_mo (always the default
+        // false, see its docblock: it reinstalls an already-installed language, it does not install it
+        // for the first time) - an overlay must already exist for the sync to have anything to do.
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, geändert']);
 
         try {
@@ -1266,7 +1345,8 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForRemovingLocalChanges('de');
@@ -1279,8 +1359,8 @@ class LanguageInstallationManagerTest extends TestCase
             $this->assertCount(1, $inserts);
             $this->assertStringContainsString('Hallo, ge', $inserts[0]);
 
-            // ...and the .po file is mirrored to match it.
-            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            // ...and the overlay .po file is mirrored to match it.
+            $translation = $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting');
             $this->assertNotNull($translation);
             $this->assertSame('Hallo, geändert', $translation->getTranslation());
         } finally {
@@ -1302,6 +1382,7 @@ class LanguageInstallationManagerTest extends TestCase
             'greeting' => 'Hallo',
             'custom_hint' => 'Nur in der Datei, nie ausgeliefert',
         ]);
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo']);
 
         try {
@@ -1314,12 +1395,13 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForRemovingLocalChanges('de');
 
-            $translations = $this->loadFixturePo('pilot', 'de');
+            $translations = $this->loadOverlayPo($root, $directory, 'pilot', 'de');
             $this->assertNotNull($translations->find('pilot', 'greeting'));
             $this->assertNull($translations->find('pilot', 'custom_hint'));
         } finally {
@@ -1337,6 +1419,9 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo, alt']);
+        // insertLanguageForApplyingLocalChanges()'s default ($create_missing_mo = false) only refreshes
+        // an already-compiled overlay - see the "creates missing mo" test below for the bootstrap case.
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
         $this->writeCustomizingLangFile($root, 'de', ['pilot#:#greeting#:#Hallo, neu']);
 
         try {
@@ -1351,12 +1436,13 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForApplyingLocalChanges('de');
 
-            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $translation = $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting');
             $this->assertNotNull($translation);
             $this->assertSame('Hallo, neu', $translation->getTranslation());
         } finally {
@@ -1374,7 +1460,8 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo, alt']);
-        unlink($this->fixture_directory . '/pilot_de.mo');
+        // deliberately no bootstrapOverlayFromShipped() call - $create_missing_mo = true must
+        // bootstrap the overlay out of the shipped .po alone.
         $this->writeCustomizingLangFile($root, 'de', ['pilot#:#greeting#:#Hallo, neu']);
 
         try {
@@ -1389,13 +1476,15 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $manager->insertLanguageForApplyingLocalChanges('de', true);
 
-            $this->assertFileExists($this->fixture_directory . '/pilot_de.mo');
-            $translation = $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting');
+            $overlay_base = $this->overlayBase($root, $directory, 'pilot', 'de');
+            $this->assertFileExists($overlay_base . '.mo');
+            $translation = $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting');
             $this->assertNotNull($translation);
             $this->assertSame('Hallo, neu', $translation->getTranslation());
         } finally {
@@ -1413,7 +1502,9 @@ class LanguageInstallationManagerTest extends TestCase
     {
         $root = $this->createTempInstallationRoot();
         $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
-        chmod($this->fixture_directory . '/pilot_de.po', 0444);
+        $this->bootstrapOverlayFromShipped($root, $directory, 'pilot', 'de');
+        $overlay_po = $this->overlayBase($root, $directory, 'pilot', 'de') . '.po';
+        chmod($overlay_po, 0444);
         $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
 
         try {
@@ -1432,7 +1523,8 @@ class LanguageInstallationManagerTest extends TestCase
                 $db,
                 new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
                 $root,
-                $repository
+                $repository,
+                client_data_dir_resolver: $this->clientDataDirResolver($root)
             );
 
             $this->withWarningsSuppressed(static function () use ($manager): void {
@@ -1446,13 +1538,116 @@ class LanguageInstallationManagerTest extends TestCase
             $this->assertCount(1, $inserts, 'The lng_modules write must happen despite the file-sync failure.');
             $this->assertStringContainsString("'pilot'", $inserts[0]);
 
-            // The read-only file itself was of course never actually updated.
+            // The read-only overlay file itself was of course never actually updated.
+            $this->assertSame(
+                'Hallo',
+                $this->loadOverlayPo($root, $directory, 'pilot', 'de')->find('pilot', 'greeting')->getTranslation()
+            );
+        } finally {
+            chmod($overlay_po, 0664);
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * Direct coverage that insertLanguage() calls MigratedLanguageFileSync::sync() with exactly what
+     * the injected $client_data_dir_resolver closure returns for THIS call, not a hardcoded or global
+     * location - an overlay written under an arbitrary resolver-provided directory must land exactly
+     * there.
+     */
+    public function testClientDataDirResolverReturnValueIsUsedAsTheOverlayLocation(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+        $custom_overlay_root = $root . '/somewhere-else-entirely';
+
+        try {
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+
+            $repository = $this->createStub(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository,
+                client_data_dir_resolver: static fn(): string => $custom_overlay_root
+            );
+
+            // A genuine install (create_missing_mo = true), since no overlay exists anywhere yet.
+            $manager->insertLanguageForInstallation('de', true);
+
+            $overlay_po = $custom_overlay_root . '/lang/' . $directory->getPath() . 'pilot_de.po';
+            $this->assertFileExists($overlay_po);
+            $translation = (new PoLoader())->loadFile($overlay_po)->find('pilot', 'greeting');
+            $this->assertNotNull($translation);
+            $this->assertSame('Hallo, neu', $translation->getTranslation());
+
+            // Nothing was ever written under the "default" client-data-dir path this test class
+            // otherwise uses - proving the resolver's return value, not some other fallback, was used.
+            $this->assertDirectoryDoesNotExist($root . '/client-data');
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * A resolver closure that itself resolves to `null` (as opposed to no resolver being injected at
+     * all, the default every other test in this class relies on) must behave identically: no overlay
+     * file of any kind gets created anywhere, but the lng_modules DB write proceeds normally regardless.
+     * This is the realistic production shape - ilSetupLanguage always injects a closure
+     * (resolveClientDataDir(...)), which itself returns null whenever it cannot resolve a client data
+     * directory (e.g. a from-scratch installation before any client exists yet) - never falling back to
+     * writing the shipped, git-tracked file instead (see MigratedLanguageFileSync::sync()'s docblock).
+     */
+    public function testNullReturningClientDataDirResolverProducesNoOverlayButStillWritesDatabase(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        $directory = $this->seedMigratedFixtureModule($root, 'pilot', 'de', ['greeting' => 'Hallo']);
+        $this->writePrefixedLangFile($root, $directory, 'de', ['greeting#:#Hallo, neu']);
+
+        try {
+            $calls = [];
+            $db = $this->createDatabaseMock();
+            $db->method('in')->willReturn("module IN ('pilot')");
+            $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
+                $calls[] = $query;
+                return 1;
+            });
+
+            $repository = $this->createStub(InstalledLanguageRepository::class);
+            $repository->method('getLocalChanges')->willReturn([]);
+
+            $manager = new LanguageInstallationManager(
+                $db,
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $directory),
+                $root,
+                $repository,
+                client_data_dir_resolver: static fn(): ?string => null
+            );
+
+            // Even a genuine "install" (create_missing_mo = true) must not fabricate an overlay
+            // without anywhere to put it.
+            $manager->insertLanguageForInstallation('de', true);
+
+            $inserts = array_values(array_filter(
+                $calls,
+                static fn(string $query): bool => str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')
+            ));
+            $this->assertCount(1, $inserts, 'The lng_modules write must happen regardless of a null client data dir.');
+            $this->assertStringContainsString("'pilot'", $inserts[0]);
+
+            // No overlay location was ever resolvable - nothing must exist under any "client-data"-ish
+            // directory, and the shipped fixture must stay exactly as seeded.
+            $this->assertDirectoryDoesNotExist($root . '/client-data');
             $this->assertSame(
                 'Hallo',
                 $this->loadFixturePo('pilot', 'de')->find('pilot', 'greeting')->getTranslation()
             );
         } finally {
-            chmod($this->fixture_directory . '/pilot_de.po', 0664);
             $this->removeDirectory($root);
         }
     }

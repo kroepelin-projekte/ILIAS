@@ -341,6 +341,7 @@ class ilObjLanguageExt extends ilObjLanguage
         }
 
         $manager = $DIC[LanguageFileDirectoryManager::class];
+        $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
         foreach (array_unique(array_merge($modules_before_delete, array_keys($entries_by_module))) as $module) {
             try {
                 MigratedLanguageFileSync::sync(
@@ -348,7 +349,9 @@ class ilObjLanguageExt extends ilObjLanguage
                     ILIAS_ABSOLUTE_PATH,
                     $this->key,
                     $module,
-                    $entries_by_module[$module] ?? []
+                    $entries_by_module[$module] ?? [],
+                    false,
+                    $client_data_dir
                 );
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
@@ -388,8 +391,8 @@ class ilObjLanguageExt extends ilObjLanguage
         if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             $migrated_modules = MigratedLanguageFileSync::getMigratedModules(
                 $DIC[LanguageFileDirectoryManager::class],
-                ILIAS_ABSOLUTE_PATH,
-                $a_lang_key
+                $a_lang_key,
+                defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null
             );
             $modules = array_unique(array_merge($modules, $migrated_modules));
             sort($modules);
@@ -462,16 +465,17 @@ class ilObjLanguageExt extends ilObjLanguage
         $migrated_modules_found = [];
         if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             $manager = $DIC[LanguageFileDirectoryManager::class];
+            $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
             $candidate_modules = $a_modules !== []
                 ? $a_modules
-                : MigratedLanguageFileSync::getMigratedModules($manager, ILIAS_ABSOLUTE_PATH, $a_lang_key);
+                : MigratedLanguageFileSync::getMigratedModules($manager, $a_lang_key, $client_data_dir);
 
             foreach ($candidate_modules as $module) {
                 $translations = MigratedLanguageFileSync::loadModuleTranslations(
                     $manager,
-                    ILIAS_ABSOLUTE_PATH,
                     $a_lang_key,
-                    $module
+                    $module,
+                    $client_data_dir
                 );
                 if ($translations === null) {
                     continue;

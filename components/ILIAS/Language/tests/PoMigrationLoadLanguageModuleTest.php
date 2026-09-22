@@ -48,6 +48,14 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
+        // ilLanguage::migratedOverlayMoFile() resolves a migrated module's compiled `.mo` under
+        // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH - see
+        // components/ILIAS/Language/tools/po-migration/README.md, "Overlay: Installations-eigene
+        // `.po`/`.mo`-Dateien". A PHP constant cannot be redefined, so this is guarded exactly like
+        // ILIAS_ABSOLUTE_PATH above.
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
 
         // loadFromMigratedLanguageFile()'s cache is a static property (shared across every
         // ilLanguage instance for the rest of the PHP process, see class.ilLanguage.php) so that
@@ -69,6 +77,10 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         // from a real local installation of 'de') - see ensureRealTosDeMoFileExists()'s docblock.
         if ($this->created_real_tos_mo !== null && is_file($this->created_real_tos_mo)) {
             unlink($this->created_real_tos_mo);
+            $overlay_dir = dirname($this->created_real_tos_mo);
+            if (is_dir($overlay_dir) && glob($overlay_dir . '/*') === []) {
+                rmdir($overlay_dir);
+            }
         }
         $this->created_real_tos_mo = null;
 
@@ -84,18 +96,27 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      * tools/po-migration/README.md), not something shipped in the repository. The tests below read
      * TermsOfService's real, already-contributed 'tos' directory directly (not through the
      * install/Setup machinery), so they compile tos_de.mo themselves here - exactly mirroring what a
-     * real installation of 'de' would produce from the real tos_de.po - and clean it back up in
-     * tearDown() so the repository is left without a shipped .mo, matching the new architecture.
+     * real installation of 'de' would produce from the real (shipped, git-tracked) tos_de.po, but at
+     * the OVERLAY location under CLIENT_DATA_DIR, which is what ilLanguage::migratedOverlayMoFile()
+     * actually reads at runtime - never the shipped, git-tracked directory itself (see that method's
+     * docblock and tools/po-migration/README.md, "Overlay: Installations-eigene `.po`/`.mo`-Dateien").
+     * Cleaned back up in tearDown() so no test ever leaves a compiled artifact behind, under either
+     * location.
      */
     private function ensureRealTosDeMoFileExists(): void
     {
-        $lang_dir = ILIAS_ABSOLUTE_PATH . '/components/ILIAS/TermsOfService/lang/';
-        $mo_path = $lang_dir . 'tos_de.mo';
+        $shipped_po = ILIAS_ABSOLUTE_PATH . '/components/ILIAS/TermsOfService/lang/tos_de.po';
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/TermsOfService/lang';
+        $mo_path = $overlay_dir . '/tos_de.mo';
         if (is_file($mo_path)) {
             return;
         }
 
-        $translations = (new PoLoader())->loadFile($lang_dir . 'tos_de.po');
+        if (!is_dir($overlay_dir)) {
+            mkdir($overlay_dir, 0775, true);
+        }
+
+        $translations = (new PoLoader())->loadFile($shipped_po);
         (new MoGenerator())->includeHeaders(true)->generateFile($translations, $mo_path);
         $this->created_real_tos_mo = $mo_path;
     }
@@ -103,13 +124,16 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     /**
      * ntxt()'s plural support and the cross-module collision logging both need a migrated module
      * whose .mo content is test-local (not tos's real 17 production keys). Builds a real .mo file
-     * under a throwaway directory inside tests/, via a minimal anonymous LanguageFileDirectory
-     * pointing at it - same contract ComponentLanguageFileDirectory fulfills for real components,
-     * so this exercises the exact same code path in ilLanguage. Cleaned up in tearDown().
+     * directly at the OVERLAY location under CLIENT_DATA_DIR - since ilLanguage::migratedOverlayMoFile()
+     * only ever reads there, never under the git-tracked tests/ directory - via a minimal anonymous
+     * LanguageFileDirectory pointing at it, same contract ComponentLanguageFileDirectory fulfills for
+     * real components, so this exercises the exact same code path in ilLanguage. Cleaned up in
+     * tearDown().
      */
     private function contributeFixtureModule(string $module, Translations $translations): LanguageFileDirectory
     {
-        $this->fixture_directory ??= __DIR__ . '/tmp-fixtures-' . bin2hex(random_bytes(4));
+        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . 'tmp-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
             mkdir($this->fixture_directory, 0775, true);
         }
