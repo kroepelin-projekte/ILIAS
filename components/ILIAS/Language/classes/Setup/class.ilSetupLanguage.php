@@ -163,6 +163,7 @@ class ilSetupLanguage extends ilLanguage
      */
     public function txt(string $a_topic, string $a_default_lang_fallback_mod = ''): string
     {
+        /** @var ilLogger $log */
         global $log;
 
         if (empty($a_topic)) {

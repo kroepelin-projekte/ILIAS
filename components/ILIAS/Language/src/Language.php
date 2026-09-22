@@ -28,6 +28,6 @@ interface Language
 
     public function getLangKey(): string;
 
-    /** @param $key string|string[] */
-    public function toJS($key): void;
+    /** @param $a_lang_key string|string[] */
+    public function toJS($a_lang_key): void;
 }
