@@ -35,8 +35,15 @@ use Gettext\Translation;
  *
  * - "original" is written once, by MigratedLanguageFileSync::sync(), when a module+language's overlay
  *   is first created - seeded from the value the shipped `.po` (itself undecorated, see
- *   convert_module_to_po.php) carries for that entry at that moment - and never touched again
- *   afterward, by anything.
+ *   convert_module_to_po.php) carries for that entry at that moment. It is left untouched by every
+ *   ordinary write afterward (an admin-GUI edit must never silently move an entry's local-change
+ *   baseline out from under it) - with one deliberate exception: sync()'s own
+ *   $refresh_original_from_shipped flag lets a caller that can vouch $entries reflects the current
+ *   SHIPPED content (a Setup install/update run, the admin GUI's "refresh already-installed language"
+ *   action, or an explicit "reset to shipped defaults" import) re-check "original" against what the
+ *   shipped `.po` says now, and update it - but only when it actually changed, e.g. because an ILIAS
+ *   update revised a translation for a language that was already installed. See sync()'s own docblock
+ *   for exactly which callers set that flag.
  * - "local_change" is maintained solely by ilObjLanguage::syncMigratedLanguageFile() on every write:
  *   present, with the write's timestamp, whenever the current value differs from "original" (or there
  *   is no "original" at all - a key added after migration never had one to begin with); absent
@@ -49,10 +56,12 @@ final class LocalChangeComments
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
 
     /**
-     * Called once by MigratedLanguageFileSync::sync() while seeding a module+language's overlay for
-     * the very first time, for each entry that already existed in the shipped `.po`. Deliberately does
-     * not touch "local_change": a freshly created overlay entry has none, same as a freshly installed
-     * language's lng_data row has local_change IS NULL until actually edited.
+     * Called by MigratedLanguageFileSync::sync(), in two situations: once, while seeding a
+     * module+language's overlay for the very first time, for each entry that already existed in the
+     * shipped `.po`; and again later, whenever a $refresh_original_from_shipped-flagged call finds
+     * that the shipped `.po`'s value for an entry no longer matches what "original" already says (see
+     * this class' own docblock). Deliberately does not touch "local_change" itself - refresh() (below)
+     * is always called again right after and recomputes it against whatever "original" now holds.
      */
     public static function setOriginal(Translation $translation, string $value): void
     {

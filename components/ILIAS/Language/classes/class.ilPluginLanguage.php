@@ -133,7 +133,13 @@ class ilPluginLanguage
                 }
             }
 
-            ilObjLanguage::replaceLangModule($lang["key"], $prefix, $lang_array);
+            // This re-applies the plugin's OWN shipped `.lang` file (merged with locally-changed
+            // entries, kept as-is above) - the plugin-language analog of a core-component update, so
+            // "original" may be refreshed the same way (see MigratedLanguageFileSync::sync()'s
+            // docblock). Currently always a no-op in practice: no plugin module contributes a
+            // LanguageFileDirectory yet, so sync() never gets far enough to act on it - wired
+            // correctly regardless, for whenever one does.
+            ilObjLanguage::replaceLangModule($lang["key"], $prefix, $lang_array, true);
         }
     }
 

@@ -250,9 +250,19 @@ class ilObjLanguageExt extends ilObjLanguage
     *
     * $a_mode_existing      handling of existing values
     *                       ('keepall','keepnew','replace','delete')
+    * $refreshOriginalFromShipped   Whether $a_file IS the shipped core language file for this
+    *                       component (i.e. this import represents "reset to shipped defaults", not
+    *                       importing an admin-uploaded or customizing/local file that merely happens
+    *                       to have the same format) - forwarded to _saveValues()/replaceLangModule()
+    *                       and to syncMigratedFilesAfterDeleteModeImport() (see their own docblocks).
+    *                       Defaults to `false`: an uploaded or customizing file is never assumed to be
+    *                       the shipped baseline, even under "replace" mode.
     */
-    public function importLanguageFile(string $a_file, string $a_mode_existing = "keepnew"): void
-    {
+    public function importLanguageFile(
+        string $a_file,
+        string $a_mode_existing = "keepnew",
+        bool $refreshOriginalFromShipped = false
+    ): void {
         global $DIC;
         $ilDB = $DIC->database();
         /** @var ilErrorHandling $ilErr */
@@ -306,10 +316,10 @@ class ilObjLanguageExt extends ilObjLanguage
                 $to_save[$key] = $value;
             }
         }
-        self::_saveValues($this->key, $to_save, $import_file_obj->getAllComments());
+        self::_saveValues($this->key, $to_save, $import_file_obj->getAllComments(), $refreshOriginalFromShipped);
 
         if ($a_mode_existing === "delete") {
-            $this->syncMigratedFilesAfterDeleteModeImport($modules_before_delete, $to_save);
+            $this->syncMigratedFilesAfterDeleteModeImport($modules_before_delete, $to_save, $refreshOriginalFromShipped);
         }
     }
 
@@ -337,9 +347,14 @@ class ilObjLanguageExt extends ilObjLanguage
      *        captured before the raw DELETE above ran.
      * @param array<string, string> $to_save module.separator.topic => value, exactly what was just
      *        written via _saveValues() - the complete, final DB content for this language now.
+     * @param bool $refreshOriginalFromShipped forwarded verbatim to MigratedLanguageFileSync::sync()
+     *        below - see importLanguageFile()'s docblock for what it means here.
      */
-    private function syncMigratedFilesAfterDeleteModeImport(array $modules_before_delete, array $to_save): void
-    {
+    private function syncMigratedFilesAfterDeleteModeImport(
+        array $modules_before_delete,
+        array $to_save,
+        bool $refreshOriginalFromShipped = false
+    ): void {
         global $DIC;
 
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
@@ -365,7 +380,8 @@ class ilObjLanguageExt extends ilObjLanguage
                     $module,
                     $entries_by_module[$module] ?? [],
                     false,
-                    $client_data_dir
+                    $client_data_dir,
+                    $refreshOriginalFromShipped
                 );
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
@@ -564,9 +580,16 @@ class ilObjLanguageExt extends ilObjLanguage
     * $a_lang_key      language key
     * $a_values        module.separator.topic => value
     * $a_remarks       module.separator.topic => remarks
+    * $refreshOriginalFromShipped forwarded verbatim to ilObjLanguage::replaceLangModule() - see its
+    *      own docblock. `false` (the default) for an ordinary form-save; `true` only when the caller
+    *      can vouch that $a_values reflects the current shipped content (see importLanguageFile()).
     */
-    public static function _saveValues(string $a_lang_key, array $a_values = array(), array $a_remarks = array()): void
-    {
+    public static function _saveValues(
+        string $a_lang_key,
+        array $a_values = array(),
+        array $a_remarks = array(),
+        bool $refreshOriginalFromShipped = false
+    ): void {
         global $DIC;
         $ilDB = $DIC->database();
         $lng = $DIC->language();
@@ -629,7 +652,7 @@ class ilObjLanguageExt extends ilObjLanguage
             // creates the row from scratch. Its own INSERT never depended on a prior row existing.
             $entries = self::_mergeLanguageEntriesFromRow($row ?: null, $entries);
 
-            ilObjLanguage::replaceLangModule($a_lang_key, $module, $entries);
+            ilObjLanguage::replaceLangModule($a_lang_key, $module, $entries, $refreshOriginalFromShipped);
         }
 
         ilCachedLanguage::getInstance($a_lang_key)->flush();

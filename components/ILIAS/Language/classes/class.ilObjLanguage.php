@@ -684,8 +684,10 @@ class ilObjLanguage extends ilObject
      * dedicated path that closes exactly that gap.
      *
      * Only resets entries that have both a local_change (i.e. actually diverged) and an "original"
-     * comment (the value the conversion tool shipped at migration time, see LocalChangeComments) -
-     * mirrors LocalChangeComments::refresh()'s own definition of "back to the shipped value" instead
+     * comment (the shipped value this overlay entry is currently tracked against - normally set once
+     * at migration time, but possibly refreshed since by a $refresh_original_from_shipped-flagged
+     * sync(), see LocalChangeComments) - mirrors LocalChangeComments::refresh()'s own definition of
+     * "back to the shipped value" instead
      * of reinventing one. An entry with a local_change but no "original" (added after migration, so
      * there never was a shipped baseline) is left untouched; there is nothing well-defined to reset it
      * to, matching insertLanguageForRemovingLocalChanges() only ever reinstalling from the shipped
@@ -785,11 +787,22 @@ class ilObjLanguage extends ilObject
      * are meant to remain the permanent store.
      *
      * Declared final per the FR ("PO-Files for improving language handling") this pilot implements -
-     * its signature only transports identifier => value, no per-entry reason text (unlike
-     * replaceLangEntry()'s $a_remarks); do not widen it to carry one.
+     * its signature only transports identifier => value plus the structural PO/MO-sync flag below, no
+     * per-entry reason text (unlike replaceLangEntry()'s $a_remarks); do not widen it to carry one.
+     *
+     * @param bool $refresh_original_from_shipped Forwarded verbatim to
+     *        MigratedLanguageFileSync::sync() - see its own docblock. `false` (the default) for every
+     *        ad-hoc edit (a GUI form save, "add new variable", a delete, an arbitrary uploaded/
+     *        customizing file import); `true` only where the caller can vouch that $a_array reflects
+     *        the current SHIPPED content for $a_module/$a_key (e.g. "reset this module to its shipped
+     *        defaults" or a plugin's own language file being (re-)applied).
      */
-    final public static function replaceLangModule(string $a_key, string $a_module, array $a_array): void
-    {
+    final public static function replaceLangModule(
+        string $a_key,
+        string $a_module,
+        array $a_array,
+        bool $refresh_original_from_shipped = false
+    ): void {
         global $DIC;
         $ilDB = $DIC->database();
 
@@ -832,7 +845,7 @@ class ilObjLanguage extends ilObject
             $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
-        self::syncMigratedLanguageFile($a_key, $a_module, $a_array);
+        self::syncMigratedLanguageFile($a_key, $a_module, $a_array, $refresh_original_from_shipped);
     }
 
     /**
@@ -854,8 +867,12 @@ class ilObjLanguage extends ilObject
      * write above already succeeded and must not be undone by a problem with the file mirror (e.g. a
      * read-only lang/ directory).
      */
-    private static function syncMigratedLanguageFile(string $a_key, string $a_module, array $a_array): void
-    {
+    private static function syncMigratedLanguageFile(
+        string $a_key,
+        string $a_module,
+        array $a_array,
+        bool $refresh_original_from_shipped = false
+    ): void {
         global $DIC;
 
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
@@ -870,7 +887,8 @@ class ilObjLanguage extends ilObject
                 $a_module,
                 $a_array,
                 false,
-                defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null
+                defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null,
+                $refresh_original_from_shipped
             );
         } catch (\Throwable $t) {
             $DIC->logger()->forComponent('lang')->warning(sprintf(

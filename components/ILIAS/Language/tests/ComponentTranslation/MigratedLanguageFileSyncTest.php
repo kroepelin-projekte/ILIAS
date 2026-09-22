@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use Gettext\Generator\MoGenerator;
 use Gettext\Generator\PoGenerator;
@@ -410,10 +411,13 @@ class MigratedLanguageFileSyncTest extends TestCase
     }
 
     /**
-     * Core overlay-continuity guarantee: once an overlay exists, every following sync() must read
-     * FROM THE OVERLAY, never from the shipped `.po` again -
-     * otherwise an already-set "local_change" timestamp for one identifier would be spuriously
-     * refreshed just because a sync() call touched a different identifier of the same module/language.
+     * Core overlay-continuity guarantee: once an overlay exists, every following sync() bases
+     * $translations on THE OVERLAY, never on the shipped `.po` again, UNLESS $refresh_original_from_
+     * shipped explicitly asks for the shipped `.po` to be additionally consulted per-entry (see
+     * testRefreshOriginalFromShippedUpdatesOriginalAndClearsLocalChangeForAnUnmodifiedEntry() below) -
+     * with the flag at its default (`false`, as here), an already-set "local_change" timestamp for one
+     * identifier must never be spuriously refreshed just because a sync() call touched a different
+     * identifier of the same module/language.
      *
      * A real sleep (not an injected clock - sync() has none, it always uses the wall clock) is used to
      * make the two writes fall in different clock seconds; local_change timestamps carry
@@ -444,7 +448,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         );
 
         $greeting_after_first_sync = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $timestamp_after_first_sync = \ILIAS\Language\ComponentTranslation\LocalChangeComments::getLocalChange($greeting_after_first_sync);
+        $timestamp_after_first_sync = LocalChangeComments::getLocalChange($greeting_after_first_sync);
         $this->assertNotNull($timestamp_after_first_sync);
 
         sleep(1);
@@ -467,10 +471,243 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->assertSame(
             $timestamp_after_first_sync,
-            \ILIAS\Language\ComponentTranslation\LocalChangeComments::getLocalChange($greeting_after_second_sync),
+            LocalChangeComments::getLocalChange($greeting_after_second_sync),
             'local_change of an identifier untouched in value must stay stable across an unrelated sync'
         );
-        $this->assertNotNull(\ILIAS\Language\ComponentTranslation\LocalChangeComments::getLocalChange($farewell_after_second_sync));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($farewell_after_second_sync));
+    }
+
+    /**
+     * The scenario $refresh_original_from_shipped exists for: an ILIAS core update ships a revised
+     * translation for a module that is already installed (see MigratedLanguageFileSync::sync()'s own
+     * docblock for exactly which real callers set this). Without the flag (the default - see
+     * testWithoutRefreshOriginalFromShippedAnUnmodifiedEntryIsWronglyFlaggedAfterAShippedUpdate()
+     * below), "original" stays frozen on the value shipped at overlay-creation time forever, so an
+     * entry nobody ever customized locally would incorrectly start looking "locally changed" the
+     * moment the caller starts passing the new shipped value through $entries. With the flag, sync()
+     * brings "original" up to date with the shipped `.po` FIRST, so an unmodified entry ends up
+     * exactly as if it had shipped with the new value from the start: no local_change.
+     */
+    public function testRefreshOriginalFromShippedUpdatesOriginalAndClearsLocalChangeForAnUnmodifiedEntry(): void
+    {
+        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $manager = new LanguageFileDirectoryManager(
+            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+            $directory
+        );
+
+        // A genuine first install - creates the overlay, "original" = "Hallo".
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo'],
+            true,
+            $this->client_data_dir
+        );
+
+        // An ILIAS core update ships a revised translation. Nobody customized this entry locally, so
+        // the caller (e.g. LanguageInstallationManager, re-parsing the updated .lang file) passes the
+        // new shipped value straight through.
+        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo, überarbeitet'],
+            false,
+            $this->client_data_dir,
+            true
+        );
+
+        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
+        $this->assertSame('Hallo, überarbeitet', $translation->getTranslation());
+        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($translation));
+        $this->assertNull(LocalChangeComments::getLocalChange($translation));
+    }
+
+    /**
+     * The flip side of the test above: an entry an admin already customized locally stays flagged as
+     * locally changed even after "original" is brought up to date with a newer shipped value - it is
+     * still, correctly, a deviation from whatever the current shipped default is.
+     */
+    public function testRefreshOriginalFromShippedUpdatesOriginalButKeepsALocalCustomizationFlagged(): void
+    {
+        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $manager = new LanguageFileDirectoryManager(
+            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+            $directory
+        );
+
+        // First install, then an ordinary admin edit customizes the entry (flag stays false, exactly
+        // like ilObjLanguage::replaceLangModule() would pass it).
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo'],
+            true,
+            $this->client_data_dir
+        );
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Servus'],
+            false,
+            $this->client_data_dir
+        );
+        $this->assertNotNull(LocalChangeComments::getLocalChange(
+            $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting')
+        ));
+
+        // An ILIAS core update ships a revised translation too. The caller (re-parsing the updated
+        // .lang file, then merging the still-newer DB-recorded local change back on top) passes the
+        // admin's customization through unchanged - it remains the effectively correct value.
+        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Servus'],
+            false,
+            $this->client_data_dir,
+            true
+        );
+
+        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
+        $this->assertSame('Servus', $translation->getTranslation());
+        $this->assertSame(
+            'Hallo, überarbeitet',
+            LocalChangeComments::getOriginal($translation),
+            'original must track the new shipped baseline even while the entry stays locally customized'
+        );
+        $this->assertNotNull(LocalChangeComments::getLocalChange($translation));
+    }
+
+    /**
+     * The guard $refresh_original_from_shipped's docblock promises: "original" is rewritten only for
+     * an entry whose shipped value actually changed - an entry the update didn't touch must be left
+     * exactly as it was, even while a sibling entry in the very same sync() call does get updated.
+     */
+    public function testRefreshOriginalFromShippedOnlyTouchesEntriesWhoseShippedValueActuallyChanged(): void
+    {
+        $directory = $this->seedFixtureModule('stest', 'de', [
+            'greeting' => ['value' => 'Hallo'],
+            'farewell' => ['value' => 'Tschüss'],
+        ]);
+        $manager = new LanguageFileDirectoryManager(
+            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+            $directory
+        );
+
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo', 'farewell' => 'Tschüss'],
+            true,
+            $this->client_data_dir
+        );
+
+        // The update revises only "greeting" - "farewell" ships completely unchanged.
+        $this->seedFixtureModule('stest', 'de', [
+            'greeting' => ['value' => 'Hallo, überarbeitet'],
+            'farewell' => ['value' => 'Tschüss'],
+        ]);
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo, überarbeitet', 'farewell' => 'Tschüss'],
+            false,
+            $this->client_data_dir,
+            true
+        );
+
+        $overlay = $this->loadOverlayPo('stest', 'de');
+        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($overlay->find('stest', 'greeting')));
+        $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find('stest', 'farewell')));
+        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find('stest', 'greeting')));
+        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find('stest', 'farewell')));
+    }
+
+    /**
+     * Documents the exact staleness bug $refresh_original_from_shipped fixes, by pinning what happens
+     * WITHOUT it (the default, and what every caller except LanguageInstallationManager and the
+     * "reset to shipped defaults" import passes): "original" stays frozen on the value shipped at
+     * overlay-creation time, so an entry nobody ever touched locally is incorrectly flagged as locally
+     * changed the moment a caller starts passing the new shipped value through $entries.
+     */
+    public function testWithoutRefreshOriginalFromShippedAnUnmodifiedEntryIsWronglyFlaggedAfterAShippedUpdate(): void
+    {
+        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $manager = new LanguageFileDirectoryManager(
+            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+            $directory
+        );
+
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo'],
+            true,
+            $this->client_data_dir
+        );
+
+        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
+        // $refresh_original_from_shipped omitted - defaults to false.
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo, überarbeitet'],
+            false,
+            $this->client_data_dir
+        );
+
+        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation), 'original stays frozen without the flag');
+        $this->assertNotNull($translation ? LocalChangeComments::getLocalChange($translation) : null);
+    }
+
+    /**
+     * $refresh_original_from_shipped must have no effect on the very first sync for a module+language
+     * (overlay does not exist yet, see the !$overlay_exists branch) - that case already seeds
+     * "original" from the shipped `.po` unconditionally, regardless of this flag.
+     */
+    public function testRefreshOriginalFromShippedHasNoEffectOnTheVeryFirstOverlayCreation(): void
+    {
+        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        $manager = new LanguageFileDirectoryManager(
+            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+            $directory
+        );
+
+        MigratedLanguageFileSync::sync(
+            $manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            'stest',
+            ['greeting' => 'Hallo'],
+            true,
+            $this->client_data_dir,
+            true
+        );
+
+        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
+        $this->assertNull(LocalChangeComments::getLocalChange($translation));
     }
 
     /**

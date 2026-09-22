@@ -83,6 +83,20 @@ final class MigratedLanguageFileSync
      *
      * @param array<string, string> $entries identifier => value, the complete, final set for this
      *        module/language - exactly what the caller just wrote to lng_modules.
+     * @param bool $refresh_original_from_shipped Whether this call represents re-applying the
+     *        SHIPPED baseline (a Setup install/update run, the admin GUI's "refresh already-installed
+     *        language" action, or an explicit "reset this module to its shipped defaults" import) as
+     *        opposed to an ad-hoc admin edit of one or a few values, or an import of an arbitrary
+     *        (uploaded, or customizing/local) file that isn't necessarily the shipped content at all.
+     *        Only when `true` does an already-existing overlay's "original" comment (see
+     *        LocalChangeComments) get re-checked against what the shipped `.po` currently says for
+     *        each entry - and only rewritten when it actually changed, e.g. because an ILIAS update
+     *        revised a translation for a language that is already installed. Passing `true` here for
+     *        an ad-hoc edit would silently move the local-change baseline out from under it; passing
+     *        `false` for a genuine reinstall/update just leaves a stale "original" behind (the
+     *        pre-existing behavior) instead of wrongly rewriting one - never a correctness hazard
+     *        either way, only a staleness one. Never creates a still-missing "original" for the
+     *        overlay-creation case (see below) - `$overlay_exists === false` already handles that.
      */
     public static function sync(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -91,7 +105,8 @@ final class MigratedLanguageFileSync
         string $module,
         array $entries,
         bool $create_missing_mo = false,
-        ?string $client_data_dir = null
+        ?string $client_data_dir = null,
+        bool $refresh_original_from_shipped = false
     ): void {
         $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null) {
@@ -120,10 +135,18 @@ final class MigratedLanguageFileSync
         // spuriously bumped on every single sync() call. Only the very first sync for a module+
         // language (overlay does not exist yet) seeds from the shipped `.po`, which - unlike the
         // overlay - carries no "original" comment of its own (see LocalChangeComments and
-        // convert_module_to_po.php): the loop below adds it there and then, exactly once, from each
-        // entry's shipped value at this precise moment.
+        // convert_module_to_po.php): the loop below adds it there and then, from each entry's shipped
+        // value at this precise moment.
         $overlay_exists = is_file($overlay_po);
         $translations = new PoLoader()->loadFile($overlay_exists ? $overlay_po : $shipped_po);
+
+        // Only needed to refresh an ALREADY-EXISTING overlay's "original" against the shipped `.po`
+        // (see the loop below and $refresh_original_from_shipped's docblock above) - when the overlay
+        // doesn't exist yet, $translations above already IS the shipped content, so there is nothing
+        // separate to consult.
+        $shipped_translations = ($overlay_exists && $refresh_original_from_shipped)
+            ? new PoLoader()->loadFile($shipped_po)
+            : null;
 
         $stale = [];
         foreach ($translations->getTranslations() as $translation) {
@@ -143,16 +166,33 @@ final class MigratedLanguageFileSync
             $value = (string) $value;
             $translation = $translations->find($module, $identifier);
             $previous_value = $translation?->getTranslation() ?? '';
-            if ($translation === null) {
+            $is_new_to_overlay = $translation === null;
+            if ($is_new_to_overlay) {
                 $translation = Translation::create($module, $identifier);
                 $translations->add($translation);
-            } elseif (!$overlay_exists) {
-                // This entry already existed in the shipped `.po` this overlay is being seeded from
-                // - capture the value it carries there, once, as this module+language's "original"
-                // baseline (see LocalChangeComments), before it is overwritten below. An entry with no
-                // shipped counterpart (added only after migration) takes the branch above instead and
-                // never gets one - same as before this baseline moved out of the shipped file.
-                LocalChangeComments::setOriginal($translation, $previous_value);
+            }
+
+            if (!$overlay_exists) {
+                // This overlay is being seeded for the very first time from the shipped `.po`: every
+                // entry that already existed there (i.e. wasn't just created above) gets the value it
+                // carries there captured, once, as this module+language's "original" baseline (see
+                // LocalChangeComments), before it is overwritten below. An entry with no shipped
+                // counterpart (added only after migration) never gets one.
+                if (!$is_new_to_overlay) {
+                    LocalChangeComments::setOriginal($translation, $previous_value);
+                }
+            } elseif ($refresh_original_from_shipped) {
+                // Re-applying the shipped baseline onto an already-existing overlay: bring "original"
+                // up to date with whatever the shipped `.po` currently carries for this entry - e.g.
+                // an ILIAS update revised the translation for a language that was already installed -
+                // but only when it actually changed, so a plain reinstall of an unchanged baseline
+                // never rewrites the comment for no reason. An entry the shipped `.po` doesn't know at
+                // all (a genuinely local-only key, or one only the .lang-derived $entries knows about)
+                // is left exactly as it already was.
+                $shipped_value = $shipped_translations?->find($module, $identifier)?->getTranslation();
+                if ($shipped_value !== null && $shipped_value !== LocalChangeComments::getOriginal($translation)) {
+                    LocalChangeComments::setOriginal($translation, $shipped_value);
+                }
             }
             // an explicit write via this path always provides a real value, so it is by
             // definition no longer just an untranslated placeholder
@@ -160,9 +200,9 @@ final class MigratedLanguageFileSync
             $translation->getFlags()->delete('fuzzy');
 
             // "locally changed" tracking (see LocalChangeComments): compares this write against the
-            // value the module shipped with when this entry's overlay was first created, not against
-            // $previous_value - that one is only used to avoid bumping an already-current timestamp on
-            // a no-op re-save of an already locally-changed value.
+            // entry's current "original" (just possibly refreshed above), not against $previous_value
+            // - that one is only used to avoid bumping an already-current timestamp on a no-op re-save
+            // of an already locally-changed value.
             LocalChangeComments::refresh($translation, $previous_value, $value, $now);
         }
 

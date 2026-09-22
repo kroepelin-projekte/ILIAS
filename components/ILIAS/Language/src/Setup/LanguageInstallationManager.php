@@ -256,13 +256,13 @@ class LanguageInstallationManager
      * re-marked with a fresh local_change timestamp), silently undoing the
      * removal it was just asked to perform.
      *
-     * $sync_migrated_files stays at its default (true) here, deliberately: $lang_array is exactly
-     * the shipped global/component content (no customizing), so syncing it is precisely what
-     * "remove local changes" needs for a migrated module too - including a case the caller's own
+     * insertLanguage()'s unconditional PO/MO sync (see its own docblock) matters here too: $lang_array
+     * is exactly the shipped global/component content (no customizing), so syncing it is precisely
+     * what "remove local changes" needs for a migrated module too - including a case the caller's own
      * follow-up step, ilObjLanguage::removeLocalChanges()'s resetMigratedLocalChanges(), cannot
      * handle by itself. resetMigratedLocalChanges() only resets entries that carry an "original"
-     * comment (the value shipped at migration time); an entry
-     * added *after* migration via "add new variable" never has one, so it would survive a "remove
+     * comment (the shipped value the entry is currently tracked against, see LocalChangeComments); an
+     * entry added *after* migration via "add new variable" never has one, so it would survive a "remove
      * local changes" pass forever if this method's generic sync were skipped - the DB row for it is
      * gone (flush("all") + this method's empty customizing seed dropped it), but the .po/.mo file,
      * untouched, would keep serving it through ilLanguage's migrated-file read path regardless.
@@ -502,7 +502,14 @@ class LanguageInstallationManager
                         $module,
                         $entries,
                         $create_missing_mo,
-                        $client_data_dir
+                        $client_data_dir,
+                        // Every caller of insertLanguage() (install, update/refresh, "remove local
+                        // changes", "apply local changes") represents reconciling this language with
+                        // some current, authoritative state of the language files - never an ad-hoc
+                        // single-value admin edit (that goes through ilObjLanguage::replaceLangModule()
+                        // instead, which never sets this). See MigratedLanguageFileSync::sync()'s own
+                        // docblock for what this actually does.
+                        true
                     );
                 } catch (\Throwable $t) {
                     // No injected logger here (unlike ilObjLanguage's $DIC-based write paths) -
