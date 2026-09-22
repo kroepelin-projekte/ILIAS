@@ -78,7 +78,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(rbac_system: $rbac);
@@ -98,7 +98,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('get');
         $settings->expects($this->never())->method('set');
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(rbac_system: $rbac, settings: $settings);
@@ -140,9 +140,9 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         ?string $expected_written_value
     ): void {
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')
-            ->with('lang_translate_de', '0')
-            ->willReturn($stored_value);
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', $stored_value],
+        ]);
 
         if ($expected_written_value === null) {
             $settings->expects($this->never())->method('set');
@@ -187,7 +187,9 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     public function testPerformTrimsLanguageKeyForBothTheSettingKeyAndTheReturnedValue(): void
     {
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(settings: $settings)
@@ -239,11 +241,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
 
     public function testMaybePerformAsWithGrantedPermissionPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -275,8 +279,10 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('get');
         $settings->expects($this->never())->method('set');
 
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
             ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => true]);
@@ -293,10 +299,10 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
      */
     public function testThrowableFromWithinPerformIsTurnedIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $settings = $this->createMock(Setting::class);
+        $settings = $this->createStub(Setting::class);
         $settings->method('get')->willReturn('0');
         $settings->method('set')->willThrowException(new \RuntimeException('database write failed'));
 
@@ -413,7 +419,9 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $rbac->expects($this->once())->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('1');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '1'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -481,11 +489,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedTruthyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveTruthyEnabledRepresentations(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -505,11 +515,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedFalsyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveFalsyEnabledRepresentations(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('1');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '1'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -607,11 +619,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
      */
     public function testMaybePerformAsTrimsLanguageKeyBeforeBuildingTheSettingKey(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -653,7 +667,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
             )
             ->willReturn($checkbox);
 
-        $group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
+        $group = $this->createStub(\ILIAS\UI\Component\Input\Field\Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_key' => $text, 'enabled' => $checkbox])
@@ -674,11 +688,11 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
      */
     public function testOutputDescriptionDescribesTheThreeDocumentedFieldsInOrder(): void
     {
-        $string_group = $this->createMock(StringGroup::class);
+        $string_group = $this->createStub(StringGroup::class);
         $string_group->method('markdown')->willReturn(
-            $this->createMock(MarkdownFormattingToHTML::class)
+            $this->createStub(MarkdownFormattingToHTML::class)
         );
-        $refinery = $this->createMock(RefineryFactory::class);
+        $refinery = $this->createStub(RefineryFactory::class);
         $refinery->method('string')->willReturn($string_group);
 
         $activity = $this->createActivity(refinery: $refinery);
@@ -706,10 +720,10 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         ?InstalledLanguageRepository $installed_language_repository = null,
     ): SetLanguageTranslationEnabled {
         return new SetLanguageTranslationEnabled(
-            $refinery ?? $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac_system ?? $this->createMock(\ilRbacSystem::class),
-            $settings ?? $this->createMock(Setting::class),
+            $refinery ?? $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac_system ?? $this->createStub(\ilRbacSystem::class),
+            $settings ?? $this->createStub(Setting::class),
             installed_language_repository: $installed_language_repository
                 ?? new FakeInstalledLanguageRepository(static fn(): array => ['de', 'fr']),
             language_folder_ref_id: $language_folder_ref_id,

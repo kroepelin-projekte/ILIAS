@@ -69,7 +69,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity([], rbac: $rbac);
@@ -83,7 +83,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             throw new \LogicException('getInstalledLanguages() must never be called by isAllowedToPerform()');
         });
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $replace_lang_entry = static function (): bool {
@@ -277,7 +277,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // Factory.
     public function testMaybePerformAsRejectsWholeRequestAndWritesNothingWhenEnIsBlankWhileDeIsValid(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $calls = [];
@@ -570,7 +570,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      */
     public function testOptionalLanguageInstalledBetweenGetInputDescriptionAndPerformIsSkippedNotRejected(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $calls = 0;
@@ -608,7 +608,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // the form without asking for it - the whole request must be rejected, not partially skipped.
     public function testEnInstalledBetweenGetInputDescriptionAndPerformRejectsTheWholeRequestRatherThanSkippingEn(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $calls = 0;
@@ -659,7 +659,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      */
     public function testOptionalLanguageUninstalledBetweenGetInputDescriptionAndPerformIsSilentlyDroppedNotWritten(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $calls = 0;
@@ -720,7 +720,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         // txt('meta_l_de') to label the 'de' translation field before
         // isAllowedToPerform() is ever reached (grinding happens first) - the
         // mock must tolerate that call too, not just 'msg_no_perm_write'.
-        $language = $this->createMock(Language::class);
+        $language = $this->createStub(Language::class);
         $language->method('txt')->willReturnCallback(
             static fn(string $key): string => $key === 'msg_no_perm_write' ? 'no write permission' : $key
         );
@@ -747,7 +747,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testPermissionGrantedPerformsAndReturnsOkResultWithExpectedStructure(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(['de', 'fr'], rbac: $rbac);
@@ -796,7 +796,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testThrowableFromWithinPerformIsTurnedIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $replace_lang_entry = static function (): bool {
@@ -829,7 +829,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
      */
     public function testAThrowableThatIsNotAnExceptionFromWithinPerformIsWrappedInARuntimeExceptionResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $replace_lang_entry = static function (): bool {
@@ -867,7 +867,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         $rbac = $this->createMock(\ilRbacSystem::class);
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
-        $language = $this->createMock(Language::class);
+        $language = $this->createStub(Language::class);
         $language->method('txt')->willThrowException(
             new \RuntimeException('simulated failure while building the translation field label')
         );
@@ -1020,7 +1020,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testNormalizeParametersTrimsModuleAndIdentifierButKeepsTranslationsAsGiven(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $calls = [];
@@ -1048,7 +1048,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     public function testEmptyTranslationsArrayIsAcceptedAndSkipsEveryInstalledLanguage(): void
     {
         // 'fr'/'it' avoid the separate 'de'/'en' mandatory-value rule tested elsewhere.
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(['fr', 'it'], rbac: $rbac);
@@ -1082,13 +1082,13 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         // mock would trigger PHPUnit's "no expectations configured" notice. createActivity() can't
         // be reused here since the point of this test is the inline `extends AddLanguageEntry`
         // class declaration.
-        $language = $this->createMock(Language::class);
+        $language = $this->createStub(Language::class);
         $language->method('txt')->willReturnCallback(static fn(string $k): string => $k);
 
         $activity = new class (
-            refinery: $this->createMock(RefineryFactory::class),
+            refinery: $this->createStub(RefineryFactory::class),
             language: $language,
-            rbac_system: $this->createMock(\ilRbacSystem::class),
+            rbac_system: $this->createStub(\ilRbacSystem::class),
             installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
             db: static fn(): \ilDBInterface => throw new \LogicException('db must not be resolved by this test'),
         ) extends AddLanguageEntry {
@@ -1109,32 +1109,62 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testInputDescriptionBuildsModuleIdentifierAndPerLanguageTranslationFields(): void
     {
-        $module_text = $this->createMock(Text::class);
-        $module_text->method('withRequired')->with(true)->willReturnSelf();
-        $module_text->method('withDedicatedName')->with('module')->willReturnSelf();
+        $module_text = $this->createStub(Text::class);
+        $module_text->method('withRequired')->willReturnCallback(
+            function (bool $required) use ($module_text): Text {
+                $this->assertTrue($required);
+                return $module_text;
+            }
+        );
+        $module_text->method('withDedicatedName')->willReturnCallback(
+            function (string $name) use ($module_text): Text {
+                $this->assertSame('module', $name);
+                return $module_text;
+            }
+        );
 
-        $identifier_text = $this->createMock(Text::class);
-        $identifier_text->method('withRequired')->with(true)->willReturnSelf();
-        $identifier_text->method('withDedicatedName')->with('identifier')->willReturnSelf();
+        $identifier_text = $this->createStub(Text::class);
+        $identifier_text->method('withRequired')->willReturnCallback(
+            function (bool $required) use ($identifier_text): Text {
+                $this->assertTrue($required);
+                return $identifier_text;
+            }
+        );
+        $identifier_text->method('withDedicatedName')->willReturnCallback(
+            function (string $name) use ($identifier_text): Text {
+                $this->assertSame('identifier', $name);
+                return $identifier_text;
+            }
+        );
 
-        $de_text = $this->createMock(Text::class);
+        $de_text = $this->createStub(Text::class);
         $de_required = null;
         $de_text->method('withRequired')->willReturnCallback(function (bool $required) use ($de_text, &$de_required) {
             $de_required = $required;
             return $de_text;
         });
-        $de_text->method('withDedicatedName')->with('de')->willReturnSelf();
+        $de_text->method('withDedicatedName')->willReturnCallback(
+            function (string $name) use ($de_text): Text {
+                $this->assertSame('de', $name);
+                return $de_text;
+            }
+        );
 
-        $fr_text = $this->createMock(Text::class);
+        $fr_text = $this->createStub(Text::class);
         $fr_required = null;
         $fr_text->method('withRequired')->willReturnCallback(function (bool $required) use ($fr_text, &$fr_required) {
             $fr_required = $required;
             return $fr_text;
         });
-        $fr_text->method('withDedicatedName')->with('fr')->willReturnSelf();
+        $fr_text->method('withDedicatedName')->willReturnCallback(
+            function (string $name) use ($fr_text): Text {
+                $this->assertSame('fr', $name);
+                return $fr_text;
+            }
+        );
 
         $text_calls = [];
-        $field = $this->createMock(\ILIAS\UI\Component\Input\Field\Factory::class);
+        $field = $this->createStub(\ILIAS\UI\Component\Input\Field\Factory::class);
         $field->method('text')->willReturnCallback(
             function (string $label, ?string $byline = null) use (&$text_calls, $module_text, $identifier_text, $de_text, $fr_text) {
                 $text_calls[] = $label;
@@ -1148,10 +1178,15 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             }
         );
 
-        $translations_group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
-        $translations_group->method('withDedicatedName')->with('translations')->willReturnSelf();
+        $translations_group = $this->createStub(\ILIAS\UI\Component\Input\Field\Group::class);
+        $translations_group->method('withDedicatedName')->willReturnCallback(
+            function (string $name) use ($translations_group): \ILIAS\UI\Component\Input\Field\Group {
+                $this->assertSame('translations', $name);
+                return $translations_group;
+            }
+        );
 
-        $outer_group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
+        $outer_group = $this->createStub(\ILIAS\UI\Component\Input\Field\Group::class);
 
         $group_calls = [];
         $field->method('group')->willReturnCallback(
@@ -1175,7 +1210,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             }
         );
 
-        $language = $this->createMock(Language::class);
+        $language = $this->createStub(Language::class);
         $language->method('txt')->willReturnCallback(static fn(string $key): string => $key);
 
         $activity = $this->createActivity(
@@ -1196,11 +1231,11 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     public function testOutputDescriptionDeclaresTheExpectedFourFields(): void
     {
-        $string_group = $this->createMock(StringGroup::class);
+        $string_group = $this->createStub(StringGroup::class);
         $string_group->method('markdown')->willReturn(
-            $this->createMock(MarkdownFormattingToHTML::class)
+            $this->createStub(MarkdownFormattingToHTML::class)
         );
-        $refinery = $this->createMock(RefineryFactory::class);
+        $refinery = $this->createStub(RefineryFactory::class);
         $refinery->method('string')->willReturn($string_group);
 
         $activity = $this->createActivity(['de'], refinery: $refinery);
@@ -1231,9 +1266,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     private function createActivityWithRealUpdateModuleCacheDefault(\ilDBInterface $db): AddLanguageEntry
     {
         return new AddLanguageEntry(
-            refinery: $this->createMock(RefineryFactory::class),
-            language: $this->createMock(Language::class),
-            rbac_system: $this->createMock(\ilRbacSystem::class),
+            refinery: $this->createStub(RefineryFactory::class),
+            language: $this->createStub(Language::class),
+            rbac_system: $this->createStub(\ilRbacSystem::class),
             installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
             language_folder_ref_id: 0,
             replace_lang_entry: static fn(
@@ -1254,14 +1289,19 @@ class AddLanguageEntryTest extends ActivityContractTestCase
 
     private function mockDbFetchingRow(?array $row): \ilDBInterface
     {
-        $statement = $this->createMock(\ilDBStatement::class);
+        $statement = $this->createStub(\ilDBStatement::class);
 
-        $db = $this->createMock(\ilDBInterface::class);
+        $db = $this->createStub(\ilDBInterface::class);
         $db->method('quote')->willReturnCallback(
             static fn(mixed $value, string $type): string => "'" . (string) $value . "'"
         );
         $db->method('query')->willReturn($statement);
-        $db->method('fetchAssoc')->with($statement)->willReturn($row);
+        $db->method('fetchAssoc')->willReturnCallback(
+            function (\ilDBStatement $actual_statement) use ($statement, $row): ?array {
+                $this->assertSame($statement, $actual_statement);
+                return $row;
+            }
+        );
 
         return $db;
     }
@@ -1415,9 +1455,9 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         );
 
         return new AddLanguageEntry(
-            refinery: $refinery ?? $this->createMock(RefineryFactory::class),
-            language: $language ?? $this->createMock(Language::class),
-            rbac_system: $rbac ?? $this->createMock(\ilRbacSystem::class),
+            refinery: $refinery ?? $this->createStub(RefineryFactory::class),
+            language: $language ?? $this->createStub(Language::class),
+            rbac_system: $rbac ?? $this->createStub(\ilRbacSystem::class),
             installed_language_repository: $installed_language_repository ?? new FakeInstalledLanguageRepository(
                 static fn(): array => $installed_languages
             ),

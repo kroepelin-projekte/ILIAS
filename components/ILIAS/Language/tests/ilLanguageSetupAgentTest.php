@@ -37,18 +37,18 @@ class ilLanguageSetupAgentTest extends ilLanguageBaseTestCase
 
     protected function setUp(): void
     {
-        $refinery = new Refinery($this->createMock(DataFactory::class), $this->createMock(\ilLanguage::class));
-        $setup_language = $this->createMock(ilSetupLanguage::class);
+        $refinery = new Refinery($this->createStub(DataFactory::class), $this->createStub(\ilLanguage::class));
+        $setup_language = $this->createStub(ilSetupLanguage::class);
         $install_language = new InstallLanguage(
             $refinery,
-            $this->createMock(\ILIAS\Language\Language::class),
-            $this->createMock(\ilRbacSystem::class),
+            $this->createStub(\ILIAS\Language\Language::class),
+            $this->createStub(\ilRbacSystem::class),
             $setup_language
         );
         $update_language = new UpdateLanguage(
             $refinery,
-            $this->createMock(\ILIAS\Language\Language::class),
-            $this->createMock(\ilRbacSystem::class),
+            $this->createStub(\ILIAS\Language\Language::class),
+            $this->createStub(\ilRbacSystem::class),
             $setup_language
         );
 
@@ -57,7 +57,7 @@ class ilLanguageSetupAgentTest extends ilLanguageBaseTestCase
             $setup_language,
             $install_language,
             $update_language,
-            $this->createMock(InstalledLanguageRepository::class)
+            $this->createStub(InstalledLanguageRepository::class)
         );
     }
 

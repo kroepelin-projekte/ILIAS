@@ -76,7 +76,6 @@ class SaveValuesRecreatesLngModulesAfterDeleteModeImportTest extends ilLanguageB
         // (or an earlier method in this file) can never leak in and short-circuit our DB mock's
         // expectations via its own already-cached state.
         $instances = (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances');
-        $instances->setAccessible(true);
         $instances->setValue(null, []);
     }
 
@@ -93,7 +92,6 @@ class SaveValuesRecreatesLngModulesAfterDeleteModeImportTest extends ilLanguageB
         $fake_global_file->setAllComments([]);
 
         $cache = (new ReflectionClass(ilLanguageFile::class))->getProperty('global_file_objects');
-        $cache->setAccessible(true);
         $existing = $cache->isInitialized() ? $cache->getValue() : [];
         $cache->setValue(null, $existing + [$lang_key => $fake_global_file]);
     }

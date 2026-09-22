@@ -173,7 +173,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
      */
     public function testAmbiguousTitleViaMaybePerformAsReturnsResultErrorAndNeverCallsTheObjectFactory(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $lng_objects = static fn(): array => [
@@ -281,7 +281,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
      */
     public function testMaybePerformAsNeverRemovesLocalChangesForAnUnambiguousKeyWhenAnotherRequestedKeyIsAmbiguous(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $de = new FakeRemoveLocalLanguageChangesObject(is_installed: true);
@@ -332,7 +332,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(
@@ -359,7 +359,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             throw new \LogicException('obj_language_factory must never be called by isAllowedToPerform()');
         };
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity($lng_objects, $obj_language_factory, $rbac);
@@ -581,8 +581,10 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
             'de' => [],
         ]);
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $lng_objects,
@@ -597,7 +599,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
 
     public function testPermissionGrantedPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -630,7 +632,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndRemovesLocalChangesForEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -655,7 +657,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
      */
     public function testThrowableFromPerformIsTurnedIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $lng_objects = static fn(): array => [];
@@ -709,9 +711,9 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         int $language_folder_ref_id = 0
     ): RemoveLocalLanguageChanges {
         return new RemoveLocalLanguageChanges(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac ?? $this->createMock(\ilRbacSystem::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac ?? $this->createStub(\ilRbacSystem::class),
             $language_folder_ref_id,
             $lng_objects,
             $obj_language_factory

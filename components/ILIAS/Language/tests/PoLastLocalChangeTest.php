@@ -171,12 +171,12 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
      */
     private function stubDatabase(?string $db_last_change): void
     {
-        $statement = $this->createMock(ilDBStatement::class);
+        $statement = $this->createStub(ilDBStatement::class);
         $statement->method('fetchRow')->willReturn(
             $db_last_change === null ? [] : ['last_change' => $db_last_change]
         );
 
-        $db = $this->createMock(ilDBInterface::class);
+        $db = $this->createStub(ilDBInterface::class);
         $db->method('quote')->willReturnCallback(
             static fn(mixed $value, string $type): string => "'" . (string) $value . "'"
         );

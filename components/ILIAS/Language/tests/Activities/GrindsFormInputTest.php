@@ -49,7 +49,7 @@ class GrindsFormInputTest extends TestCase
      */
     public function testGrindReturnsResultErrorInsteadOfCrashingWhenDescriptionIsNotInputInternal(): void
     {
-        $description = $this->createMock(FormInput::class);
+        $description = $this->createStub(FormInput::class);
 
         $result = $this->host()->callGrind($description, []);
 

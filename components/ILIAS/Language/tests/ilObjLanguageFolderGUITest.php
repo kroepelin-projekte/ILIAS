@@ -113,7 +113,7 @@ class ilObjLanguageFolderGUITest extends TestCase
      */
     private function activityErrorLoggerForGui(): \ilLogger
     {
-        return $this->stubbed_activity_error_logger ?? $this->createMock(\ilLogger::class);
+        return $this->stubbed_activity_error_logger ?? $this->createStub(\ilLogger::class);
     }
 
     private function createGuiWithCollaborators(
@@ -147,11 +147,11 @@ class ilObjLanguageFolderGUITest extends TestCase
      * to any of these tests (the Activities never use it), so a bare mock
      * is enough.
      */
-    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\MockObject
+    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\Stub
     {
-        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory = $this->createStub(\ILIAS\UI\Factory::class);
         $ui_factory->method('input')->willReturn(
-            $this->createMock(\ILIAS\UI\Component\Input\Factory::class)
+            $this->createStub(\ILIAS\UI\Component\Input\Factory::class)
         );
 
         return $ui_factory;
@@ -163,9 +163,9 @@ class ilObjLanguageFolderGUITest extends TestCase
         $property->setValue($object, $value);
     }
 
-    private function createLanguageMockReturningTopicAsIs(): ilLanguage&\PHPUnit\Framework\MockObject\MockObject
+    private function createLanguageMockReturningTopicAsIs(): ilLanguage&\PHPUnit\Framework\MockObject\Stub
     {
-        $lng = $this->createMock(ilLanguage::class);
+        $lng = $this->createStub(ilLanguage::class);
         $lng->method('txt')->willReturnArgument(0);
 
         return $lng;
@@ -231,8 +231,8 @@ class ilObjLanguageFolderGUITest extends TestCase
             ->getMock();
 
         $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
-        $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
-        $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        $this->setProperty($gui, 'tpl', $this->createStub(ilGlobalTemplateInterface::class));
+        $this->setProperty($gui, 'ctrl', $this->createStub(ilCtrl::class));
         $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         // 'current_user_id' is a private readonly property declared directly
         // on ilObjLanguageFolderGUI (not an ancestor). On a PHPUnit mock
@@ -279,7 +279,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui = $this->createGuiWithMockedCheckPermission();
         $gui->expects($this->once())->method('checkPermission')->with('write');
 
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultOk($this->uninstallPerformResult([], [], [], []))
         );
@@ -300,7 +300,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui = $this->createGuiWithMockedCheckPermission();
         $gui->expects($this->once())->method('checkPermission')->with('write');
 
-        $install_language = $this->createMock(InstallLanguage::class);
+        $install_language = $this->createStub(InstallLanguage::class);
         $install_language->method('maybePerformAs')->willReturn(new ResultOk($this->emptyPerformResult()));
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'install_language', $install_language);
 
@@ -322,7 +322,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui = $this->createGuiWithMockedCheckPermission();
         $gui->expects($this->once())->method('checkPermission')->with('write');
 
-        $update_language = $this->createMock(UpdateLanguage::class);
+        $update_language = $this->createStub(UpdateLanguage::class);
         $update_language->method('maybePerformAs')->willReturn(new ResultOk($this->updatePerformResult([], [])));
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'update_language', $update_language);
 
@@ -348,7 +348,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui = $this->createGuiWithMockedCheckPermission();
         $gui->expects($this->once())->method('checkPermission')->with('write');
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultOk($this->removeLocalChangesPerformResult([], [], []))
         );
@@ -468,7 +468,7 @@ class ilObjLanguageFolderGUITest extends TestCase
      */
     private function stubComponentRepositoryWithNoPlugins(): void
     {
-        $repository = $this->createMock(ilComponentRepository::class);
+        $repository = $this->createStub(ilComponentRepository::class);
         $repository->method('getPlugins')->willReturn(new ArrayIterator([]));
 
         $GLOBALS['DIC'] = new \ILIAS\DI\Container();
@@ -580,7 +580,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $exception_message = 'boom';
         $this->stubLoggerLangError($exception_message);
 
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
@@ -610,7 +610,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         // Throwable) - the "$error instanceof \Throwable ? ... : $error"
         // branch for that case must be covered too.
         $error_string = 'permission denied';
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(new ResultError($error_string));
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
@@ -618,7 +618,7 @@ class ilObjLanguageFolderGUITest extends TestCase
             ->method('setOnScreenMessage')
             ->with('failure', $this->stringContains($error_string), true);
 
-        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl = $this->createStub(ilCtrl::class);
 
         $gui = $this->createGuiWithUninstallLanguageCollaborators(
             $uninstall_language,
@@ -634,7 +634,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubLoggerLangError('boom');
 
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
         );
@@ -709,7 +709,7 @@ class ilObjLanguageFolderGUITest extends TestCase
 
     public function testUninstallObjectSetsSuccessMessageWhenOnlyUninstalledLanguageKeysIsNonEmpty(): void
     {
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultOk($this->uninstallPerformResult(['de'], [], [], []))
         );
@@ -742,7 +742,7 @@ class ilObjLanguageFolderGUITest extends TestCase
      */
     public function testUninstallObjectCombinesSystemUserAndNotInstalledIntoOneInfoMessage(): void
     {
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(new ResultOk(
             $this->uninstallPerformResult([], ['de'], ['en'], ['fr'])
         ));
@@ -779,7 +779,7 @@ class ilObjLanguageFolderGUITest extends TestCase
      */
     public function testUninstallObjectSetsBothSuccessAndInfoMessagesWhenBothCategoriesAreNonEmpty(): void
     {
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(new ResultOk(
             $this->uninstallPerformResult(['de'], ['en'], [], [])
         ));
@@ -815,7 +815,7 @@ class ilObjLanguageFolderGUITest extends TestCase
      */
     public function testUninstallObjectSetsNoMessageWhenAllBucketsAreEmpty(): void
     {
-        $uninstall_language = $this->createMock(UninstallLanguage::class);
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
         $uninstall_language->method('maybePerformAs')->willReturn(
             new ResultOk($this->uninstallPerformResult([], [], [], []))
         );
@@ -900,7 +900,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $exception_message = 'boom';
         $this->stubLoggerLangError($exception_message);
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
@@ -931,7 +931,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         // Throwable) - the "$error instanceof \Throwable ? ... : $error"
         // branch for that case must be covered too.
         $error_string = 'permission denied';
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultError($error_string));
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
@@ -939,7 +939,7 @@ class ilObjLanguageFolderGUITest extends TestCase
             ->method('setOnScreenMessage')
             ->with('failure', $this->stringContains($error_string), true);
 
-        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl = $this->createStub(ilCtrl::class);
 
         $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
             $remove_local_language_changes,
@@ -960,7 +960,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         // \Throwable error.
         $this->stubLoggerLangError('boom');
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
         );
@@ -1043,7 +1043,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubComponentRepositoryWithNoPlugins();
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultOk($this->removeLocalChangesPerformResult(['de'], [], []))
         );
@@ -1070,7 +1070,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubComponentRepositoryWithNoPlugins();
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultOk($this->removeLocalChangesPerformResult([], ['fr'], []))
         );
@@ -1097,7 +1097,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubComponentRepositoryWithNoPlugins();
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultOk($this->removeLocalChangesPerformResult([], [], ['it']))
         );
@@ -1132,7 +1132,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubComponentRepositoryWithNoPlugins();
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultOk(
             $this->removeLocalChangesPerformResult(['de'], ['fr'], ['it'])
         ));
@@ -1174,7 +1174,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         $this->stubComponentRepositoryWithNoPlugins();
 
-        $remove_local_language_changes = $this->createMock(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
         $remove_local_language_changes->method('maybePerformAs')->willReturn(
             new ResultOk($this->removeLocalChangesPerformResult([], [], []))
         );
@@ -1264,8 +1264,8 @@ class ilObjLanguageFolderGUITest extends TestCase
 
         $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
             $set_language_detection_enabled,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
+            $this->createStub(ilGlobalTemplateInterface::class),
+            $this->createStub(ilCtrl::class),
             $this->createLanguageMockReturningTopicAsIs()
         );
 
@@ -1287,8 +1287,8 @@ class ilObjLanguageFolderGUITest extends TestCase
 
         $gui = $this->createGuiWithSetLanguageDetectionEnabledCollaborators(
             $set_language_detection_enabled,
-            $this->createMock(ilGlobalTemplateInterface::class),
-            $this->createMock(ilCtrl::class),
+            $this->createStub(ilGlobalTemplateInterface::class),
+            $this->createStub(ilCtrl::class),
             $this->createLanguageMockReturningTopicAsIs()
         );
 
@@ -1300,7 +1300,7 @@ class ilObjLanguageFolderGUITest extends TestCase
         $exception_message = 'no write permission';
         $this->stubLoggerLangError($exception_message);
 
-        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        $set_language_detection_enabled = $this->createStub(SetLanguageDetectionEnabled::class);
         $set_language_detection_enabled->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException($exception_message))
         );
@@ -1358,8 +1358,8 @@ class ilObjLanguageFolderGUITest extends TestCase
         $gui->expects($this->never())->method('checkPermission');
 
         $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
-        $this->setProperty($gui, 'tpl', $this->createMock(ilGlobalTemplateInterface::class));
-        $this->setProperty($gui, 'ctrl', $this->createMock(ilCtrl::class));
+        $this->setProperty($gui, 'tpl', $this->createStub(ilGlobalTemplateInterface::class));
+        $this->setProperty($gui, 'ctrl', $this->createStub(ilCtrl::class));
         $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
         $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'current_user_id', 6);
         $this->setReadonlyPropertyDeclaredOnGuiClass(
@@ -1368,7 +1368,7 @@ class ilObjLanguageFolderGUITest extends TestCase
             $this->activityErrorLoggerForGui()
         );
 
-        $set_language_detection_enabled = $this->createMock(SetLanguageDetectionEnabled::class);
+        $set_language_detection_enabled = $this->createStub(SetLanguageDetectionEnabled::class);
         // Permission denial is simulated at the Activity level (an Error
         // result) so the success path (which would call $this->viewObject(),
         // unreachable here) is never taken - this test is only about
@@ -1506,7 +1506,7 @@ class ilObjLanguageFolderGUITest extends TestCase
 
         $gui = $this->createGuiWithCollaborators(
             $install_language,
-            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createStub(ilGlobalTemplateInterface::class),
             $ctrl,
             $this->createLanguageMockReturningTopicAsIs()
         );
@@ -1566,7 +1566,7 @@ class ilObjLanguageFolderGUITest extends TestCase
 
         $gui = $this->createGuiWithUninstallLanguageCollaborators(
             $uninstall_language,
-            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createStub(ilGlobalTemplateInterface::class),
             $ctrl,
             $this->createLanguageMockReturningTopicAsIs()
         );
@@ -1656,13 +1656,13 @@ class ilObjLanguageFolderGUITest extends TestCase
         // that return type check, so the concrete class must be mocked
         // here instead (createMock() disables its constructor, so the real
         // SignalGeneratorInterface dependency is never actually needed).
-        $interruptive = $this->createMock(\ILIAS\UI\Implementation\Component\Modal\Interruptive::class);
+        $interruptive = $this->createStub(\ILIAS\UI\Implementation\Component\Modal\Interruptive::class);
         $interruptive->method('withActionButtonLabel')->willReturnSelf();
 
-        $modal_factory = $this->createMock(\ILIAS\UI\Component\Modal\Factory::class);
+        $modal_factory = $this->createStub(\ILIAS\UI\Component\Modal\Factory::class);
         $modal_factory->method('interruptive')->willReturn($interruptive);
 
-        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory = $this->createStub(\ILIAS\UI\Factory::class);
         $ui_factory->method('modal')->willReturn($modal_factory);
 
         return [$ui_factory, $interruptive];
@@ -1769,15 +1769,20 @@ class ilObjLanguageFolderGUITest extends TestCase
 
         $id_token = new \ILIAS\UI\URLBuilderToken(['language_folder'], 'obj_ids');
 
-        $request_wrapper = $this->createMock(\ILIAS\HTTP\Wrapper\RequestWrapper::class);
-        $request_wrapper->method('has')->with($id_token->getName())->willReturn(true);
+        $request_wrapper = $this->createStub(\ILIAS\HTTP\Wrapper\RequestWrapper::class);
+        $request_wrapper->method('has')->willReturnCallback(
+            function (string $key) use ($id_token): bool {
+                $this->assertSame($id_token->getName(), $key);
+                return true;
+            }
+        );
         $request_wrapper->method('retrieve')->willReturn($ids);
 
-        $custom_group = $this->createMock(\ILIAS\Refinery\Custom\Group::class);
+        $custom_group = $this->createStub(\ILIAS\Refinery\Custom\Group::class);
         $custom_group->method('transformation')->willReturn(
-            $this->createMock(\ILIAS\Refinery\Transformation::class)
+            $this->createStub(\ILIAS\Refinery\Transformation::class)
         );
-        $refinery = $this->createMock(\ILIAS\Refinery\Factory::class);
+        $refinery = $this->createStub(\ILIAS\Refinery\Factory::class);
         $refinery->method('custom')->willReturn($custom_group);
 
         $this->setProperty($gui, 'id_token', $id_token);

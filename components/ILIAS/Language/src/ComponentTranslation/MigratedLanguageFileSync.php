@@ -212,4 +212,83 @@ final class MigratedLanguageFileSync
 
         \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
     }
+
+    /**
+     * The read-side counterpart to sync() (see components/ILIAS/Language/tools/po-migration/README.md,
+     * "Admin-GUI-Lesestellen"): for a module+language this pilot has migrated, the `.po` file - not
+     * `lng_data` - is now the authoritative content, exactly matching what ilLanguage::txt() itself
+     * would serve (gated on `.mo` existing, same as ilLanguage's own loadFromMigratedLanguageFile()).
+     * Used by ilObjLanguageExt's admin-GUI listing methods (_getValues(), _getModules()) to source a
+     * migrated module's values instead of the (still dual-written, but no longer authoritative)
+     * `lng_data` row.
+     *
+     * A pure no-op (returns `null`) for any module that hasn't contributed a LanguageFileDirectory, or
+     * that has no compiled `.mo` file for $lang_key yet.
+     *
+     * @return array<string, array{value: string, local_change: bool}>|null identifier => details, or
+     *         `null` if this module+language isn't (yet) migrated.
+     */
+    public static function loadModuleTranslations(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        string $lang_key,
+        string $module
+    ): ?array {
+        $directory = null;
+        foreach ($language_file_directory_manager->getDirectories() as $candidate) {
+            if ($candidate->getPrefix() === $module) {
+                $directory = $candidate;
+                break;
+            }
+        }
+        if ($directory === null) {
+            return null;
+        }
+
+        $base_path = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
+            . $module . '_' . $lang_key;
+        if (!is_file($base_path . '.mo') || !is_file($base_path . '.po')) {
+            return null;
+        }
+
+        $result = [];
+        foreach (new PoLoader()->loadFile($base_path . '.po')->getTranslations() as $translation) {
+            if ($translation->getContext() !== $module) {
+                continue;
+            }
+            $result[$translation->getOriginal()] = [
+                'value' => $translation->getTranslation() ?? '',
+                'local_change' => LocalChangeComments::getLocalChange($translation) !== null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Every module currently migrated for $lang_key - i.e. every contributed LanguageFileDirectory
+     * that also has a compiled `.mo` for it (see loadModuleTranslations()'s docblock for why `.mo`,
+     * not just `.po`, is the gate). Used by ilObjLanguageExt::_getModules() to list a migrated module
+     * even on the (today purely hypothetical, thanks to the dual-write - see "Schreibpfad" in
+     * tools/po-migration/README.md) chance that it has no `lng_data` row at all.
+     *
+     * @return list<string>
+     */
+    public static function getMigratedModules(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        string $lang_key
+    ): array {
+        $modules = [];
+        foreach ($language_file_directory_manager->getDirectories() as $directory) {
+            $module = $directory->getPrefix();
+            $base_path = rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/')
+                . $module . '_' . $lang_key;
+            if (is_file($base_path . '.mo') && is_file($base_path . '.po')) {
+                $modules[] = $module;
+            }
+        }
+
+        return $modules;
+    }
 }

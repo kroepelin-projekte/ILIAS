@@ -96,7 +96,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         $manager = $this->createManager(
             $db,
-            $this->createMock(InstalledLanguageRepository::class),
+            $this->createStub(InstalledLanguageRepository::class),
             new \DateTimeImmutable('2026-01-02 03:04:05', new \DateTimeZone('UTC'))
         );
 
@@ -119,7 +119,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         $manager = $this->createManager(
             $db,
-            $this->createMock(InstalledLanguageRepository::class),
+            $this->createStub(InstalledLanguageRepository::class),
             new \DateTimeImmutable('2026-01-02 03:04:05', new \DateTimeZone('UTC'))
         );
 
@@ -135,7 +135,7 @@ class LanguageInstallationManagerTest extends TestCase
             return 1;
         });
 
-        $repository = $this->createMock(InstalledLanguageRepository::class);
+        $repository = $this->createStub(InstalledLanguageRepository::class);
         $repository->method('getAvailableLanguages')->willReturn([
             'fr' => ['obj_id' => 3, 'status' => 'installed'],
         ]);
@@ -172,7 +172,7 @@ class LanguageInstallationManagerTest extends TestCase
                 $this->stringContains('local_change IS NULL')
             ));
 
-        $manager = $this->createManager($db, $this->createMock(InstalledLanguageRepository::class));
+        $manager = $this->createManager($db, $this->createStub(InstalledLanguageRepository::class));
 
         $manager->flushLanguageForInstallation('de');
     }
@@ -186,7 +186,7 @@ class LanguageInstallationManagerTest extends TestCase
             return 1;
         });
 
-        $manager = $this->createManager($db, $this->createMock(InstalledLanguageRepository::class));
+        $manager = $this->createManager($db, $this->createStub(InstalledLanguageRepository::class));
 
         $manager->flushLanguageForUninstallation('de');
 
@@ -265,7 +265,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -328,7 +328,7 @@ class LanguageInstallationManagerTest extends TestCase
                 }
             );
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturnCallback(
                 static function (string $lang_key, string $min_date = '') use (&$calls): array {
                     $calls++;
@@ -459,12 +459,14 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
-            $repository->method('getLanguageEntries')->with('de')->willReturn([
-                'common' => [
-                    'overridden' => 'Old Value',
-                    'untouched_by_customizing' => 'Still Here',
-                ],
+            $repository = $this->createStub(InstalledLanguageRepository::class);
+            $repository->method('getLanguageEntries')->willReturnMap([
+                ['de', [
+                    'common' => [
+                        'overridden' => 'Old Value',
+                        'untouched_by_customizing' => 'Still Here',
+                    ],
+                ]],
             ]);
 
             $manager = new LanguageInstallationManager(
@@ -511,8 +513,10 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
-            $repository->method('checkLanguage')->with('de')->willReturn(true);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
+            $repository->method('checkLanguage')->willReturnMap([
+                ['de', true],
+            ]);
             $repository->method('getAvailableLanguages')->willReturn([]);
             $repository->method('getLocalLanguages')->willReturn([]);
             $repository->method('getLocalChanges')->willReturn([]);
@@ -570,7 +574,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('checkLanguage')->willReturnMap([
                 ['de', true],
                 ['xx', false],
@@ -637,7 +641,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('checkLanguage')->willReturn(true);
             $repository->method('getAvailableLanguages')->willReturn([
                 'fr' => ['obj_id' => 9, 'status' => 'installed'],
@@ -703,7 +707,7 @@ class LanguageInstallationManagerTest extends TestCase
             return 1;
         });
 
-        $repository = $this->createMock(InstalledLanguageRepository::class);
+        $repository = $this->createStub(InstalledLanguageRepository::class);
         $repository->method('getAvailableLanguages')->willReturn([
             'de' => ['obj_id' => 4, 'status' => 'not_installed'],
         ]);
@@ -763,7 +767,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -821,7 +825,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -880,7 +884,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1048,7 +1052,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1087,7 +1091,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1126,7 +1130,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1168,7 +1172,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1208,7 +1212,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(
@@ -1256,7 +1260,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
 
             $manager = new LanguageInstallationManager(
                 $db,
@@ -1304,7 +1308,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
 
             $manager = new LanguageInstallationManager(
                 $db,
@@ -1339,7 +1343,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
             $repository->method('getLanguageEntries')->willReturn(['pilot' => ['greeting' => 'Hallo, alt']]);
 
@@ -1377,7 +1381,7 @@ class LanguageInstallationManagerTest extends TestCase
             $db = $this->createDatabaseMock();
             $db->method('in')->willReturn("module IN ('pilot')");
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
             $repository->method('getLanguageEntries')->willReturn(['pilot' => ['greeting' => 'Hallo, alt']]);
 
@@ -1421,7 +1425,7 @@ class LanguageInstallationManagerTest extends TestCase
                 return 1;
             });
 
-            $repository = $this->createMock(InstalledLanguageRepository::class);
+            $repository = $this->createStub(InstalledLanguageRepository::class);
             $repository->method('getLocalChanges')->willReturn([]);
 
             $manager = new LanguageInstallationManager(

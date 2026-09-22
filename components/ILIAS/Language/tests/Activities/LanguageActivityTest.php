@@ -49,8 +49,8 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
         $activity = new LanguageActivityThrowingInputDescriptionTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $rbac
         );
 
@@ -73,8 +73,8 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
         $activity = new LanguageActivityThrowingInputDescriptionTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $rbac,
             throw_type_error: true,
         );
@@ -98,12 +98,12 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
      */
     public function testAdditionalPerformParametersWinsOverANormalizeParametersKeyCollisionInMaybePerformAs(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = new LanguageActivityMergePrecedenceTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $rbac
         );
 

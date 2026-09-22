@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Setup;
 use PHPUnit\Framework\TestCase;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 
 /**
  * Guards the database handling of ilLanguagesInstalledAndUpdatedObjective.
@@ -62,7 +62,7 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
      */
     private function createDatabaseMock(string $tag, array &$log): ilDBInterface
     {
-        $db = $this->createMock(ilDBInterface::class);
+        $db = $this->createStub(ilDBInterface::class);
         $db->method('quote')->willReturnCallback(static fn(mixed $value): string => "'" . (string) $value . "'");
         $db->method('like')->willReturn('1=1');
         $db->method('now')->willReturn('NOW()');
@@ -73,7 +73,7 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         });
         $db->method('query')->willReturnCallback(function () use ($tag, &$log) {
             $log[] = $tag;
-            return $this->createMock(ilDBStatement::class);
+            return $this->createStub(ilDBStatement::class);
         });
 
         // A single installed language, then exhausted. $rows must be captured
@@ -126,9 +126,9 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
      * @param list<string> $log collects the language key every write method
      *        was actually called with, in call order
      */
-    private function createSetupLanguageMock(array $installed_language_keys, array &$log): MockObject&ilSetupLanguage
+    private function createSetupLanguageMock(array $installed_language_keys, array &$log): Stub&ilSetupLanguage
     {
-        $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language = $this->createStub(ilSetupLanguage::class);
         $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);
         $setup_language->method('getAvailableLanguagesForInstallation')->willReturn([]);
         $setup_language->method('getLocalLanguages')->willReturn([]);
@@ -197,7 +197,7 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         $log = [];
         $newly_installed = [];
 
-        $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language = $this->createStub(ilSetupLanguage::class);
         $setup_language->method('getInstalledLanguages')->willReturnCallback(
             static function () use (&$newly_installed): array {
                 return array_merge(['de'], $newly_installed);

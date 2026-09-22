@@ -70,7 +70,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(rbac_system: $rbac);
@@ -89,7 +89,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(rbac_system: $rbac, settings: $settings);
@@ -184,7 +184,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testMaybePerformAsWithGrantedPermissionPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -221,8 +221,10 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
             ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['enabled' => true]);
@@ -238,7 +240,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
      */
     public function testMaybePerformAsTurnsAThrowableFromNormalizeParametersIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -314,7 +316,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedTruthyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveTruthyRepresentationsAndWritesEnabledTrue(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -334,7 +336,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedFalsyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveFalsyRepresentationsAndWritesEnabledFalse(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -363,7 +365,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     #[DataProvider('rejectedEnabledValuesProvider')]
     public function testMaybePerformAsRejectsValuesGrindCannotInterpretAsACheckboxWithoutTouchingSettings(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -398,7 +400,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
             )
             ->willReturn($checkbox);
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['enabled' => $checkbox])
@@ -411,8 +413,8 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testOutputDescriptionDescribesASingleBooleanEnabledField(): void
     {
-        $bool_description = $this->createMock(Description::class);
-        $object_description = $this->createMock(Description::class);
+        $bool_description = $this->createStub(Description::class);
+        $object_description = $this->createStub(Description::class);
 
         $f = $this->createMock(\ILIAS\Data\Description\Factory::class);
         $f->expects($this->once())->method('bool')->willReturn($bool_description);
@@ -435,10 +437,10 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         int $language_folder_ref_id = 0
     ): SetLanguageDetectionEnabled {
         return new SetLanguageDetectionEnabled(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac_system ?? $this->createMock(\ilRbacSystem::class),
-            $settings ?? $this->createMock(Setting::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac_system ?? $this->createStub(\ilRbacSystem::class),
+            $settings ?? $this->createStub(Setting::class),
             $language_folder_ref_id
         );
     }

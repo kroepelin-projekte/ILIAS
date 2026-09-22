@@ -158,13 +158,13 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             touch($this->plugin_root_directory . '/lang/ilias_' . $lang_key . '.lang');
         }
 
-        $component = $this->createMock(ilComponentInfo::class);
+        $component = $this->createStub(ilComponentInfo::class);
         $component->method('getId')->willReturn('comp');
 
-        $slot = $this->createMock(ilPluginSlotInfo::class);
+        $slot = $this->createStub(ilPluginSlotInfo::class);
         $slot->method('getId')->willReturn('slot');
 
-        $plugin_info = $this->createMock(ilPluginInfo::class);
+        $plugin_info = $this->createStub(ilPluginInfo::class);
         $plugin_info->method('getComponent')->willReturn($component);
         $plugin_info->method('getPluginSlot')->willReturn($slot);
         $plugin_info->method('getId')->willReturn($module_prefix);
@@ -302,12 +302,14 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         chmod($readonly_dir, 0555);
 
         $warnings = [];
-        $logger = $this->createMock(ilLogger::class);
+        $logger = $this->createStub(ilLogger::class);
         $logger->method('warning')->willReturnCallback(function (string $message) use (&$warnings): void {
             $warnings[] = $message;
         });
-        $logger_factory = $this->createMock(ilLoggerFactory::class);
-        $logger_factory->method('getComponentLogger')->with('lang')->willReturn($logger);
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturnMap([
+            ['lang', $logger],
+        ]);
         $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
 
         set_error_handler(static fn(): bool => true, E_WARNING);

@@ -322,7 +322,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         // be built, unlike InstallLanguage's input description.
         $field->expects($this->never())->method('select');
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_keys' => $text])
@@ -350,8 +350,10 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
         $setup_language->expects($this->never())->method('getInstalledLanguages');
         $setup_language->expects($this->never())->method('flushLanguageForInstallation');
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $setup_language,
@@ -364,7 +366,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
     public function testPermissionGrantedPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
@@ -394,7 +396,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndUpdatesEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
@@ -413,9 +415,9 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         ?Language $language = null
     ): UpdateLanguage {
         return new UpdateLanguage(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac ?? $this->createMock(\ilRbacSystem::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac ?? $this->createStub(\ilRbacSystem::class),
             $setup_language
         );
     }

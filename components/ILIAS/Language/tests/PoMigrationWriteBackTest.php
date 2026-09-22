@@ -141,7 +141,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
     private function stubDatabaseForReplaceLangModule(): void
     {
         $statement = $this->createStub(ilDBStatement::class);
-        $db = $this->createMock(ilDBInterface::class);
+        $db = $this->createStub(ilDBInterface::class);
         $db->method('queryF')->willReturn($statement);
         $db->method('fetchAssoc')->willReturn(['lang_array' => serialize([])]);
         $this->setGlobalVariable('ilDB', $db);

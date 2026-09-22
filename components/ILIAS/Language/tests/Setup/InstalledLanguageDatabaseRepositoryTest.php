@@ -22,7 +22,7 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -36,9 +36,9 @@ use PHPUnit\Framework\TestCase;
  */
 class InstalledLanguageDatabaseRepositoryTest extends TestCase
 {
-    private function createReadDatabaseMock(): MockObject&ilDBInterface
+    private function createReadDatabaseMock(): Stub&ilDBInterface
     {
-        $db = $this->createMock(ilDBInterface::class);
+        $db = $this->createStub(ilDBInterface::class);
         $db->method('quote')->willReturnCallback(
             static fn(mixed $value, string $type): string => "'" . (string) $value . "'"
         );
@@ -60,7 +60,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
      *
      * @param list<array<string, mixed>> $rows each row as an associative array of column => value
      */
-    private function configureDbToReturnObjectRows(MockObject&ilDBInterface $db, array $rows): void
+    private function configureDbToReturnObjectRows(Stub&ilDBInterface $db, array $rows): void
     {
         $objects = array_map(static fn(array $row): \stdClass => (object) $row, $rows);
         $objects[] = null; // terminates the while ($row = ...) loop
@@ -70,9 +70,9 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
     /**
      * @param list<array<string, mixed>> $rows each row as an associative array of column => value
      */
-    private function createStatementReturningAssocRows(array $rows): MockObject&ilDBStatement
+    private function createStatementReturningAssocRows(array $rows): Stub&ilDBStatement
     {
-        $statement = $this->createMock(ilDBStatement::class);
+        $statement = $this->createStub(ilDBStatement::class);
         $rows[] = null; // terminates the while ($row = ...) loop
         $statement->method('fetchRow')->willReturn(...$rows);
 
@@ -93,7 +93,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
     public function testGetAvailableLanguagesMapsObjIdAndStatusToTheCorrectLanguageNotSwapped(): void
     {
         $db = $this->createReadDatabaseMock();
-        $db->method('query')->willReturn($this->createMock(ilDBStatement::class));
+        $db->method('query')->willReturn($this->createStub(ilDBStatement::class));
         $this->configureDbToReturnObjectRows($db, [
             ['title' => 'de', 'description' => 'installed', 'obj_id' => 5],
             ['title' => 'en', 'description' => 'not_installed', 'obj_id' => 8],
@@ -113,7 +113,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
     public function testGetAvailableLanguagesReturnsEmptyArrayWhenNoLanguagesAreKnown(): void
     {
         $db = $this->createReadDatabaseMock();
-        $db->method('query')->willReturn($this->createMock(ilDBStatement::class));
+        $db->method('query')->willReturn($this->createStub(ilDBStatement::class));
         $this->configureDbToReturnObjectRows($db, []);
 
         $this->assertSame([], $this->createRepository($db)->getAvailableLanguages());
@@ -126,7 +126,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         $db->method('query')->willReturnCallback(
             function (string $query) use (&$captured_query): ilDBStatement {
                 $captured_query = $query;
-                return $this->createMock(ilDBStatement::class);
+                return $this->createStub(ilDBStatement::class);
             }
         );
         $this->configureDbToReturnObjectRows($db, [
@@ -148,7 +148,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         $db->method('query')->willReturnCallback(
             function (string $query) use (&$captured_query): ilDBStatement {
                 $captured_query = $query;
-                return $this->createMock(ilDBStatement::class);
+                return $this->createStub(ilDBStatement::class);
             }
         );
         $this->configureDbToReturnObjectRows($db, [
@@ -476,7 +476,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
      */
     public function testCheckLocalLanguageFileReturnsFalseWhenNoCustomizingDirectoryIsConfiguredAtAll(): void
     {
-        $manager = $this->createMock(LanguageFileDirectoryManager::class);
+        $manager = $this->createStub(LanguageFileDirectoryManager::class);
         $manager->method('getCustomizingDirectories')->willReturnCallback(
             static function (): \Generator {
                 return;

@@ -23,6 +23,7 @@ use ILIAS\Data\Result\Ok as ResultOk;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -73,7 +74,7 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     private function activityErrorLoggerForGui(): \ilLogger
     {
-        return $this->stubbed_activity_error_logger ?? $this->createMock(\ilLogger::class);
+        return $this->stubbed_activity_error_logger ?? $this->createStub(\ilLogger::class);
     }
 
     private function setProperty(object $object, string $property_name, mixed $value): void
@@ -93,11 +94,11 @@ class ilObjLanguageExtGUITest extends TestCase
      * irrelevant to any of these tests (the Activities never use it), so a
      * bare mock is enough.
      */
-    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&MockObject
+    private function stubUiFactoryForMaybePerformAs(): \ILIAS\UI\Factory&Stub
     {
-        $ui_factory = $this->createMock(\ILIAS\UI\Factory::class);
+        $ui_factory = $this->createStub(\ILIAS\UI\Factory::class);
         $ui_factory->method('input')->willReturn(
-            $this->createMock(\ILIAS\UI\Component\Input\Factory::class)
+            $this->createStub(\ILIAS\UI\Component\Input\Factory::class)
         );
 
         return $ui_factory;
@@ -122,9 +123,9 @@ class ilObjLanguageExtGUITest extends TestCase
             ->setValue($gui, $value);
     }
 
-    private function createLanguageMockReturningTopicAsIs(array $installed_languages = []): ilLanguage&MockObject
+    private function createLanguageMockReturningTopicAsIs(array $installed_languages = []): ilLanguage&Stub
     {
-        $lng = $this->createMock(ilLanguage::class);
+        $lng = $this->createStub(ilLanguage::class);
         $lng->method('txt')->willReturnArgument(0);
         $lng->method('getInstalledLanguages')->willReturn($installed_languages);
 
@@ -163,19 +164,19 @@ class ilObjLanguageExtGUITest extends TestCase
 
     private function mockHttpWithParsedBody(array $parsed_body): \ILIAS\HTTP\GlobalHttpState
     {
-        $request = $this->createMock(ServerRequestInterface::class);
+        $request = $this->createStub(ServerRequestInterface::class);
         $request->method('getParsedBody')->willReturn($parsed_body);
 
-        $http = $this->createMock(\ILIAS\HTTP\GlobalHttpState::class);
+        $http = $this->createStub(\ILIAS\HTTP\GlobalHttpState::class);
         $http->method('request')->willReturn($request);
 
         return $http;
     }
 
-    private function createFakeLanguageObject(string $key): ilObjLanguageExt&MockObject
+    private function createFakeLanguageObject(string $key): ilObjLanguageExt&Stub
     {
-        /** @var ilObjLanguageExt&MockObject $object */
-        $object = $this->createMock(ilObjLanguageExt::class);
+        /** @var ilObjLanguageExt&Stub $object */
+        $object = $this->createStub(ilObjLanguageExt::class);
         $object->key = $key;
 
         return $object;
@@ -201,7 +202,7 @@ class ilObjLanguageExtGUITest extends TestCase
             ->onlyMethods(['initNewSettingsForm'])
             ->getMock();
 
-        $form = $this->createMock(ilPropertyFormGUI::class);
+        $form = $this->createStub(ilPropertyFormGUI::class);
         $form->method('getHTML')->willReturn('');
         $gui->method('initNewSettingsForm')->willReturn($form);
 
@@ -233,7 +234,7 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     public function testSaveSettingsObjectBuildsEnabledTrueFromANonEmptyTranslationPostValue(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
         $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
@@ -246,7 +247,7 @@ class ilObjLanguageExtGUITest extends TestCase
             $set_language_translation_enabled,
             $this->mockHttpWithParsedBody(['translation' => '1']),
             $user,
-            $this->createMock(ilGlobalTemplateInterface::class)
+            $this->createStub(ilGlobalTemplateInterface::class)
         );
 
         $gui->saveSettingsObject();
@@ -259,7 +260,7 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     public function testSaveSettingsObjectBuildsEnabledFalseWhenTranslationPostKeyIsMissing(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
         $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
@@ -272,7 +273,7 @@ class ilObjLanguageExtGUITest extends TestCase
             $set_language_translation_enabled,
             $this->mockHttpWithParsedBody([]),
             $user,
-            $this->createMock(ilGlobalTemplateInterface::class)
+            $this->createStub(ilGlobalTemplateInterface::class)
         );
 
         $gui->saveSettingsObject();
@@ -280,10 +281,10 @@ class ilObjLanguageExtGUITest extends TestCase
 
     public function testSaveSettingsObjectShowsSuccessMessageWhenResultReportsChangedTrue(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
+        $set_language_translation_enabled = $this->createStub(SetLanguageTranslationEnabled::class);
         $set_language_translation_enabled->method('maybePerformAs')->willReturn(new ResultOk(['changed' => true]));
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
@@ -307,10 +308,10 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     public function testSaveSettingsObjectShowsNoMessageWhenResultReportsChangedFalse(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
+        $set_language_translation_enabled = $this->createStub(SetLanguageTranslationEnabled::class);
         $set_language_translation_enabled->method('maybePerformAs')->willReturn(new ResultOk(['changed' => false]));
 
         $tpl = $this->createMock(ilGlobalTemplateInterface::class);
@@ -338,10 +339,10 @@ class ilObjLanguageExtGUITest extends TestCase
     {
         $this->stubLoggerLangError('boom');
 
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $set_language_translation_enabled = $this->createMock(SetLanguageTranslationEnabled::class);
+        $set_language_translation_enabled = $this->createStub(SetLanguageTranslationEnabled::class);
         $set_language_translation_enabled->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
         );
@@ -421,7 +422,7 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     public function testSaveNewEntryObjectBuildsModuleIdentifierAndTranslationsFromFormAcrossAllInstalledLanguages(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
         $add_language_entry = $this->createMock(AddLanguageEntry::class);
@@ -443,9 +444,9 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $gui = $this->createGuiForSaveNewEntry(
             $add_language_entry,
-            $this->createMock(ilCtrl::class),
+            $this->createStub(ilCtrl::class),
             $user,
-            $this->createMock(ilGlobalTemplateInterface::class),
+            $this->createStub(ilGlobalTemplateInterface::class),
             $form,
             $this->createLanguageMockReturningTopicAsIs(['de', 'en'])
         );
@@ -455,10 +456,10 @@ class ilObjLanguageExtGUITest extends TestCase
 
     public function testSaveNewEntryObjectShowsSuccessMessageAndRedirectsToViewOnSuccess(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $add_language_entry = $this->createMock(AddLanguageEntry::class);
+        $add_language_entry = $this->createStub(AddLanguageEntry::class);
         $add_language_entry->method('maybePerformAs')->willReturn(
             new ResultOk(['added_language_keys' => ['de']])
         );
@@ -494,10 +495,10 @@ class ilObjLanguageExtGUITest extends TestCase
     {
         $this->stubLoggerLangError('boom');
 
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $add_language_entry = $this->createMock(AddLanguageEntry::class);
+        $add_language_entry = $this->createStub(AddLanguageEntry::class);
         $add_language_entry->method('maybePerformAs')->willReturn(
             new ResultError(new \RuntimeException('boom'))
         );
@@ -539,10 +540,10 @@ class ilObjLanguageExtGUITest extends TestCase
      */
     public function testSaveNewEntryObjectDoesNotRedirectAndReshowsTheFormWithPostedValuesOnASafeToDisplayError(): void
     {
-        $user = $this->createMock(ilObjUser::class);
+        $user = $this->createStub(ilObjUser::class);
         $user->method('getId')->willReturn(6);
 
-        $add_language_entry = $this->createMock(AddLanguageEntry::class);
+        $add_language_entry = $this->createStub(AddLanguageEntry::class);
         $add_language_entry->method('maybePerformAs')->willReturn(
             new ResultError(new \ILIAS\Language\Activities\InvalidInputException('A value is required for: en.'))
         );
@@ -567,7 +568,7 @@ class ilObjLanguageExtGUITest extends TestCase
         // never redirects), so both are stubbed to harmless no-ops.
         $form->method('getHTML')->willReturn('');
         $GLOBALS['DIC'] = new \ILIAS\DI\Container();
-        $GLOBALS['DIC']['tpl'] = $this->createMock(ilGlobalTemplateInterface::class);
+        $GLOBALS['DIC']['tpl'] = $this->createStub(ilGlobalTemplateInterface::class);
 
         $gui = $this->createGuiForSaveNewEntry(
             $add_language_entry,
@@ -581,11 +582,11 @@ class ilObjLanguageExtGUITest extends TestCase
         // $this->http->wrapper()->query()->has("eid") before falling
         // through to the given $form - unrelated to this test's concern,
         // stubbed to "no such query parameter".
-        $query_wrapper = $this->createMock(\ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper::class);
+        $query_wrapper = $this->createStub(\ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper::class);
         $query_wrapper->method('has')->willReturn(false);
-        $wrapper_factory = $this->createMock(\ILIAS\HTTP\Wrapper\WrapperFactory::class);
+        $wrapper_factory = $this->createStub(\ILIAS\HTTP\Wrapper\WrapperFactory::class);
         $wrapper_factory->method('query')->willReturn($query_wrapper);
-        $http = $this->createMock(\ILIAS\HTTP\GlobalHttpState::class);
+        $http = $this->createStub(\ILIAS\HTTP\GlobalHttpState::class);
         $http->method('wrapper')->willReturn($wrapper_factory);
         $this->setProperty($gui, 'http', $http);
 

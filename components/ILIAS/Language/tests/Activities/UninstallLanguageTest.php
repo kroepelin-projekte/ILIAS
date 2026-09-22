@@ -59,7 +59,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
 
     public function testThrowableFromWithinPerformIsTurnedIntoAResultErrorByMaybePerformAs(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $lng_objects = static fn(): array => [
@@ -169,7 +169,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testAmbiguousTitleViaMaybePerformAsReturnsResultErrorAndNeverCallsTheObjectFactory(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $lng_objects = static fn(): array => [
@@ -279,7 +279,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testMaybePerformAsNeverUninstallsAnUnambiguousKeyWhenAnotherRequestedKeyIsAmbiguous(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $de = new FakeLanguageObject(is_system_language: false, is_user_language: false, is_installed: true);
@@ -583,7 +583,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         // never be built.
         $field->expects($this->never())->method('select');
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_keys' => $text])
@@ -608,8 +608,10 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
             'de' => [],
         ]);
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $lng_objects,
@@ -624,7 +626,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
 
     public function testPermissionGrantedPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -659,7 +661,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndUninstallsEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -683,9 +685,9 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         ?Language $language = null
     ): UninstallLanguage {
         return new UninstallLanguage(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac ?? $this->createMock(\ilRbacSystem::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac ?? $this->createStub(\ilRbacSystem::class),
             0,
             $lng_objects,
             $obj_language_factory

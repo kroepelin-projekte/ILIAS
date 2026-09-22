@@ -549,7 +549,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
             self::callback(static fn(mixed $value): bool => is_string($value))
         )->willReturn($select);
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_keys' => $text, 'mode' => $select])
@@ -627,7 +627,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndInstallsEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $setup_language = $this->createSetupLanguageMock([], [], []);
@@ -659,8 +659,10 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
 
         $setup_language = $this->createSetupLanguageMock([], [], []);
         $setup_language->expects($this->never())->method('getAvailableLanguagesForInstallation');
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $setup_language,
@@ -688,7 +690,7 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testAThrowableThatIsNotAnExceptionFromWithinPerformIsWrappedInARuntimeExceptionResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $setup_language = $this->createSetupLanguageMock([], [], []);
@@ -722,9 +724,9 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         ?Language $language = null
     ): InstallLanguage {
         return new InstallLanguage(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $rbac ?? $this->createMock(\ilRbacSystem::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $rbac ?? $this->createStub(\ilRbacSystem::class),
             $setup_language
         );
     }

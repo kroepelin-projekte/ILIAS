@@ -381,6 +381,20 @@ class ilObjLanguageExt extends ilObjLanguage
         while ($rec = $set->fetchRow(ilDBConstants::FETCHMODE_ASSOC)) {
             $modules[] = $rec["module"];
         }
+
+        // A migrated module (see tools/po-migration/README.md) is included even if - unlike today's
+        // dual-write guarantee - lng_data ever stopped holding a row for it: its .po/.mo file is now
+        // its authoritative source, independent of lng_data's content.
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            $migrated_modules = MigratedLanguageFileSync::getMigratedModules(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $a_lang_key
+            );
+            $modules = array_unique(array_merge($modules, $migrated_modules));
+            sort($modules);
+        }
+
         return $modules;
     }
 
@@ -439,9 +453,59 @@ class ilObjLanguageExt extends ilObjLanguage
         $ilDB = $DIC->database();
         $lng = $DIC->language();
 
+        // Migrated modules (see tools/po-migration/README.md) are read from their .po file, not
+        // lng_data - it is now their authoritative source, exactly matching what ilLanguage::txt()
+        // itself would serve for them. Every filter below ($a_topics/$a_pattern/$a_state) is
+        // re-applied in PHP against this file-sourced data, mirroring the SQL WHERE clauses further
+        // down for the still DB-backed, non-migrated modules.
+        $migrated_values = [];
+        $migrated_modules_found = [];
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            $manager = $DIC[LanguageFileDirectoryManager::class];
+            $candidate_modules = $a_modules !== []
+                ? $a_modules
+                : MigratedLanguageFileSync::getMigratedModules($manager, ILIAS_ABSOLUTE_PATH, $a_lang_key);
+
+            foreach ($candidate_modules as $module) {
+                $translations = MigratedLanguageFileSync::loadModuleTranslations(
+                    $manager,
+                    ILIAS_ABSOLUTE_PATH,
+                    $a_lang_key,
+                    $module
+                );
+                if ($translations === null) {
+                    continue;
+                }
+                $migrated_modules_found[] = $module;
+
+                foreach ($translations as $identifier => $entry) {
+                    if ($a_topics !== [] && !in_array($identifier, $a_topics, true)) {
+                        continue;
+                    }
+                    if ($a_pattern !== '' && !str_contains($entry['value'], $a_pattern)) {
+                        continue;
+                    }
+                    if ($a_state === 'changed' && !$entry['local_change']) {
+                        continue;
+                    }
+                    if ($a_state === 'unchanged' && $entry['local_change']) {
+                        continue;
+                    }
+                    $migrated_values[$module . $lng->separator . $identifier] = $entry['value'];
+                }
+            }
+        }
+
         $q = "SELECT module, identifier, value FROM lng_data WHERE" .
             " lang_key = " . $ilDB->quote($a_lang_key, "text") . " ";
 
+        if ($migrated_modules_found !== []) {
+            // Excluded entirely, not merely overridden below: lng_data still holds a dual-written copy
+            // of a migrated module's row (see "Schreibpfad" in the README), but it must not also
+            // surface here and produce a duplicate, stale-if-ever-diverged entry alongside the
+            // file-sourced one above.
+            $q .= " AND " . $ilDB->in("module", $migrated_modules_found, true, "text");
+        }
         if (is_array($a_modules) && count($a_modules) > 0) {
             $q .= " AND " . $ilDB->in("module", $a_modules, false, "text");
         }
@@ -465,6 +529,10 @@ class ilObjLanguageExt extends ilObjLanguage
         while ($rec = $set->fetchRow(ilDBConstants::FETCHMODE_ASSOC)) {
             $values[$rec["module"] . $lng->separator . $rec["identifier"]] = $rec["value"];
         }
+
+        $values = array_merge($values, $migrated_values);
+        ksort($values);
+
         return $values;
     }
 

@@ -79,13 +79,13 @@ class LanguageComponentGraphTest extends TestCase
     {
         $define = [];
         $use = [
-            \ILIAS\Language\Language::class => $this->createMock(\ILIAS\Language\Language::class),
+            \ILIAS\Language\Language::class => $this->createStub(\ILIAS\Language\Language::class),
         ];
         $seek = [
             LanguageFileDirectory::class => [],
         ];
         $pull = [
-            RefineryFactory::class => $this->createMock(RefineryFactory::class),
+            RefineryFactory::class => $this->createStub(RefineryFactory::class),
         ];
 
         // $implement and $contribute are wrapped in RenamingDIC in the real
