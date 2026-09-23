@@ -287,7 +287,7 @@ class ilObjLanguage extends ilObject
     {
         if ((str_starts_with($this->status, "installed")) && ($this->key != $this->lang_default) && ($this->key != $this->lang_user)) {
             $this->flush();
-            self::removeMigratedMoFiles($this->key);
+            $this->modules_with_unwritten_overlay = self::removeMigratedMoFiles($this->key);
             $this->setTitle($this->key);
             $this->setDescription("not_installed");
             $this->update();
@@ -313,22 +313,26 @@ class ilObjLanguage extends ilObject
      *
      * Same no-op/failure posture as syncMigratedLanguageFile(): silently
      * skips a module that never contributed a LanguageFileDirectory or has no overlay for $a_key to
-     * begin with, and logs and swallows any removal failure per module rather than throwing or aborting
-     * the remaining modules - the DB-side uninstall above already succeeded and must not be undone or
-     * blocked by a problem with the file mirror (e.g. a read-only overlay directory).
+     * begin with, and logs any removal failure per module rather than throwing or aborting the
+     * remaining modules - the DB-side uninstall above already succeeded and must not be undone or
+     * blocked by a problem with the file mirror (e.g. a read-only overlay directory). The affected
+     * modules are returned, uninstall() exposes them via getModulesWithUnwrittenOverlay().
+     *
+     * @return list<string> the modules whose overlay could not be removed
      */
-    private static function removeMigratedMoFiles(string $a_key): void
+    private static function removeMigratedMoFiles(string $a_key): array
     {
         global $DIC;
 
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
-            return;
+            return [];
         }
 
         /** @var LanguageFileDirectoryManager $manager */
         $manager = $DIC[LanguageFileDirectoryManager::class];
         $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
 
+        $failed_modules = [];
         foreach ($manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
             try {
@@ -340,8 +344,11 @@ class ilObjLanguage extends ilObject
                     $a_key,
                     $t->getMessage()
                 ));
+                $failed_modules[] = $module;
             }
         }
+
+        return $failed_modules;
     }
 
 
@@ -636,7 +643,8 @@ class ilObjLanguage extends ilObject
     /**
      * The modules maintained in PO files whose per-installation PO/MO overlay could not be written by
      * the last insert()/install()/refresh()/removeLocalChanges() of this object - the database was
-     * written regardless (see LanguageInstallationManager). Empty if every overlay is in sync.
+     * written regardless (see LanguageInstallationManager) -, or whose overlay could not be removed by
+     * the last uninstall(). Empty if every overlay is in sync.
      *
      * @return list<string>
      */
@@ -709,6 +717,30 @@ class ilObjLanguage extends ilObject
         bool $refresh_original_from_shipped = false
     ): bool {
         global $DIC;
+
+        // The database write and the overlay sync below form one unit: under the overlay lock a
+        // concurrent writer can neither interleave between them nor between a caller's read of the
+        // current module content and this write (see ilObjLanguageExt::_saveValues())
+        return MigratedLanguageFileSync::withOverlayLock(
+            $DIC->offsetExists(LanguageFileDirectoryManager::class) ? $DIC[LanguageFileDirectoryManager::class] : null,
+            $a_key,
+            $a_module,
+            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+            static fn(): bool => self::writeLangModule($a_key, $a_module, $a_array, $refresh_original_from_shipped),
+            ILIAS_ABSOLUTE_PATH
+        );
+    }
+
+    /**
+     * replaceLangModule() once the overlay lock is held (if the module has an overlay).
+     */
+    private static function writeLangModule(
+        string $a_key,
+        string $a_module,
+        array $a_array,
+        bool $refresh_original_from_shipped
+    ): bool {
+        global $DIC;
         $ilDB = $DIC->database();
 
         // avoid flushing the whole cache (see mantis #28818)
@@ -747,6 +779,8 @@ class ilObjLanguage extends ilObject
                 "Please check the collation of your database tables lng_data and lng_modules. It must be utf8_unicode_ci.",
                 true
             );
+            // redirectByClass() exits - also inside the overlay lock callback of replaceLangModule():
+            // the flock() is then only released when the request ends, which is acceptable here
             $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 

@@ -566,7 +566,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             }
 
             $this->setSuccessOrOverlayWarning(
-                sprintf($this->lng->txt("language_file_imported"), $_FILES["userfile"]["name"]),
+                // the client-supplied file name ends up in HTML - never unescaped
+                sprintf(
+                    $this->lng->txt("language_file_imported"),
+                    $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform((string) ($_FILES["userfile"]["name"] ?? ''))
+                ),
                 $modules_with_unwritten_overlay
             );
             $this->ctrl->redirect($this, "import");

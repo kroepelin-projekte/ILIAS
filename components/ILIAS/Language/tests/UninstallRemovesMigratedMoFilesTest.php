@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
  * Covers ilObjLanguage::removeMigratedMoFiles() - the overlay-file counterpart to uninstall()'s DB-side
@@ -84,11 +85,36 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             $this->removeDirectoryRecursively($this->fixture_directory);
         }
 
-        if (defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
-            $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
+        // Deliberately never deletes CLIENT_DATA_DIR itself (a regression guard for a real incident:
+        // an earlier version of this method recursively deleted the whole CLIENT_DATA_DIR whenever it
+        // was merely defined() - in a full-suite run that constant was the real, pre-existing
+        // /var/iliasdata, which got wiped). Instead it deletes only the one subdirectory this specific
+        // test method's fixture ever wrote to (see overlayFixtureDirectory()) - a directory this test
+        // is guaranteed to have created itself, since its name is derived from $this->fixture_directory
+        // (a fresh random name per test method, see seedShippedModule()). This mirrors the pattern
+        // already used by the read-side tests of this same fixture family (PoLastLocalChangeTest,
+        // AdminGuiReadsValuesFromMigratedFileTest), which never touch the CLIENT_DATA_DIR root either.
+        $overlay_fixture_dir = $this->overlayFixtureDirectory();
+        if ($overlay_fixture_dir !== null && is_dir($overlay_fixture_dir)) {
+            $this->removeDirectoryRecursively($overlay_fixture_dir);
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * The one subdirectory under CLIENT_DATA_DIR this test method's fixture (if any) ever wrote to -
+     * see seedOverlay(). Returns null when either CLIENT_DATA_DIR was never resolved/defined in this
+     * test, or no fixture was ever seeded, so tearDown() has nothing of its own to clean up.
+     */
+    private function overlayFixtureDirectory(): ?string
+    {
+        if (!isset($this->fixture_directory) || !defined('CLIENT_DATA_DIR')) {
+            return null;
+        }
+
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename($this->fixture_directory);
     }
 
     /**
@@ -96,9 +122,31 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
      * NOT called from setUp(): the "CLIENT_DATA_DIR cannot be resolved" test below must observe it as
      * undefined, and runs in its own process (see #[RunInSeparateProcess]) precisely so that an earlier
      * test in this class having defined it does not leak into that one.
+     *
+     * A PHP constant, once defined, is shared by every test in the whole suite's process - including
+     * one from a completely different test class that got there first (e.g. one of this fixture
+     * family's siblings, or, in principle, real production code). This method therefore never assumes
+     * exclusive ownership of CLIENT_DATA_DIR: it happily (re)uses whatever value is already there,
+     * exactly like PoLastLocalChangeTest/AdminGuiReadsValuesFromMigratedFileTest already do - safe,
+     * because this class's own tearDown() only ever deletes its own uniquely-named fixture
+     * subdirectory (see overlayFixtureDirectory()), never CLIENT_DATA_DIR itself.
      */
     private function ensureClientDataDirDefined(): void
     {
+        // A full-suite run can have CLIENT_DATA_DIR already pointing at the real client data
+        // directory (e.g. Filesystem/tests/ilServicesFileSystemTest.php or
+        // Test/tests/ilTestBaseTestCaseTrait.php define it as /var/iliasdata). This class's own
+        // tearDown() only ever deletes its own fixture subdirectory (never CLIENT_DATA_DIR itself,
+        // see overlayFixtureDirectory()), so a foreign, non-temp CLIENT_DATA_DIR would never be
+        // deleted - but seeding an overlay would still WRITE fixture files into real production data.
+        // That is refused just as strictly: a real client data directory is never a directory this
+        // fixture family created, so it is not a safe place to write into either.
+        if (defined('CLIENT_DATA_DIR') && !str_starts_with(CLIENT_DATA_DIR, sys_get_temp_dir() . '/')) {
+            $this->markTestSkipped(
+                'CLIENT_DATA_DIR ("' . CLIENT_DATA_DIR . '") is not a test-owned temp directory - '
+                . 'refusing to write fixture files there.'
+            );
+        }
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_uninstall_mo_test_' . bin2hex(random_bytes(4)));
         }
@@ -444,5 +492,88 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         // the other, unaffected module's overlay was still removed despite the first module's failure
         $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'mo'));
         $this->assertFileDoesNotExist($this->overlayPath('utwo', 'de', 'po'));
+    }
+
+    /**
+     * Regression guard for a real incident: tearDown() used to recursively delete CLIENT_DATA_DIR
+     * whenever it was merely defined() - in a full-suite run where another, unrelated test had
+     * already defined it as the real client data directory (e.g. /var/iliasdata), that wiped real
+     * data. tearDown() must now only ever delete a CLIENT_DATA_DIR this class created itself; a
+     * foreign, pre-existing definition must be left completely untouched.
+     *
+     * Runs in a separate process so this class' own CLIENT_DATA_DIR handling (defined by other test
+     * methods sharing the normal process) cannot leak in and mask the "foreign, pre-existing"
+     * scenario under test here.
+     */
+    #[RunInSeparateProcess]
+    public function testTearDownNeverDeletesAClientDataDirThisClassDidNotCreateItself(): void
+    {
+        $foreign_dir = sys_get_temp_dir() . '/ilias_foreign_client_data_dir_' . bin2hex(random_bytes(4));
+        mkdir($foreign_dir, 0775, true);
+        file_put_contents($foreign_dir . '/marker.txt', 'do-not-delete');
+        // Simulates a completely foreign, already-existing CLIENT_DATA_DIR (e.g. the real
+        // /var/iliasdata in a full-suite run) that this test class did not create and does not own.
+        define('CLIENT_DATA_DIR', $foreign_dir);
+
+        // A normal fixture is still seeded and written into (exactly like any other test) - the
+        // production code has no way to know whether CLIENT_DATA_DIR is "ours" or foreign, and this
+        // fixture family's convention is to write into whatever CLIENT_DATA_DIR already resolves to
+        // (see ensureClientDataDirDefined()). What must never happen is CLIENT_DATA_DIR *itself*
+        // being deleted afterwards.
+        $directory = $this->seedShippedModule('uforeign', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('uforeign', 'de', ['greeting' => 'Hallo']);
+        $this->registerDirectoryManager($directory);
+        $this->assertFileExists($this->overlayPath('uforeign', 'de', 'po'));
+
+        // tearDown() is protected; calling it directly from within the class itself is allowed
+        // regardless of visibility. PHPUnit will also invoke it again once this test method returns -
+        // harmless, since a second run finds nothing left to clean up.
+        $this->tearDown();
+
+        $this->assertFileExists(
+            $foreign_dir . '/marker.txt',
+            'tearDown() deleted (part of) a CLIENT_DATA_DIR this test class did not create itself.'
+        );
+        // This test's own fixture subdirectory, by contrast, is safely cleaned up - it is uniquely
+        // named and this test itself created it, regardless of who owns the CLIENT_DATA_DIR root.
+        $this->assertFileDoesNotExist($this->overlayPath('uforeign', 'de', 'po'));
+
+        // Clean up the rest of what this test itself created - tearDown() correctly leaves the
+        // foreign CLIENT_DATA_DIR root alone, by design.
+        unlink($foreign_dir . '/marker.txt');
+        $this->removeDirectoryRecursively($foreign_dir);
+    }
+
+    /**
+     * A CLIENT_DATA_DIR that is not even a test-owned temp directory - e.g. the real client data
+     * directory a full-suite run may already have defined (Filesystem/tests/ilServicesFileSystemTest.php
+     * and Test/tests/ilTestBaseTestCaseTrait.php both define it as /var/iliasdata) - must not merely be
+     * spared from deletion (see the test above): this class must refuse to WRITE fixture files there
+     * at all. ensureClientDataDirDefined() therefore skips instead, for every path outside
+     * sys_get_temp_dir() - not only ones this class did not create.
+     *
+     * Runs in a separate process so the module-level CLIENT_DATA_DIR defined by other test methods in
+     * this class' normal process cannot leak in.
+     */
+    #[RunInSeparateProcess]
+    public function testRefusesToWriteIntoAClientDataDirOutsideSysTempDir(): void
+    {
+        $foreign_dir = __DIR__ . '/tmp-not-a-temp-dir-' . bin2hex(random_bytes(4));
+        $this->assertFalse(str_starts_with($foreign_dir, sys_get_temp_dir() . '/'));
+        mkdir($foreign_dir, 0775, true);
+        define('CLIENT_DATA_DIR', $foreign_dir);
+
+        try {
+            $directory = $this->seedShippedModule('uoutside', 'de', ['greeting' => 'Hallo']);
+            $this->seedOverlay('uoutside', 'de', ['greeting' => 'Hallo']);
+            $this->fail('seedOverlay() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+        } catch (SkippedWithMessageException $e) {
+            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+        }
+
+        // Nothing was ever written into the foreign directory.
+        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+
+        rmdir($foreign_dir);
     }
 }

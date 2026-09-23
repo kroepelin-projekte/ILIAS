@@ -61,7 +61,8 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
      * (plugin Setup Objectives, see ilSetupLanguage::usesDefaultLanguageFileDirectories()) are
      * different objectives. With a class-only hash the Setup would keep just one of them - and if
      * that was the default-directory one, it would refresh every language without the
-     * component-contributed modules.
+     * component-contributed modules. The flag itself is part of the hash as well: the two instances
+     * behave differently (see installLanguages()) even if their directories happen to be equal.
      */
     public function getHash(): string
     {
@@ -75,7 +76,11 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
             ]);
         }
 
-        return hash("sha256", self::class . "\n" . implode("\n", $directories));
+        return hash("sha256", implode("\n", [
+            self::class,
+            $this->il_setup_language->usesDefaultLanguageFileDirectories() ? 'default-directories' : 'configured-directories',
+            ...$directories,
+        ]));
     }
 
     /**
@@ -140,6 +145,7 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
             );
         }
 
+        $this->informAboutMissingClientDataDirectory($environment, $language_keys);
         $this->informAboutUnwritableOverlayDirectories($environment, $language_keys);
         $this->informAboutUnwrittenOverlays($environment, $this->installLanguages($language_keys));
 
@@ -147,39 +153,72 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
     }
 
     /**
+     * Without a (resolvable, existing) client data directory - typically during "setup install",
+     * before the client directory was created - no PO/MO file of a module maintained in PO files can
+     * be written: its texts are served from the database until the next "setup update". Said so
+     * explicitly instead of silently skipping the files.
+     *
+     * @param list<string> $language_keys
+     */
+    protected function informAboutMissingClientDataDirectory(Setup\Environment $environment, array $language_keys): void
+    {
+        if (
+            $language_keys === []
+            || $this->il_setup_language->getClientDataDir() !== null
+            || !$this->il_setup_language->hasMigratedModules($language_keys)
+        ) {
+            return;
+        }
+
+        $this->inform(
+            $environment,
+            'WARNING: The client data directory is not known or does not exist yet, so the PO/MO language '
+            . 'files of modules maintained in PO files are not written in this run - these modules are served '
+            . 'from the database until then. Run "setup update" (as the web server user) once the client data '
+            . 'directory exists.'
+        );
+    }
+
+    /**
      * Checked BEFORE writing: the per-installation PO/MO files of modules maintained in PO files live
      * in the client data directory, and Setup must run as the web server user (a mandatory
-     * requirement - the web server rewrites these files on every administrative change later on).
-     * The update itself is not aborted - the database is written regardless and the files are
-     * repaired by the next run with sufficient permissions -, but the problem is reported clearly
-     * instead of only being logged per module.
+     * requirement - the web server rewrites these files on every administrative change later on;
+     * running Setup as root is not supported). The update itself is not aborted - the database is
+     * written regardless and the files are repaired by the next run with sufficient permissions -,
+     * but the problem is reported clearly instead of only being logged per module.
      *
      * @param list<string> $language_keys
      */
     protected function informAboutUnwritableOverlayDirectories(Setup\Environment $environment, array $language_keys): void
     {
         $unwritable_directories = $this->il_setup_language->findUnwritableOverlayDirectories($language_keys);
-        if ($unwritable_directories === []) {
-            $this->informIfNotRunAsClientDataDirectoryOwner($environment);
-            return;
+        if ($unwritable_directories !== []) {
+            $this->inform(
+                $environment,
+                'WARNING: The PO/MO language files of modules maintained in PO files cannot be written to '
+                . implode(', ', $unwritable_directories) . ' (not writable, or a file occupies the '
+                . 'directory\'s place). The languages are still installed/updated in the database, but these '
+                . 'modules keep showing outdated texts. Setup must be run as the web server user (the owner '
+                . 'of the client data directory) - re-run "setup update" as that user to repair the files.'
+            );
         }
 
-        $this->inform(
-            $environment,
-            'WARNING: The PO/MO language files of modules maintained in PO files cannot be written to '
-            . implode(', ', $unwritable_directories) . ' (not writable, or a file occupies the '
-            . 'directory\'s place). The languages are still installed/updated in the database, but these '
-            . 'modules keep showing outdated texts. Setup must be run as the web server user (the owner '
-            . 'of the client data directory) - re-run "setup update" as that user to repair the files.'
-        );
+        $this->informIfNotRunAsClientDataDirectoryOwner($environment, $language_keys);
     }
 
     /**
-     * Writable is not enough: a Setup run as another user than the web server (typically root)
-     * creates PO/MO files the web server cannot replace later on. The owner of the client data
-     * directory is taken as the web server user. Only checked where the POSIX extension is available.
+     * Writable for Setup is not enough: a Setup run as another user than the web server (typically
+     * root, for whom every directory is writable) creates PO/MO files and directories the web server
+     * cannot replace later on. The owner of the client data directory is taken as the web server
+     * user; for a run as root, or as any other user than that owner, the overlay directories are
+     * checked for writability by the owner, and a warning with the command that repairs the
+     * ownership is given - also when every directory is writable right now, because what this run
+     * creates belongs to the wrong user. Nothing is changed and nothing is aborted. Only checked
+     * where the POSIX extension is available.
+     *
+     * @param list<string> $language_keys
      */
-    protected function informIfNotRunAsClientDataDirectoryOwner(Setup\Environment $environment): void
+    protected function informIfNotRunAsClientDataDirectoryOwner(Setup\Environment $environment, array $language_keys = []): void
     {
         $client_data_dir = $this->il_setup_language->getClientDataDir();
         if ($client_data_dir === null || !function_exists('posix_geteuid')) {
@@ -187,19 +226,57 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
         }
         $owner = @fileowner($client_data_dir);
         $current_user = posix_geteuid();
-        if ($owner === false || $owner === $current_user) {
+        if ($owner === false || ($owner === $current_user && $current_user !== 0)) {
             return;
         }
+        // Only the overlay of modules maintained in PO files is written below the client data
+        // directory by this objective - without such a module there is nothing to warn about
+        if (!$this->il_setup_language->hasMigratedModules($language_keys)) {
+            return;
+        }
+
+        $overlay_root = rtrim($client_data_dir, '/') . '/lang';
+        if ($owner === 0) {
+            $this->inform(
+                $environment,
+                sprintf(
+                    'WARNING: Setup runs as user id %d, and the client data directory %s belongs to root. '
+                    . 'Running Setup as root is not supported: the web server cannot replace the PO/MO '
+                    . 'language files and directories of modules maintained in PO files that this run '
+                    . 'creates. Fix: run "chown -R <web server user> %s" after this run, and run Setup '
+                    . 'as the web server user from now on.',
+                    $current_user,
+                    $client_data_dir,
+                    $overlay_root
+                )
+            );
+            return;
+        }
+
+        $owner_info = function_exists('posix_getpwuid') ? @posix_getpwuid($owner) : false;
+        $owner_name = is_array($owner_info) ? (string) $owner_info['name'] : (string) $owner;
+        $unwritable_for_owner = $this->il_setup_language->findUnwritableOverlayDirectories($language_keys, $owner);
 
         $this->inform(
             $environment,
             sprintf(
                 'WARNING: Setup runs as user id %d, but the client data directory %s belongs to user id %d. '
-                . 'PO/MO language files written now may not be writable for the web server later on. '
-                . 'Setup must be run as the web server user.',
+                . 'Running Setup as another user than the web server user (the owner of the client data '
+                . 'directory) is not supported%s: the PO/MO language files and directories of modules '
+                . 'maintained in PO files that this run creates belong to user id %d and cannot be '
+                . 'replaced by the web server later on.%s Fix: run "chown -R %s %s" after this run, and '
+                . 'run Setup as user %s from now on.',
                 $current_user,
                 $client_data_dir,
-                $owner
+                $owner,
+                $current_user === 0 ? ' (this includes root)' : '',
+                $current_user,
+                $unwritable_for_owner === []
+                    ? ''
+                    : ' Already not writable for user id ' . $owner . ': ' . implode(', ', $unwritable_for_owner) . '.',
+                $owner_name,
+                $overlay_root,
+                $owner_name
             )
         );
     }

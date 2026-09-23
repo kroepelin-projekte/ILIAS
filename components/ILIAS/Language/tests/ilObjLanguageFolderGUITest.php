@@ -814,6 +814,71 @@ class ilObjLanguageFolderGUITest extends TestCase
      * Boundary: when every bucket is empty (e.g. an empty $ids request),
      * no message at all must appear - not even an empty one.
      */
+    /**
+     * Regression/mutation coverage for T5 (M6): uninstallObject() must show
+     * the overlay-write-failure message (via overlayWriteFailedMessage())
+     * whenever 'overlay_write_failed_language_keys' is non-empty - even
+     * though the underlying uninstall(s) themselves succeeded and already
+     * produced a 'success' message. Mutating away the
+     * `$overlay_write_failed !== []` check at the end of uninstallObject()
+     * would silently drop this failure notice.
+     */
+    public function testUninstallObjectShowsOverlayWriteFailureMessageAlongsideTheSuccessMessage(): void
+    {
+        $uninstall_language = $this->createStub(UninstallLanguage::class);
+        $uninstall_language->method('maybePerformAs')->willReturn(new ResultOk([
+            'uninstalled_language_keys' => ['de'],
+            'system_language_keys' => [],
+            'user_language_keys' => [],
+            'not_installed_language_keys' => [],
+            'overlay_write_failed_language_keys' => ['de'],
+        ]));
+
+        $captured_calls = [];
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->exactly(2))
+            ->method('setOnScreenMessage')
+            ->willReturnCallback(function (string $type, string $message, bool $keep) use (&$captured_calls): void {
+                $captured_calls[] = [$type, $message];
+            });
+
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect');
+
+        // A dedicated txt() stub, with a real "%s" placeholder for
+        // 'lng_po_overlay_not_written_languages' - unlike
+        // createLanguageMockReturningTopicAsIs()'s plain "return the key
+        // verbatim" stub, this lets the assertion below also pin that the
+        // localized language list is actually interpolated into the message,
+        // not just that the right txt() key was used.
+        $lng = $this->createStub(ilLanguage::class);
+        $lng->method('txt')->willReturnCallback(
+            static fn(string $key): string => $key === 'lng_po_overlay_not_written_languages'
+                ? 'overlay not written for: %s'
+                : $key
+        );
+
+        $gui = $this->createGuiWithUninstallLanguageCollaborators(
+            $uninstall_language,
+            $tpl,
+            $ctrl,
+            $lng
+        );
+
+        $gui->uninstallObject([]);
+
+        self::assertCount(2, $captured_calls);
+        self::assertSame(['success', 'meta_l_de uninstalled'], $captured_calls[0]);
+        self::assertSame(['failure', 'overlay not written for: meta_l_de'], $captured_calls[1]);
+    }
+
+    /**
+     * Boundary/companion to the above: no overlay-write failure at all (the
+     * default, empty 'overlay_write_failed_language_keys' - already
+     * exercised implicitly by every other uninstallObject() test) must never
+     * produce the overlay-write-failure message - pinned here explicitly
+     * against a mutation that always shows it regardless of the guard.
+     */
     public function testUninstallObjectSetsNoMessageWhenAllBucketsAreEmpty(): void
     {
         $uninstall_language = $this->createStub(UninstallLanguage::class);

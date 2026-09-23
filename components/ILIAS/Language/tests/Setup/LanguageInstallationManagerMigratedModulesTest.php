@@ -195,14 +195,61 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $rows = [];
         foreach ($this->queries as $query) {
-            if (!str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')) {
-                continue;
+            if (str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')) {
+                preg_match_all('/\((Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q)\)/', $query, $matches, PREG_SET_ORDER);
+                foreach ($matches as $match) {
+                    $key = $this->resolveToken($match[1]) . '|' . $this->resolveToken($match[2]);
+                    $rows[$key] = ['value' => $this->resolveToken($match[4]), 'local_change' => $this->resolveToken($match[5])];
+                }
+            } elseif (str_starts_with($query, /** @lang text */ 'DELETE FROM lng_data')) {
+                $rows = $this->applyLngDataDelete($query, $rows);
             }
-            preg_match_all('/\((Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q)\)/', $query, $matches, PREG_SET_ORDER);
-            foreach ($matches as $match) {
-                $key = $this->resolveToken($match[1]) . '|' . $this->resolveToken($match[2]);
-                $rows[$key] = ['value' => $this->resolveToken($match[4]), 'local_change' => $this->resolveToken($match[5])];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Applies one recorded "DELETE FROM lng_data" query to $rows, modeling the two shapes
+     * LanguageInstallationManager actually issues:
+     * - "... WHERE lang_key = ? AND local_change IS NULL AND module IN (...)" (the bulk delete of
+     *   every unchanged row of a migrated module before it is fully rewritten by the INSERT that
+     *   follows - T1/F5's delete_unchanged_migrated_rows flag);
+     * - "... WHERE lang_key = ? AND module = ? AND identifier IN (...)" (the per-module delete of
+     *   identifiers resolveMigratedModule() dropped - T1/F5's $delete_row()).
+     * Both use $ilDB->in(), whose stub (see db()) embeds the raw values literally rather than as
+     * quote() tokens.
+     *
+     * @param array<string, array{value: string, local_change: ?string}> $rows
+     * @return array<string, array{value: string, local_change: ?string}>
+     */
+    private function applyLngDataDelete(string $query, array $rows): array
+    {
+        if (preg_match(
+            '/^DELETE FROM lng_data WHERE lang_key = Q\d+Q AND local_change IS NULL AND module IN \(\'(.*)\'\)$/',
+            $query,
+            $matches
+        ) === 1) {
+            $modules = explode("','", $matches[1]);
+            foreach ($rows as $key => $row) {
+                [$module] = explode('|', $key, 2);
+                if (in_array($module, $modules, true) && $row['local_change'] === null) {
+                    unset($rows[$key]);
+                }
             }
+            return $rows;
+        }
+
+        if (preg_match(
+            '/^DELETE FROM lng_data WHERE lang_key = Q\d+Q AND module = (Q\d+Q) AND identifier IN \(\'(.*)\'\)$/',
+            $query,
+            $matches
+        ) === 1) {
+            $module = $this->resolveToken($matches[1]);
+            foreach (explode("','", $matches[2]) as $identifier) {
+                unset($rows[$module . '|' . $identifier]);
+            }
+            return $rows;
         }
 
         return $rows;
@@ -464,8 +511,9 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     }
 
     /**
-     * Applying local changes does not merge the shipped `.po` again: the seed (all stored entries) is
-     * the base, the customizing file goes on top as local change and the overlay follows.
+     * Applying local changes reconciles a migrated module with its shipped `.po` like an update:
+     * the not locally changed entries are rewritten from the shipped `.po` (lng_data rows without
+     * local_change), the customizing file goes on top as local change and the overlay follows.
      */
     public function testApplyingLocalChangesPutsTheCustomizingValueOnTopOfTheStoredEntries(): void
     {
@@ -479,7 +527,13 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->manager()->insertLanguageForApplyingLocalChanges('de');
 
-        $this->assertSame(['pilot|greeting' => ['value' => 'Grüß Gott', 'local_change' => self::NOW]], $this->lngData());
+        $this->assertSame(
+            [
+                'pilot|greeting' => ['value' => 'Grüß Gott', 'local_change' => self::NOW],
+                'pilot|farewell' => ['value' => 'Tschüss', 'local_change' => null],
+            ],
+            $this->lngData()
+        );
         $this->assertSame(
             [self::MODULE => ['greeting' => 'Grüß Gott', 'farewell' => 'Tschüss'], 'common' => ['yes' => 'Ja']],
             $this->lngModules()

@@ -45,6 +45,11 @@ declare(strict_types=1);
  * Example: php convert_module_to_po.php tos de ../../../TermsOfService/lang
  */
 
+// a build tool: never reachable through the web server
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
+
 require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 
 use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
@@ -59,13 +64,24 @@ $read_lines = static function (string $file): array {
         throw new RuntimeException("Cannot read $file");
     }
     $entries = [];
-    foreach ($lines as $line) {
+    foreach ($lines as $number => $line) {
         // ILIAS' own .lang reader trims every line - so must this one, or a value would keep
         // trailing whitespace / "\r" in the .po that the database never had
         $parts = explode('#:#', trim($line));
-        if (count($parts) === 3) {
-            $entries[] = $parts;
+        if (count($parts) < 3) {
+            continue;
         }
+        if (count($parts) > 3) {
+            // Parsed exactly like LanguageInstallationManager::insertLanguage(): the value is the
+            // third part, everything after a further "#:#" is not part of it - reported, since
+            // that is most likely not what the file's author intended
+            fwrite(STDERR, sprintf(
+                "WARNING: %s:%d contains \"#:#\" in its value - only the part before it is used, like the installer does.\n",
+                $file,
+                $number + 1
+            ));
+        }
+        $entries[] = [$parts[0], $parts[1], $parts[2]];
     }
 
     return $entries;
@@ -119,13 +135,14 @@ $find_duplicate_keys = static function (string $file, string $module) use ($read
  * Classifies a legacy `###`-comment as either a real developer/translator note (-> PO "#."
  * extracted comment) or an auto-generated "not translated yet" placeholder marker (-> PO
  * "#, fuzzy" flag). In most non-source languages, > 99% of comments are dated "new variable"
- * markers, not authored notes.
+ * markers, not authored notes. Only that dated marker counts - an authored note merely
+ * mentioning "new variable" stays a note.
  */
 $is_fuzzy_marker = static function (string $comment): bool {
     return preg_match(
         '/^\s*(\d{1,2}\s+\d{1,2}\s+\d{4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{4}-\d{1,2}-\d{1,2})\b.*\bnew variable\b/i',
         $comment
-    ) === 1 || preg_match('/\bnew variable\b|\badd new translation\b/i', $comment) === 1;
+    ) === 1;
 };
 
 /**
@@ -223,7 +240,10 @@ if ($lang_files === []) {
 $per_language = [];
 $duplicate_report = [];
 foreach ($lang_files as $file) {
-    preg_match('/ilias_([a-z]+)\.lang$/', $file, $m);
+    if (preg_match('/ilias_([a-z]+)\.lang$/', $file, $m) !== 1) {
+        fwrite(STDERR, "WARNING: skipping $file - no language key in its name.\n");
+        continue;
+    }
     $lang_key = $m[1];
     $per_language[$lang_key] = $parse_module($file, $module);
 
@@ -252,6 +272,23 @@ if ($reference_entries === []) {
     exit(1);
 }
 
+// Every language's keys must be a subset of the reference language's: the catalogs are built from
+// the reference keys, so a key only another language has would otherwise be dropped silently
+$keys_missing_in_reference = [];
+foreach ($per_language as $lang_key => $entries) {
+    $extra = array_diff(array_map('strval', array_keys($entries)), array_map('strval', array_keys($reference_entries)));
+    if ($extra !== []) {
+        $keys_missing_in_reference[$lang_key] = $extra;
+    }
+}
+if ($keys_missing_in_reference !== []) {
+    fwrite(STDERR, "FAILURE: module '$module' has keys that the reference language '$reference_lang_key' does not have (nothing was written):\n");
+    foreach ($keys_missing_in_reference as $lang_key => $keys) {
+        fwrite(STDERR, "  $lang_key: " . implode(', ', $keys) . "\n");
+    }
+    exit(1);
+}
+
 // POT
 $pot_path = "$output_dir/$module.pot";
 $write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path))->toPoString());
@@ -264,13 +301,23 @@ foreach ($per_language as $lang_key => $entries) {
         $build_catalog($module, $lang_key, $reference_entries, $entries, $existing_headers($po_path))->toPoString()
     );
 
-    // self-check: read the written file back and compare every value
+    // self-check: read the written file back and compare every value - of every reference key and
+    // of every key of this language - and that the file holds nothing else
     $parsed = TranslationCatalog::fromPoFile($po_path);
     $po_mismatches = [];
-    foreach ($reference_entries as $key => $ref) {
+    $expected_keys = array_unique(array_merge(
+        array_map('strval', array_keys($reference_entries)),
+        array_map('strval', array_keys($entries))
+    ));
+    foreach ($expected_keys as $key) {
         $expected = $entries[$key]['value'] ?? '';
-        if ($parsed->find($module, (string) $key)?->getTranslation() !== $expected) {
+        if ($parsed->find($module, $key)?->getTranslation() !== $expected) {
             $po_mismatches[] = $key;
+        }
+    }
+    foreach ($parsed->getEntries() as $parsed_entry) {
+        if ($parsed_entry->getContext() !== $module || !in_array($parsed_entry->getId(), $expected_keys, true)) {
+            $po_mismatches[] = '(unexpected) ' . $parsed_entry->getId();
         }
     }
 

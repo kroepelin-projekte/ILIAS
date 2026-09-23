@@ -1305,128 +1305,146 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     // -----------------------------------------------------------------
-    // $db / default update_module_cache() guard clauses
-    //
-    // Every other test overrides update_module_cache with a no-op/spy, so the constructor's own
-    // $db-backed default (querying lng_modules) is otherwise never exercised. These tests inject a
-    // real \ilDBInterface mock to pin down the is_string() guard around unserialize(). Only "de"
-    // is installed, just enough to reach update_module_cache() once without ever reaching the real
-    // \ilObjLanguage::replaceLangModule() write.
+    // default update_module_cache(): the module content the new entry is added to
     // -----------------------------------------------------------------
 
-    private function createActivityWithRealUpdateModuleCacheDefault(\ilDBInterface $db): AddLanguageEntry
-    {
-        return new AddLanguageEntry(
-            refinery: $this->createStub(RefineryFactory::class),
-            language: $this->createStub(Language::class),
-            rbac_system: $this->createStub(\ilRbacSystem::class),
-            installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
-            language_folder_ref_id: 0,
-            replace_lang_entry: static fn(
-                string $module,
-                string $identifier,
-                string $lang_key,
-                string $value,
-                string $local_change,
-                string $remarks
-            ): bool => true,
-            // $update_module_cache deliberately left null - the whole point
-            // of these tests is exercising the constructor's own default.
-            update_module_cache: null,
-            user_login: static fn(int $usr_id): string => 'default-login',
-            db: $db,
-        );
+    /**
+     * lng_data is only ever used to rebuild the module array for a module maintained in PO files
+     * (S2) - never for an arbitrary one, since the module name is free input and no lng_modules row
+     * must be created for one that was never actually migrated. Without a $DIC carrying a
+     * LanguageFileDirectoryManager (as here - this test, like the rest of this file, exercises the
+     * private content resolution directly, without the full $DIC the real write path needs), a
+     * module can never be recognised as migrated, so it always counts as "not migrated" - exactly
+     * like before PO/MO existed: without a usable lng_modules row there is nothing to rebuild from,
+     * and null is returned so update_module_cache() leaves lng_data (which already holds the new
+     * entry) as the sole source, untouched.
+     *
+     * @param array<string, mixed>|null $lng_modules_row
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('unusableLngModulesRows')]
+    public function testCurrentModuleEntriesReturnsNullWithoutAUsableLngModulesRowWhenNotMigrated(
+        ?array $lng_modules_row
+    ): void {
+        $lng_data_rows = [
+            ['identifier' => 'existing', 'value' => 'Bestehend'],
+            ['identifier' => 'new_topic', 'value' => 'Hallo'],
+        ];
+        $db = $this->mockDbFetchingLngModulesRowThenLngDataRows($lng_modules_row, $lng_data_rows);
+
+        $entries = (new \ReflectionMethod(AddLanguageEntry::class, 'currentModuleEntries'))
+            ->invoke(null, $db, 'de', 'common');
+
+        $this->assertNull($entries);
     }
 
-    private function mockDbFetchingRow(?array $row): \ilDBInterface
+    /**
+     * The counterpart of the test above (S2): for a module that IS migrated (a shipped `.po` exists
+     * for it, discoverable via a LanguageFileDirectoryManager registered in $DIC) but has neither a
+     * readable overlay (none was ever compiled here) nor a usable lng_modules row, the module array
+     * IS rebuilt from lng_data, which already holds the new entry - the only way the entry would not
+     * otherwise stay invisible behind the (about to be recreated) overlay.
+     *
+     * Runs in a separate process to define CLIENT_DATA_DIR/ILIAS_ABSOLUTE_PATH in isolation, matching
+     * the pattern used throughout this fixture family (see e.g. UninstallRemovesMigratedMoFilesTest).
+     */
+    #[RunInSeparateProcess]
+    public function testCurrentModuleEntriesRebuildsFromLngDataForAMigratedModuleWithoutAReadableOverlayOrUsableLngModulesRow(): void
     {
-        $statement = $this->createStub(\ilDBStatement::class);
+        if (!defined('ILIAS_ABSOLUTE_PATH')) {
+            // This file lives one level deeper (tests/Activities/) than the fixture family's usual
+            // tests/ root, hence 5 levels up instead of the usual 4.
+            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../../'));
+        }
+        define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_add_entry_test_' . bin2hex(random_bytes(4)));
+
+        $fixture_dir = __DIR__ . '/tmp-add-entry-fixtures-' . bin2hex(random_bytes(4));
+        mkdir($fixture_dir, 0775, true);
+        // Only the SHIPPED `.po` is seeded - that alone is what makes the module "migrated"; no
+        // overlay is compiled at all, so loadModuleTranslations() finds nothing to read.
+        \MigratedPoFixture::writePo(
+            $fixture_dir . '/common_de.po',
+            \MigratedPoFixture::catalog('common', ['existing' => 'Veraltet'])
+        );
+        $directory = \MigratedPoFixture::directory(
+            'common',
+            'components/ILIAS/Language/tests/Activities/' . basename($fixture_dir) . '/'
+        );
+        $this->setGlobalVariable(
+            \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class,
+            new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
+                new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+                $directory
+            )
+        );
+
+        try {
+            $lng_data_rows = [
+                ['identifier' => 'existing', 'value' => 'Bestehend'],
+                ['identifier' => 'new_topic', 'value' => 'Hallo'],
+            ];
+            $db = $this->mockDbFetchingLngModulesRowThenLngDataRows(null, $lng_data_rows);
+
+            $entries = (new \ReflectionMethod(AddLanguageEntry::class, 'currentModuleEntries'))
+                ->invoke(null, $db, 'de', 'common');
+
+            $this->assertSame(['existing' => 'Bestehend', 'new_topic' => 'Hallo'], $entries);
+        } finally {
+            \MigratedPoFixture::removeDirectory($fixture_dir);
+        }
+    }
+
+    public static function unusableLngModulesRows(): array
+    {
+        return [
+            'no row' => [null],
+            // unserialize(null) would throw a \TypeError under strict_types
+            'lang_array is null' => [['lang_array' => null]],
+            'lang_array is not a string' => [['lang_array' => 42]],
+            'lang_array decodes to a non-array' => [['lang_array' => serialize('not-an-array')]],
+        ];
+    }
+
+    public function testDefaultUpdateModuleCacheMergesOntoAUsableLngModulesRow(): void
+    {
+        $db = $this->mockDbFetchingLngModulesRowThenLngDataRows(
+            ['lang_array' => serialize(['existing' => 'Bestehend'])],
+            [['identifier' => 'ignored', 'value' => 'x']]
+        );
+
+        $entries = (new \ReflectionMethod(AddLanguageEntry::class, 'currentModuleEntries'))
+            ->invoke(null, $db, 'de', 'common');
+
+        $this->assertSame(['existing' => 'Bestehend'], $entries);
+    }
+
+    /**
+     * @param array<string, mixed>|null $lng_modules_row
+     * @param list<array{identifier: string, value: string}> $lng_data_rows
+     */
+    private function mockDbFetchingLngModulesRowThenLngDataRows(?array $lng_modules_row, array $lng_data_rows): \ilDBInterface
+    {
+        $modules_statement = $this->createStub(\ilDBStatement::class);
+        $data_statement = $this->createStub(\ilDBStatement::class);
 
         $db = $this->createStub(\ilDBInterface::class);
         $db->method('quote')->willReturnCallback(
             static fn(mixed $value, string $type): string => "'" . (string) $value . "'"
         );
-        $db->method('query')->willReturn($statement);
+        $db->method('query')->willReturnCallback(
+            static fn(string $query): \ilDBStatement => str_contains($query, 'FROM lng_modules')
+                ? $modules_statement
+                : $data_statement
+        );
         $db->method('fetchAssoc')->willReturnCallback(
-            function (\ilDBStatement $actual_statement) use ($statement, $row): ?array {
-                $this->assertSame($statement, $actual_statement);
-                return $row;
+            static function (\ilDBStatement $statement) use ($modules_statement, $lng_modules_row, &$lng_data_rows): ?array {
+                if ($statement === $modules_statement) {
+                    return $lng_modules_row;
+                }
+                return array_shift($lng_data_rows);
             }
         );
 
         return $db;
-    }
-
-    public function testDefaultUpdateModuleCacheDoesNothingWhenNoLngModulesRowIsFound(): void
-    {
-        $db = $this->mockDbFetchingRow(null);
-
-        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
-
-        // A missing row is normal and silently ignored - no exception must surface.
-        $result = $activity->perform([
-            'module' => 'common',
-            'identifier' => 'new_topic',
-            'translations' => ['de' => 'Hallo'],
-            'usr_id' => 6,
-        ]);
-
-        $this->assertSame(['de'], $result['added_language_keys']);
-        // Nothing to mirror is not an overlay failure
-        $this->assertSame([], $result['overlay_write_failed_language_keys']);
-    }
-
-    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNull(): void
-    {
-        // Without the is_string() guard, unserialize(null, ...) throws a \TypeError under
-        // strict_types - this pins down the guard that prevents that.
-        $db = $this->mockDbFetchingRow(['lang_array' => null]);
-
-        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
-
-        $result = $activity->perform([
-            'module' => 'common',
-            'identifier' => 'new_topic',
-            'translations' => ['de' => 'Hallo'],
-            'usr_id' => 6,
-        ]);
-
-        $this->assertSame(['de'], $result['added_language_keys']);
-    }
-
-    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNotAString(): void
-    {
-        $db = $this->mockDbFetchingRow(['lang_array' => 42]);
-
-        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
-
-        $result = $activity->perform([
-            'module' => 'common',
-            'identifier' => 'new_topic',
-            'translations' => ['de' => 'Hallo'],
-            'usr_id' => 6,
-        ]);
-
-        $this->assertSame(['de'], $result['added_language_keys']);
-    }
-
-    public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnDeserializesToANonArray(): void
-    {
-        // A syntactically valid serialized string that decodes to something
-        // other than an array (e.g. a plain scalar) leaves nothing to merge
-        // the new entry into - silently do nothing, same as a missing row.
-        $db = $this->mockDbFetchingRow(['lang_array' => serialize('not-an-array')]);
-
-        $activity = $this->createActivityWithRealUpdateModuleCacheDefault($db);
-
-        $result = $activity->perform([
-            'module' => 'common',
-            'identifier' => 'new_topic',
-            'translations' => ['de' => 'Hallo'],
-            'usr_id' => 6,
-        ]);
-
-        $this->assertSame(['de'], $result['added_language_keys']);
     }
 
     // -----------------------------------------------------------------

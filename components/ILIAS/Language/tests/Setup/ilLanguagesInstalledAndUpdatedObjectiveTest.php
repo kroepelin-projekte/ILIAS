@@ -355,6 +355,66 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
     }
 
     /**
+     * M9: without a (resolvable) client data directory no PO/MO overlay of a module maintained in PO
+     * files can be written at all this run - worth an explicit warning instead of silently serving
+     * these modules from the database, but only when there actually is such a module to begin with.
+     */
+    public function testWarnsAboutAMissingClientDataDirectoryWhenMigratedModulesExist(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getClientDataDir')->willReturn(null);
+        $setup_language->method('hasMigratedModules')->willReturn(true);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('WARNING: The client data directory is not known', $messages[0]);
+    }
+
+    /**
+     * The counterpart of the test above: without any migrated module there is nothing whose PO/MO
+     * overlay this run could have written anyway, so a missing client data directory is not worth a
+     * warning either.
+     */
+    public function testNoWarningAboutAMissingClientDataDirectoryWithoutAnyMigratedModule(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getClientDataDir')->willReturn(null);
+        $setup_language->method('hasMigratedModules')->willReturn(false);
+        $io = $this->createMock(Setup\AdminInteraction::class);
+        $io->expects($this->never())->method('inform');
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]));
+    }
+
+    /**
+     * With every requested language invalid, $language_keys is empty before
+     * informAboutMissingClientDataDirectory() is even reached - no warning, regardless of
+     * hasMigratedModules(), since nothing would be installed/updated (and therefore no overlay
+     * written) this run anyway.
+     */
+    public function testNoWarningAboutAMissingClientDataDirectoryWithNoValidLanguageKeys(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['xx'], ['xx'], $flushed);
+        $setup_language->method('getClientDataDir')->willReturn(null);
+        $setup_language->method('hasMigratedModules')->willReturn(true);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        // the "invalid language" notice is expected - the missing-client-data-dir warning is not
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('Skipped languages', $messages[0]);
+    }
+
+    /**
      * Checked BEFORE anything is written: unwritable overlay directories of the languages about to
      * be installed/updated are reported with a clear warning naming them - the update itself still
      * runs (the database is written regardless).
@@ -488,7 +548,13 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
     /**
      * Writable is not enough: a Setup run as another user than the owner of the client data
      * directory (the web server user) is warned about. Root-proof: as root the directory is handed
-     * to another user; otherwise "/" (owned by root) serves as a directory of another user.
+     * to another (non-root) user, so the "belongs to user id N" branch fires; otherwise "/" (owned
+     * by root) serves as a directory of another user, but that means the *other*, root-specific
+     * branch of informIfNotRunAsClientDataDirectoryOwner() fires instead (see its "$owner === 0"
+     * case) - producing a differently worded message ("belongs to root", no "user id 0"). The
+     * assertions below branch on the actually observed owner instead of assuming a fixed message
+     * shape, so the test passes deterministically whether it runs as root (in a container) or as an
+     * unprivileged user (on the host).
      */
     public function testAchieveWarnsWhenSetupDoesNotRunAsTheOwnerOfTheClientDataDirectory(): void
     {
@@ -502,6 +568,9 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
             $flushed = [];
             $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
             $setup_language->method('getClientDataDir')->willReturn($foreign_dir);
+            // R14: the owner-mismatch warning is only given when there is actually a migrated
+            // module's overlay to protect - this scenario is exactly that case.
+            $setup_language->method('hasMigratedModules')->willReturn(true);
             $foreign_owner = fileowner($foreign_dir);
             $messages = [];
 
@@ -513,7 +582,11 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         $this->assertNotSame(posix_geteuid(), $foreign_owner);
         $this->assertCount(1, $messages);
         $this->assertStringStartsWith('WARNING: Setup runs as user id ' . posix_geteuid() . ',', $messages[0]);
-        $this->assertStringContainsString($foreign_dir . ' belongs to user id ' . $foreign_owner . '.', $messages[0]);
+        if ($foreign_owner === 0) {
+            $this->assertStringContainsString('belongs to root', $messages[0]);
+        } else {
+            $this->assertStringContainsString($foreign_dir . ' belongs to user id ' . $foreign_owner . '.', $messages[0]);
+        }
         $this->assertSame(['de'], $flushed);
     }
 
@@ -535,6 +608,9 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
 
     public function testAchieveDoesNotWarnWhenSetupRunsAsTheOwnerOfTheClientDataDirectory(): void
     {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('A Setup run as root is always warned about (running Setup as root is not supported).');
+        }
         $datadir = sys_get_temp_dir() . '/ilias_obj_owner_' . bin2hex(random_bytes(4));
         mkdir($datadir);
         $flushed = [];
@@ -554,21 +630,55 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
     }
 
     /**
-     * The owner warning is only given when the directories themselves are writable - an unwritable
-     * directory already produced the (more specific) warning, the two are not stacked.
+     * The owner warning is given in addition to the unwritable-directories warning: an unwritable
+     * directory is a problem of this run, the owner mismatch one of every later write by the web
+     * server - "/" (owned by root) is a client data directory Setup never runs as the web server for.
      */
-    public function testTheOwnerWarningIsNotAddedToTheUnwritableDirectoriesWarning(): void
+    public function testTheOwnerWarningIsGivenInAdditionToTheUnwritableDirectoriesWarning(): void
     {
+        if (!function_exists('posix_geteuid')) {
+            $this->markTestSkipped('The owner check needs the POSIX extension.');
+        }
         $flushed = [];
         $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
         $setup_language->method('findUnwritableOverlayDirectories')->willReturn(['/x/lang/components/pilot/lang']);
         $setup_language->method('getClientDataDir')->willReturn('/');
+        // R14: the owner-mismatch warning is only given when there is actually a migrated module's
+        // overlay to protect.
+        $setup_language->method('hasMigratedModules')->willReturn(true);
         $messages = [];
 
         (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
 
-        $this->assertCount(1, $messages);
+        $this->assertCount(2, $messages);
         $this->assertStringContainsString('/x/lang/components/pilot/lang', $messages[0]);
+        $this->assertStringStartsWith('WARNING: Setup runs as user id ' . posix_geteuid() . ',', $messages[1]);
+        $this->assertStringContainsString('chown -R ', $messages[1]);
+    }
+
+    /**
+     * R14: the owner-mismatch warning exists solely to protect a migrated module's overlay (written
+     * below the client data directory) from being owned by the wrong user - without any migrated
+     * module there is nothing of the kind this run could have created, so no warning is given, even
+     * though the owner mismatch itself is otherwise exactly like
+     * testAchieveWarnsWhenSetupDoesNotRunAsTheOwnerOfTheClientDataDirectory() above.
+     */
+    public function testNoOwnerWarningWithoutAnyMigratedModule(): void
+    {
+        if (!function_exists('posix_geteuid')) {
+            $this->markTestSkipped('The owner check needs the POSIX extension.');
+        }
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getClientDataDir')->willReturn('/');
+        $setup_language->method('hasMigratedModules')->willReturn(false);
+        $io = $this->createMock(Setup\AdminInteraction::class);
+        $io->expects($this->never())->method('inform');
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]));
     }
 
     // ------------------------------------------ installLanguages(): directories
@@ -720,9 +830,13 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $this->hashFor($build()));
     }
 
-    public function testTheDefaultDirectoriesHashLikeAnExplicitlyEqualConfiguration(): void
+    /**
+     * The default-directories instance (plugin Setup Objectives) behaves differently from one built
+     * with an explicitly equal configuration (it never refreshes) - the two must not collide.
+     */
+    public function testTheDefaultDirectoriesHashDiffersFromAnExplicitlyEqualConfiguration(): void
     {
-        $this->assertSame(
+        $this->assertNotSame(
             $this->hashFor(null),
             $this->hashFor(new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()))
         );

@@ -555,6 +555,36 @@ class TranslationCatalogPoTest extends TestCase
         TranslationCatalog::fromPoString("msgid \"a\"\nmsgstr \"b\"\n\xEF\xBB\xBFmsgid \"c\"\nmsgstr \"d\"\n");
     }
 
+    /**
+     * Every value is used as UTF-8 as it is - no charset conversion takes place anywhere. Content
+     * that is not valid UTF-8 at all (e.g. Latin-1 encoded bytes carrying a translation) must
+     * therefore be rejected outright, before the underlying loader even attempts to parse it.
+     */
+    public function testRejectsContentThatIsNotValidUtf8(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('not valid UTF-8');
+        // "\xE4" (a bare Latin-1 "ä") is not a valid UTF-8 byte sequence on its own.
+        TranslationCatalog::fromPoString("msgid \"id\"\nmsgstr \"caf\xE4\"\n");
+    }
+
+    /**
+     * A `.po` file can be syntactically valid UTF-8 while its own "Content-Type" header still
+     * *declares* a different charset (e.g. copied from a Latin-1-era file, or edited by an external
+     * tool). Since every value is read/written as UTF-8 verbatim, honoring that declaration would
+     * silently mislabel already-UTF-8 content - or worse, be misinterpreted by another consumer of
+     * the file - so any charset other than UTF-8 is rejected outright.
+     */
+    public function testRejectsAContentTypeHeaderDeclaringAnyCharsetOtherThanUtf8(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unsupported charset "ISO-8859-1"');
+        TranslationCatalog::fromPoString(
+            "msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=ISO-8859-1\\n\"\n\n"
+            . "msgid \"id\"\nmsgstr \"value\"\n"
+        );
+    }
+
     public function testDecodesControlEscapes(): void
     {
         $catalog = TranslationCatalog::fromPoString("msgid \"id\"\nmsgstr \"\\101\\x42\\a\\b\\f\\v\\t\\r\\n\"\n");

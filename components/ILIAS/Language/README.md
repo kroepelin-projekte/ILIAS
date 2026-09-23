@@ -56,11 +56,45 @@ used through the adapter `ILIAS\Language\ComponentTranslation\Gettext\Translatio
 change of the library version stays local and the adapter's safeguards always apply.
 
 **Operating requirement: Setup MUST be run as the web server user** (the owner of the client data
-directory). Both Setup and the administration GUI (i.e. the web server) write the overlay; files
-created by another user (e.g. root) cannot be replaced by the web server later on. Setup checks the
-overlay directories before writing and reports problems clearly; the GUI shows a warning instead of
-a plain success message whenever an overlay could not be written. Details:
-[tools/po-migration/README.md](tools/po-migration/README.md).
+directory); running it as root is not supported. Both Setup and the administration GUI (i.e. the
+web server) write the overlay; files created by another user (e.g. root) cannot be replaced by the
+web server later on. Setup never changes ownership itself and never aborts because of this: before
+writing it checks the overlay directories - when it runs as root or as another user than the owner
+of the client data directory, for writability by that owner - and prints a warning naming the
+affected directories and the repair command (`chown -R <owner> <client data dir>/lang`). It also
+warns when no client data directory exists yet (e.g. during `setup install`): the overlay is then
+created by the next `setup update`. The GUI shows a warning instead of a plain success message
+whenever an overlay could not be written or removed.
+
+Further rules of the pilot:
+* Writes to a module's database row and its overlay are serialized per module and language by an
+  exclusive lock on `<overlay>.lock` next to the overlay; partial writes (saving or deleting single
+  entries, "add new variable") are applied to the current overlay content read under that lock.
+* Known limitation: Setup and "apply local changes" read a module's overlay for the reconciliation
+  without the lock (only the final overlay write is locked), and write `lng_data`/`lng_modules` in
+  one batch for all modules. An administrator's edit of the same module made during such a run can
+  therefore be overwritten by it (lost update).
+* Symbolic links below `<client data dir>/lang` are never followed: an overlay write, lock or
+  removal through one is refused and reported like any other overlay write failure.
+* A module counts as migrated for a language only while its shipped `<module>_<lang>.po` exists. If
+  it is removed, the overlay is no longer read (the database is served instead) but is kept
+  unchanged - no write, neither an update nor a GUI save, touches it. Once the `.po` is back, the
+  next update reconciles the overlay three-way with its preserved `original` values. An overlay is
+  only deleted when its language is uninstalled (also when Setup uninstalls a deselected language).
+* Install, update, "apply local changes" (`install_local`) and "remove local changes" all reconcile
+  migrated modules with the shipped `.po` (see `LanguageInstallationManager::resolveMigratedModule()`);
+  "apply local changes" only re-seeds the local changes of migrated modules and applies the
+  customizing file on top.
+* A key removed from the shipped `.po` is removed from `lng_data`, `lng_modules` and the overlay
+  if its value is still the one it was last shipped with (the overlay's `original`); a real local
+  change of such a key - or one whose `original` is unknown - is kept as a local change. (The legacy
+  `.lang` update behaves the same way for locally changed keys; unchanged ones disappear with the
+  flush.)
+* Shipped `.po` files are generated with `tools/po-migration/convert_module_to_po.php <module>
+  [referenceLanguage] [outputDir]` (never by hand; it fails if a language has keys the reference
+  language lacks, and verifies every written entry). `msgid` is the language key, `msgctxt` the
+  module; a dated "new variable" comment becomes `#, fuzzy`, other comments `#.` comments.
+* Only UTF-8 `.po` files are accepted.
 
 ## User Settings Contribution
 This component contributes a personal "language" setting to the user settings framework
@@ -83,7 +117,7 @@ description rather than a copy here, which would drift out of sync:
   languages are skipped (reported as `not_installed_language_keys`). This is intended.
 * **UpdateLanguage** (`src/Activities/UpdateLanguage.php`) - refreshes one or more already
   installed languages from the current language files. For a module migrated to PO/MO (currently
-  only `tos`, see `tools/po-migration/README.md`) the shipped `.po` is the only source of shipped
+  only `tos`, see "Modules Maintained in PO Files" above) the shipped `.po` is the only source of shipped
   values, and each entry is reconciled three-way: an unchanged entry, or one whose local value equals
   the new or the previously shipped value, takes the new shipped value; a genuine local change is
   kept, even if the shipped value changed too ("remove local changes" then resets it to the current

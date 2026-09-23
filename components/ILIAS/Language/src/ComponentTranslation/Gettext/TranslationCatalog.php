@@ -47,6 +47,8 @@ use Throwable;
  *   the tolerant PoLoader does). Every failure - unreadable file, broken syntax, a PHP warning or
  *   error raised by the library - surfaces as a RuntimeException. Comment text is not trimmed, only
  *   the one space after the comment marker is removed. A leading UTF-8 byte order mark is skipped.
+ *   Content that is not valid UTF-8, or that declares another charset in its "Content-Type" header,
+ *   is rejected (values are never converted).
  *   Obsolete messages (`#~ ...`) are dropped on load - nothing in ILIAS writes or reads them.
  * - The value "0": PoGenerator and MoGenerator treat a translation as absent when it is falsy, so
  *   "0" would be written as an empty `msgstr` and left out of the `.mo`. Both generators are fed
@@ -103,6 +105,10 @@ final class TranslationCatalog
         if (str_starts_with($content, self::UTF8_BOM)) {
             $content = substr($content, strlen(self::UTF8_BOM));
         }
+        // Every value is used as UTF-8 as it is - no charset conversion takes place anywhere
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            throw new RuntimeException('The content is not valid UTF-8.');
+        }
 
         $loader = new StrictPoLoader();
         $loader->displayErrorLine = true;
@@ -115,6 +121,14 @@ final class TranslationCatalog
             if (strpbrk($value, "\r\n") !== false) {
                 throw new RuntimeException(sprintf('The value of header "%s" contains a line break.', $name));
             }
+        }
+        $content_type = $translations->getHeaders()->get('Content-Type');
+        if (
+            $content_type !== null
+            && preg_match('/charset\s*=\s*"?([^\s;"]+)/i', $content_type, $matches) === 1
+            && !in_array(strtolower($matches[1]), ['utf-8', 'utf8'], true)
+        ) {
+            throw new RuntimeException(sprintf('Unsupported charset "%s" - only UTF-8 is supported.', $matches[1]));
         }
         foreach ($translations->getTranslations() as $translation) {
             if ($translation->isDisabled()) {

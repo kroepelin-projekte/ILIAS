@@ -134,6 +134,34 @@ final class MigratedPoFixture
         };
     }
 
+    /**
+     * Writes $catalog as the SHIPPED `.po` of $module/$lang_key below ILIAS_ABSOLUTE_PATH at
+     * $relative_path (a LanguageFileDirectory path): a module only counts as migrated for a language
+     * while its shipped `.po` exists, so an overlay fixture needs one as well. Remove it again with
+     * removeShippedDirectory().
+     */
+    public static function writeShippedPo(
+        string $relative_path,
+        string $module,
+        string $lang_key,
+        TranslationCatalog $catalog
+    ): void {
+        self::writePo(self::shippedDirectory($relative_path) . '/' . $module . '_' . $lang_key . '.po', $catalog);
+    }
+
+    public static function removeShippedDirectory(string $relative_path): void
+    {
+        self::removeDirectory(self::shippedDirectory($relative_path));
+    }
+
+    private static function shippedDirectory(string $relative_path): string
+    {
+        $directory = rtrim((string) ILIAS_ABSOLUTE_PATH, '/') . '/' . trim($relative_path, '/');
+        self::ensureDirectory($directory);
+
+        return $directory;
+    }
+
     public static function removeDirectory(string $directory): void
     {
         if (is_link($directory)) {

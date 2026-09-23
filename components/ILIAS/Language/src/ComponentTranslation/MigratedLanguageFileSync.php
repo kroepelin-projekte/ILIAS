@@ -48,16 +48,32 @@ use RuntimeException;
 final class MigratedLanguageFileSync
 {
     /**
+     * The lock files this request currently holds, see withOverlayLock().
+     *
+     * @var array<string, true>
+     */
+    private static array $held_locks = [];
+
+    /**
      * Writes the overlay of $module/$lang_key so it holds exactly $entries ("replace" semantics:
-     * entries not in $entries are removed). A no-op if $module is not migrated for $lang_key or
+     * entries not in $entries are removed). A no-op if $module is not a contributed directory or
      * $client_data_dir is `null`; a missing overlay is created (the overlay reflects that the
-     * language is installed).
+     * language is installed). Without a shipped `.po` for $lang_key (the module or the language was
+     * dropped from the shipped files, possibly only temporarily) this is a no-op as well: an existing
+     * overlay is left untouched - it is not read while the shipped `.po` is missing (see
+     * loadModuleTranslations(), getMigratedModules(), ilLanguage), and once the `.po` is back the
+     * next reconciling write compares against its preserved "original" values. An overlay is only
+     * ever removed when its language is uninstalled (removeOverlay()).
+     *
+     * The whole read-modify-write runs under the overlay lock (see withOverlayLock()), and the
+     * existing overlay is read only after it was acquired.
      *
      * Per entry:
      * - "original" is taken from the shipped `.po` when the overlay is created, and - only with
-     *   $refresh_original_from_shipped - re-taken from it on every later call (and removed for an
-     *   entry the shipped `.po` no longer contains). Pass `true` only for reconciling writes whose
-     *   $entries already went through the shipped/local decision (install, update, "remove local
+     *   $refresh_original_from_shipped - re-taken from it on every later call. An entry the shipped
+     *   `.po` no longer contains keeps the "original" it had, so a later update can still tell an
+     *   unchanged entry (dropped there) from a real local change (kept). Pass `true` only for
+     *   reconciling writes whose $entries already went through the shipped/local decision (install, update, "remove local
      *   changes", "apply local changes" - see LanguageInstallationManager); an ordinary admin edit
      *   passes `false` so its baseline is never moved.
      * - "fuzzy" is kept exactly while the value is the shipped one: it is copied from the shipped
@@ -87,14 +103,52 @@ final class MigratedLanguageFileSync
         if ($directory === null || $client_data_dir === null) {
             return;
         }
+
+        self::withOverlayLock(
+            $language_file_directory_manager,
+            $lang_key,
+            $module,
+            $client_data_dir,
+            static fn() => self::syncLocked(
+                $language_file_directory_manager,
+                $ilias_absolute_path,
+                $directory,
+                $lang_key,
+                $module,
+                $entries,
+                $client_data_dir,
+                $refresh_original_from_shipped
+            ),
+            $ilias_absolute_path
+        );
+    }
+
+    /**
+     * sync() once the overlay lock is held.
+     *
+     * @param array<string, string> $entries
+     */
+    private static function syncLocked(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        LanguageFileDirectory $directory,
+        string $lang_key,
+        string $module,
+        array $entries,
+        string $client_data_dir,
+        bool $refresh_original_from_shipped
+    ): void {
         $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
         if (!is_file($shipped_po)) {
+            // not migrated (any more) for this language: leave an existing overlay alone, see above
             return;
         }
 
         $overlay_base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
         $overlay_po = $overlay_base . '.po';
         $overlay_mo = $overlay_base . '.mo';
+        self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $overlay_po);
+        self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $overlay_mo);
 
         $shipped = TranslationCatalog::fromPoFile($shipped_po);
         $overlay_exists = is_file($overlay_po);
@@ -129,11 +183,11 @@ final class MigratedLanguageFileSync
             $reconcile = !$overlay_exists || $refresh_original_from_shipped;
 
             if ($reconcile) {
+                // An entry the shipped .po no longer contains keeps its previous "original" - see
+                // above and LanguageInstallationManager::resolveMigratedModule()
                 if ($shipped_entry !== null) {
                     LocalChangeComments::setOriginal($entry, $shipped_entry->getTranslation());
                     $entry->setExtractedComments($shipped_entry->getExtractedComments());
-                } else {
-                    LocalChangeComments::removeOriginal($entry);
                 }
             }
 
@@ -160,15 +214,15 @@ final class MigratedLanguageFileSync
             return;
         }
 
-        self::ensureDirectoryExists(dirname($overlay_po));
+        self::ensureDirectoryExists(dirname($overlay_po), $client_data_dir);
         // The .po first: it carries the bookkeeping the .mo lacks, and ilLanguage only reads the
         // .mo - so a failure in between leaves the previous .mo being served (a .po that is newer
         // than its .mo is repaired by the next sync, see above), never a new .mo whose bookkeeping
         // got lost.
         if (!$po_unchanged) {
-            AtomicFileWriter::write($overlay_po, $po_content);
+            AtomicFileWriter::write($overlay_po, $po_content, self::overlayRoot($client_data_dir));
         }
-        AtomicFileWriter::write($overlay_mo, $mo_content);
+        AtomicFileWriter::write($overlay_mo, $mo_content, self::overlayRoot($client_data_dir));
 
         \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
     }
@@ -254,6 +308,12 @@ final class MigratedLanguageFileSync
      * overlay is written by the web server later on as well) or a file occupies the directory's
      * place. Empty if $client_data_dir is `null` (no overlay is maintained then at all).
      *
+     * With $for_user_id the check is evaluated for that user (from the permission bits, owner and
+     * group of each path) instead of for the current process - Setup passes the owner of the client
+     * data directory (the web server user) when it runs as another user, e.g. root, for whom
+     * is_writable() is always `true` and therefore meaningless. Without the POSIX extension the
+     * current process is checked instead.
+     *
      * @param list<string> $lang_keys
      * @return list<string> the affected overlay directories
      */
@@ -261,7 +321,8 @@ final class MigratedLanguageFileSync
         LanguageFileDirectoryManager $language_file_directory_manager,
         string $ilias_absolute_path,
         array $lang_keys,
-        ?string $client_data_dir
+        ?string $client_data_dir,
+        ?int $for_user_id = null
     ): array {
         if ($client_data_dir === null) {
             return [];
@@ -278,7 +339,7 @@ final class MigratedLanguageFileSync
                     continue;
                 }
                 $overlay_directory = dirname(MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key));
-                if (!self::isCreatableOrWritableDirectory($overlay_directory)) {
+                if (!self::isCreatableOrWritableDirectory($overlay_directory, $for_user_id)) {
                     $unwritable[$overlay_directory] = $overlay_directory;
                 }
             }
@@ -303,6 +364,109 @@ final class MigratedLanguageFileSync
         }
 
         $base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
+        if (!is_file($base . '.mo') && !is_file($base . '.po')) {
+            return;
+        }
+        self::withOverlayLock(
+            $language_file_directory_manager,
+            $lang_key,
+            $module,
+            $client_data_dir,
+            static fn() => self::removeOverlayFiles($base, $module, $lang_key, $client_data_dir)
+        );
+    }
+
+    /**
+     * Runs $callback while holding an exclusive lock (flock()) on `<overlay>.lock` next to the
+     * overlay of $module/$lang_key, so concurrent writers (two administrators, Setup and the GUI)
+     * cannot interleave their read-modify-write of the database row and the overlay files. Callers
+     * that merge onto the current state must read that state inside $callback. Re-entrant within a
+     * request (sync() and removeOverlay() take the lock themselves, also when called from inside
+     * $callback).
+     *
+     * $callback runs without a lock if $language_file_directory_manager is `null` (the component
+     * translation service is not available to the caller), $module is not a contributed directory,
+     * $client_data_dir is `null`, the overlay directory does not exist and $module is not migrated
+     * for $lang_key (no directory is created for a module that has no overlay), or the lock file
+     * cannot be created/opened (e.g. a directory the current user cannot write to - the overlay
+     * write itself then fails and is reported by the caller). The lock file is never removed:
+     * deleting a lock file other processes may still wait on would break the mutual exclusion.
+     *
+     * @template T
+     * @param \Closure():T $callback
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
+     * @return T
+     */
+    public static function withOverlayLock(
+        ?LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir,
+        \Closure $callback,
+        ?string $ilias_absolute_path = null
+    ): mixed {
+        if ($language_file_directory_manager === null) {
+            return $callback();
+        }
+        $directory = self::findDirectory($language_file_directory_manager, $module);
+        if ($directory === null || $client_data_dir === null) {
+            return $callback();
+        }
+
+        $lock_file = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key) . '.lock';
+        if (isset(self::$held_locks[$lock_file])) {
+            return $callback();
+        }
+        if (!is_dir(dirname($lock_file)) && !self::isShipped($ilias_absolute_path, $directory, $lang_key)) {
+            return $callback();
+        }
+
+        $handle = self::acquireLock($lock_file, $client_data_dir);
+        if ($handle === null) {
+            return $callback();
+        }
+        self::$held_locks[$lock_file] = true;
+        try {
+            return $callback();
+        } finally {
+            unset(self::$held_locks[$lock_file]);
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * @return resource|null
+     */
+    private static function acquireLock(string $lock_file, string $client_data_dir)
+    {
+        // Without a lock the callback runs unlocked; the overlay write itself then fails for the
+        // same reason (missing permission, or a refused symbolic link) and is reported by the caller
+        try {
+            self::ensureDirectoryExists(dirname($lock_file), $client_data_dir);
+            self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $lock_file);
+        } catch (RuntimeException) {
+            return null;
+        }
+        // "r" as fallback: flock() needs no write access, so a lock file created by another user
+        // (e.g. a Setup run as root) still serializes
+        $handle = @fopen($lock_file, 'c') ?: @fopen($lock_file, 'r');
+        if ($handle === false) {
+            return null;
+        }
+        if (!flock($handle, LOCK_EX)) {
+            fclose($handle);
+            return null;
+        }
+
+        return $handle;
+    }
+
+
+    private static function removeOverlayFiles(string $base, string $module, string $lang_key, string $client_data_dir): void
+    {
+        // unlink() of a path with a symlinked directory component would delete outside the overlay
+        self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $base . '.po');
         $removed_anything = false;
         foreach ([$base . '.mo', $base . '.po'] as $file) {
             if (!is_file($file)) {
@@ -321,8 +485,11 @@ final class MigratedLanguageFileSync
 
     /**
      * The overlay content of $module/$lang_key - what ilLanguage::txt() serves for it - or `null`
-     * if there is no complete overlay (both `.po` and `.mo`) for it.
+     * if there is no complete overlay (both `.po` and `.mo`) for it, or the module is no longer
+     * migrated for $lang_key (no shipped `.po`, see sync()).
      *
+     * @param string|null $ilias_absolute_path where the shipped `.po` is looked up, defaults to
+     *        ILIAS_ABSOLUTE_PATH (or this installation's root if that constant is not defined)
      * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
      *         identifier => details; local_change_date in the database's "Y-m-d H:i:s" format
      */
@@ -330,7 +497,8 @@ final class MigratedLanguageFileSync
         LanguageFileDirectoryManager $language_file_directory_manager,
         string $lang_key,
         string $module,
-        ?string $client_data_dir
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
     ): ?array {
         $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null || $client_data_dir === null) {
@@ -338,7 +506,11 @@ final class MigratedLanguageFileSync
         }
 
         $base_path = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
-        if (!is_file($base_path . '.mo') || !is_file($base_path . '.po')) {
+        if (
+            !is_file($base_path . '.mo')
+            || !is_file($base_path . '.po')
+            || !self::isShipped($ilias_absolute_path, $directory, $lang_key)
+        ) {
             return null;
         }
 
@@ -360,14 +532,17 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * Every module that has a complete overlay for $lang_key.
+     * Every module that has a complete overlay for $lang_key and is still migrated for it (its
+     * shipped `.po` exists, see sync()).
      *
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
      * @return list<string>
      */
     public static function getMigratedModules(
         LanguageFileDirectoryManager $language_file_directory_manager,
         string $lang_key,
-        ?string $client_data_dir
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
     ): array {
         if ($client_data_dir === null) {
             return [];
@@ -376,12 +551,24 @@ final class MigratedLanguageFileSync
         $modules = [];
         foreach ($language_file_directory_manager->getDirectories() as $directory) {
             $base_path = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
-            if ($directory->getPrefix() !== '' && is_file($base_path . '.mo') && is_file($base_path . '.po')) {
+            if (
+                $directory->getPrefix() !== ''
+                && is_file($base_path . '.mo')
+                && is_file($base_path . '.po')
+                && self::isShipped($ilias_absolute_path, $directory, $lang_key)
+            ) {
                 $modules[] = $directory->getPrefix();
             }
         }
 
         return $modules;
+    }
+
+    private static function isShipped(?string $ilias_absolute_path, LanguageFileDirectory $directory, string $lang_key): bool
+    {
+        $ilias_absolute_path ??= defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 5);
+
+        return is_file(MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po');
     }
 
     private static function findDirectory(
@@ -400,7 +587,7 @@ final class MigratedLanguageFileSync
         return null;
     }
 
-    private static function isCreatableOrWritableDirectory(string $directory): bool
+    private static function isCreatableOrWritableDirectory(string $directory, ?int $for_user_id): bool
     {
         $path = $directory;
         while (!file_exists($path)) {
@@ -415,16 +602,100 @@ final class MigratedLanguageFileSync
             $path = $parent;
         }
 
-        return is_dir($path) && is_writable($path);
+        return is_dir($path) && self::isWritableDirectoryFor($path, $for_user_id);
     }
 
-    private static function ensureDirectoryExists(string $directory): void
+    /**
+     * Whether $for_user_id may create and replace files in the existing directory $path (write and
+     * search permission). Root may always. Only the user's primary group and the groups listing the
+     * user as a member are taken into account.
+     */
+    private static function isWritableDirectoryFor(string $path, ?int $for_user_id): bool
     {
+        if ($for_user_id === null || !function_exists('posix_getpwuid') || !function_exists('posix_getgrgid')) {
+            return is_writable($path);
+        }
+        if ($for_user_id === 0) {
+            return true;
+        }
+        $stat = @stat($path);
+        if ($stat === false) {
+            return false;
+        }
+        $mode = $stat['mode'];
+        if ($stat['uid'] === $for_user_id) {
+            return ($mode & 0300) === 0300;
+        }
+
+        $user = @posix_getpwuid($for_user_id);
+        $group = @posix_getgrgid($stat['gid']);
+        $in_group = is_array($user) && (
+            $user['gid'] === $stat['gid']
+            || (is_array($group) && in_array($user['name'], $group['members'] ?? [], true))
+        );
+        if ($in_group) {
+            return ($mode & 0030) === 0030;
+        }
+
+        return ($mode & 0003) === 0003;
+    }
+
+    /**
+     * Creates $directory (below the overlay root of $client_data_dir) if missing - refusing to create
+     * anything through a symbolic link, see assertNoSymbolicLinkBelowOverlayRoot().
+     */
+    private static function ensureDirectoryExists(string $directory, string $client_data_dir): void
+    {
+        self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $directory);
         if (is_dir($directory)) {
             return;
         }
         if (!@mkdir($directory, 0755, true) && !is_dir($directory)) {
             throw new RuntimeException(sprintf('Could not create directory "%s".', $directory));
+        }
+        // mkdir() follows a link that appeared in the meantime - checked again afterwards
+        self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $directory);
+    }
+
+    /**
+     * `<client data dir>/lang`, the root below which every overlay file lives.
+     */
+    private static function overlayRoot(string $client_data_dir): string
+    {
+        return rtrim($client_data_dir, '/') . '/lang';
+    }
+
+    /**
+     * Symbolic links are never followed below the overlay root (CWE-59): every existing path
+     * component of $path below `<client data dir>/lang` - $path itself included - must not be a
+     * link, so a link placed in the client data directory cannot redirect an overlay write, lock or
+     * removal to a file outside of it. The overlay root itself (and everything above it) is the
+     * administrator's configuration and may be a link.
+     *
+     * @throws RuntimeException for a link, or a $path outside the overlay root
+     */
+    private static function assertNoSymbolicLinkBelowOverlayRoot(string $client_data_dir, string $path): void
+    {
+        $root = self::overlayRoot($client_data_dir);
+        if (!str_starts_with($path, $root . '/')) {
+            throw new RuntimeException(sprintf('"%s" is not below the overlay directory "%s".', $path, $root));
+        }
+
+        $current = $root;
+        foreach (explode('/', substr($path, strlen($root) + 1)) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+            if ($component === '..') {
+                throw new RuntimeException(sprintf('"%s" must not contain "..".', $path));
+            }
+            $current .= '/' . $component;
+            if (is_link($current)) {
+                throw new RuntimeException(sprintf('Refusing to follow the symbolic link "%s".', $current));
+            }
+            if (!file_exists($current)) {
+                return;
+            }
         }
     }
 }

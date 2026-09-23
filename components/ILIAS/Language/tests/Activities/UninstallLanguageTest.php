@@ -306,11 +306,12 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
-     * @param array<string, array{system?: bool, user?: bool, installed?: bool, uninstall_return?: string}> $language_objects
+     * @param array<string, array{system?: bool, user?: bool, installed?: bool, uninstall_return?: string, unwritten_overlay_modules?: list<string>}> $language_objects
      *        Keyed by language key; each entry becomes a fake object with
      *        the given isSystemLanguage()/isUserLanguage()/isInstalled()
-     *        answers (default false/false/true) and uninstall() return
-     *        value (default 'uninstalled') reachable from the
+     *        answers (default false/false/true), uninstall() return
+     *        value (default 'uninstalled') and getModulesWithUnwrittenOverlay()
+     *        result (default []) reachable from the
      *        corresponding obj_id (assigned in iteration order, starting at 1).
      * @return array{0: array<int, FakeLanguageObject>, 1: \Closure, 2: \Closure}
      *         [obj id => fake object, lng_objects closure, obj_language_factory closure]
@@ -328,6 +329,7 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
                 is_user_language: $flags['user'] ?? false,
                 is_installed: $flags['installed'] ?? true,
                 uninstall_return_value: $flags['uninstall_return'] ?? 'uninstalled',
+                unwritten_overlay_modules: $flags['unwritten_overlay_modules'] ?? [],
             );
             $obj_id++;
         }
@@ -454,6 +456,53 @@ class UninstallLanguageTest extends ActivityWithPerformResultContractTestCase
         // uninstall() must still have been attempted - unlike the guarded
         // cases (system/user/not-installed), where it is never called.
         $this->assertSame(1, $fakes[1]->uninstallCallCount());
+    }
+
+    /**
+     * Regression/mutation coverage for T5 (M6): perform() must surface a
+     * module whose PO/MO overlay could not be removed via
+     * 'overlay_write_failed_language_keys' - mutating away the
+     * `getModulesWithUnwrittenOverlay() !== []` check (e.g. dropping it, or
+     * inverting it) would silently swallow this failure and report the
+     * uninstall as fully successful instead.
+     */
+    public function testOverlayWriteFailureIsReportedAlongsideTheSuccessfulUninstall(): void
+    {
+        [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => ['unwritten_overlay_modules' => ['pilot']],
+        ]);
+
+        $result = $this->createActivity($lng_objects, $obj_language_factory)->perform([
+            'language_keys' => 'de',
+        ]);
+
+        // The uninstall itself still succeeded - the overlay failure is
+        // reported in addition to, not instead of, the success bucket.
+        $this->assertSame(['de'], $result['uninstalled_language_keys']);
+        $this->assertSame(['de'], $result['overlay_write_failed_language_keys']);
+        $this->assertSame(1, $fakes[1]->uninstallCallCount());
+    }
+
+    /**
+     * Boundary/companion to the above: an ordinary uninstall whose overlay
+     * was written fine (the default, empty getModulesWithUnwrittenOverlay())
+     * must never appear in 'overlay_write_failed_language_keys' - already
+     * exercised implicitly by every other test in this class, pinned here
+     * explicitly against a mutation that always reports the key regardless
+     * of the guard.
+     */
+    public function testNoOverlayWriteFailureIsReportedWhenTheOverlayWasWrittenFine(): void
+    {
+        [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => [],
+        ]);
+
+        $result = $this->createActivity($lng_objects, $obj_language_factory)->perform([
+            'language_keys' => 'de',
+        ]);
+
+        $this->assertSame(['de'], $result['uninstalled_language_keys']);
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
     /**
@@ -715,11 +764,15 @@ final class FakeLanguageObject
      *        isUserLanguage()/isInstalled()) having let it through - e.g. a
      *        future additional guard added inside uninstall() itself.
      */
+    /**
+     * @param list<string> $unwritten_overlay_modules
+     */
     public function __construct(
         private readonly bool $is_system_language,
         private readonly bool $is_user_language,
         private readonly bool $is_installed,
         private readonly string $uninstall_return_value = 'uninstalled',
+        private readonly array $unwritten_overlay_modules = [],
     ) {
     }
 
@@ -743,6 +796,15 @@ final class FakeLanguageObject
         $this->uninstall_calls++;
 
         return $this->uninstall_return_value;
+    }
+
+    /**
+     * @return list<string> modules whose overlay the last uninstall() could not remove -
+     *         whatever $unwritten_overlay_modules was constructed with.
+     */
+    public function getModulesWithUnwrittenOverlay(): array
+    {
+        return $this->unwritten_overlay_modules;
     }
 
     public function uninstallCallCount(): int

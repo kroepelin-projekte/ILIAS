@@ -507,6 +507,10 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $this->tpl->setOnScreenMessage('info', implode('<br />', $info_messages), true);
         }
 
+        if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
+            $this->tpl->setOnScreenMessage('failure', $this->overlayWriteFailedMessage($overlay_write_failed), true);
+        }
+
         $this->ctrl->redirect($this, 'view');
     }
 

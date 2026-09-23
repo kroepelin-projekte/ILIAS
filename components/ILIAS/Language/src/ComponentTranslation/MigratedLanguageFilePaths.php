@@ -34,6 +34,11 @@ namespace ILIAS\Language\ComponentTranslation;
 final class MigratedLanguageFilePaths
 {
     /**
+     * The format of an ILIAS language key, as used for the language files (`ilias_<key>.lang`).
+     */
+    private const string LANGUAGE_KEY_FORMAT = '/^[a-z]{2}$/';
+
+    /**
      * The client data directory (CLIENT_DATA_DIR) of this installation, or `null` if it cannot be
      * determined or does not exist (yet).
      *
@@ -96,6 +101,8 @@ final class MigratedLanguageFilePaths
 
     /**
      * Without extension - append ".po" (the shipped file never has a compiled ".mo" next to it).
+     *
+     * @throws \InvalidArgumentException see relativeBasePath()
      */
     public static function shippedBasePath(
         string $ilias_absolute_path,
@@ -107,6 +114,8 @@ final class MigratedLanguageFilePaths
 
     /**
      * Without extension - append ".po" or ".mo".
+     *
+     * @throws \InvalidArgumentException see relativeBasePath()
      */
     public static function overlayBasePath(
         string $client_data_dir,
@@ -116,8 +125,17 @@ final class MigratedLanguageFilePaths
         return rtrim($client_data_dir, '/') . '/lang/' . self::relativeBasePath($directory, $lang_key);
     }
 
+    /**
+     * @throws \InvalidArgumentException for a $lang_key that is not an ILIAS language key (two
+     *         lowercase letters) - it becomes part of a file path, and some callers pass it through
+     *         from public APIs (e.g. ilLanguage::_lookupEntry())
+     */
     private static function relativeBasePath(LanguageFileDirectory $directory, string $lang_key): string
     {
+        if (preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) !== 1) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid language key.', $lang_key));
+        }
+
         return ltrim($directory->getPath(), '/') . $directory->getPrefix() . '_' . $lang_key;
     }
 }

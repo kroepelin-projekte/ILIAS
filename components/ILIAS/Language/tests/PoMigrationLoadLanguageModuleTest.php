@@ -65,6 +65,9 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
             array_map('unlink', glob($this->fixture_directory . '/*') ?: []);
             rmdir($this->fixture_directory);
         }
+        if (isset($this->fixture_directory)) {
+            MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . basename($this->fixture_directory));
+        }
 
         // Only remove a .mo file this test itself compiled - never one that already existed (e.g.
         // from a real local installation of 'de') - see ensureRealTosDeMoFileExists()'s docblock.
@@ -133,6 +136,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
         MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $translations);
+        // only migrated (and therefore read from the overlay) while the shipped .po exists
+        MigratedPoFixture::writeShippedPo($relative_path, $module, 'de', $translations);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
@@ -259,6 +264,68 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     public function testFallsBackToNullWhenNoDirectoryManagerIsRegisteredAtAll(): void
     {
         $this->assertNull($this->callLoadFromMigratedLanguageFile('tos', 'de'));
+    }
+
+    /**
+     * M3: migratedOverlayMoFile() builds shipped/overlay paths via MigratedLanguageFilePaths, which
+     * validates $lang_key strictly (exactly two lowercase letters) and throws \InvalidArgumentException
+     * for anything else - path traversal ("../x") included. That exception is caught: an invalid
+     * $lang_key is simply never migrated, the same as one with no `.mo` file for it - never a fatal
+     * error, since $a_lang_key/$a_id reach here as untrusted, quoted-for-SQL input via _lookupEntry()
+     * (a public method), not only from trusted, already-validated language keys.
+     *
+     * @param non-empty-string $invalid_lang_key
+     */
+    #[DataProvider('invalidLangKeys')]
+    public function testFallsBackToNullForAnInvalidLangKeyInsteadOfThrowing(string $invalid_lang_key): void
+    {
+        $this->registerDirectoryManager(
+            new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos')
+        );
+
+        $this->assertNull($this->callLoadFromMigratedLanguageFile('tos', $invalid_lang_key));
+    }
+
+    /**
+     * M3: _lookupEntry() (txtlng()'s and txt()'s fallback-module branch's underlying static) must
+     * keep working for an invalid $a_lang_key exactly as it always did before the PO/MO pilot - by
+     * falling through to the lng_data database lookup - not throw a caller-visible
+     * \InvalidArgumentException merely because the .mo-file short-cut it now also attempts first
+     * cannot be taken.
+     *
+     * @param non-empty-string $invalid_lang_key
+     */
+    #[DataProvider('invalidLangKeys')]
+    public function testLookupEntryFallsBackToTheDatabaseForAnInvalidLangKey(string $invalid_lang_key): void
+    {
+        $this->registerDirectoryManager(
+            new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos')
+        );
+        $this->stubUsageLogDependencies();
+        $statement = $this->createStub(ilDBStatement::class);
+        $db = $this->createStub(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(static fn(mixed $value): string => "'" . (string) $value . "'");
+        $db->method('query')->willReturn($statement);
+        $db->method('fetchAssoc')->willReturn(['value' => 'from the database']);
+        $this->setGlobalVariable('ilDB', $db);
+
+        $this->assertSame(
+            'from the database',
+            ilLanguage::_lookupEntry($invalid_lang_key, 'tos', 'sometopic')
+        );
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidLangKeys(): array
+    {
+        return [
+            'path traversal' => ['../x'],
+            'uppercase' => ['DE'],
+            'locale-style with region' => ['de_DE'],
+            'empty' => [''],
+        ];
     }
 
     /**

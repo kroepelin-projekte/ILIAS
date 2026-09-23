@@ -101,6 +101,7 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a not-installed language.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
     }
@@ -132,6 +133,7 @@ MARKDOWN
         $system_language_keys = [];
         $user_language_keys = [];
         $not_installed_language_keys = [];
+        $overlay_write_failed_language_keys = [];
 
         // Not transactional across multiple keys: a failure partway through (e.g. a database
         // error) leaves languages processed so far uninstalled.
@@ -157,6 +159,10 @@ MARKDOWN
                 // still applies - the outcome is decided by this return value, not the checks
                 // above alone.
                 $uninstalled_language_keys[] = $language_key;
+                // the PO/MO overlay of a module maintained in PO files could not be removed
+                if ($language_object->getModulesWithUnwrittenOverlay() !== []) {
+                    $overlay_write_failed_language_keys[] = $language_key;
+                }
             } else {
                 $not_installed_language_keys[] = $language_key;
             }
@@ -167,6 +173,7 @@ MARKDOWN
             'system_language_keys' => $system_language_keys,
             'user_language_keys' => $user_language_keys,
             'not_installed_language_keys' => $not_installed_language_keys,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
     }
 }

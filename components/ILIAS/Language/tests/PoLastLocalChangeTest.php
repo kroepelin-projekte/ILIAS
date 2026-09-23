@@ -58,8 +58,33 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         // ilObjLanguage::_getLastMigratedLocalChange() resolves a migrated module's overlay `.po` under
         // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so
         // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
+        //
+        // testRefusesToWriteIntoAClientDataDirOutsideSysTempDir() below needs full control over
+        // exactly when/to-what CLIENT_DATA_DIR first gets defined, to simulate a pre-existing,
+        // foreign definition - so it manages the constant entirely on its own instead.
+        if ($this->name() === 'testRefusesToWriteIntoAClientDataDirOutsideSysTempDir') {
+            return;
+        }
+        $this->guardClientDataDirIsTestOwned();
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
+    }
+
+    /**
+     * A full-suite run can have CLIENT_DATA_DIR already pointing at the real client data directory
+     * (e.g. Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php
+     * define it as /var/iliasdata). This class only ever deletes its own uniquely-named fixture
+     * subdirectory (never CLIENT_DATA_DIR itself, see tearDown()), but writing fixture files into
+     * real production data must be refused just as strictly.
+     */
+    private function guardClientDataDirIsTestOwned(): void
+    {
+        if (defined('CLIENT_DATA_DIR') && !str_starts_with(CLIENT_DATA_DIR, sys_get_temp_dir() . '/')) {
+            $this->markTestSkipped(
+                'CLIENT_DATA_DIR ("' . CLIENT_DATA_DIR . '") is not a test-owned temp directory - '
+                . 'refusing to write fixture files there.'
+            );
         }
     }
 
@@ -68,6 +93,9 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         if (isset($this->fixture_directory) && is_dir($this->fixture_directory)) {
             array_map('unlink', glob($this->fixture_directory . '/*') ?: []);
             rmdir($this->fixture_directory);
+        }
+        if (isset($this->fixture_directory)) {
+            MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . basename($this->fixture_directory));
         }
 
         parent::tearDown();
@@ -131,6 +159,8 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
+        // only migrated (and therefore read from the overlay) while the shipped .po exists
+        MigratedPoFixture::writeShippedPo($relative_path, $module, $lang_key, $translations);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
@@ -304,6 +334,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
+        MigratedPoFixture::writeShippedPo($relative_path, 'lctest', 'de', $translations);
         $directory = new class ('lctest', $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
             {

@@ -443,7 +443,8 @@ class ilLanguage implements \ILIAS\Language\Language
 
     /**
      * The overlay `.mo` txt() reads a migrated module from (see MigratedLanguageFilePaths), never the
-     * git-tracked shipped file. Deliberately only resolved via the CLIENT_DATA_DIR constant, not via
+     * git-tracked shipped file - `null` if the module is not migrated for $lang_key (no contributed
+     * directory or no shipped `.po`). Deliberately only resolved via the CLIENT_DATA_DIR constant, not via
      * MigratedLanguageFilePaths::resolveClientDataDir()'s ilias.ini fallback: reading translations is
      * a runtime concern, and before ilInitialisation::initClientDataDir() has run (e.g. the ilLanguage
      * instances plugin Setup Objectives create) lng_modules is the correct source.
@@ -459,7 +460,21 @@ class ilLanguage implements \ILIAS\Language\Language
             return null;
         }
 
-        return MigratedLanguageFilePaths::overlayBasePath((string) CLIENT_DATA_DIR, $directory, $lang_key) . '.mo';
+        // Without its shipped .po the module is no longer migrated for $lang_key (the module or the
+        // language was dropped from the shipped files): an overlay left behind is frozen and must not
+        // be served - lng_modules is the source then. One stat per module and request (cached by the caller).
+        $ilias_absolute_path = defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 4);
+        try {
+            if (!is_file(MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po')) {
+                return null;
+            }
+
+            return MigratedLanguageFilePaths::overlayBasePath((string) CLIENT_DATA_DIR, $directory, $lang_key) . '.mo';
+        } catch (\InvalidArgumentException) {
+            // not a language key (e.g. passed to the public _lookupEntry()): never a file path -
+            // the database lookup, which quotes it, answers instead
+            return null;
+        }
     }
 
     /**

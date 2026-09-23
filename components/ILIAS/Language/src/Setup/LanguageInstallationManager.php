@@ -125,6 +125,7 @@ class LanguageInstallationManager
                     $this->registerInstalledLanguage($key, $db_langs, $local_langs);
                 } else {
                     $this->flushLanguage($key, "all");
+                    $this->removeOverlays((string) $key);
 
                     if (strpos($val["status"], "installed") === 0) {
                         $query = "UPDATE object_data SET " .
@@ -187,6 +188,33 @@ class LanguageInstallationManager
                 "WHERE obj_id = " . $db->quote($known_languages[$lang_key]["obj_id"], "integer") . " " .
                 "AND type = " . $db->quote("lng", "text");
         $db->manipulate($query);
+    }
+
+    /**
+     * The overlay counterpart of flushLanguage($lang_key, "all") for a language that is no longer
+     * installed - see ilObjLanguage::uninstall(). A failure is logged and does not undo the flush.
+     */
+    private function removeOverlays(string $lang_key): void
+    {
+        $client_data_dir = $this->clientDataDir();
+        foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
+            $module = $directory->getPrefix();
+            try {
+                MigratedLanguageFileSync::removeOverlay(
+                    $this->language_file_directory_manager,
+                    $lang_key,
+                    $module,
+                    $client_data_dir
+                );
+            } catch (\Throwable $t) {
+                error_log(sprintf(
+                    'Could not remove the overlay of migrated module "%s", language "%s": %s',
+                    $module,
+                    $lang_key,
+                    $t->getMessage()
+                ));
+            }
+        }
     }
 
     public function flushLanguageForInstallation(string $lang_key): void
@@ -297,17 +325,35 @@ class LanguageInstallationManager
      * overridden by the customizing file silently disappear from that
      * module's cache row.
      *
+     * A module migrated to PO/MO is the exception: it is reconciled with its shipped `.po` exactly
+     * like in insertLanguageForInstallation() (see resolveMigratedModule()) - its seed is only its
+     * local changes, its not locally changed lng_data rows are rewritten from the shipped `.po`, and
+     * the customizing file's lines for it are applied on top as local changes. Seeding it with every
+     * stored entry instead would turn a stale stored value into a permanent "local change" and lose
+     * the shipped update.
+     *
      * @return list<string> see insertLanguageForInstallation()
      */
     public function insertLanguageForApplyingLocalChanges(string $lang_key): array
     {
-        // The seed already holds every stored entry (including those of migrated modules), so the
-        // shipped `.po` files are not merged in again here.
+        $entries = $this->repository->getLanguageEntries($lang_key);
+        $local_changes = $this->repository->getLocalChanges($lang_key);
+        $migrated_modules = array_keys(MigratedLanguageFileSync::findShippedModuleFiles(
+            $this->language_file_directory_manager,
+            $this->absolute_path,
+            $lang_key
+        ));
+        foreach ($migrated_modules as $module) {
+            // an empty seed is fine: insertLanguage() drops a module that ends up without entries
+            $entries[$module] = $local_changes[$module] ?? [];
+        }
+
         return $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getCustomizingDirectories(),
-            $this->repository->getLanguageEntries($lang_key),
-            false,
+            $entries,
+            true,
+            true,
             true
         );
     }
@@ -321,16 +367,39 @@ class LanguageInstallationManager
      * logged per module afterwards.
      *
      * @param list<string> $lang_keys
+     * @param int|null $for_user_id see MigratedLanguageFileSync::findUnwritableOverlayDirectories()
      * @return list<string>
      */
-    public function findUnwritableOverlayDirectories(array $lang_keys): array
+    public function findUnwritableOverlayDirectories(array $lang_keys, ?int $for_user_id = null): array
     {
         return MigratedLanguageFileSync::findUnwritableOverlayDirectories(
             $this->language_file_directory_manager,
             $this->absolute_path,
             $lang_keys,
-            $this->clientDataDir()
+            $this->clientDataDir(),
+            $for_user_id
         );
+    }
+
+    /**
+     * Whether any module is migrated to PO/MO for any of $lang_keys, i.e. an overlay has to be
+     * maintained for it.
+     *
+     * @param list<string> $lang_keys
+     */
+    public function hasMigratedModules(array $lang_keys): bool
+    {
+        foreach ($lang_keys as $lang_key) {
+            if (MigratedLanguageFileSync::findShippedModuleFiles(
+                $this->language_file_directory_manager,
+                $this->absolute_path,
+                $lang_key
+            ) !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -351,6 +420,9 @@ class LanguageInstallationManager
      * @param array<string, array<string, string>> $lang_array module => identifier => value
      * @param bool $keep_local_changes whether local changes recorded only in a migrated module's
      *        overlay count as local changes (false for "remove local changes")
+     * @param bool $delete_unchanged_migrated_rows whether the not locally changed lng_data rows of the
+     *        migrated modules are deleted before they are rewritten from the shipped `.po` - needed
+     *        where the caller did not flush the language first ("apply local changes")
      * @return list<string> the migrated modules whose overlay could not be written - the database
      *         write is not undone for them, see syncMigratedModules()
      */
@@ -359,7 +431,8 @@ class LanguageInstallationManager
         iterable $directories,
         array $lang_array,
         bool $merge_shipped_migrated_modules,
-        bool $keep_local_changes
+        bool $keep_local_changes,
+        bool $delete_unchanged_migrated_rows = false
     ): array {
         $ilDB = $this->db();
         $working_dir = getcwd();
@@ -503,6 +576,7 @@ class LanguageInstallationManager
                 ));
             }
 
+            $dropped_identifiers = [];
             foreach ($shipped_migrated_modules as $module => $shipped_entries) {
                 $overlay = $keep_local_changes ? $this->loadOverlay($lang_key, (string) $module, $client_data_dir) : null;
 
@@ -512,11 +586,22 @@ class LanguageInstallationManager
                     $shipped_entries,
                     $overlay ?? [],
                     static fn(string $identifier, string $value, ?string $local_change) =>
-                        $add_row($module, $identifier, $value, $local_change, null)
+                        $add_row($module, $identifier, $value, $local_change, null),
+                    static function (string $identifier) use (&$dropped_identifiers, $module): void {
+                        $dropped_identifiers[$module][] = $identifier;
+                    }
                 );
                 if ($lang_array[$module] === []) {
                     unset($lang_array[$module]);
                 }
+            }
+
+            if ($delete_unchanged_migrated_rows && $shipped_migrated_modules !== []) {
+                $ilDB->manipulate(sprintf(
+                    "DELETE FROM lng_data WHERE lang_key = %s AND local_change IS NULL AND %s",
+                    $ilDB->quote($lang_key, "text"),
+                    $ilDB->in('module', array_map('strval', array_keys($shipped_migrated_modules)), false, 'text')
+                ));
             }
 
             if ($values_sql !== []) {
@@ -524,6 +609,15 @@ class LanguageInstallationManager
                     . implode(',', $values_sql)
                     . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
                 $ilDB->manipulate($query);
+            }
+
+            foreach ($dropped_identifiers as $module => $identifiers) {
+                $ilDB->manipulate(sprintf(
+                    "DELETE FROM lng_data WHERE lang_key = %s AND module = %s AND %s",
+                    $ilDB->quote($lang_key, "text"),
+                    $ilDB->quote((string) $module, "text"),
+                    $ilDB->in('identifier', $identifiers, false, 'text')
+                ));
             }
 
             if ($lang_array === []) {
@@ -577,14 +671,22 @@ class LanguageInstallationManager
      *                                 so "remove local changes" resets to the current shipped value)
      *
      * A value from the customizing/local file ($customized) always stays local, exactly like for a
-     * not migrated module. Local entries without a shipped counterpart (added via "add new variable")
-     * are kept; overlay entries that are neither shipped nor local are dropped.
+     * not migrated module. Overlay entries that are neither shipped nor local are dropped. A local
+     * entry without a shipped counterpart (the key was removed from the shipped `.po`, or added via
+     * "add new variable"):
+     * - L === O -> dropped (from the module, lng_data - via $delete_row - and the overlay): it only
+     *              carries the value the key was last shipped with;
+     * - otherwise, and whenever O is unknown -> kept as a local change, with its local_change date.
+     * The legacy `.lang` update keeps a locally changed key that was removed from the shipped file
+     * the same way (its lng_data row survives the "keep_local" flush and is re-seeded); an unchanged
+     * one disappears with the flush.
      *
      * @param array<string, string> $local_entries identifier => value
      * @param array<string, true> $customized identifiers that came from the customizing/local file
      * @param array<string, string> $shipped_entries identifier => shipped value
      * @param array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}> $overlay
      * @param \Closure(string, string, ?string):void $write_row persists one lng_data row
+     * @param \Closure(string):void $delete_row removes one lng_data row (after all rows were written)
      * @return array<string, string> the module's final identifier => value map
      */
     private function resolveMigratedModule(
@@ -592,7 +694,8 @@ class LanguageInstallationManager
         array $customized,
         array $shipped_entries,
         array $overlay,
-        \Closure $write_row
+        \Closure $write_row,
+        \Closure $delete_row
     ): array {
         foreach ($overlay as $identifier => $state) {
             $identifier = (string) $identifier;
@@ -618,6 +721,18 @@ class LanguageInstallationManager
             $write_row($identifier, $shipped_value, null);
         }
 
+        foreach ($local_entries as $identifier => $local_value) {
+            $identifier = (string) $identifier;
+            if (isset($shipped_entries[$identifier]) || isset($customized[$identifier])) {
+                continue;
+            }
+            $previously_shipped_value = $overlay[$identifier]['original'] ?? null;
+            if ($previously_shipped_value !== null && $local_value === $previously_shipped_value) {
+                unset($local_entries[$identifier]);
+                $delete_row($identifier);
+            }
+        }
+
         return $local_entries;
     }
 
@@ -635,7 +750,8 @@ class LanguageInstallationManager
                 $this->language_file_directory_manager,
                 $lang_key,
                 $module,
-                $client_data_dir
+                $client_data_dir,
+                $this->absolute_path
             );
         } catch (\Throwable $t) {
             error_log(sprintf(

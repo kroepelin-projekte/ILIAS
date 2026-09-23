@@ -278,11 +278,23 @@ class ilSetupLanguage extends ilLanguage
      * installing/updating languages.
      *
      * @param list<string> $lang_keys
+     * @param int|null $for_user_id evaluate the writability for this user instead of the current
+     *        process, see MigratedLanguageFileSync::findUnwritableOverlayDirectories()
      * @return list<string>
      */
-    public function findUnwritableOverlayDirectories(array $lang_keys): array
+    public function findUnwritableOverlayDirectories(array $lang_keys, ?int $for_user_id = null): array
     {
-        return $this->manager->findUnwritableOverlayDirectories($lang_keys);
+        return $this->manager->findUnwritableOverlayDirectories($lang_keys, $for_user_id);
+    }
+
+    /**
+     * See LanguageInstallationManager::hasMigratedModules().
+     *
+     * @param list<string> $lang_keys
+     */
+    public function hasMigratedModules(array $lang_keys): bool
+    {
+        return $this->manager->hasMigratedModules($lang_keys);
     }
 
     /**

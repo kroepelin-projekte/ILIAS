@@ -72,6 +72,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
                 array_map('unlink', glob($overlay_dir . '/*') ?: []);
                 rmdir($overlay_dir);
             }
+            MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
         }
 
         parent::tearDown();
@@ -128,6 +129,8 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . $this->fixture_directory . '/';
+        // only migrated (and therefore read from the overlay) while the shipped .po exists
+        MigratedPoFixture::writeShippedPo($relative_path, $module, $lang_key, $translations);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)

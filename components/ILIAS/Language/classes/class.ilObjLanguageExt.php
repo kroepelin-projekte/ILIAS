@@ -438,11 +438,14 @@ class ilObjLanguageExt extends ilObjLanguage
                 $to_save[$key] = $value;
             }
         }
-        $modules_with_unwritten_overlay = self::_saveValues(
+        // "delete" wiped every module above: $to_save is each module's complete content then, it is
+        // not merged onto the (for a migrated module: still existing) overlay
+        $modules_with_unwritten_overlay = self::saveValues(
             $this->key,
             $to_save,
             $import_file_obj->getAllComments(),
-            $refreshOriginalFromShipped
+            $refreshOriginalFromShipped,
+            $a_mode_existing !== "delete"
         );
 
         if ($a_mode_existing === "delete") {
@@ -868,8 +871,23 @@ class ilObjLanguageExt extends ilObjLanguage
         array $a_remarks = array(),
         bool $refreshOriginalFromShipped = false
     ): array {
+        return self::saveValues($a_lang_key, $a_values, $a_remarks, $refreshOriginalFromShipped, true);
+    }
+
+    /**
+     * _saveValues(); with $merge_onto_current_content `false` the saved entries are each module's
+     * complete new content (a "delete"-mode import, which wiped the language before).
+     *
+     * @return list<string> see _saveValues()
+     */
+    private static function saveValues(
+        string $a_lang_key,
+        array $a_values,
+        array $a_remarks,
+        bool $refreshOriginalFromShipped,
+        bool $merge_onto_current_content
+    ): array {
         global $DIC;
-        $ilDB = $DIC->database();
         $lng = $DIC->language();
 
         $save_array = [];
@@ -916,22 +934,26 @@ class ilObjLanguageExt extends ilObjLanguage
         // save the serialized module entries in lng_modules
         $modules_with_unwritten_overlay = [];
         foreach ($save_array as $module => $entries) {
-            $set = $ilDB->query(sprintf(
-                "SELECT lang_array FROM lng_modules " .
-                "WHERE lang_key = %s AND module = %s",
-                $ilDB->quote($a_lang_key, "text"),
-                $ilDB->quote($module, "text")
-            ));
-            $row = $ilDB->fetchAssoc($set);
-
-            // No existing lng_modules row for this module (e.g. after a "delete"-mode import wiped
-            // it, see importLanguageFile()) - _mergeLanguageEntriesFromRow() treats a missing row as
-            // "nothing to merge" and returns $entries unchanged, so replaceLangModule() below still
-            // creates the row from scratch. Its own INSERT never depended on a prior row existing.
-            $entries = self::_mergeLanguageEntriesFromRow($row ?: null, $entries);
-
-            if (!ilObjLanguage::replaceLangModule($a_lang_key, (string) $module, $entries, $refreshOriginalFromShipped)) {
-                $modules_with_unwritten_overlay[] = (string) $module;
+            $module = (string) $module;
+            // Read and written under the overlay lock, so a concurrent write in between is not lost
+            $written = self::withModuleLock(
+                $a_lang_key,
+                $module,
+                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content): bool {
+                    // Without a current content (e.g. no lng_modules row of a module that is not
+                    // maintained in PO files) the entries are written as they are - replaceLangModule()
+                    // then creates the row from scratch
+                    $current = $merge_onto_current_content ? self::currentModuleContent($a_lang_key, $module) : [];
+                    return ilObjLanguage::replaceLangModule(
+                        $a_lang_key,
+                        $module,
+                        array_merge($current, $entries),
+                        $refreshOriginalFromShipped
+                    );
+                }
+            );
+            if (!$written) {
+                $modules_with_unwritten_overlay[] = $module;
             }
         }
 
@@ -941,24 +963,99 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-     * Merge language entries from a database row with existing entries
+     * The current content of $module/$lang_key a partial save/delete is applied to:
+     * - for a module maintained in PO files its overlay - what ilLanguage serves and what sync()
+     *   replaces completely -, falling back to the lng_modules row if there is no (readable) overlay
+     *   and to the module's lng_data rows if there is neither: applying the partial change to
+     *   nothing would collapse the overlay to the saved entries;
+     * - for every other module the lng_modules row, `[]` if there is no (readable) row.
      *
-     * $databaseRow     associative array representing a row from the database, may be null
-     * $entries         array of existing language entries to be merged
-     * Return array     merged array of language entries
+     * Must be called under the module's overlay lock (see withModuleLock()).
+     *
+     * @return array<string, string> identifier => value
      */
-    private static function _mergeLanguageEntriesFromRow(?array $databaseRow, array $entries): array
+    private static function currentModuleContent(string $a_lang_key, string $module): array
     {
-        if ($databaseRow === null || !isset($databaseRow["lang_array"])) {
-            return $entries;
+        global $DIC;
+
+        $is_migrated = false;
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            $manager = $DIC[LanguageFileDirectoryManager::class];
+            $is_migrated = isset(MigratedLanguageFileSync::findShippedModuleFiles($manager, ILIAS_ABSOLUTE_PATH, $a_lang_key)[$module]);
+        }
+        if ($is_migrated) {
+            try {
+                $overlay = MigratedLanguageFileSync::loadModuleTranslations(
+                    $manager,
+                    $a_lang_key,
+                    $module,
+                    MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                    ILIAS_ABSOLUTE_PATH
+                );
+            } catch (\Throwable $t) {
+                $DIC->logger()->forComponent('lang')->warning(sprintf(
+                    'Could not read migrated language file for module "%s", language "%s" - using lng_modules: %s',
+                    $module,
+                    $a_lang_key,
+                    $t->getMessage()
+                ));
+                $overlay = null;
+            }
+            if ($overlay !== null) {
+                return array_map(static fn(array $entry): string => $entry['value'], $overlay);
+            }
         }
 
-        $languageEntries = unserialize($databaseRow["lang_array"], ["allowed_classes" => false]);
-        if (!is_array($languageEntries)) {
-            return $entries;
+        $ilDB = $DIC->database();
+        $set = $ilDB->query(sprintf(
+            "SELECT lang_array FROM lng_modules WHERE lang_key = %s AND module = %s",
+            $ilDB->quote($a_lang_key, "text"),
+            $ilDB->quote($module, "text")
+        ));
+        $row = $ilDB->fetchAssoc($set);
+        $content = is_array($row) && isset($row["lang_array"])
+            ? unserialize((string) $row["lang_array"], ["allowed_classes" => false])
+            : null;
+        if (is_array($content) || !$is_migrated) {
+            return is_array($content) ? $content : [];
         }
 
-        return array_merge($languageEntries, $entries);
+        // A module maintained in PO files without overlay and lng_modules row: rebuilt from
+        // lng_data (always dual-written), so the overlay the sync creates holds the module's entries
+        // and not just the ones saved now
+        $content = [];
+        $set = $ilDB->query(sprintf(
+            "SELECT identifier, value FROM lng_data WHERE lang_key = %s AND module = %s",
+            $ilDB->quote($a_lang_key, "text"),
+            $ilDB->quote($module, "text")
+        ));
+        while ($row = $ilDB->fetchAssoc($set)) {
+            $content[(string) $row["identifier"]] = (string) $row["value"];
+        }
+
+        return $content;
+    }
+
+    /**
+     * Runs $callback under the overlay lock of $module/$lang_key, see
+     * MigratedLanguageFileSync::withOverlayLock().
+     *
+     * @template T
+     * @param \Closure():T $callback
+     * @return T
+     */
+    private static function withModuleLock(string $a_lang_key, string $module, \Closure $callback): mixed
+    {
+        global $DIC;
+
+        return MigratedLanguageFileSync::withOverlayLock(
+            $DIC->offsetExists(LanguageFileDirectoryManager::class) ? $DIC[LanguageFileDirectoryManager::class] : null,
+            $a_lang_key,
+            $module,
+            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+            $callback,
+            ILIAS_ABSOLUTE_PATH
+        );
     }
 
 
@@ -973,7 +1070,6 @@ class ilObjLanguageExt extends ilObjLanguage
     public static function _deleteValues(string $a_lang_key, array $a_values = array()): array
     {
         global $DIC;
-        $ilDB = $DIC->database();
         $lng = $DIC->language();
 
         $delete_array = array();
@@ -993,20 +1089,19 @@ class ilObjLanguageExt extends ilObjLanguage
 
         // save the serialized module entries in lng_modules
         foreach ($delete_array as $module => $entries) {
-            $set = $ilDB->query(sprintf(
-                "SELECT lang_array FROM lng_modules " .
-                "WHERE lang_key = %s AND module = %s",
-                $ilDB->quote($a_lang_key, "text"),
-                $ilDB->quote($module, "text")
-            ));
-            $row = $ilDB->fetchAssoc($set);
-
-            // Without a (readable) lng_modules row there is nothing left to keep - the entries to
-            // delete must not be written back as the module's content instead
-            $arr = is_array($row) ? unserialize((string) $row["lang_array"], ["allowed_classes" => false]) : null;
-            $entries = is_array($arr) ? array_diff_key($arr, $entries) : [];
-            if (!ilObjLanguage::replaceLangModule($a_lang_key, (string) $module, $entries)) {
-                $modules_with_unwritten_overlay[] = (string) $module;
+            $module = (string) $module;
+            $written = self::withModuleLock(
+                $a_lang_key,
+                $module,
+                static function () use ($a_lang_key, $module, $entries): bool {
+                    // Without a current content there is nothing left to keep - the entries to
+                    // delete must not be written back as the module's content instead
+                    $current = self::currentModuleContent($a_lang_key, $module);
+                    return ilObjLanguage::replaceLangModule($a_lang_key, $module, array_diff_key($current, $entries));
+                }
+            );
+            if (!$written) {
+                $modules_with_unwritten_overlay[] = $module;
             }
         }
 
