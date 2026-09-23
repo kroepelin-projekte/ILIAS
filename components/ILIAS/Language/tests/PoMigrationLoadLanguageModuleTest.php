@@ -23,7 +23,9 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
@@ -36,7 +38,17 @@ use PHPUnit\Framework\SkippedWithMessageException;
  * files - the pilot script itself only ever produces the .pot/.po files (a real installation
  * compiles the .mo from those, see MigratedLanguageFileSync::sync()) - so this also doubles as a
  * regression test for that contribution staying wired up.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, MigratedPoFixture::ensureClientDataDirDefinedOrSkip()'s guard
+ * would then skip every single test below for the rest of that process, since a PHP constant cannot
+ * be redefined. A fresh process per test method guarantees CLIENT_DATA_DIR starts out undefined here,
+ * exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
 {
     protected function setUp(): void
@@ -504,15 +516,19 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      * partially: gettext/gettext's MoLoader alone would return silently shortened or missing messages,
      * raise warnings or a TypeError for these; the adapter rejects them and ilLanguage falls back to
      * the database with a logged problem.
+     *
+     * The data provider passes a plain string strategy name (see truncate()) rather than a \Closure:
+     * #[RunTestsInSeparateProcesses] on this class needs every provided data set to survive
+     * serialize() to hand it to the forked child process, which a \Closure never does.
      */
     #[DataProvider('truncatedMoContents')]
-    public function testATruncatedOverlayMoIsNeverServedPartially(\Closure $truncate): void
+    public function testATruncatedOverlayMoIsNeverServedPartially(string $truncation): void
     {
         $this->expectErrorLog();
         $catalog = MigratedPoFixture::catalog('broken', ['alpha' => 'A', 'beta' => 'B', 'greeting' => 'Aus der MO-Datei']);
         $directory = $this->contributeFixtureModule('broken', $catalog);
         $mo_file = $this->fixture_directory . '/broken_de.mo';
-        file_put_contents($mo_file, $truncate((string) file_get_contents($mo_file)));
+        file_put_contents($mo_file, self::truncate($truncation, (string) file_get_contents($mo_file)));
 
         $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
         $this->registerDirectoryManager($directory);
@@ -524,15 +540,29 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         );
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
     public static function truncatedMoContents(): array
     {
         return [
-            '10 bytes' => [static fn(string $mo): string => substr($mo, 0, 10)],
-            '40 bytes' => [static fn(string $mo): string => substr($mo, 0, 40)],
-            'half' => [static fn(string $mo): string => substr($mo, 0, intdiv(strlen($mo), 2))],
-            'last 3 bytes missing' => [static fn(string $mo): string => substr($mo, 0, -3)],
-            'empty' => [static fn(string $mo): string => ''],
+            '10 bytes' => ['first_10_bytes'],
+            '40 bytes' => ['first_40_bytes'],
+            'half' => ['first_half'],
+            'last 3 bytes missing' => ['all_but_last_3_bytes'],
+            'empty' => ['empty'],
         ];
+    }
+
+    private static function truncate(string $strategy, string $mo): string
+    {
+        return match ($strategy) {
+            'first_10_bytes' => substr($mo, 0, 10),
+            'first_40_bytes' => substr($mo, 0, 40),
+            'first_half' => substr($mo, 0, intdiv(strlen($mo), 2)),
+            'all_but_last_3_bytes' => substr($mo, 0, -3),
+            'empty' => '',
+        };
     }
 
     /**
@@ -587,14 +617,19 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         define('CLIENT_DATA_DIR', $foreign_dir);
 
         try {
-            $this->ensureRealTosDeMoFileExists();
-            $this->fail('ensureRealTosDeMoFileExists() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
-        } catch (SkippedWithMessageException $e) {
-            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            try {
+                $this->ensureRealTosDeMoFileExists();
+                $this->fail('ensureRealTosDeMoFileExists() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+            } catch (SkippedWithMessageException $e) {
+                $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            }
+
+            $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+        } finally {
+            if (is_dir($foreign_dir)) {
+                array_map('unlink', glob($foreign_dir . '/*') ?: []);
+                rmdir($foreign_dir);
+            }
         }
-
-        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
-
-        rmdir($foreign_dir);
     }
 }

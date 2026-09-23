@@ -360,6 +360,35 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         }
     }
 
+    /**
+     * Regression coverage for the discovery regex's trailing `\z` anchor
+     * (rather than `$`, which in PCRE also matches right before a trailing
+     * newline): a file name with an embedded/trailing "\n" right after the
+     * two-letter key must not be picked up as a valid "ilias_de.lang"-style
+     * name - filesystem file names may legally contain a "\n" byte, so this
+     * is not a merely theoretical case.
+     */
+    public function testGetInstallableLanguagesIgnoresAFileNameWithATrailingNewline(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/ilias_de.lang', 'irrelevant content');
+        // A distinct language key ("zz") so that, if the trailing "\n" were
+        // wrongly accepted, it would show up as an extra, wrongly discovered
+        // "zz" entry - not merely collapse into the same "de" via
+        // array_unique().
+        file_put_contents($root . "/lang/ilias_zz.lang\n", 'irrelevant content');
+
+        try {
+            $repository = $this->createRepository($this->createReadDatabaseMock(), $root);
+
+            $result = $repository->getInstallableLanguages();
+
+            $this->assertSame(['de'], $result);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testGetLocalLanguagesReturnsEmptyArrayWhenCustomizingDirectoryIsEmpty(): void
     {
         $root = $this->createTempInstallationRoot();

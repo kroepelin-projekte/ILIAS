@@ -630,6 +630,78 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame(['value' => 'Neu', 'local_change' => null], $this->lngData()['pilot|greeting']);
     }
 
+    /**
+     * The whole shipped `.po` missing (not just one key, see the test above) and later coming back:
+     * while it is missing, the module is not migrated at all, so it falls back to the plain `.lang`
+     * file like any other module (MigratedLanguageFileSync::sync() itself is a no-op then, see
+     * MigratedLanguageFileSyncTest::testAnExistingOverlayIsLeftUntouchedWhenTheShippedPoNoLongerExists())
+     * - the overlay is left byte-for-byte untouched even though an update runs during the gap. Once
+     * the `.po` returns, the next update reconciles three-way per key against the overlay's preserved
+     * "original", using three keys to make sure a fix narrowed to only one case would still be caught:
+     * - A: the shipped value changed (O preserved, L === O) -> takes the new shipped value;
+     * - B: the shipped value is unchanged -> stays as it was;
+     * - C: a real local change (L differs from both O and the reshipped S) -> is kept.
+     *
+     * C also pins the documented known limitation (README, "a local change that only exists in the
+     * kept overlay ... comes back with the next update"): while the `.po` is missing, C's `lng_data`
+     * row is written like an ordinary (non-local) `.lang` line - the database loses track of it being
+     * a local change - yet the overlay still remembers it, so the very next update resurrects it as
+     * local again. This pins today's accepted behaviour so a later, deliberate change to it is
+     * noticed here instead of silently.
+     */
+    public function testAWholeMissingShippedPoIsBridgedByThePreservedOverlayAcrossTwoUpdates(): void
+    {
+        $this->seedOverlay([
+            'A' => ['value' => 'A1', 'original' => 'A1'],
+            'B' => ['value' => 'B1', 'original' => 'B1'],
+            'C' => ['value' => 'C_custom', 'original' => 'C1', 'local_change' => '2025-01-01T00:00:00Z'],
+        ]);
+        $po_before_the_gap = file_get_contents($this->overlayBase() . '.po');
+        $mo_before_the_gap = file_get_contents($this->overlayBase() . '.mo');
+        // no shipped `.po` for the whole gap: the module falls back to its plain `.lang` file, exactly
+        // reflecting what is currently stored/overlaid
+        $this->writeLang('components/pilot/lang/ilias_de.lang', ['A#:#A1', 'B#:#B1', 'C#:#C_custom']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(
+            ['A' => 'A1', 'B' => 'B1', 'C' => 'C_custom'],
+            $this->lngModules()[self::MODULE],
+            'sanity: the .lang fallback is used while the .po is missing'
+        );
+        $this->assertSame(
+            ['value' => 'C_custom', 'local_change' => null],
+            $this->lngData()['pilot|C'],
+            'the DB no longer sees C as a local change while the module is not migrated'
+        );
+        $this->assertSame($po_before_the_gap, file_get_contents($this->overlayBase() . '.po'), 'the overlay is untouched during the gap');
+        $this->assertSame($mo_before_the_gap, file_get_contents($this->overlayBase() . '.mo'), 'the overlay is untouched during the gap');
+
+        // the module is migrated again - A's shipped value changed, B's did not, C is not shipped
+        // with the (never-shipped) customized value at all
+        $this->queries = [];
+        $this->shipPo(['A' => 'A2', 'B' => 'B1', 'C' => 'C1']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(
+            ['C' => 'C_custom', 'A' => 'A2', 'B' => 'B1'],
+            $this->lngModules()[self::MODULE]
+        );
+        $this->assertSame(['value' => 'A2', 'local_change' => null], $this->lngData()['pilot|A'], 'L === preserved O -> S wins');
+        $this->assertSame(['value' => 'B1', 'local_change' => null], $this->lngData()['pilot|B'], 'unchanged');
+        $this->assertSame(
+            ['value' => 'C_custom', 'local_change' => '2025-01-01 00:00:00'],
+            $this->lngData()['pilot|C'],
+            'the overlay-only local change is taken over again - the known limitation above'
+        );
+        $overlay = $this->overlayPo();
+        $this->assertSame('A2', LocalChangeComments::getOriginal($overlay->find(self::MODULE, 'A')));
+        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'B')));
+        $this->assertSame('C_custom', $overlay->find(self::MODULE, 'C')->getTranslation());
+        $this->assertNotNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'C')));
+    }
+
     // ----------------------------------------------- remove / apply local
 
     public function testRemovingLocalChangesRebuildsTheOverlayFromTheShippedPo(): void

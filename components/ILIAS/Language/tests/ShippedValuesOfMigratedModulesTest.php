@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * The admin GUI's readers of the shipped values (ilObjLanguageExt::getShippedValues()/
@@ -32,13 +34,39 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
  * ilLanguageFile's per-request cache), the shipped .po lives in a throwaway directory below the
  * ILIAS root, and the database is a stub returning canned lng_data rows (no overlay exists, so
  * _getValues() reads every module from lng_data).
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, MigratedPoFixture::ensureClientDataDirDefinedOrSkip()'s guard
+ * would then skip every single test below for the rest of that process, since a PHP constant cannot
+ * be redefined. A fresh process per test method guarantees CLIENT_DATA_DIR starts out undefined here,
+ * exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
 {
     private const string LANG = 'zz';
 
-    private string $fixture_directory;
+    /**
+     * Nullable (not assigned a fixed default in the property declaration itself) so tearDown() can
+     * tell "setUp() was skipped before ever reaching the assignment" (e.g. by
+     * MigratedPoFixture::ensureClientDataDirDefinedOrSkip()) apart from "already assigned" - accessing
+     * an uninitialized, non-nullable typed property would otherwise turn that skip into a fatal
+     * `\Error` in tearDown() instead of a clean skip.
+     */
+    private ?string $fixture_directory = null;
     private string $global_file;
+    /**
+     * True exactly when this test's own call to MigratedPoFixture::ensureClientDataDirDefinedOrSkip()
+     * defined CLIENT_DATA_DIR itself (as opposed to a pre-existing, foreign definition it merely
+     * reused) - see tearDown(). With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated, uniquely-named root this test created is always cleaned up again instead of
+     * accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
     /** @var list<array{module: string, identifier: string, value: string}> */
     private array $value_rows = [];
     /** @var list<array{module: string, identifier: string, remarks: ?string}> */
@@ -65,7 +93,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         // skip the whole class rather than resolve into (and, for a real client id that happened to
         // coincide, potentially read from) real client data (see
         // MigratedPoFixture::ensureClientDataDirDefinedOrSkip()).
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
@@ -102,7 +130,17 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
 
     protected function tearDown(): void
     {
-        MigratedPoFixture::removeDirectory($this->fixture_directory);
+        // $fixture_directory stays null when setUp() was skipped before ever reaching its assignment
+        // (see the property's own docblock) - nothing was written anywhere in that case.
+        if ($this->fixture_directory !== null) {
+            MigratedPoFixture::removeDirectory($this->fixture_directory);
+        }
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
+        }
         (new ReflectionClass(ilLanguageFile::class))->getProperty('global_file_objects')->setValue(null, []);
 
         parent::tearDown();

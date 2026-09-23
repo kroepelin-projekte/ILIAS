@@ -21,7 +21,9 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Covers ilObjLanguageExt::syncMigratedFilesAfterDeleteModeImport() (see its docblock in
@@ -60,7 +62,17 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
  *
  * Uses a throwaway fixture module, exactly like PoMigrationWriteBackTest.php - never real pilot (tos)
  * data.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, guardClientDataDirIsTestOwned()'s guard would then skip every
+ * single test below for the rest of that process, since a PHP constant cannot be redefined. A fresh
+ * process per test method guarantees CLIENT_DATA_DIR starts out undefined here, exactly like a lone
+ * test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
@@ -440,28 +452,35 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // /var/iliasdata in a full-suite run) that this test class did not create and does not own.
         define('CLIENT_DATA_DIR', $foreign_dir);
 
-        $directory = $this->seedFixtureModule('dforeign', 'de', ['greeting' => 'Hallo']);
-        $this->bootstrapOverlayFromShipped('dforeign', 'de');
-        $this->registerDirectoryManager($directory);
-        $this->assertTrue($this->overlayMoExists('dforeign', 'de'));
+        try {
+            $directory = $this->seedFixtureModule('dforeign', 'de', ['greeting' => 'Hallo']);
+            $this->bootstrapOverlayFromShipped('dforeign', 'de');
+            $this->registerDirectoryManager($directory);
+            $this->assertTrue($this->overlayMoExists('dforeign', 'de'));
 
-        // tearDown() is protected; calling it directly from within the class itself is allowed
-        // regardless of visibility. PHPUnit will also invoke it again once this test method returns -
-        // harmless, since a second run finds nothing left to clean up.
-        $this->tearDown();
+            // tearDown() is protected; calling it directly from within the class itself is allowed
+            // regardless of visibility. PHPUnit will also invoke it again once this test method
+            // returns - harmless, since a second run finds nothing left to clean up.
+            $this->tearDown();
 
-        $this->assertFileExists(
-            $foreign_dir . '/marker.txt',
-            'tearDown() deleted (part of) a CLIENT_DATA_DIR this test class did not create itself.'
-        );
-        // This test's own fixture subdirectory, by contrast, is safely cleaned up - it is uniquely
-        // named and this test itself created it, regardless of who owns the CLIENT_DATA_DIR root.
-        $this->assertFalse($this->overlayMoExists('dforeign', 'de'));
-
-        // Clean up the rest of what this test itself created - tearDown() correctly leaves the
-        // foreign CLIENT_DATA_DIR root alone, by design.
-        unlink($foreign_dir . '/marker.txt');
-        $this->removeDirectoryRecursively($foreign_dir);
+            $this->assertFileExists(
+                $foreign_dir . '/marker.txt',
+                'tearDown() deleted (part of) a CLIENT_DATA_DIR this test class did not create itself.'
+            );
+            // This test's own fixture subdirectory, by contrast, is safely cleaned up - it is uniquely
+            // named and this test itself created it, regardless of who owns the CLIENT_DATA_DIR root.
+            $this->assertFalse($this->overlayMoExists('dforeign', 'de'));
+        } finally {
+            // Clean up the rest of what this test itself created - tearDown() correctly leaves the
+            // foreign CLIENT_DATA_DIR root alone, by design. Runs regardless of whether an assertion
+            // above failed, so a failing assertion never leaves $foreign_dir behind on disk.
+            if (is_file($foreign_dir . '/marker.txt')) {
+                unlink($foreign_dir . '/marker.txt');
+            }
+            if (is_dir($foreign_dir)) {
+                $this->removeDirectoryRecursively($foreign_dir);
+            }
+        }
     }
 
     /**
@@ -480,14 +499,18 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         define('CLIENT_DATA_DIR', $foreign_dir);
 
         try {
-            $this->guardClientDataDirIsTestOwned();
-            $this->fail('guardClientDataDirIsTestOwned() must refuse a CLIENT_DATA_DIR outside sys_get_temp_dir().');
-        } catch (\PHPUnit\Framework\SkippedWithMessageException $e) {
-            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            try {
+                $this->guardClientDataDirIsTestOwned();
+                $this->fail('guardClientDataDirIsTestOwned() must refuse a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+            } catch (\PHPUnit\Framework\SkippedWithMessageException $e) {
+                $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            }
+
+            $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+        } finally {
+            if (is_dir($foreign_dir)) {
+                $this->removeDirectoryRecursively($foreign_dir);
+            }
         }
-
-        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
-
-        rmdir($foreign_dir);
     }
 }

@@ -21,6 +21,8 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * ilObjLanguageExt: for a module migrated to PO/MO, the shipped `.po` is the only source of its
@@ -30,12 +32,29 @@ use PHPUnit\Framework\Attributes\DataProvider;
  *
  * Driven through the public methods with a recording database stub; the global language file
  * cache is seeded, the shipped `.po` lives in a throwaway directory below the ILIAS root.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, MigratedPoFixture::ensureClientDataDirDefinedOrSkip()'s guard
+ * would then skip every single test below for the rest of that process, since a PHP constant cannot
+ * be redefined. A fresh process per test method guarantees CLIENT_DATA_DIR starts out undefined here,
+ * exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
 {
     private const string LANG = 'zz';
 
-    private string $fixture_directory;
+    /**
+     * Nullable (not a fixed default in the property declaration itself) so tearDown() can tell
+     * "setUp() was skipped before ever reaching the assignment" (e.g. by
+     * MigratedPoFixture::ensureClientDataDirDefinedOrSkip()) apart from "already assigned" -
+     * accessing an uninitialized, non-nullable typed property would otherwise turn that skip into a
+     * fatal `\Error` in tearDown() instead of a clean skip.
+     */
+    private ?string $fixture_directory = null;
     private string $upload_file;
     /** @var array<string, array<string, string>> module => lang_array written to lng_modules */
     private array $lng_modules = [];
@@ -100,10 +119,14 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
 
     protected function tearDown(): void
     {
-        MigratedPoFixture::removeDirectory($this->fixture_directory);
-        MigratedPoFixture::removeDirectory(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . basename($this->fixture_directory)
-        );
+        // $fixture_directory stays null when setUp() was skipped before ever reaching its assignment
+        // (see the property's own docblock) - nothing was written anywhere in that case.
+        if ($this->fixture_directory !== null) {
+            MigratedPoFixture::removeDirectory($this->fixture_directory);
+            MigratedPoFixture::removeDirectory(
+                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . basename($this->fixture_directory)
+            );
+        }
         (new ReflectionClass(ilLanguageFile::class))->getProperty('global_file_objects')->setValue(null, []);
 
         parent::tearDown();

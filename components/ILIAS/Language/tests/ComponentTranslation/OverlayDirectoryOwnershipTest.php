@@ -229,4 +229,40 @@ class OverlayDirectoryOwnershipTest extends TestCase
             'other having the write+search bits must be enough for a stranger'
         );
     }
+
+    // ------------------------------------- for_user_id = a member of the directory's group (not owner)
+
+    /**
+     * Mutation coverage for the group branch: a uid that is not the directory's owner, but shares its
+     * group (here: the directory's group is chgrp()'d to $for_user_id's own primary gid), is governed
+     * by the GROUP write+search bits - not the owner's or other's. Only possible as root (chown()/
+     * chgrp() to an arbitrary owner/group).
+     */
+    public function testAGroupMemberNeedsTheGroupWriteAndSearchBitsRegardlessOfOwnerOrOtherBits(): void
+    {
+        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+            $this->markTestSkipped('Requires root to chown()/chgrp() the overlay directory to an arbitrary owner/group.');
+        }
+        $group_member_uid = 33; // www-data, whose own primary gid (33) is also 33 on both the
+        // reference host and the ILIAS container - see posix_getpwuid(33) above.
+        $this->seedOverlayDirectory(0750); // owner: rwx, group: r-x (no write) - not enough
+        chown($this->overlayDirectory(), 0);
+        chgrp($this->overlayDirectory(), 33);
+        clearstatcache(true, $this->overlayDirectory());
+
+        $this->assertSame(
+            [$this->overlayDirectory()],
+            $this->findUnwritable($group_member_uid),
+            'the group lacking the write bit must be reported even though the (different) owner has it'
+        );
+
+        chmod($this->overlayDirectory(), 0770); // group: rwx - now enough
+        clearstatcache(true, $this->overlayDirectory());
+
+        $this->assertSame(
+            [],
+            $this->findUnwritable($group_member_uid),
+            'the group having the write+search bits must be enough for a group member who is not the owner'
+        );
+    }
 }

@@ -771,20 +771,13 @@ class MigratedLanguageFileSyncTest extends TestCase
     /**
      * The un-migration case: a module that used to be migrated (shipped `.po` existed, an overlay had
      * already been compiled for it) but whose shipped `.po` has since been removed (e.g. reverted by
-     * the conversion tool) - sync() must remove the now-orphaned overlay pair instead of leaving it in
-     * place to keep serving stale content forever. Unlike testIsANoOpWhenNoShippedPoExistsForTheLanguage()
-     * above, this starts from an *existing* overlay, so it actually exercises the removeOverlay() call
-     * on the "no shipped .po" branch, not just its no-op case.
-     */
-    /**
-     * The un-migration case: a module that used to be migrated (shipped `.po` existed, an overlay had
-     * already been compiled for it) but whose shipped `.po` has since been removed (e.g. reverted by
      * the conversion tool, or only temporarily missing). sync() must leave the existing overlay
      * completely untouched - not migrated (any more) means "do not read or write it", never "remove
      * it": an overlay is only ever removed when its language is uninstalled (removeOverlay()), so that
      * a later reconcile can still tell an unchanged, dropped entry from a real local change by
      * comparing against the "original" value the overlay preserved (see
-     * testAThreeWayReconcileAfterTheShippedPoComesBackUsesThePreservedOriginal() below).
+     * LanguageInstallationManagerMigratedModulesTest::testAWholeMissingShippedPoIsBridgedByThePreservedOverlayAcrossTwoUpdates()
+     * for the three-way reconciliation this enables once the `.po` is back).
      */
     public function testAnExistingOverlayIsLeftUntouchedWhenTheShippedPoNoLongerExists(): void
     {
@@ -838,13 +831,22 @@ class MigratedLanguageFileSyncTest extends TestCase
     public function testARefreshAfterTheShippedPoComesBackStillMovesTheOriginalForwardCorrectly(): void
     {
         $this->seedShipped(['greeting' => 'Hello']);
-        $this->seedOverlay(['greeting' => 'Hallo']);
-        $shipped_po_content = file_get_contents($this->shippedPo());
+        // A real local change, tracked against the shipped value at the time it was made - this is
+        // the "original" that must survive the whole gap below untouched.
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hello', 'local_change' => '2020-01-01T00:00:00Z']]);
         unlink($this->shippedPo());
-        // no-op while missing, per the test above
+
+        // no-op while missing (see testAnExistingOverlayIsLeftUntouchedWhenTheShippedPoNoLongerExists()
+        // above) - asserted here explicitly so a regression that has sync() touch the overlay's
+        // "original"/local_change bookkeeping while the `.po` is missing fails right here, not only
+        // once the `.po` is back (by which point $refresh_original_from_shipped would overwrite it
+        // anyway and mask the loss, see below)
         $this->sync(['greeting' => 'Hallo']);
+        $preserved_during_the_gap = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Hello', LocalChangeComments::getOriginal($preserved_during_the_gap), 'original survives the gap');
+        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($preserved_during_the_gap));
+
         // the module is migrated again - the shipped `.po` is back, with a changed value
-        file_put_contents($this->shippedPo(), $shipped_po_content);
         $this->seedShipped(['greeting' => 'Servus']);
 
         // an unmodified local value ("Hallo" is still tracked against the preserved original
@@ -853,6 +855,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
         $this->assertSame('Servus', $greeting->getTranslation());
+        $this->assertSame('Servus', LocalChangeComments::getOriginal($greeting), 'original now moves to the newly shipped value');
         $this->assertNull(LocalChangeComments::getLocalChange($greeting));
     }
 

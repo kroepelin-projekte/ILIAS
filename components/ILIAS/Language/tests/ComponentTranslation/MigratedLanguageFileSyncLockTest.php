@@ -335,6 +335,414 @@ class MigratedLanguageFileSyncLockTest extends TestCase
         }
     }
 
+    // ------------------------------------------------------- the .lock file itself
+
+    /**
+     * Mutation: removeOverlay()'s early guard (`!is_file(po) && !is_file(mo) && !is_file(lock)`)
+     * losing the `.lock` branch - the lock file left over from an interrupted run must still be
+     * removed even when the `.po`/`.mo` pair is completely gone.
+     */
+    public function testRemoveOverlayRunsAndRemovesTheLockFileWhenOnlyTheLockFileIsLeft(): void
+    {
+        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de');
+        mkdir(dirname($overlay_base), 0775, true);
+        file_put_contents($overlay_base . '.lock', '');
+
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
+
+        $this->assertFileDoesNotExist($overlay_base . '.lock');
+    }
+
+    /**
+     * Mutation: lockAndRun() deleting the lock file even for a NESTED removeOverlay() call (one whose
+     * lock is already held by an enclosing withOverlayLock()) - see lockAndRun()'s
+     * `isset(self::$held_locks[...])` shortcut, which returns $callback() directly and must never reach
+     * the "acquire a fresh lock, then delete it" branch. The nested call must still actually remove the
+     * overlay `.po`/`.mo` (it is not a no-op), and must not retry/replace the lock file either - it stays
+     * the exact same inode throughout.
+     */
+    public function testANestedRemoveOverlayInsideWithOverlayLockDoesNotDeleteTheLockFileOrRetry(): void
+    {
+        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de');
+        mkdir(dirname($overlay_base), 0775, true);
+        file_put_contents($overlay_base . '.po', 'PO');
+        file_put_contents($overlay_base . '.mo', 'MO');
+        file_put_contents($overlay_base . '.lock', '');
+        clearstatcache(true, $overlay_base . '.lock');
+        $lock_inode_before = lstat($overlay_base . '.lock')['ino'];
+
+        MigratedLanguageFileSync::withOverlayLock(
+            $this->manager,
+            'de',
+            self::MODULE,
+            $this->client_data_dir,
+            function (): void {
+                MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
+            }
+        );
+
+        $this->assertFileDoesNotExist($overlay_base . '.po', 'the nested removeOverlay() must still actually remove the overlay files');
+        $this->assertFileDoesNotExist($overlay_base . '.mo');
+        $this->assertFileExists(
+            $overlay_base . '.lock',
+            'a removeOverlay() nested inside an already-held lock must NOT delete the lock file - the outer caller still relies on it'
+        );
+        clearstatcache(true, $overlay_base . '.lock');
+        $this->assertSame(
+            $lock_inode_before,
+            lstat($overlay_base . '.lock')['ino'],
+            'the lock file must stay the exact same one throughout - no retry/replace cycle for the nested call'
+        );
+    }
+
+    /**
+     * Mutation: sync() (a reinstall after an uninstall) failing to create a fresh `.lock` - e.g. because
+     * withOverlayLock()'s early-return guard (`!is_dir(...) && !isShipped(...)`) was weakened to also
+     * skip locking once a `.lock` has ever existed before.
+     */
+    public function testASyncAfterRemoveOverlayCreatesANewLockFile(): void
+    {
+        $relative_path = 'components/ILIAS/Language/tests/ComponentTranslation/tmp-lock-shipped-' . bin2hex(random_bytes(4)) . '/';
+        MigratedPoFixture::writeShippedPo(
+            $relative_path,
+            self::MODULE,
+            'de',
+            MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Hallo'])
+        );
+        $directory = MigratedPoFixture::directory(self::MODULE, $relative_path);
+        $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
+        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $directory, 'de');
+
+        try {
+            MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Hallo'], $this->client_data_dir);
+            $this->assertFileExists($overlay_base . '.lock', 'sync() must leave a .lock file behind for later callers to serialize on');
+
+            MigratedLanguageFileSync::removeOverlay($manager, 'de', self::MODULE, $this->client_data_dir);
+            $this->assertFileDoesNotExist($overlay_base . '.lock', 'removeOverlay() (uninstall) must have removed it');
+
+            MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Servus'], $this->client_data_dir);
+            $this->assertFileExists($overlay_base . '.lock', 'a reinstall/resync must create a fresh .lock file');
+        } finally {
+            MigratedPoFixture::removeShippedDirectory($relative_path);
+        }
+    }
+
+    // --------------------------------------------- inode replaced while a waiter holds it
+
+    /**
+     * Polls (bounded by $timeout_seconds) until the process $pid has an open file descriptor whose
+     * target is exactly $path - i.e. acquireLock() just called fopen($path) and is at or about to
+     * reach its flock() call. Used as the sole synchronization primitive for the tests below: it lets
+     * this process replace/symlink the lock file at exactly the right moment (right after the child
+     * opened it, while this process still holds - or is about to take - the conflicting lock that makes
+     * the child's flock() block for as long as needed), without any fixed sleep(). Linux-specific
+     * (/proc); acceptable here since the child process itself already only runs on Linux in this suite.
+     */
+    private function waitForOpenFd(int $pid, string $path, float $timeout_seconds): bool
+    {
+        $deadline = microtime(true) + $timeout_seconds;
+        do {
+            $entries = @scandir('/proc/' . $pid . '/fd');
+            if ($entries !== false) {
+                foreach ($entries as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+                    if (@readlink('/proc/' . $pid . '/fd/' . $entry) === $path) {
+                        return true;
+                    }
+                }
+            }
+            usleep(1_000);
+        } while (microtime(true) < $deadline);
+
+        return false;
+    }
+
+    private function lockAttempts(): int
+    {
+        return (new \ReflectionClassConstant(MigratedLanguageFileSync::class, 'LOCK_ATTEMPTS'))->getValue();
+    }
+
+    /**
+     * A single withOverlayLock() call for module/lang "stest"/"de", printing "RESULT:<value>" on
+     * success or "EXCEPTION:<class>:<message>" if it throws - run in a child process so this (parent)
+     * process is free to manipulate the lock file on disk while the child's acquireLock() loop is
+     * running.
+     */
+    private function acquireOnceChildCode(): string
+    {
+        $template = <<<'PHP'
+            use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+            use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+            use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+            use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+
+            $root = __ROOT__;
+            require_once $root . '/vendor/composer/vendor/autoload.php';
+            spl_autoload_register(static function (string $class) use ($root): void {
+                $prefix = 'ILIAS\\Language\\';
+                if (!str_starts_with($class, $prefix)) {
+                    return;
+                }
+                $file = $root . '/components/ILIAS/Language/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+                if (is_file($file)) {
+                    require_once $file;
+                }
+            });
+
+            $directory = new class implements LanguageFileDirectory {
+                public function getPrefix(): string
+                {
+                    return 'stest';
+                }
+                public function getPath(): string
+                {
+                    return 'x/';
+                }
+                public function getSuffix(): string
+                {
+                    return '';
+                }
+                public function isLocal(): bool
+                {
+                    return false;
+                }
+            };
+            $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
+            $client_data_dir = __CLIENT_DATA_DIR__;
+
+            try {
+                $result = MigratedLanguageFileSync::withOverlayLock(
+                    $manager,
+                    'de',
+                    'stest',
+                    $client_data_dir,
+                    static function (): string {
+                        return 'ok';
+                    }
+                );
+                echo 'RESULT:' . $result . "\n";
+            } catch (\Throwable $e) {
+                echo 'EXCEPTION:' . get_class($e) . ':' . $e->getMessage() . "\n";
+            }
+            PHP;
+
+        return str_replace(
+            ['__ROOT__', '__CLIENT_DATA_DIR__'],
+            [var_export(ILIAS_ABSOLUTE_PATH, true), var_export($this->client_data_dir, true)],
+            $template
+        );
+    }
+
+    /**
+     * @return array{pid: int, process: resource, pipes: array<int, resource>}
+     */
+    private function startAcquireOnceChild(): array
+    {
+        $process = proc_open([PHP_BINARY, '-r', $this->acquireOnceChildCode()], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($process)) {
+            $this->fail('Could not start the child PHP process.');
+        }
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $status = proc_get_status($process);
+
+        return ['pid' => $status['pid'], 'process' => $process, 'pipes' => $pipes];
+    }
+
+    /**
+     * @param resource $process
+     * @param array<int, resource> $pipes
+     * @return array{finished: bool, output: string}
+     */
+    private function drainChild($process, array $pipes, float $timeout_seconds): array
+    {
+        $deadline = microtime(true) + $timeout_seconds;
+        $output = '';
+        do {
+            $output .= (string) stream_get_contents($pipes[1]);
+            $output .= (string) stream_get_contents($pipes[2]);
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+
+                return ['finished' => true, 'output' => $output];
+            }
+            usleep(20_000);
+        } while (microtime(true) < $deadline);
+
+        proc_terminate($process, 9);
+        usleep(100_000);
+        $output .= (string) stream_get_contents($pipes[1]);
+        $output .= (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        return ['finished' => false, 'output' => $output];
+    }
+
+    /**
+     * Replaces the file at $lock_file with a brand-new inode, exclusively locked via $next_handle,
+     * only after first taking that lock and THEN releasing $current_handle - so a waiter blocked on
+     * $current_handle's lock is only ever unblocked once the replacement is already fully in place
+     * (no window where the path is momentarily unlocked or missing).
+     *
+     * @param resource $current_handle
+     * @return resource the new handle, still holding its lock
+     */
+    private function replaceLockedFile(string $lock_file, $current_handle)
+    {
+        $this->assertTrue((bool) @unlink($lock_file), 'could not unlink the lock file to replace it');
+        $next_handle = fopen($lock_file, 'c');
+        $this->assertNotFalse($next_handle, 'could not recreate the lock file');
+        $this->assertTrue(flock($next_handle, LOCK_EX));
+        flock($current_handle, LOCK_UN);
+        fclose($current_handle);
+
+        return $next_handle;
+    }
+
+    /**
+     * Mutation: acquireLock() returning/keeping a handle to an inode that was deleted (and replaced)
+     * while this process waited on it - see isHandleOfPath(). The lock file is replaced exactly twice
+     * while a real, separate process is blocked trying to lock it (synchronized via flock() blocking
+     * plus /proc-based confirmation, not by timing), so it must retry twice and end up holding the
+     * THIRD, now-stable file - never the first or second one it originally opened.
+     */
+    public function testAWaiterThatLocksAnInodeDeletedInTheMeantimeRetriesAndEndsUpHoldingTheNewFile(): void
+    {
+        $this->seedLockDirectory();
+        $lock_file = $this->lockFile();
+
+        $current_handle = fopen($lock_file, 'c');
+        $this->assertNotFalse($current_handle);
+        $this->assertTrue(flock($current_handle, LOCK_EX));
+
+        $child = $this->startAcquireOnceChild();
+        try {
+            for ($round = 1; $round <= 2; $round++) {
+                $this->assertTrue(
+                    $this->waitForOpenFd($child['pid'], $lock_file, 5.0),
+                    'the child never opened the lock file for attempt ' . $round
+                );
+                $current_handle = $this->replaceLockedFile($lock_file, $current_handle);
+            }
+
+            $this->assertTrue(
+                $this->waitForOpenFd($child['pid'], $lock_file, 5.0),
+                'the child never opened the lock file for the final, stable attempt'
+            );
+            clearstatcache(true, $lock_file);
+            $final_inode = lstat($lock_file)['ino'];
+            flock($current_handle, LOCK_UN);
+            fclose($current_handle);
+            $current_handle = null;
+
+            $result = $this->drainChild($child['process'], $child['pipes'], 5.0);
+            $this->assertTrue($result['finished'], 'the child must not hang: ' . $result['output']);
+            $this->assertStringContainsString('RESULT:ok', $result['output']);
+
+            clearstatcache(true, $lock_file);
+            $this->assertSame(
+                $final_inode,
+                lstat($lock_file)['ino'],
+                'the waiter must end up holding the file that was actually left in place, not trigger a further replacement'
+            );
+        } finally {
+            if (is_resource($current_handle)) {
+                flock($current_handle, LOCK_UN);
+                fclose($current_handle);
+            }
+        }
+    }
+
+    /**
+     * Mutation: LOCK_ATTEMPTS's retry loop not giving up - the lock file is replaced on every single
+     * one of its attempts, so acquireLock() must exhaust its budget and throw instead of retrying
+     * forever or silently running unlocked.
+     */
+    public function testTheLockFileReplacedOnEveryAttemptExhaustsTheRetriesAndThrows(): void
+    {
+        $this->seedLockDirectory();
+        $lock_file = $this->lockFile();
+        $attempts = $this->lockAttempts();
+
+        $current_handle = fopen($lock_file, 'c');
+        $this->assertNotFalse($current_handle);
+        $this->assertTrue(flock($current_handle, LOCK_EX));
+
+        $child = $this->startAcquireOnceChild();
+        for ($round = 1; $round <= $attempts; $round++) {
+            $this->assertTrue(
+                $this->waitForOpenFd($child['pid'], $lock_file, 5.0),
+                'the child never opened the lock file for attempt ' . $round
+            );
+            $current_handle = $this->replaceLockedFile($lock_file, $current_handle);
+        }
+        flock($current_handle, LOCK_UN);
+        fclose($current_handle);
+
+        $result = $this->drainChild($child['process'], $child['pipes'], 5.0);
+
+        $this->assertTrue($result['finished'], 'the child must not hang: ' . $result['output']);
+        $this->assertStringContainsString('EXCEPTION:RuntimeException', $result['output']);
+        $this->assertStringContainsString((string) $attempts, $result['output']);
+        $this->assertStringContainsString('removed or replaced', $result['output']);
+    }
+
+    /**
+     * Mutation: the symbolic link check (assertNoSymbolicLinkBelowOverlayRoot()) only running once,
+     * before the retry loop, instead of on every attempt - the lock file is a regular file for the
+     * FIRST attempt (so a check that only ran up front would pass) and is only replaced by a symlink
+     * while the child is blocked waiting to (re-)lock it, i.e. discovered exclusively on a LATER
+     * attempt.
+     */
+    public function testTheSymbolicLinkCheckAppliesOnEveryAttemptNotJustTheFirst(): void
+    {
+        $this->seedLockDirectory();
+        $lock_file = $this->lockFile();
+        $decoy = $this->client_data_dir . '-decoy-lock-target';
+        file_put_contents($decoy, 'DECOY');
+
+        $current_handle = fopen($lock_file, 'c');
+        $this->assertNotFalse($current_handle);
+        $this->assertTrue(flock($current_handle, LOCK_EX));
+
+        $child = $this->startAcquireOnceChild();
+        try {
+            $this->assertTrue(
+                $this->waitForOpenFd($child['pid'], $lock_file, 5.0),
+                'the child never opened the lock file for the first attempt'
+            );
+            $this->assertTrue((bool) @unlink($lock_file));
+            symlink($decoy, $lock_file);
+            flock($current_handle, LOCK_UN);
+            fclose($current_handle);
+            $current_handle = null;
+
+            $result = $this->drainChild($child['process'], $child['pipes'], 5.0);
+
+            $this->assertTrue($result['finished'], 'the child must not hang: ' . $result['output']);
+            $this->assertStringContainsString(
+                'RESULT:ok',
+                $result['output'],
+                'a symlink discovered on a LATER attempt must fall back to running unlocked, not bubble up an exception'
+            );
+            $this->assertSame('DECOY', file_get_contents($decoy), 'the symlink target must never be touched');
+            $this->assertSame($decoy, readlink($lock_file), 'the symlink itself must be left in place');
+        } finally {
+            @unlink($decoy);
+            if (is_resource($current_handle)) {
+                flock($current_handle, LOCK_UN);
+                fclose($current_handle);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- no lock
 
     /**

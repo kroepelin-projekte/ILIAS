@@ -22,6 +22,8 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
@@ -43,7 +45,16 @@ use PHPUnit\Framework\MockObject\MockObject;
  * that loops over multiple query() calls).
  *
  * Uses throwaway fixture modules (not any real pilot data) so these tests never touch real files.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, guardClientDataDirIsTestOwned() would then skip every single test
+ * below for the rest of that process, since a PHP constant cannot be redefined. A fresh process per
+ * test method guarantees CLIENT_DATA_DIR starts out undefined here, exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class PoLastLocalChangeTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
@@ -59,16 +70,11 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so
         // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
         //
-        // testRefusesToWriteIntoAClientDataDirOutsideSysTempDir() below needs full control over
-        // exactly when/to-what CLIENT_DATA_DIR first gets defined, to simulate a pre-existing,
-        // foreign definition - so it manages the constant entirely on its own instead.
-        if ($this->name() === 'testRefusesToWriteIntoAClientDataDirOutsideSysTempDir') {
-            return;
-        }
-        $this->guardClientDataDirIsTestOwned();
-        if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
-        }
+        // Deliberately not resolved/defined here already: seedFixtureModule() (and the one test that
+        // builds its fixture manually) is the one place that actually writes fixture files under
+        // CLIENT_DATA_DIR, so it - not setUp() - carries its own guard; a test that never seeds a
+        // fixture at all (e.g. testReturnsNullWhenNoDirectoryManagerIsRegisteredAtAll()) must not skip
+        // merely because some unrelated, foreign CLIENT_DATA_DIR happens to be defined.
     }
 
     /**
@@ -85,6 +91,9 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
                 'CLIENT_DATA_DIR ("' . CLIENT_DATA_DIR . '") is not a test-owned temp directory - '
                 . 'refusing to write fixture files there.'
             );
+        }
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
         }
     }
 
@@ -122,6 +131,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         array $entries,
         array $local_changes = []
     ): LanguageFileDirectory {
+        $this->guardClientDataDirIsTestOwned();
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
@@ -314,6 +324,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
 
     public function testSkipsATranslationWhoseContextDoesNotMatchTheModule(): void
     {
+        $this->guardClientDataDirIsTestOwned();
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-lastchange-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {

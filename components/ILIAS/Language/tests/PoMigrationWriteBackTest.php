@@ -22,7 +22,9 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
@@ -43,7 +45,17 @@ use PHPUnit\Framework\SkippedWithMessageException;
  * byte-identical throughout (the git-dirtying bug this split exists to prevent).
  *
  * Uses a throwaway fixture module (not tos's real files) so these tests never touch real pilot data.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, MigratedPoFixture::ensureClientDataDirDefinedOrSkip()'s guard
+ * would then skip every single test below for the rest of that process, since a PHP constant cannot
+ * be redefined. A fresh process per test method guarantees CLIENT_DATA_DIR starts out undefined here,
+ * exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
@@ -333,6 +345,10 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
     public function testIsANoOpWhenNoDirectoryManagerIsRegisteredAtAll(): void
     {
+        // No fixture is written here, but replaceLangModule() still resolves CLIENT_DATA_DIR
+        // internally - it must be defined (and test-owned) exactly like every other test in this
+        // class, even though nothing ends up being read from or written to it for this module.
+        $this->ensureClientDataDir();
         $this->stubDatabaseForReplaceLangModule();
 
         // must not throw even though nothing was contributed and no fixture file exists anywhere
@@ -465,16 +481,21 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         mkdir($foreign_dir, 0775, true);
         define('CLIENT_DATA_DIR', $foreign_dir);
 
-        $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
         try {
-            $this->bootstrapOverlayFromShipped('wtest', 'de');
-            $this->fail('bootstrapOverlayFromShipped() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
-        } catch (SkippedWithMessageException $e) {
-            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
+            try {
+                $this->bootstrapOverlayFromShipped('wtest', 'de');
+                $this->fail('bootstrapOverlayFromShipped() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+            } catch (SkippedWithMessageException $e) {
+                $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            }
+
+            $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+        } finally {
+            if (is_dir($foreign_dir)) {
+                array_map('unlink', glob($foreign_dir . '/*') ?: []);
+                rmdir($foreign_dir);
+            }
         }
-
-        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
-
-        rmdir($foreign_dir);
     }
 }

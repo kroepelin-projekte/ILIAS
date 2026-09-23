@@ -110,10 +110,12 @@ final class TranslationCatalog
             throw new RuntimeException('The content is not valid UTF-8.');
         }
 
-        $loader = new StrictPoLoader();
-        $loader->displayErrorLine = true;
         $translations = self::withLibraryErrorsAsExceptions(
-            static fn(): Translations => $loader->loadString($content)
+            static function () use ($content): Translations {
+                $loader = new StrictPoLoader();
+                $loader->displayErrorLine = true;
+                return $loader->loadString($content);
+            }
         );
         foreach ($translations->getHeaders()->toArray() as $name => $value) {
             // An escaped line break inside a header value: setHeader() refuses such a value, so a

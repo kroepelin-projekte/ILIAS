@@ -811,10 +811,6 @@ class ilObjLanguageFolderGUITest extends TestCase
     }
 
     /**
-     * Boundary: when every bucket is empty (e.g. an empty $ids request),
-     * no message at all must appear - not even an empty one.
-     */
-    /**
      * Regression/mutation coverage for T5 (M6): uninstallObject() must show
      * the overlay-write-failure message (via overlayWriteFailedMessage())
      * whenever 'overlay_write_failed_language_keys' is non-empty - even

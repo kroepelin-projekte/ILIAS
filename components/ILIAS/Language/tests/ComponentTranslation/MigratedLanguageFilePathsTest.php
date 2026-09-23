@@ -221,4 +221,44 @@ class MigratedLanguageFilePathsTest extends TestCase
             MigratedLanguageFilePaths::overlayBasePath('/data/client', $directory, 'en')
         );
     }
+
+    /**
+     * Regression coverage for LANGUAGE_KEY_FORMAT's trailing `\z` anchor (rather than `$`, which in
+     * PCRE also matches right before a trailing newline): a language key with a trailing "\n" or
+     * "\r\n" must be rejected exactly like any other malformed key, not silently accepted because it
+     * ends in a line break.
+     */
+    #[DataProvider('invalidLangKeys')]
+    public function testShippedBasePathRejectsAMalformedLangKey(string $lang_key): void
+    {
+        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        MigratedLanguageFilePaths::shippedBasePath('/srv/ilias/', $directory, $lang_key);
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function invalidLangKeys(): array
+    {
+        return [
+            'trailing newline' => ["de\n"],
+            'trailing CRLF' => ["de\r\n"],
+            'uppercase' => ['DE'],
+            'one letter' => ['d'],
+            'three letters' => ['deu'],
+        ];
+    }
+
+    public function testShippedBasePathAcceptsAPlainTwoLetterLangKey(): void
+    {
+        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+
+        $this->assertSame(
+            '/srv/ilias/components/ILIAS/TermsOfService/lang/tos_de',
+            MigratedLanguageFilePaths::shippedBasePath('/srv/ilias/', $directory, 'de')
+        );
+    }
 }

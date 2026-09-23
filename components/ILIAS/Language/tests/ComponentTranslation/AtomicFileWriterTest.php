@@ -116,6 +116,46 @@ class AtomicFileWriterTest extends TestCase
         $this->assertSame('0600', sprintf('%04o', fileperms($this->directory . '/target.po') & 0777));
     }
 
+    /**
+     * grantsAtLeast() is the pure decision acceptUnchangeableMode() delegates to: whether every
+     * permission bit $intended_mode grants is also granted by $effective_mode.
+     *
+     * @dataProvider grantsAtLeastProvider
+     */
+    public function testGrantsAtLeast(int $effective_mode, int $intended_mode, bool $expected): void
+    {
+        $this->assertSame($expected, AtomicFileWriter::grantsAtLeast($effective_mode, $intended_mode));
+    }
+
+    /**
+     * @return array<string, array{0: int, 1: int, 2: bool}>
+     */
+    public static function grantsAtLeastProvider(): array
+    {
+        return [
+            '0600 lacks group/other read the intended 0644 needs' => [0600, 0644, false],
+            '0777 grants everything, including 0644' => [0777, 0644, true],
+            '0644 grants exactly the identical 0644 it is compared against' => [0644, 0644, true],
+            '0640 lacks group-write and other-read the intended 0664 needs' => [0640, 0664, false],
+            '0664 grants everything the less permissive 0644 needs' => [0664, 0644, true],
+        ];
+    }
+
+    // NOT COVERED: the post-rename confinement re-check in write() (the `if ($resolved_root !== null)`
+    // block after the `rename()`, AtomicFileWriter.php ~99-109) actually firing. It only fires when
+    // `realpath(dirname($file))` resolves DIFFERENTLY right after the rename() than it did in the
+    // pre-write check moments earlier - i.e. some symlink below the confined directory was swapped
+    // WHILE this single, synchronous write() call was executing (the TOCTOU window the class comment
+    // documents as an accepted residual risk). $resolved_root itself is fixed for the whole call (it is
+    // resolved once, into a local variable, before the pre-write check), so reassigning what
+    // $confine_to_directory points to cannot relax anything either - only a mutation of dirname($file)'s
+    // OWN resolution, mid-call, reproduces it. AtomicFileWriter is `final`, has only static methods and
+    // real filesystem calls (no injectable seam), and unlike MigratedLanguageFileSyncLockTest's lock
+    // scenarios there is no blocking primitive (no flock()) anywhere in write() a concurrent process
+    // could synchronize against - the whole tempnam()/chmod()/rename() sequence runs in well under a
+    // millisecond, so a second process racing to swap a symlink would have to land inside that window
+    // blindly. That could not be reproduced deterministically in this sandbox.
+
     // NOT COVERED: acceptUnchangeableMode()'s "chmod() failed, but the effective mode already grants
     // at least as much as intended -> no exception" vs. "... grants less -> RuntimeException" branching
     // (AtomicFileWriter.php ~98-116). AtomicFileWriter is `final` with only static methods and real

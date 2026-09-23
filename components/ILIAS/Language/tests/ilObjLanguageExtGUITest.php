@@ -25,6 +25,7 @@ use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -852,43 +853,60 @@ class ilObjLanguageExtGUITest extends TestCase
     // -----------------------------------------------------------------
 
     /**
-     * Regression/mutation coverage for S4: an uploaded file name containing
-     * HTML-significant characters must come out HTML-entity-escaped, not
-     * verbatim - pinned against the exact Refinery transform
-     * uploadObject() applies to `$_FILES["userfile"]["name"]` before it is
-     * sprintf()'d into the "language_file_imported" message.
+     * Regression/mutation coverage for S4: exercises the actual private
+     * ilObjLanguageExtGUI::importedMessage() (not just the Refinery
+     * transform it happens to use internally) via reflection, since a test
+     * that only re-runs the Refinery transform in isolation would pass even
+     * if importedMessage() stopped calling it at all. An uploaded file name
+     * containing HTML-significant characters must come out HTML-entity-
+     * escaped, not verbatim - while an ordinary file name is left unchanged
+     * - and in both cases the lng-provided text is still part of the
+     * resulting message.
      */
-    public function testUploadedFileNameTransformEscapesHtmlSignificantCharacters(): void
+    /**
+     * @return array<string, array{0: string, 1: \Closure}>
+     */
+    public static function importedMessageProvider(): array
     {
-        $refinery = new \ILIAS\Refinery\Factory(
-            $this->createStub(\ILIAS\Data\Factory::class),
-            $this->createStub(\ILIAS\Language\Language::class)
-        );
-
-        $escaped = $refinery->encode()->htmlSpecialCharsAsEntities()
-            ->transform('<script>x</script>.lang');
-
-        $this->assertStringNotContainsString('<script>', $escaped);
-        $this->assertStringContainsString('&lt;script&gt;', $escaped);
-        $this->assertStringContainsString('&lt;/script&gt;', $escaped);
+        return [
+            'HTML-significant characters are escaped' => [
+                '<script>x</script>.lang',
+                static function (self $test, string $message): void {
+                    $test->assertStringNotContainsString('<script>', $message);
+                    $test->assertStringContainsString('&lt;script&gt;', $message);
+                    $test->assertStringContainsString('&lt;/script&gt;', $message);
+                },
+            ],
+            'an ordinary file name is left unchanged' => [
+                'ilias_de.lang',
+                static function (self $test, string $message): void {
+                    $test->assertStringContainsString('ilias_de.lang', $message);
+                },
+            ],
+        ];
     }
 
-    /**
-     * Boundary/companion: an ordinary file name without any HTML-significant
-     * character must come through unchanged - the transform must not, say,
-     * escape characters that need no escaping or otherwise mangle a normal
-     * name.
-     */
-    public function testUploadedFileNameTransformLeavesAnOrdinaryFileNameUnchanged(): void
-    {
-        $refinery = new \ILIAS\Refinery\Factory(
-            $this->createStub(\ILIAS\Data\Factory::class),
-            $this->createStub(\ILIAS\Language\Language::class)
+    #[DataProvider('importedMessageProvider')]
+    public function testImportedMessageEscapesHtmlSignificantCharactersAndKeepsTheLngText(
+        string $file_name,
+        \Closure $assertOnMessage
+    ): void {
+        $lng = $this->createStub(ilLanguage::class);
+        $lng->method('txt')->willReturnCallback(
+            static fn(string $key): string => $key === 'language_file_imported' ? 'Imported %s.' : $key
         );
 
-        $escaped = $refinery->encode()->htmlSpecialCharsAsEntities()
-            ->transform('ilias_de.lang');
+        $gui = (new ReflectionClass(ilObjLanguageExtGUI::class))->newInstanceWithoutConstructor();
+        $this->setProperty($gui, 'lng', $lng);
+        $this->setProperty($gui, 'refinery', new \ILIAS\Refinery\Factory(
+            $this->createStub(\ILIAS\Data\Factory::class),
+            $this->createStub(\ILIAS\Language\Language::class)
+        ));
 
-        $this->assertSame('ilias_de.lang', $escaped);
+        $method = new ReflectionMethod(ilObjLanguageExtGUI::class, 'importedMessage');
+        $message = $method->invoke($gui, $file_name);
+
+        $this->assertStringStartsWith('Imported ', $message);
+        $assertOnMessage($this, $message);
     }
 }

@@ -21,7 +21,10 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
  * Covers ilPluginLanguage::uninstall()'s overlay-file cleanup - the plugin-level counterpart to
@@ -41,7 +44,16 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
  * MigratedLanguageFileSync::removeOverlay() and must leave the (never-written) shipped `.po` untouched.
  *
  * Uses a throwaway fixture module/prefix (not any real plugin) so these tests never touch real data.
+ *
+ * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
+ * already defined by an earlier, unrelated test class sharing the same process (e.g.
+ * Filesystem/tests/ilServicesFileSystemTest.php or Test/tests/ilTestBaseTestCaseTrait.php define it
+ * as /var/iliasdata) - without this, ensureClientDataDirDefined()'s guard would then skip every single
+ * test below for the rest of that process, since a PHP constant cannot be redefined. A fresh process
+ * per test method guarantees CLIENT_DATA_DIR starts out undefined here, exactly like a lone test run.
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
@@ -477,28 +489,35 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         // /var/iliasdata in a full-suite run) that this test class did not create and does not own.
         define('CLIENT_DATA_DIR', $foreign_dir);
 
-        $directory = $this->seedShippedModule('uforeign', 'de', ['greeting' => 'Hallo']);
-        $this->seedOverlay('uforeign', 'de', ['greeting' => 'Hallo']);
-        $this->registerDirectoryManager($directory);
-        $this->assertFileExists($this->overlayPath('uforeign', 'de', 'po'));
+        try {
+            $directory = $this->seedShippedModule('uforeign', 'de', ['greeting' => 'Hallo']);
+            $this->seedOverlay('uforeign', 'de', ['greeting' => 'Hallo']);
+            $this->registerDirectoryManager($directory);
+            $this->assertFileExists($this->overlayPath('uforeign', 'de', 'po'));
 
-        // tearDown() is protected; calling it directly from within the class itself is allowed
-        // regardless of visibility. PHPUnit will also invoke it again once this test method returns -
-        // harmless, since a second run finds nothing left to clean up.
-        $this->tearDown();
+            // tearDown() is protected; calling it directly from within the class itself is allowed
+            // regardless of visibility. PHPUnit will also invoke it again once this test method
+            // returns - harmless, since a second run finds nothing left to clean up.
+            $this->tearDown();
 
-        $this->assertFileExists(
-            $foreign_dir . '/marker.txt',
-            'tearDown() deleted (part of) a CLIENT_DATA_DIR this test class did not create itself.'
-        );
-        // This test's own fixture subdirectory, by contrast, is safely cleaned up - it is uniquely
-        // named and this test itself created it, regardless of who owns the CLIENT_DATA_DIR root.
-        $this->assertFileDoesNotExist($this->overlayPath('uforeign', 'de', 'po'));
-
-        // Clean up the rest of what this test itself created - tearDown() correctly leaves the
-        // foreign CLIENT_DATA_DIR root alone, by design.
-        unlink($foreign_dir . '/marker.txt');
-        $this->removeDirectoryRecursively($foreign_dir);
+            $this->assertFileExists(
+                $foreign_dir . '/marker.txt',
+                'tearDown() deleted (part of) a CLIENT_DATA_DIR this test class did not create itself.'
+            );
+            // This test's own fixture subdirectory, by contrast, is safely cleaned up - it is uniquely
+            // named and this test itself created it, regardless of who owns the CLIENT_DATA_DIR root.
+            $this->assertFileDoesNotExist($this->overlayPath('uforeign', 'de', 'po'));
+        } finally {
+            // Clean up the rest of what this test itself created - tearDown() correctly leaves the
+            // foreign CLIENT_DATA_DIR root alone, by design. Runs regardless of whether an assertion
+            // above failed, so a failing assertion never leaves $foreign_dir behind on disk.
+            if (is_file($foreign_dir . '/marker.txt')) {
+                unlink($foreign_dir . '/marker.txt');
+            }
+            if (is_dir($foreign_dir)) {
+                $this->removeDirectoryRecursively($foreign_dir);
+            }
+        }
     }
 
     /**
@@ -517,15 +536,19 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         define('CLIENT_DATA_DIR', $foreign_dir);
 
         try {
-            $directory = $this->seedShippedModule('uoutside', 'de', ['greeting' => 'Hallo']);
-            $this->seedOverlay('uoutside', 'de', ['greeting' => 'Hallo']);
-            $this->fail('seedOverlay() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
-        } catch (\PHPUnit\Framework\SkippedWithMessageException $e) {
-            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            try {
+                $directory = $this->seedShippedModule('uoutside', 'de', ['greeting' => 'Hallo']);
+                $this->seedOverlay('uoutside', 'de', ['greeting' => 'Hallo']);
+                $this->fail('seedOverlay() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+            } catch (SkippedWithMessageException $e) {
+                $this->assertStringContainsString($foreign_dir, $e->getMessage());
+            }
+
+            $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+        } finally {
+            if (is_dir($foreign_dir)) {
+                $this->removeDirectoryRecursively($foreign_dir);
+            }
         }
-
-        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
-
-        rmdir($foreign_dir);
     }
 }
