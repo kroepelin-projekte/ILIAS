@@ -162,6 +162,29 @@ final class MigratedPoFixture
         return $directory;
     }
 
+    /**
+     * Guards every fixture that writes under CLIENT_DATA_DIR: a full-suite run can have that constant
+     * already defined - and pointing at the real client data directory (e.g. /var/iliasdata, see
+     * Filesystem/tests/ilServicesFileSystemTest.php and Test/tests/ilTestBaseTestCaseTrait.php) - long
+     * before one of these fixture classes ever runs. A PHP constant cannot be redefined, so a foreign,
+     * non-temp CLIENT_DATA_DIR must never be written into: this skips the test instead, exactly the
+     * pattern UninstallRemovesMigratedMoFilesTest::ensureClientDataDirDefined() established first, now
+     * centralised for every other migrated-PO fixture that needs the same guard. Only ever defines the
+     * constant itself when nobody else has - never assumes exclusive ownership of it.
+     */
+    public static function ensureClientDataDirDefinedOrSkip(\PHPUnit\Framework\TestCase $test): void
+    {
+        if (defined('CLIENT_DATA_DIR') && !str_starts_with(CLIENT_DATA_DIR, sys_get_temp_dir() . '/')) {
+            $test->markTestSkipped(
+                'CLIENT_DATA_DIR ("' . CLIENT_DATA_DIR . '") is not a test-owned temp directory - '
+                . 'refusing to write fixture files there.'
+            );
+        }
+        if (!defined('CLIENT_DATA_DIR')) {
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+        }
+    }
+
     public static function removeDirectory(string $directory): void
     {
         if (is_link($directory)) {

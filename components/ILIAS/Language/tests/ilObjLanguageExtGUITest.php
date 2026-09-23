@@ -825,4 +825,70 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $this->assertSame([['success', 'language_merged_global']], $messages);
     }
+
+    // -----------------------------------------------------------------
+    // uploadObject() (S4): the client-supplied uploaded file name ends up,
+    // via sprintf(lng->txt('language_file_imported'), ...), in an
+    // on-screen HTML message - it must be HTML-escaped first (see the
+    // production comment directly above that call: "the client-supplied
+    // file name ends up in HTML - never unescaped").
+    //
+    // uploadObject() itself cannot be exercised end-to-end in this kind of
+    // lightweight unit test: reaching its success path requires a real
+    // $DIC->upload() FileUpload service AND legacy ilFileUtils::ilTempnam(),
+    // which reads the CLIENT_DATA_DIR constant and (if the resulting
+    // temp directory does not already exist) creates it on disk - a
+    // constant this test bootstrap never defines at all, so merely
+    // reaching that line would fatal with "undefined constant" here, and
+    // even if it were defined, writing there would be a real, uncontrolled
+    // filesystem side effect outside sys_get_temp_dir() (forbidden for
+    // these tests). So, instead of driving uploadObject() itself, this
+    // pins the exact transformation it applies inline to the file name
+    // (`$this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(...)`)
+    // using the real, unmocked Refinery classes production uses (Encode\Group
+    // needs no $DIC-backed collaborator) - a regression here (e.g. that
+    // transform being dropped, or swapped for a no-op) would let a
+    // '<script>...</script>' file name reach the on-screen message raw.
+    // -----------------------------------------------------------------
+
+    /**
+     * Regression/mutation coverage for S4: an uploaded file name containing
+     * HTML-significant characters must come out HTML-entity-escaped, not
+     * verbatim - pinned against the exact Refinery transform
+     * uploadObject() applies to `$_FILES["userfile"]["name"]` before it is
+     * sprintf()'d into the "language_file_imported" message.
+     */
+    public function testUploadedFileNameTransformEscapesHtmlSignificantCharacters(): void
+    {
+        $refinery = new \ILIAS\Refinery\Factory(
+            $this->createStub(\ILIAS\Data\Factory::class),
+            $this->createStub(\ILIAS\Language\Language::class)
+        );
+
+        $escaped = $refinery->encode()->htmlSpecialCharsAsEntities()
+            ->transform('<script>x</script>.lang');
+
+        $this->assertStringNotContainsString('<script>', $escaped);
+        $this->assertStringContainsString('&lt;script&gt;', $escaped);
+        $this->assertStringContainsString('&lt;/script&gt;', $escaped);
+    }
+
+    /**
+     * Boundary/companion: an ordinary file name without any HTML-significant
+     * character must come through unchanged - the transform must not, say,
+     * escape characters that need no escaping or otherwise mangle a normal
+     * name.
+     */
+    public function testUploadedFileNameTransformLeavesAnOrdinaryFileNameUnchanged(): void
+    {
+        $refinery = new \ILIAS\Refinery\Factory(
+            $this->createStub(\ILIAS\Data\Factory::class),
+            $this->createStub(\ILIAS\Language\Language::class)
+        );
+
+        $escaped = $refinery->encode()->htmlSpecialCharsAsEntities()
+            ->transform('ilias_de.lang');
+
+        $this->assertSame('ilias_de.lang', $escaped);
+    }
 }

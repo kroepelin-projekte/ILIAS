@@ -23,6 +23,8 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
  * Covers the PO/MO pilot's addition to ilLanguage::loadLanguageModule(): a module whose owning
@@ -47,9 +49,14 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         // ilLanguage::migratedOverlayMoFile() resolves a migrated module's compiled `.mo` under
         // CLIENT_DATA_DIR - never under ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined, so
         // this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
-        if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
-        }
+        //
+        // Deliberately NOT resolved/defined here already: ensureRealTosDeMoFileExists() and
+        // contributeFixtureModule() below are the places that actually write fixture files under
+        // CLIENT_DATA_DIR, so they (not setUp()) are where a foreign, non-temp CLIENT_DATA_DIR from an
+        // earlier test in a full-suite run must skip rather than write there (see
+        // MigratedPoFixture::ensureClientDataDirDefinedOrSkip()), and where
+        // testRefusesToWriteIntoAClientDataDirOutsideSysTempDir() below needs it to still be undefined
+        // when its own test body runs.
 
         // loadFromMigratedLanguageFile()'s cache is a static property (shared across every
         // ilLanguage instance for the rest of the PHP process, see class.ilLanguage.php) so that
@@ -101,6 +108,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     private function ensureRealTosDeMoFileExists(): void
     {
+        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $shipped_po = ILIAS_ABSOLUTE_PATH . '/components/ILIAS/TermsOfService/lang/tos_de.po';
         $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/TermsOfService/lang';
         $mo_path = $overlay_dir . '/tos_de.mo';
@@ -128,6 +136,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog $translations): LanguageFileDirectory
     {
+        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
@@ -559,5 +568,33 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         $language->loadLanguageModule('beta');
 
         $this->assertSame('Value from beta', $language->txt('shared_key'));
+    }
+
+    /**
+     * A CLIENT_DATA_DIR that is not a test-owned temp directory (e.g. the real /var/iliasdata a
+     * full-suite run may already have defined, see MigratedPoFixture::ensureClientDataDirDefinedOrSkip())
+     * must never be written into by ensureRealTosDeMoFileExists()/contributeFixtureModule() - the test
+     * skips instead. Runs in its own process so this class' own tests (which would otherwise define
+     * CLIENT_DATA_DIR first in the shared process) cannot pre-empt the "not yet defined" starting point
+     * this test needs.
+     */
+    #[RunInSeparateProcess]
+    public function testRefusesToWriteIntoAClientDataDirOutsideSysTempDir(): void
+    {
+        $foreign_dir = __DIR__ . '/tmp-not-a-temp-dir-' . bin2hex(random_bytes(4));
+        $this->assertFalse(str_starts_with($foreign_dir, sys_get_temp_dir() . '/'));
+        mkdir($foreign_dir, 0775, true);
+        define('CLIENT_DATA_DIR', $foreign_dir);
+
+        try {
+            $this->ensureRealTosDeMoFileExists();
+            $this->fail('ensureRealTosDeMoFileExists() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+        } catch (SkippedWithMessageException $e) {
+            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+        }
+
+        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+
+        rmdir($foreign_dir);
     }
 }

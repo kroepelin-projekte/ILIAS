@@ -24,6 +24,8 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
  * Covers the admin-GUI read side of the PO/MO pilot:
@@ -58,9 +60,13 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         // ilObjLanguageExt's admin-GUI methods that call them) now resolves a migrated module's
         // OVERLAY location from CLIENT_DATA_DIR - never from ILIAS_ABSOLUTE_PATH. A PHP constant
         // cannot be redefined, so this is guarded exactly like ILIAS_ABSOLUTE_PATH above.
-        if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
-        }
+        //
+        // Deliberately NOT resolved/defined here already: seedFixtureModule() below is the one place
+        // that actually writes fixture files under CLIENT_DATA_DIR, so it (not setUp()) is where a
+        // foreign, non-temp CLIENT_DATA_DIR from an earlier test in a full-suite run must skip rather
+        // than write there (see MigratedPoFixture::ensureClientDataDirDefinedOrSkip()) - and where
+        // testRefusesToWriteIntoAClientDataDirOutsideSysTempDir() below needs it to still be
+        // undefined when its own test body runs.
     }
 
     protected function tearDown(): void
@@ -98,6 +104,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         array $entries,
         array $changed_identifiers = []
     ): LanguageFileDirectory {
+        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->fixture_directory ??= 'tmp-admingui-values-fixtures-' . bin2hex(random_bytes(4));
         $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . $this->fixture_directory;
@@ -600,5 +607,32 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         $this->stubDatabase([['module' => 'common']]);
 
         $this->assertSame(['common'], ilObjLanguageExt::_getModules('de'));
+    }
+
+    /**
+     * A CLIENT_DATA_DIR that is not a test-owned temp directory (e.g. the real /var/iliasdata a
+     * full-suite run may already have defined, see MigratedPoFixture::ensureClientDataDirDefinedOrSkip())
+     * must never be written into by seedFixtureModule() - the test skips instead. Runs in its own
+     * process so this class' own setUp() (which would otherwise define CLIENT_DATA_DIR first in the
+     * shared process) cannot pre-empt the "not yet defined" starting point this test needs.
+     */
+    #[RunInSeparateProcess]
+    public function testRefusesToWriteIntoAClientDataDirOutsideSysTempDir(): void
+    {
+        $foreign_dir = __DIR__ . '/tmp-not-a-temp-dir-' . bin2hex(random_bytes(4));
+        $this->assertFalse(str_starts_with($foreign_dir, sys_get_temp_dir() . '/'));
+        mkdir($foreign_dir, 0775, true);
+        define('CLIENT_DATA_DIR', $foreign_dir);
+
+        try {
+            $this->seedFixtureModule('mtest', 'de', ['greeting' => ['value' => 'Hallo']]);
+            $this->fail('seedFixtureModule() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+        } catch (SkippedWithMessageException $e) {
+            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+        }
+
+        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+
+        rmdir($foreign_dir);
     }
 }

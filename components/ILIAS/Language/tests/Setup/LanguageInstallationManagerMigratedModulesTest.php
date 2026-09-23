@@ -256,6 +256,33 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     }
 
     /**
+     * The identifiers of $module dropped via the per-module "DELETE FROM lng_data ... AND module = ?
+     * AND identifier IN (...)" query (see applyLngDataDelete()) - i.e. what resolveMigratedModule()'s
+     * $delete_row callback actually removed, as opposed to a key that is merely absent from the
+     * current run's output because it was never touched.
+     *
+     * @return list<string>
+     */
+    private function droppedIdentifiers(string $module): array
+    {
+        $dropped = [];
+        foreach ($this->queries as $query) {
+            if (
+                preg_match(
+                    '/^DELETE FROM lng_data WHERE lang_key = Q\d+Q AND module = (Q\d+Q) AND identifier IN \(\'(.*)\'\)$/',
+                    $query,
+                    $matches
+                ) === 1
+                && $this->resolveToken($matches[1]) === $module
+            ) {
+                $dropped = array_merge($dropped, explode("','", $matches[2]));
+            }
+        }
+
+        return $dropped;
+    }
+
+    /**
      * @return array<string, array<string, string>> module => identifier => value
      */
     private function lngModules(): array
@@ -479,6 +506,130 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertNotNull(LocalChangeComments::getLocalChange($custom));
     }
 
+    // ------------------------------------- a key dropped from the shipped po
+
+    /**
+     * Catches: removing/weakening the `$previously_shipped_value !== null && $local_value ===
+     * $previously_shipped_value` guard in resolveMigratedModule()'s local-entries loop (~729-734), or
+     * dropping/breaking the per-module "DELETE FROM lng_data ... AND identifier IN (...)" it triggers
+     * (~614-621) - either would leave a stale, no-longer-shipped entry behind forever (in lng_data,
+     * lng_modules and the overlay). Exercised via insertLanguageForInstallation(), i.e. an update.
+     */
+    public function testAKeyDroppedFromTheShippedPoIsRemovedWhenItsLocalValueMatchesTheOriginal(): void
+    {
+        $this->shipPo(['farewell' => 'Tschüss']); // 'greeting' is no longer shipped
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Hallo']];
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertArrayNotHasKey('greeting', $this->lngModules()[self::MODULE]);
+        $this->assertSame(['greeting'], $this->droppedIdentifiers(self::MODULE));
+        $this->assertNull($this->overlayPo()->find(self::MODULE, 'greeting'), 'dropped from the overlay as well');
+    }
+
+    /**
+     * Catches: dropping every no-longer-shipped local entry unconditionally instead of only the ones
+     * whose local value still equals the previously shipped one - a real local change must survive a
+     * key disappearing from the shipped `.po`.
+     */
+    public function testAKeyDroppedFromTheShippedPoButWithARealLocalChangeIsKept(): void
+    {
+        $this->shipPo(['farewell' => 'Tschüss']);
+        $this->seedOverlay(['greeting' => [
+            'value' => 'Servus',
+            'original' => 'Hallo',
+            'local_change' => '2025-05-05T05:05:05Z',
+        ]]);
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Servus']];
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame('Servus', $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertSame([], $this->droppedIdentifiers(self::MODULE), 'a real local change is never dropped');
+        $this->assertSame('Servus', $this->overlayPo()->find(self::MODULE, 'greeting')->getTranslation());
+    }
+
+    /**
+     * Catches: treating a corrupt (unreadable) overlay as if it reported L === O, dropping a
+     * no-longer-shipped local entry the code cannot actually make any three-way decision about.
+     */
+    public function testAKeyDroppedFromTheShippedPoWithACorruptOverlayIsKept(): void
+    {
+        $this->expectErrorLog();
+        $this->shipPo(['farewell' => 'Tschüss']);
+        $this->seedOverlay(['farewell' => ['value' => 'Tschüss', 'original' => 'Tschüss']]);
+        file_put_contents($this->overlayBase() . '.po', "msgid \"kaputt\n");
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Hallo']];
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame('Hallo', $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertSame([], $this->droppedIdentifiers(self::MODULE));
+    }
+
+    /**
+     * Catches: the customized-guard being skipped in the local-entries loop, so a customizing value
+     * that happens to equal the previously shipped one gets dropped like an ordinary unchanged entry
+     * once its key disappears from the shipped `.po`. The customizing value is deliberately chosen
+     * equal to the overlay's preserved "original" - the exact condition the (non-customizing) drop
+     * logic reacts to - so only the $customized guard can be saving it here.
+     *
+     * Not asserted: the overlay's LocalChangeComments local-change marker for this entry -
+     * LocalChangeComments::refresh() does not set it when the written value equals the preserved
+     * "original" (here 'Hallo' === 'Hallo'), even though lng_data's local_change column is set
+     * regardless for anything from the customizing file; a separate, intentional bookkeeping quirk.
+     */
+    public function testACustomizingValueForAKeyDroppedFromTheShippedPoStaysLocal(): void
+    {
+        $this->shipPo(['farewell' => 'Tschüss']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['pilot#:#greeting#:#Hallo']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame('Hallo', $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertSame(['value' => 'Hallo', 'local_change' => self::NOW], $this->lngData()['pilot|greeting']);
+        $this->assertSame([], $this->droppedIdentifiers(self::MODULE));
+    }
+
+    /**
+     * Catches: MigratedLanguageFileSync::sync() re-taking (or losing) "original" from the shipped
+     * `.po` for an entry the `.po` currently does not contain (~185-192 there) - without the
+     * preserved O, the three-way decision made once the key ships again would see no O and wrongly
+     * keep the stale local value instead of correctly taking over the newly shipped one.
+     */
+    public function testAKeyThatReturnsAfterBeingUnshippedUsesThePreservedOriginalOnUpdate(): void
+    {
+        $this->shipPo(['farewell' => 'Tschüss']); // 'greeting' not shipped this run
+        $this->seedOverlay(['greeting' => [
+            'value' => 'Angepasst',
+            'original' => 'Hallo',
+            'local_change' => '2025-05-05T05:05:05Z',
+        ]]);
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Angepasst']];
+
+        $this->manager()->insertLanguageForInstallation('de');
+        $this->assertSame(
+            'Angepasst',
+            $this->lngModules()[self::MODULE]['greeting'],
+            'sanity: kept in run 1 because L != O'
+        );
+
+        $this->queries = [];
+        $this->shipPo(['greeting' => 'Neu', 'farewell' => 'Tschüss']); // the key ships again, with a new value
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Hallo']]; // reverted to the (preserved) original
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(
+            'Neu',
+            $this->lngModules()[self::MODULE]['greeting'],
+            'L === preserved O, only S changed -> S wins, thanks to the original surviving the unshipped run'
+        );
+        $this->assertSame(['value' => 'Neu', 'local_change' => null], $this->lngData()['pilot|greeting']);
+    }
+
     // ----------------------------------------------- remove / apply local
 
     public function testRemovingLocalChangesRebuildsTheOverlayFromTheShippedPo(): void
@@ -542,6 +693,82 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame('Grüß Gott', $greeting->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
+    }
+
+    /**
+     * Catches: dropping/weakening the pre-INSERT "DELETE FROM lng_data WHERE ... local_change IS
+     * NULL AND module IN (...)" ($delete_unchanged_migrated_rows, ~599-605) that
+     * insertLanguageForApplyingLocalChanges() relies on instead of flushing first (~337-359): without
+     * it, a shipped key dropped from the `.po` between two "apply local changes" runs keeps its stale
+     * row forever. Combined in one run with a real local change, an overlay-only local change, an
+     * updated-but-unchanged entry and a non-migrated module, so a fix narrowed to only one of them
+     * would still be caught.
+     */
+    public function testApplyingLocalChangesReconcilesEveryCaseInOneSweepAndPurgesTheStaleUnchangedRow(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo', 'farewell' => 'Tschüss', 'obsolete' => 'Alt']);
+        $this->manager()->insertLanguageForInstallation('de');
+        $this->assertSame(
+            ['value' => 'Alt', 'local_change' => null],
+            $this->lngData()['pilot|obsolete'],
+            'sanity: the row exists after the first install'
+        );
+
+        $this->shipPo(['greeting' => 'Servus', 'farewell' => 'Pfiat di']); // 'obsolete' dropped from the shipped po
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
+            'farewell' => ['value' => 'Auf Wiedersehen', 'original' => 'Tschüss', 'local_change' => '2025-04-04T04:04:04Z'],
+            'added_locally' => ['value' => 'Eigene Var', 'local_change' => '2025-03-03T03:03:03Z'],
+        ]);
+        $this->db_local_changes = [self::MODULE => ['farewell' => 'Auf Wiedersehen']];
+        $this->db_entries = [
+            'common' => ['yes' => 'Ja', 'no' => 'Nein'],
+            self::MODULE => ['greeting' => 'Hallo', 'farewell' => 'Tschüss', 'obsolete' => 'Alt'],
+        ];
+
+        $this->manager()->insertLanguageForApplyingLocalChanges('de');
+
+        $this->assertSame(
+            'Servus',
+            $this->lngModules()[self::MODULE]['greeting'],
+            'stored "Hallo", shipped now "Servus" -> "Servus"'
+        );
+        $this->assertSame(
+            'Auf Wiedersehen',
+            $this->lngModules()[self::MODULE]['farewell'],
+            'a real local change (L != S != O) is kept'
+        );
+        $this->assertSame(
+            'Eigene Var',
+            $this->lngModules()[self::MODULE]['added_locally'],
+            'an overlay-only local change is taken over'
+        );
+        $this->assertArrayNotHasKey('obsolete', $this->lngModules()[self::MODULE]);
+        $this->assertSame(
+            ['yes' => 'Ja', 'no' => 'Nein'],
+            $this->lngModules()['common'],
+            'a non-migrated module in the seed stays complete'
+        );
+
+        $this->assertSame(['value' => 'Servus', 'local_change' => null], $this->lngData()['pilot|greeting']);
+        $this->assertSame(
+            ['value' => 'Eigene Var', 'local_change' => '2025-03-03 03:03:03'],
+            $this->lngData()['pilot|added_locally']
+        );
+        $this->assertArrayNotHasKey(
+            'pilot|obsolete',
+            $this->lngData(),
+            'the DELETE ... local_change IS NULL bulk purge took effect: the stale unchanged row is gone'
+        );
+        $this->assertNotEmpty(
+            array_filter(
+                $this->queries,
+                static fn(string $q): bool => str_starts_with($q, 'DELETE FROM lng_data')
+                    && str_contains($q, 'local_change IS NULL')
+                    && str_contains($q, "module IN ('pilot')")
+            ),
+            'the bulk delete of unchanged migrated rows was actually issued'
+        );
     }
 
     // ------------------------------------------------- after the DB write

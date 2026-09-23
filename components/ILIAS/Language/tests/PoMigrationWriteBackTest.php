@@ -22,6 +22,8 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
  * Covers the PO/MO pilot's write-back path: ilObjLanguage::replaceLangModule() - the primitive every
@@ -55,11 +57,16 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         }
         // MigratedLanguageFileSync's overlay location (see this class' own docblock) is rooted at the
         // CLIENT_DATA_DIR constant, never at ILIAS_ABSOLUTE_PATH. A PHP constant cannot be redefined,
-        // so this is guarded exactly like
-        // ILIAS_ABSOLUTE_PATH above - see PoMigrationLoadLanguageModuleTest.php for the same pattern.
-        if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
-        }
+        // so this is guarded exactly like ILIAS_ABSOLUTE_PATH above - see
+        // PoMigrationLoadLanguageModuleTest.php for the same pattern.
+        //
+        // Deliberately NOT resolved/defined here already: ensureClientDataDir() below (called from
+        // bootstrapOverlayFromShipped(), the one place that actually writes fixture files under
+        // CLIENT_DATA_DIR) is where a foreign, non-temp CLIENT_DATA_DIR from an earlier test in a
+        // full-suite run must skip rather than write there (see
+        // MigratedPoFixture::ensureClientDataDirDefinedOrSkip()), and where
+        // testRefusesToWriteIntoAClientDataDirOutsideSysTempDir() below needs it to still be undefined
+        // when its own test body runs.
 
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
     }
@@ -153,8 +160,14 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
      * $refresh_original_from_shipped to MigratedLanguageFileSync::sync() (false for an ordinary admin
      * edit): the "original" baseline of an existing overlay is kept, see sync()'s docblock.
      */
+    private function ensureClientDataDir(): void
+    {
+        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+    }
+
     private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
     {
+        $this->ensureClientDataDir();
         $overlay_base = $this->overlayBase($module, $lang_key);
         if (!is_dir(dirname($overlay_base))) {
             mkdir(dirname($overlay_base), 0775, true);
@@ -301,6 +314,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
     public function testIsANoOpWhenTheModuleHasNoContributedDirectory(): void
     {
+        $this->ensureClientDataDir();
         $this->stubDatabaseForReplaceLangModule();
         $directory = $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
         $this->registerDirectoryManager($directory);
@@ -434,5 +448,33 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $this->assertNotNull($translation);
         $this->assertNull(LocalChangeComments::getOriginal($translation));
         $this->assertNotNull(LocalChangeComments::getLocalChange($translation));
+    }
+
+    /**
+     * A CLIENT_DATA_DIR that is not a test-owned temp directory (e.g. the real /var/iliasdata a
+     * full-suite run may already have defined, see MigratedPoFixture::ensureClientDataDirDefinedOrSkip())
+     * must never be written into by bootstrapOverlayFromShipped() - the test skips instead. Runs in its
+     * own process so this class' own tests (which would otherwise define CLIENT_DATA_DIR first in the
+     * shared process) cannot pre-empt the "not yet defined" starting point this test needs.
+     */
+    #[RunInSeparateProcess]
+    public function testRefusesToWriteIntoAClientDataDirOutsideSysTempDir(): void
+    {
+        $foreign_dir = __DIR__ . '/tmp-not-a-temp-dir-' . bin2hex(random_bytes(4));
+        $this->assertFalse(str_starts_with($foreign_dir, sys_get_temp_dir() . '/'));
+        mkdir($foreign_dir, 0775, true);
+        define('CLIENT_DATA_DIR', $foreign_dir);
+
+        $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
+        try {
+            $this->bootstrapOverlayFromShipped('wtest', 'de');
+            $this->fail('bootstrapOverlayFromShipped() must refuse to write into a CLIENT_DATA_DIR outside sys_get_temp_dir().');
+        } catch (SkippedWithMessageException $e) {
+            $this->assertStringContainsString($foreign_dir, $e->getMessage());
+        }
+
+        $this->assertSame([], array_diff(scandir($foreign_dir) ?: [], ['.', '..']));
+
+        rmdir($foreign_dir);
     }
 }

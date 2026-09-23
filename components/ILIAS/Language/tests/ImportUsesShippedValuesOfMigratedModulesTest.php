@@ -57,7 +57,6 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
 
         foreach ([
             'ILIAS_ABSOLUTE_PATH' => realpath(__DIR__ . '/../../../../'),
-            'CLIENT_DATA_DIR' => sys_get_temp_dir() . '/ilias_lang_test_client_data_dir',
             'ILIAS_HTTP_PATH' => 'http://localhost',
             'ILIAS_VERSION' => 'test',
         ] as $name => $value) {
@@ -65,6 +64,11 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
                 define($name, $value);
             }
         }
+        // importLanguageFile() writes a migrated module's overlay under CLIENT_DATA_DIR on every test
+        // in this class - a foreign, non-temp CLIENT_DATA_DIR from an earlier test in a full-suite run
+        // must therefore skip rather than write there (see
+        // MigratedPoFixture::ensureClientDataDirDefinedOrSkip()).
+        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
