@@ -853,17 +853,6 @@ class ilObjLanguageExtGUITest extends TestCase
     // -----------------------------------------------------------------
 
     /**
-     * Regression/mutation coverage for S4: exercises the actual private
-     * ilObjLanguageExtGUI::importedMessage() (not just the Refinery
-     * transform it happens to use internally) via reflection, since a test
-     * that only re-runs the Refinery transform in isolation would pass even
-     * if importedMessage() stopped calling it at all. An uploaded file name
-     * containing HTML-significant characters must come out HTML-entity-
-     * escaped, not verbatim - while an ordinary file name is left unchanged
-     * - and in both cases the lng-provided text is still part of the
-     * resulting message.
-     */
-    /**
      * @return array<string, array{0: string, 1: \Closure}>
      */
     public static function importedMessageProvider(): array
@@ -886,6 +875,17 @@ class ilObjLanguageExtGUITest extends TestCase
         ];
     }
 
+    /**
+     * Regression/mutation coverage for S4: exercises the actual private
+     * ilObjLanguageExtGUI::importedMessage() (not just the Refinery
+     * transform it happens to use internally) via reflection, since a test
+     * that only re-runs the Refinery transform in isolation would pass even
+     * if importedMessage() stopped calling it at all. An uploaded file name
+     * containing HTML-significant characters must come out HTML-entity-
+     * escaped, not verbatim - while an ordinary file name is left unchanged
+     * - and in both cases the lng-provided text is still part of the
+     * resulting message.
+     */
     #[DataProvider('importedMessageProvider')]
     public function testImportedMessageEscapesHtmlSignificantCharactersAndKeepsTheLngText(
         string $file_name,

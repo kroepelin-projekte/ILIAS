@@ -32,9 +32,13 @@ use RuntimeException;
  * confinement check and the later tempnam()/fopen()/rename() operate on path names. Whoever can
  * replace a directory component of $file by a symbolic link exactly between the check and one of
  * these calls can still redirect the write. This needs write access to the confined directory
- * (i.e. the web server user) and is detected afterwards: the directory of $file is resolved again
- * after the rename(), and a result outside $confine_to_directory removes the written file and
- * throws.
+ * (i.e. the web server user). After the rename() the directory of $file is resolved again; if it
+ * then lies outside $confine_to_directory, the write throws, and the file at $file is removed only
+ * if it is the one just written (same inode and device) - never a foreign file the link now points
+ * to. That check is best effort: a link swapped in and restored again before it stays undetected.
+ * The same residual risk covers the overlay lock file: the fopen($lock_file, 'c') of
+ * MigratedLanguageFileSync::acquireLock() can create an empty file at the target of a link swapped
+ * in after its check.
  */
 final class AtomicFileWriter
 {
@@ -77,7 +81,7 @@ final class AtomicFileWriter
         }
 
         try {
-            self::writeDurably($temporary, $content);
+            $written_identity = self::writeDurably($temporary, $content);
             // tempnam() creates the file with mode 0600: an existing target keeps its mode, a new
             // one gets what a plain file_put_contents() would create
             clearstatcache(true, $file);
@@ -99,11 +103,18 @@ final class AtomicFileWriter
         if ($resolved_root !== null) {
             clearstatcache(true);
             if (!self::isAtOrBelow(realpath(dirname($file)), $resolved_root)) {
-                @unlink($file);
+                // only the file written here - a link swapped in after a correct rename() would
+                // otherwise let this unlink() remove a foreign file of the same name
+                $current = @lstat($file);
+                $removed = $current !== false
+                    && $current['ino'] === $written_identity['ino']
+                    && $current['dev'] === $written_identity['dev']
+                    && @unlink($file);
                 throw new RuntimeException(sprintf(
-                    '"%s" no longer resolves to a path below "%s" after writing it - the written file was removed.',
+                    '"%s" no longer resolves to a path below "%s" after writing it - %s.',
                     $file,
-                    $confine_to_directory
+                    $confine_to_directory,
+                    $removed ? 'the written file was removed' : 'nothing was removed'
                 ));
             }
         }
@@ -155,8 +166,10 @@ final class AtomicFileWriter
     /**
      * Writes $content to $file and flushes it to the storage device before returning, so the
      * rename() that follows can never publish a file whose content is not persisted yet.
+     *
+     * @return array{ino: int, dev: int} identity of the written file (fstat() of the handle used)
      */
-    private static function writeDurably(string $file, string $content): void
+    private static function writeDurably(string $file, string $content): array
     {
         $handle = @fopen($file, 'wb');
         if ($handle === false) {
@@ -175,6 +188,12 @@ final class AtomicFileWriter
             if (!fflush($handle) || !fsync($handle)) {
                 throw new RuntimeException(sprintf('Could not flush "%s" to disk.', $file));
             }
+            $stat = fstat($handle);
+            if ($stat === false) {
+                throw new RuntimeException(sprintf('Could not stat "%s".', $file));
+            }
+
+            return ['ino' => $stat['ino'], 'dev' => $stat['dev']];
         } finally {
             fclose($handle);
         }

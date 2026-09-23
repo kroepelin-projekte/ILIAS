@@ -73,7 +73,8 @@ Further rules of the pilot:
   entries, "add new variable") are applied to the current overlay content read under that lock.
   The `.lock` files of installed languages are kept; uninstalling a language (or plugin) removes
   them together with the overlay, while holding the lock (a process that was waiting for it
-  notices the removal and locks the new file instead).
+  notices the removal and locks the new file instead; if the lock file keeps being removed or
+  replaced, it gives up after a few attempts, logs a warning and writes without the lock).
 * Known limitation: Setup and "apply local changes" read a module's overlay for the reconciliation
   without the lock (only the final overlay write is locked), and write `lng_data`/`lng_modules` in
   one batch for all modules. An administrator's edit of the same module made during such a run can
@@ -84,7 +85,10 @@ Further rules of the pilot:
   no `openat()`/`O_NOFOLLOW` -, so a link swapped in between the check and the file operation is
   still followed. That requires write access below `<client data dir>/lang` (the web server user).
   An overlay write is re-checked after its `rename()`: if its directory then resolves outside of
-  the overlay root, the written file is removed and the write fails.
+  the overlay root, the write fails, and the file is removed if it is the one just written (never a
+  foreign file the link points to). This re-check is best effort - a link swapped in and restored
+  again before it stays undetected -, and opening the lock file can create an empty file at the
+  target of a link swapped in after the check.
 * A module counts as migrated for a language only while its shipped `<module>_<lang>.po` exists. If
   it is removed, the overlay is no longer read (the database is served instead) but is kept
   unchanged - no write, neither an update nor a GUI save, touches it. Once the `.po` is back, the

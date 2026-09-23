@@ -396,8 +396,10 @@ final class MigratedLanguageFileSync
      * $client_data_dir is `null`, the overlay directory does not exist and $module is not migrated
      * for $lang_key (no directory is created for a module that has no overlay), or the lock file
      * cannot be created/opened (e.g. a directory the current user cannot write to - the overlay
-     * write itself then fails and is reported by the caller). The lock file is only removed by
-     * removeOverlay() (uninstall), while holding its lock; acquireLock() detects such a removal.
+     * write itself then fails and is reported by the caller), or the lock file was removed or
+     * replaced on each of LOCK_ATTEMPTS attempts (logged, see acquireLock()). The lock file is only
+     * removed by removeOverlay() (uninstall), while holding its lock; acquireLock() detects such a
+     * removal.
      *
      * @template T
      * @param \Closure():T $callback
@@ -478,8 +480,10 @@ final class MigratedLanguageFileSync
      *
      * @return resource|null `null` if the lock file cannot be created or opened (the callback then
      *         runs unlocked; the overlay write itself fails for the same reason - missing permission,
-     *         or a refused symbolic link - and is reported by the caller)
-     * @throws RuntimeException if the lock file was replaced on every one of LOCK_ATTEMPTS attempts
+     *         or a refused symbolic link - and is reported by the caller), and also - logged as a
+     *         warning - if it was removed or replaced on every one of LOCK_ATTEMPTS attempts: like
+     *         the other "no lock" cases the callback then runs unlocked instead of aborting a write
+     *         whose `lng_data` part may already be done
      */
     private static function acquireLock(string $lock_file, string $client_data_dir)
     {
@@ -507,11 +511,27 @@ final class MigratedLanguageFileSync
             fclose($handle);
         }
 
-        throw new RuntimeException(sprintf(
-            'Could not lock "%s": it was removed or replaced on each of %d attempts.',
+        self::logWarning(sprintf(
+            'Could not lock "%s": it was removed or replaced on each of %d attempts - continuing without the lock.',
             $lock_file,
             self::LOCK_ATTEMPTS
         ));
+
+        return null;
+    }
+
+    /**
+     * Logs to the `lang` component logger if the logging service is available (not in every Setup
+     * context), to the PHP error log otherwise.
+     */
+    private static function logWarning(string $message): void
+    {
+        global $DIC;
+        if ($DIC instanceof \ILIAS\DI\Container && $DIC->offsetExists('ilLoggerFactory')) {
+            $DIC->logger()->forComponent('lang')->warning($message);
+            return;
+        }
+        error_log($message);
     }
 
     /**
@@ -743,7 +763,11 @@ final class MigratedLanguageFileSync
      * openat()/O_NOFOLLOW to bind the following fopen()/mkdir()/unlink() to the checked components.
      * A link swapped in between the check and that call is followed. Doing so needs write access
      * below the overlay root (i.e. the web server user); writes are re-checked afterwards (see
-     * AtomicFileWriter, ensureDirectoryExists(), acquireLock()).
+     * AtomicFileWriter, ensureDirectoryExists(), acquireLock()), but only on a best-effort basis:
+     * - a link swapped in and restored again before such a re-check stays undetected;
+     * - acquireLock()'s fopen($lock_file, 'c') follows a link swapped in after the check and can
+     *   thereby create an empty file at the link target (the re-check afterwards only refuses to
+     *   use it as lock).
      *
      * @throws RuntimeException for a link, or a $path outside the overlay root
      */

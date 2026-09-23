@@ -58,6 +58,15 @@ use PHPUnit\Framework\MockObject\MockObject;
 class PoLastLocalChangeTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    /**
+     * True exactly when this test's own call to guardClientDataDirIsTestOwned() defined
+     * CLIENT_DATA_DIR itself (as opposed to a pre-existing, foreign definition it merely reused) -
+     * see tearDown(). With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated root this test created is always cleaned up again instead of accumulating one
+     * leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
 
     protected function setUp(): void
     {
@@ -94,6 +103,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         }
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+            $this->created_client_data_dir_root = true;
         }
     }
 
@@ -105,6 +115,12 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         }
         if (isset($this->fixture_directory)) {
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . basename($this->fixture_directory));
+        }
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see guardClientDataDirIsTestOwned()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
         }
 
         parent::tearDown();

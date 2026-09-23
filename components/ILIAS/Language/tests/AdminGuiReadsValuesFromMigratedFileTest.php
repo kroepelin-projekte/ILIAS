@@ -56,6 +56,15 @@ use PHPUnit\Framework\SkippedWithMessageException;
 class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    /**
+     * True exactly when this test's own call to MigratedPoFixture::ensureClientDataDirDefinedOrSkip()
+     * defined CLIENT_DATA_DIR itself (as opposed to a pre-existing, foreign definition it merely
+     * reused) - see tearDown(). With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated, uniquely-named root this test created is always cleaned up again instead of
+     * accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
     /** @var list<array{0: string, 1: string}> column and value of every ilDBInterface::like() call */
     private array $like_calls = [];
     /** @var list<string> every query _getValues() sent */
@@ -92,6 +101,12 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
             }
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
         }
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
+        }
 
         parent::tearDown();
     }
@@ -116,7 +131,8 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         array $entries,
         array $changed_identifiers = []
     ): LanguageFileDirectory {
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
         $this->fixture_directory ??= 'tmp-admingui-values-fixtures-' . bin2hex(random_bytes(4));
         $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . $this->fixture_directory;
@@ -278,7 +294,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         // No fixture is written here, but CLIENT_DATA_DIR is still passed on to
         // loadModuleTranslations() below - it must be resolved (and test-owned) exactly like every
         // other test in this class, even though nothing ends up being read from it.
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory());
 
         $this->assertNull(

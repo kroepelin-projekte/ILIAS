@@ -59,6 +59,15 @@ use PHPUnit\Framework\SkippedWithMessageException;
 class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    /**
+     * True exactly when this test's own call to MigratedPoFixture::ensureClientDataDirDefinedOrSkip()
+     * (via ensureClientDataDir()) defined CLIENT_DATA_DIR itself (as opposed to a pre-existing,
+     * foreign definition it merely reused) - see tearDown(). With every test running in its own
+     * process (see this class' own #[RunTestsInSeparateProcesses]), this is true for every ordinary
+     * test run, so the freshly generated, uniquely-named root this test created is always cleaned up
+     * again instead of accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
 
     protected function setUp(): void
     {
@@ -95,6 +104,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         if (isset($this->fixture_directory) && is_dir($overlay_dir)) {
             array_map('unlink', glob($overlay_dir . '/*') ?: []);
             rmdir($overlay_dir);
+        }
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
         }
 
         parent::tearDown();
@@ -174,7 +189,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
      */
     private function ensureClientDataDir(): void
     {
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
     }
 
     private function bootstrapOverlayFromShipped(string $module, string $lang_key): void

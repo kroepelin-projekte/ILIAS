@@ -58,6 +58,15 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
     private ?string $plugin_root_directory = null;
+    /**
+     * True exactly when this test's own call to ensureClientDataDirDefined() defined CLIENT_DATA_DIR
+     * itself (as opposed to a pre-existing, foreign definition it merely reused) - see tearDown().
+     * With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated, uniquely-named root this test created is always cleaned up again instead of
+     * accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
 
     protected function setUp(): void
     {
@@ -77,16 +86,19 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             $this->removeDirectoryRecursively($this->plugin_root_directory);
         }
 
-        // Deliberately never deletes CLIENT_DATA_DIR itself (a regression guard for a real incident:
-        // an earlier version of this method recursively deleted the whole CLIENT_DATA_DIR whenever it
-        // was merely defined() - in a full-suite run that constant was the real, pre-existing
-        // /var/iliasdata, which got wiped). Instead it deletes only the one subdirectory this specific
-        // test method's fixture ever wrote to (see overlayFixtureDirectory()) - a directory this test
-        // is guaranteed to have created itself, since its name is derived from $this->fixture_directory
-        // (a fresh random name per test method, see seedShippedModule()).
+        // Regression guard for a real incident: an earlier version of this method recursively deleted
+        // the whole CLIENT_DATA_DIR whenever it was merely defined() - in a full-suite run that
+        // constant was the real, pre-existing /var/iliasdata, which got wiped. It must therefore only
+        // ever delete a CLIENT_DATA_DIR this test itself created (tracked by
+        // $created_client_data_dir_root, set exactly once by ensureClientDataDirDefined() - see there);
+        // a foreign, pre-existing definition is left completely untouched, still only ever having its
+        // own uniquely-named subdirectory (see overlayFixtureDirectory()) removed, exactly as before.
         $overlay_fixture_dir = $this->overlayFixtureDirectory();
         if ($overlay_fixture_dir !== null && is_dir($overlay_fixture_dir)) {
             $this->removeDirectoryRecursively($overlay_fixture_dir);
+        }
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
         }
 
         parent::tearDown();
@@ -149,6 +161,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         }
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_plugin_uninstall_mo_test_' . bin2hex(random_bytes(4)));
+            $this->created_client_data_dir_root = true;
         }
     }
 

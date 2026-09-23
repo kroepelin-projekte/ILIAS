@@ -54,6 +54,15 @@ use PHPUnit\Framework\MockObject\Stub;
 class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    /**
+     * True exactly when this test's own call to MigratedPoFixture::ensureClientDataDirDefinedOrSkip()
+     * defined CLIENT_DATA_DIR itself (as opposed to a pre-existing, foreign definition it merely
+     * reused) - see tearDown(). With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated, uniquely-named root this test created is always cleaned up again instead of
+     * accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
 
     protected function setUp(): void
     {
@@ -62,7 +71,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
@@ -75,6 +84,12 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
             MigratedPoFixture::removeDirectory(
                 rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
             );
+        }
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
         }
 
         parent::tearDown();

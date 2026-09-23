@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Language\Tests\ComponentTranslation;
 
 use ILIAS\Language\ComponentTranslation\AtomicFileWriter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -119,9 +120,8 @@ class AtomicFileWriterTest extends TestCase
     /**
      * grantsAtLeast() is the pure decision acceptUnchangeableMode() delegates to: whether every
      * permission bit $intended_mode grants is also granted by $effective_mode.
-     *
-     * @dataProvider grantsAtLeastProvider
      */
+    #[DataProvider('grantsAtLeastProvider')]
     public function testGrantsAtLeast(int $effective_mode, int $intended_mode, bool $expected): void
     {
         $this->assertSame($expected, AtomicFileWriter::grantsAtLeast($effective_mode, $intended_mode));
@@ -141,6 +141,47 @@ class AtomicFileWriterTest extends TestCase
         ];
     }
 
+    /**
+     * The happy path of $confine_to_directory: a target that genuinely resolves inside it must write
+     * normally - both the pre-write check (line ~61) and the post-rename re-check (line ~103) must
+     * pass without throwing when nothing about the directory changes in between.
+     */
+    public function testConfineToDirectoryAllowsAWriteWhoseTargetResolvesInsideIt(): void
+    {
+        AtomicFileWriter::write($this->directory . '/target.po', 'x', $this->directory);
+
+        $this->assertSame('x', file_get_contents($this->directory . '/target.po'));
+        $this->assertSame(['target.po'], $this->directoryListing());
+    }
+
+    /**
+     * Mutation: the pre-write confinement check (`!self::isAtOrBelow(realpath($directory), $resolved_root)`)
+     * being dropped, inverted, or only applied after already writing something - a target whose
+     * directory resolves OUTSIDE $confine_to_directory must be refused up front, before any temporary
+     * file is even created, so nothing is written anywhere.
+     */
+    public function testConfineToDirectoryThrowsWhenTheTargetResolvesOutsideIt(): void
+    {
+        $outside = dirname($this->directory) . '/ilias_atomic_outside_' . bin2hex(random_bytes(4));
+        mkdir($outside, 0775);
+        $confine_to = $this->directory . '/allowed';
+        mkdir($confine_to, 0775);
+
+        try {
+            try {
+                AtomicFileWriter::write($outside . '/target.po', 'x', $confine_to);
+                $this->fail('Expected a RuntimeException');
+            } catch (RuntimeException $e) {
+                $this->assertStringContainsString('does not resolve to a path below', $e->getMessage());
+            }
+
+            $this->assertSame([], array_values(array_diff(scandir($outside) ?: [], ['.', '..'])), 'nothing must be written outside the confined directory');
+            $this->assertSame([], array_values(array_diff(scandir($confine_to) ?: [], ['.', '..'])), 'no temporary file must leak into the confined directory either');
+        } finally {
+            \MigratedPoFixture::removeDirectory($outside);
+        }
+    }
+
     // NOT COVERED: the post-rename confinement re-check in write() (the `if ($resolved_root !== null)`
     // block after the `rename()`, AtomicFileWriter.php ~99-109) actually firing. It only fires when
     // `realpath(dirname($file))` resolves DIFFERENTLY right after the rename() than it did in the
@@ -155,6 +196,18 @@ class AtomicFileWriterTest extends TestCase
     // could synchronize against - the whole tempnam()/chmod()/rename() sequence runs in well under a
     // millisecond, so a second process racing to swap a symlink would have to land inside that window
     // blindly. That could not be reproduced deterministically in this sandbox.
+    //
+    // Considered and rejected: swapping a symlinked directory component of $file to point outside
+    // (or to a directory with a same-named foreign file) either BEFORE or AFTER the write() call -
+    // both leave pre-check and post-check resolving the SAME thing (either both outside, which the
+    // pre-check already throws on before any write happens - see
+    // testConfineToDirectoryThrowsWhenTheTargetResolvesOutsideIt() above - or both inside/foreign,
+    // which the post-check has no reason to re-examine). Only a swap landing in the sub-millisecond
+    // window BETWEEN write()'s internal tempnam()/rename() calls makes the two resolutions disagree,
+    // and that is exactly the unreproducible race described above - MigratedLanguageFileSyncLockTest's
+    // /proc-synchronized child-process technique does not transfer here because it relies on the
+    // production code blocking on flock() long enough to observe and react to; write() has no such
+    // blocking primitive to synchronize against.
 
     // NOT COVERED: acceptUnchangeableMode()'s "chmod() failed, but the effective mode already grants
     // at least as much as intended -> no exception" vs. "... grants less -> RuntimeException" branching

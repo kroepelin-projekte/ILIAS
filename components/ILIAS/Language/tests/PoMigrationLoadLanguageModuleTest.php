@@ -99,11 +99,27 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         }
         $this->created_real_tos_mo = null;
 
+        // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
+        // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
+        // $created_client_data_dir_root's).
+        if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
+            MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
+        }
+
         parent::tearDown();
     }
 
     private ?string $fixture_directory = null;
     private ?string $created_real_tos_mo = null;
+    /**
+     * True exactly when this test's own call to MigratedPoFixture::ensureClientDataDirDefinedOrSkip()
+     * defined CLIENT_DATA_DIR itself (as opposed to a pre-existing, foreign definition it merely
+     * reused) - see tearDown(). With every test running in its own process (see this class' own
+     * #[RunTestsInSeparateProcesses]), this is true for every ordinary test run, so the freshly
+     * generated, uniquely-named root this test created is always cleaned up again instead of
+     * accumulating one leftover temp directory per test method.
+     */
+    private bool $created_client_data_dir_root = false;
 
     /**
      * The pilot script (convert_module_to_po.php) only ever produces .pot/.po - the compiled .mo is a
@@ -120,7 +136,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     private function ensureRealTosDeMoFileExists(): void
     {
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
         $shipped_po = ILIAS_ABSOLUTE_PATH . '/components/ILIAS/TermsOfService/lang/tos_de.po';
         $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/TermsOfService/lang';
         $mo_path = $overlay_dir . '/tos_de.mo';
@@ -148,7 +165,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog $translations): LanguageFileDirectory
     {
-        MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
@@ -562,6 +580,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
             'first_half' => substr($mo, 0, intdiv(strlen($mo), 2)),
             'all_but_last_3_bytes' => substr($mo, 0, -3),
             'empty' => '',
+            default => throw new \LogicException('Unknown truncation strategy "' . $strategy . '".'),
         };
     }
 

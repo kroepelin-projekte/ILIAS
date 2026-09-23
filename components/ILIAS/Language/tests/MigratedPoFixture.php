@@ -171,8 +171,14 @@ final class MigratedPoFixture
      * pattern UninstallRemovesMigratedMoFilesTest::ensureClientDataDirDefined() established first, now
      * centralised for every other migrated-PO fixture that needs the same guard. Only ever defines the
      * constant itself when nobody else has - never assumes exclusive ownership of it.
+     *
+     * @return bool true exactly the one time this call itself defines CLIENT_DATA_DIR (the caller then
+     *         solely owns that root for the rest of this process and may remove it entirely in
+     *         tearDown()); false when it was already defined - by an earlier call from the very same
+     *         test (still test-owned, but not the one that has to delete the root) or, in a full-suite
+     *         run without process isolation, by a foreign test that must never be deleted at all.
      */
-    public static function ensureClientDataDirDefinedOrSkip(\PHPUnit\Framework\TestCase $test): void
+    public static function ensureClientDataDirDefinedOrSkip(\PHPUnit\Framework\TestCase $test): bool
     {
         if (defined('CLIENT_DATA_DIR') && !str_starts_with(CLIENT_DATA_DIR, sys_get_temp_dir() . '/')) {
             $test->markTestSkipped(
@@ -182,7 +188,9 @@ final class MigratedPoFixture
         }
         if (!defined('CLIENT_DATA_DIR')) {
             define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+            return true;
         }
+        return false;
     }
 
     public static function removeDirectory(string $directory): void
