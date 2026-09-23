@@ -18,14 +18,14 @@
 
 declare(strict_types=1);
 
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 
 /**
  * Shared fixture helpers for the tests of modules migrated to PO/MO. Builds shipped/overlay files
- * with the component's gettext adapter (ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+ * with the component's gettext adapter (ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
  * and TranslationEntry) - the same classes production uses - so the fixtures never touch the
  * gettext/gettext library directly.
  */

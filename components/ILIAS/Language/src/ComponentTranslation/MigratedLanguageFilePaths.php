@@ -36,7 +36,7 @@ final class MigratedLanguageFilePaths
     /**
      * The format of an ILIAS language key, as used for the language files (`ilias_<key>.lang`).
      */
-    private const string LANGUAGE_KEY_FORMAT = '/^[a-z]{2}$/';
+    private const string LANGUAGE_KEY_FORMAT = '/^[a-z]{2}\z/';
 
     /**
      * The client data directory (CLIENT_DATA_DIR) of this installation, or `null` if it cannot be

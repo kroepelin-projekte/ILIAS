@@ -566,11 +566,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             }
 
             $this->setSuccessOrOverlayWarning(
-                // the client-supplied file name ends up in HTML - never unescaped
-                sprintf(
-                    $this->lng->txt("language_file_imported"),
-                    $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform((string) ($_FILES["userfile"]["name"] ?? ''))
-                ),
+                $this->importedMessage((string) ($_FILES["userfile"]["name"] ?? '')),
                 $modules_with_unwritten_overlay
             );
             $this->ctrl->redirect($this, "import");
@@ -578,6 +574,18 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $form->setValuesByPost();
         $this->tpl->setContent($form->getHTML());
+    }
+
+    /**
+     * The success message after importing the language file $file_name - the client-supplied file
+     * name ends up in HTML, so it is never used unescaped.
+     */
+    private function importedMessage(string $file_name): string
+    {
+        return sprintf(
+            $this->lng->txt("language_file_imported"),
+            $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform($file_name)
+        );
     }
 
     /**

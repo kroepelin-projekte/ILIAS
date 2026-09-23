@@ -134,7 +134,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      * real components, so this exercises the exact same code path in ilLanguage. Cleaned up in
      * tearDown().
      */
-    private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog $translations): LanguageFileDirectory
+    private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog $translations): LanguageFileDirectory
     {
         MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
@@ -441,7 +441,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     public function testACorruptOverlayMoFallsBackToTheDatabaseAndWarnsOnce(): void
     {
-        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
         $directory = $this->contributeFixtureModule('broken', $catalog);
         $mo_file = $this->fixture_directory . '/broken_de.mo';
@@ -484,7 +484,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     public function testACorruptOverlayMoWithoutLoggerIsReportedViaErrorLog(): void
     {
         $this->expectErrorLog();
-        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
         $directory = $this->contributeFixtureModule('broken', $catalog);
         file_put_contents($this->fixture_directory . '/broken_de.mo', 'not a mo file at all, but long enough');
@@ -544,10 +544,10 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     public function testLogsACrossModuleKeyCollisionInsteadOfSilentlyOverwritingIt(): void
     {
-        $alpha = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $alpha = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         $alpha->add(MigratedPoFixture::entry('alpha', 'shared_key', 'Value from alpha'));
 
-        $beta = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $beta = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         $beta->add(MigratedPoFixture::entry('beta', 'shared_key', 'Value from beta'));
 
         $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));

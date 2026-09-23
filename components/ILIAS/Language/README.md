@@ -51,9 +51,10 @@ not the default the administration GUI compares with. Each installation keeps it
 path maintains; the database tables are still written as a rollback-safe fallback.
 
 The `.po`/`.mo` files are read and written with the library `gettext/gettext`, which MUST only be
-used through the adapter `ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog`/
-`TranslationEntry` (no `Gettext\...` imports elsewhere, no use of the library's `Scanner`), so a
-change of the library version stays local and the adapter's safeguards always apply.
+used through the adapter in `src/ComponentTranslation/Catalog/`
+(`ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog`/`TranslationEntry`): only these
+two classes import from `Gettext\...`, and the library's `Scanner` is not used, so a change of the
+library version stays local and the adapter's safeguards always apply.
 
 **Operating requirement: Setup MUST be run as the web server user** (the owner of the client data
 directory); running it as root is not supported. Both Setup and the administration GUI (i.e. the
@@ -70,17 +71,29 @@ Further rules of the pilot:
 * Writes to a module's database row and its overlay are serialized per module and language by an
   exclusive lock on `<overlay>.lock` next to the overlay; partial writes (saving or deleting single
   entries, "add new variable") are applied to the current overlay content read under that lock.
+  The `.lock` files of installed languages are kept; uninstalling a language (or plugin) removes
+  them together with the overlay, while holding the lock (a process that was waiting for it
+  notices the removal and locks the new file instead).
 * Known limitation: Setup and "apply local changes" read a module's overlay for the reconciliation
   without the lock (only the final overlay write is locked), and write `lng_data`/`lng_modules` in
   one batch for all modules. An administrator's edit of the same module made during such a run can
   therefore be overwritten by it (lost update).
 * Symbolic links below `<client data dir>/lang` are never followed: an overlay write, lock or
   removal through one is refused and reported like any other overlay write failure.
+* Known limitation (accepted residual risk): the symbolic link checks work on path names - PHP has
+  no `openat()`/`O_NOFOLLOW` -, so a link swapped in between the check and the file operation is
+  still followed. That requires write access below `<client data dir>/lang` (the web server user).
+  An overlay write is re-checked after its `rename()`: if its directory then resolves outside of
+  the overlay root, the written file is removed and the write fails.
 * A module counts as migrated for a language only while its shipped `<module>_<lang>.po` exists. If
   it is removed, the overlay is no longer read (the database is served instead) but is kept
   unchanged - no write, neither an update nor a GUI save, touches it. Once the `.po` is back, the
   next update reconciles the overlay three-way with its preserved `original` values. An overlay is
   only deleted when its language is uninstalled (also when Setup uninstalls a deselected language).
+* Known limitation: a local change that only exists in the kept overlay - i.e. it was removed from
+  the database (e.g. "remove local changes") while the shipped `.po` was missing - comes back with
+  the next update after the `.po` has returned, because that reconciliation still finds it in the
+  overlay.
 * Install, update, "apply local changes" (`install_local`) and "remove local changes" all reconcile
   migrated modules with the shipped `.po` (see `LanguageInstallationManager::resolveMigratedModule()`);
   "apply local changes" only re-seeds the local changes of migrated modules and applies the

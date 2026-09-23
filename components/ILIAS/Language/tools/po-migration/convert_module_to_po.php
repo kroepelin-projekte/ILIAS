@@ -23,7 +23,7 @@ declare(strict_types=1);
  *
  * Reads the legacy `lang/ilias_<lang>.lang` files for one ILIAS language module and emits, via the
  * gettext/gettext library (through the language component's adapter
- * ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog, so the tool writes exactly what the
+ * ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog, so the tool writes exactly what the
  * runtime reads and writes, including the adapter's safeguards around the library):
  *   - A POT template (<module>.pot)
  *   - One PO file per shipped language (<module>_<lang>.po)
@@ -52,8 +52,8 @@ if (PHP_SAPI !== 'cli') {
 
 require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 
 /**
  * @return list<array{0: string, 1: string, 2: string}> [module, key, raw value] of every entry line
@@ -240,7 +240,7 @@ if ($lang_files === []) {
 $per_language = [];
 $duplicate_report = [];
 foreach ($lang_files as $file) {
-    if (preg_match('/ilias_([a-z]+)\.lang$/', $file, $m) !== 1) {
+    if (preg_match('/ilias_([a-z]+)\.lang\z/', $file, $m) !== 1) {
         fwrite(STDERR, "WARNING: skipping $file - no language key in its name.\n");
         continue;
     }

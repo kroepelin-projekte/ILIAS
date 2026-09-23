@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\ComponentTranslation\Gettext;
+namespace ILIAS\Language\ComponentTranslation;
 
 use RuntimeException;
 
@@ -27,13 +27,21 @@ use RuntimeException;
  * content: the data goes into a temporary file in the SAME directory (rename() is only atomic
  * within one filesystem) which then replaces the target via rename(). The data is flushed to disk
  * (fsync()) before the rename, and an existing target keeps its file mode.
+ *
+ * Accepted residual risk (TOCTOU, CWE-367): PHP offers no openat()/O_NOFOLLOW/renameat(), so the
+ * confinement check and the later tempnam()/fopen()/rename() operate on path names. Whoever can
+ * replace a directory component of $file by a symbolic link exactly between the check and one of
+ * these calls can still redirect the write. This needs write access to the confined directory
+ * (i.e. the web server user) and is detected afterwards: the directory of $file is resolved again
+ * after the rename(), and a result outside $confine_to_directory removes the written file and
+ * throws.
  */
 final class AtomicFileWriter
 {
     /**
      * @param string|null $confine_to_directory if given, $file must resolve (its directory via
      *        realpath()) to this directory or below it - so a symbolic link in between cannot
-     *        redirect the write elsewhere (CWE-59)
+     *        redirect the write elsewhere (CWE-59); checked before and again after the write
      * @throws RuntimeException if $file is a symbolic link, lies outside $confine_to_directory, or
      *         cannot be written
      */
@@ -43,14 +51,10 @@ final class AtomicFileWriter
             throw new RuntimeException(sprintf('Refusing to replace the symbolic link "%s".', $file));
         }
         $directory = dirname($file);
+        $resolved_root = null;
         if ($confine_to_directory !== null) {
             $resolved_root = realpath($confine_to_directory);
-            $resolved = realpath($directory);
-            if (
-                $resolved_root === false
-                || $resolved === false
-                || ($resolved !== $resolved_root && !str_starts_with($resolved, rtrim($resolved_root, '/') . '/'))
-            ) {
+            if ($resolved_root === false || !self::isAtOrBelow(realpath($directory), $resolved_root)) {
                 throw new RuntimeException(sprintf('"%s" does not resolve to a path below "%s".', $file, $confine_to_directory));
             }
         }
@@ -62,6 +66,7 @@ final class AtomicFileWriter
             $temporary === false
             || $resolved_directory === false
             || realpath(dirname($temporary)) !== $resolved_directory
+            || ($resolved_root !== null && !self::isAtOrBelow($resolved_directory, $resolved_root))
         ) {
             // tempnam() silently falls back to the system temp dir if $directory is not writable -
             // a rename() from there would no longer be atomic (or even possible)
@@ -88,6 +93,38 @@ final class AtomicFileWriter
             @unlink($temporary);
             throw $t;
         }
+
+        // a symbolic link swapped in between the check above and the rename() (see the class
+        // comment) - the written file must not stay where the link pointed to
+        if ($resolved_root !== null) {
+            clearstatcache(true);
+            if (!self::isAtOrBelow(realpath(dirname($file)), $resolved_root)) {
+                @unlink($file);
+                throw new RuntimeException(sprintf(
+                    '"%s" no longer resolves to a path below "%s" after writing it - the written file was removed.',
+                    $file,
+                    $confine_to_directory
+                ));
+            }
+        }
+    }
+
+    /**
+     * Whether a file with permission bits $effective_mode grants every permission $intended_mode
+     * grants (only the permission bits 07777 of $effective_mode count, e.g. a fileperms() result).
+     * Pure decision of acceptUnchangeableMode(), public for tests only.
+     *
+     * @internal
+     */
+    public static function grantsAtLeast(int $effective_mode, int $intended_mode): bool
+    {
+        return (($effective_mode & 07777) & $intended_mode) === $intended_mode;
+    }
+
+    private static function isAtOrBelow(string|false $resolved_path, string $resolved_root): bool
+    {
+        return $resolved_path !== false
+            && ($resolved_path === $resolved_root || str_starts_with($resolved_path, rtrim($resolved_root, '/') . '/'));
     }
 
     /**
@@ -99,7 +136,7 @@ final class AtomicFileWriter
     {
         clearstatcache(true, $file);
         $effective = @fileperms($file);
-        if ($effective === false || (($effective & 07777) & $mode) !== $mode) {
+        if ($effective === false || !self::grantsAtLeast($effective, $mode)) {
             throw new RuntimeException(sprintf(
                 'Could not set the mode of "%s" to %o, and its mode %s is more restrictive.',
                 $file,

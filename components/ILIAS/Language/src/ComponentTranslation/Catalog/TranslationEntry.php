@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\ComponentTranslation\Gettext;
+namespace ILIAS\Language\ComponentTranslation\Catalog;
 
 use Gettext\Translation;
 

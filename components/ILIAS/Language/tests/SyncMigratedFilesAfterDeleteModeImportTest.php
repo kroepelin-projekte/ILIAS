@@ -189,7 +189,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -260,12 +260,12 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
     }

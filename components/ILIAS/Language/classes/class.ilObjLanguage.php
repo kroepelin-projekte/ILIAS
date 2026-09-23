@@ -773,9 +773,10 @@ class ilObjLanguage extends ilObject
 
         $unserialied = unserialize($row["lang_array"], ["allowed_classes" => false]);
         if (!is_array($unserialied)) {
+            $escape = $DIC->refinery()->encode()->htmlSpecialCharsAsEntities();
             $DIC->ui()->mainTemplate()->setOnScreenMessage(
                 'failure',
-                "Data for module '" . $a_module . "' of  language '" . $a_key . "' is not correctly saved. " .
+                "Data for module '" . $escape->transform($a_module) . "' of  language '" . $escape->transform($a_key) . "' is not correctly saved. " .
                 "Please check the collation of your database tables lng_data and lng_modules. It must be utf8_unicode_ci.",
                 true
             );

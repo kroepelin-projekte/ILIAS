@@ -113,7 +113,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         }
 
         $now = new DateTimeImmutable('2026-01-02T03:04:05Z', new DateTimeZone('UTC'));
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $entry) {
             $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if (isset($entry['original'])) {

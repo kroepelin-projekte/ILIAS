@@ -18,11 +18,11 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\Tests\ComponentTranslation\Gettext;
+namespace ILIAS\Language\Tests\ComponentTranslation\Catalog;
 
 use Gettext\Translations;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;

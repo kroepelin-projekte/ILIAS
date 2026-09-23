@@ -22,9 +22,8 @@ namespace ILIAS\Language\ComponentTranslation;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use ILIAS\Language\ComponentTranslation\Gettext\AtomicFileWriter;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use RuntimeException;
 
 /**
@@ -47,6 +46,11 @@ use RuntimeException;
  */
 final class MigratedLanguageFileSync
 {
+    /**
+     * How often acquireLock() retries when the lock file it locked was removed or replaced meanwhile.
+     */
+    private const int LOCK_ATTEMPTS = 5;
+
     /**
      * The lock files this request currently holds, see withOverlayLock().
      *
@@ -349,8 +353,10 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * Removes the overlay `.po`+`.mo` pair of $module/$lang_key, if present (uninstalling a language
-     * or plugin). A no-op if $module is not a contributed directory or $client_data_dir is `null`.
+     * Removes the overlay `.po`+`.mo` pair of $module/$lang_key and its `.lock` file, if present
+     * (uninstalling a language or plugin). The lock file is deleted last, while its lock is still
+     * held; a process waiting for it notices that and retries on a new lock file (see acquireLock()).
+     * A no-op if $module is not a contributed directory or $client_data_dir is `null`.
      */
     public static function removeOverlay(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -364,15 +370,16 @@ final class MigratedLanguageFileSync
         }
 
         $base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
-        if (!is_file($base . '.mo') && !is_file($base . '.po')) {
+        if (!is_file($base . '.mo') && !is_file($base . '.po') && !is_file($base . '.lock')) {
             return;
         }
-        self::withOverlayLock(
-            $language_file_directory_manager,
+        self::lockAndRun(
+            $directory,
             $lang_key,
-            $module,
             $client_data_dir,
-            static fn() => self::removeOverlayFiles($base, $module, $lang_key, $client_data_dir)
+            static fn() => self::removeOverlayFiles($base, $module, $lang_key, $client_data_dir),
+            null,
+            true
         );
     }
 
@@ -389,8 +396,8 @@ final class MigratedLanguageFileSync
      * $client_data_dir is `null`, the overlay directory does not exist and $module is not migrated
      * for $lang_key (no directory is created for a module that has no overlay), or the lock file
      * cannot be created/opened (e.g. a directory the current user cannot write to - the overlay
-     * write itself then fails and is reported by the caller). The lock file is never removed:
-     * deleting a lock file other processes may still wait on would break the mutual exclusion.
+     * write itself then fails and is reported by the caller). The lock file is only removed by
+     * removeOverlay() (uninstall), while holding its lock; acquireLock() detects such a removal.
      *
      * @template T
      * @param \Closure():T $callback
@@ -413,6 +420,26 @@ final class MigratedLanguageFileSync
             return $callback();
         }
 
+        return self::lockAndRun($directory, $lang_key, $client_data_dir, $callback, $ilias_absolute_path, false);
+    }
+
+    /**
+     * withOverlayLock() for a resolved $directory; with $remove_lock_file the lock file is deleted
+     * after $callback succeeded, while the lock is still held - but only by the call that acquired
+     * the lock, never by a nested (re-entrant) one, whose caller still relies on it.
+     *
+     * @template T
+     * @param \Closure():T $callback
+     * @return T
+     */
+    private static function lockAndRun(
+        LanguageFileDirectory $directory,
+        string $lang_key,
+        string $client_data_dir,
+        \Closure $callback,
+        ?string $ilias_absolute_path,
+        bool $remove_lock_file
+    ): mixed {
         $lock_file = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key) . '.lock';
         if (isset(self::$held_locks[$lock_file])) {
             return $callback();
@@ -427,7 +454,14 @@ final class MigratedLanguageFileSync
         }
         self::$held_locks[$lock_file] = true;
         try {
-            return $callback();
+            $result = $callback();
+            if ($remove_lock_file) {
+                self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $lock_file);
+                if (!@unlink($lock_file) && file_exists($lock_file)) {
+                    throw new RuntimeException(sprintf('Could not remove the lock file "%s".', $lock_file));
+                }
+            }
+            return $result;
         } finally {
             unset(self::$held_locks[$lock_file]);
             flock($handle, LOCK_UN);
@@ -436,30 +470,63 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * @return resource|null
+     * Opens and exclusively locks $lock_file. A lock obtained on a file that removeOverlay()
+     * deleted (or replaced) while this process waited for it does not exclude anybody - a newcomer
+     * locks the new file at that path -, so after flock() the handle must still be the file at the
+     * path (same inode and device, compared without following a link); otherwise it is released
+     * and the whole attempt, including the symbolic link checks, is repeated.
+     *
+     * @return resource|null `null` if the lock file cannot be created or opened (the callback then
+     *         runs unlocked; the overlay write itself fails for the same reason - missing permission,
+     *         or a refused symbolic link - and is reported by the caller)
+     * @throws RuntimeException if the lock file was replaced on every one of LOCK_ATTEMPTS attempts
      */
     private static function acquireLock(string $lock_file, string $client_data_dir)
     {
-        // Without a lock the callback runs unlocked; the overlay write itself then fails for the
-        // same reason (missing permission, or a refused symbolic link) and is reported by the caller
-        try {
-            self::ensureDirectoryExists(dirname($lock_file), $client_data_dir);
-            self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $lock_file);
-        } catch (RuntimeException) {
-            return null;
-        }
-        // "r" as fallback: flock() needs no write access, so a lock file created by another user
-        // (e.g. a Setup run as root) still serializes
-        $handle = @fopen($lock_file, 'c') ?: @fopen($lock_file, 'r');
-        if ($handle === false) {
-            return null;
-        }
-        if (!flock($handle, LOCK_EX)) {
+        for ($attempt = 1; $attempt <= self::LOCK_ATTEMPTS; $attempt++) {
+            try {
+                self::ensureDirectoryExists(dirname($lock_file), $client_data_dir);
+                self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $lock_file);
+            } catch (RuntimeException) {
+                return null;
+            }
+            // "r" as fallback: flock() needs no write access, so a lock file created by another user
+            // (e.g. a Setup run as root) still serializes
+            $handle = @fopen($lock_file, 'c') ?: @fopen($lock_file, 'r');
+            if ($handle === false) {
+                return null;
+            }
+            if (!flock($handle, LOCK_EX)) {
+                fclose($handle);
+                return null;
+            }
+            if (self::isHandleOfPath($handle, $lock_file)) {
+                return $handle;
+            }
+            flock($handle, LOCK_UN);
             fclose($handle);
-            return null;
         }
 
-        return $handle;
+        throw new RuntimeException(sprintf(
+            'Could not lock "%s": it was removed or replaced on each of %d attempts.',
+            $lock_file,
+            self::LOCK_ATTEMPTS
+        ));
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private static function isHandleOfPath($handle, string $path): bool
+    {
+        clearstatcache(true, $path);
+        $opened = fstat($handle);
+        $current = @lstat($path);
+
+        return $opened !== false
+            && $current !== false
+            && $opened['ino'] === $current['ino']
+            && $opened['dev'] === $current['dev'];
     }
 
 
@@ -631,7 +698,7 @@ final class MigratedLanguageFileSync
         $group = @posix_getgrgid($stat['gid']);
         $in_group = is_array($user) && (
             $user['gid'] === $stat['gid']
-            || (is_array($group) && in_array($user['name'], $group['members'] ?? [], true))
+            || (is_array($group) && in_array($user['name'], $group['members'], true))
         );
         if ($in_group) {
             return ($mode & 0030) === 0030;
@@ -671,6 +738,12 @@ final class MigratedLanguageFileSync
      * link, so a link placed in the client data directory cannot redirect an overlay write, lock or
      * removal to a file outside of it. The overlay root itself (and everything above it) is the
      * administrator's configuration and may be a link.
+     *
+     * Accepted residual risk (TOCTOU, CWE-367): this is a check of path names, and PHP offers no
+     * openat()/O_NOFOLLOW to bind the following fopen()/mkdir()/unlink() to the checked components.
+     * A link swapped in between the check and that call is followed. Doing so needs write access
+     * below the overlay root (i.e. the web server user); writes are re-checked afterwards (see
+     * AtomicFileWriter, ensureDirectoryExists(), acquireLock()).
      *
      * @throws RuntimeException for a link, or a $path outside the overlay root
      */

@@ -978,12 +978,13 @@ class ilObjLanguageExt extends ilObjLanguage
     {
         global $DIC;
 
+        $manager = null;
         $is_migrated = false;
         if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             $manager = $DIC[LanguageFileDirectoryManager::class];
             $is_migrated = isset(MigratedLanguageFileSync::findShippedModuleFiles($manager, ILIAS_ABSOLUTE_PATH, $a_lang_key)[$module]);
         }
-        if ($is_migrated) {
+        if ($manager !== null && $is_migrated) {
             try {
                 $overlay = MigratedLanguageFileSync::loadModuleTranslations(
                     $manager,

@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Language\ComponentTranslation;
 
 use DateTimeImmutable;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 
 /**
  * PO/MO pilot: tracks, per overlay entry, whether the current value still matches the value the

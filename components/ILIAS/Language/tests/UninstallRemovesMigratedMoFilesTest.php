@@ -167,7 +167,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -216,7 +216,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
     {
         $this->ensureClientDataDirDefined();
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -251,7 +251,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
     }
 
-    private function loadShippedPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+    private function loadShippedPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->shippedPath($module, $lang_key, 'po'));
     }
@@ -430,7 +430,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         // the "working" module's normal fixture root, so only its overlay directory gets locked down.
         $shipped_readonly_dir = $this->fixture_directory . '/readonly';
         mkdir($shipped_readonly_dir, 0775, true);
-        $shipped_translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $shipped_translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         $shipped_translations->add(MigratedPoFixture::entry('uone', 'greeting', 'Hallo'));
         MigratedPoFixture::writePo($shipped_readonly_dir . '/uone_de.po', $shipped_translations);
 

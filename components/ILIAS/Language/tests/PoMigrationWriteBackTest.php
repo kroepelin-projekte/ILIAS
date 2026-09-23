@@ -108,7 +108,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $entry) {
             $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if ($entry['fuzzy'] ?? false) {
@@ -205,12 +205,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $this->setGlobalVariable('ilDB', $db);
     }
 
-    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayBase($module, $lang_key) . '.po');
     }

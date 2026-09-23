@@ -153,7 +153,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -199,7 +199,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
     {
         $this->ensureClientDataDirDefined();
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -390,7 +390,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         mkdir($overlay_readonly_dir, 0775, true);
 
         foreach (['de' => 'Hallo', 'fr' => 'Bonjour'] as $lang_key => $value) {
-            $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
+            $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
             $translations->add(MigratedPoFixture::entry($module, 'greeting', $value));
             MigratedPoFixture::writePo("$shipped_readonly_dir/{$module}_{$lang_key}.po", $translations);
             MigratedPoFixture::writePo("$overlay_readonly_dir/{$module}_{$lang_key}.po", $translations);

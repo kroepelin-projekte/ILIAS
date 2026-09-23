@@ -21,7 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 
 /**
  * language handling

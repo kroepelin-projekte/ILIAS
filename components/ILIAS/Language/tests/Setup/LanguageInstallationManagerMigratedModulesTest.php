@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;

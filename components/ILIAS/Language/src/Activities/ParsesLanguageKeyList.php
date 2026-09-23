@@ -24,7 +24,7 @@ trait ParsesLanguageKeyList
 {
     // Every language key recognised by this component is exactly two lowercase ASCII letters
     // (e.g. "de", "en", "fr"), matching the `ilias_<key>.lang` file naming convention.
-    private const LANGUAGE_KEY_FORMAT = '/^[a-z]{2}$/';
+    private const LANGUAGE_KEY_FORMAT = '/^[a-z]{2}\z/';
 
     /**
      * @return list<string>

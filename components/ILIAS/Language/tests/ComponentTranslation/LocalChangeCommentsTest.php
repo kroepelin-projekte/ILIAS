@@ -20,8 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

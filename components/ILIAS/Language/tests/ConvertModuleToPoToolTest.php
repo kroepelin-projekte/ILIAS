@@ -210,7 +210,7 @@ class ConvertModuleToPoToolTest extends TestCase
             'contains "#:#" in its value - only the part before it is used, like the installer does.',
             $stderr
         );
-        $catalog = \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
+        $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
         $entry = $catalog->find('tst', 'greeting');
         $this->assertNotNull($entry);
         $this->assertSame('Hallo', $entry->getTranslation());
@@ -233,7 +233,7 @@ class ConvertModuleToPoToolTest extends TestCase
         [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
-        $catalog = \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
+        $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
         $entry = $catalog->find('tst', 'greeting');
         $this->assertNotNull($entry);
         $this->assertFalse($entry->hasFlag('fuzzy'));
@@ -254,7 +254,7 @@ class ConvertModuleToPoToolTest extends TestCase
         [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
-        $catalog = \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po');
+        $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po');
         $entry = $catalog->find('tst', 'greeting');
         $this->assertNotNull($entry);
         $this->assertTrue($entry->hasFlag('fuzzy'));
@@ -281,7 +281,7 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertStringContainsString('ilias_ABC.lang', $stderr);
         $this->assertStringContainsString('no language key in its name', $stderr);
         $this->assertFileDoesNotExist($root . '/out/tst_ABC.po');
-        $catalog = \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
+        $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
         $this->assertSame('Hallo', $catalog->find('tst', 'greeting')?->getTranslation());
     }
 }

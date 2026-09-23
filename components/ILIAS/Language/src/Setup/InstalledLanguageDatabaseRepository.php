@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Setup;
 
-use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
@@ -178,7 +178,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
                     $d = dir($path);
                     chdir($path);
                     while ($entry = $d->read()) {
-                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "\\z)~", $entry))) {
                             $lang_key = substr($entry, 6, 2);
                             $local_langs[] = $lang_key;
                         }
@@ -207,7 +207,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
                     $d = dir($path);
                     chdir($path);
                     while ($entry = $d->read()) {
-                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "$)~", $entry))) {
+                        if (is_file($entry) && (preg_match("~(^ilias_" . self::LANGUAGE_KEY_PATTERN . "\.lang" . preg_quote($directory->getSuffix(), "~") . "\\z)~", $entry))) {
                             $lang_key = substr($entry, 6, 2);
                             $installableLanguages[] = $lang_key;
                         }

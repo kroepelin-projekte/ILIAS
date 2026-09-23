@@ -18,9 +18,9 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Language\Tests\ComponentTranslation\Gettext;
+namespace ILIAS\Language\Tests\ComponentTranslation;
 
-use ILIAS\Language\ComponentTranslation\Gettext\AtomicFileWriter;
+use ILIAS\Language\ComponentTranslation\AtomicFileWriter;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
