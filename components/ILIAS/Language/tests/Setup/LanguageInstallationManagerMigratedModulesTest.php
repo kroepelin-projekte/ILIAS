@@ -195,7 +195,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $rows = [];
         foreach ($this->queries as $query) {
-            if (!str_starts_with($query, 'INSERT INTO lng_data')) {
+            if (!str_starts_with($query, /** @lang text */ 'INSERT INTO lng_data')) {
                 continue;
             }
             preg_match_all('/\((Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q),(Q\d+Q)\)/', $query, $matches, PREG_SET_ORDER);
@@ -215,7 +215,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $modules = [];
         foreach ($this->queries as $query) {
-            if (!str_starts_with($query, 'INSERT INTO lng_modules')) {
+            if (!str_starts_with($query, /** @lang text */ 'INSERT INTO lng_modules')) {
                 continue;
             }
             preg_match_all('/\((Q\d+Q),(Q\d+Q),(Q\d+Q)\)/', $query, $matches, PREG_SET_ORDER);
@@ -537,7 +537,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $calls = [];
 
         $this->manager(null, function (string $lang_key) use (&$calls, $overlay_po): void {
-            $calls[] = [$lang_key, count(array_filter($this->queries, static fn(string $q): bool => str_starts_with($q, 'INSERT INTO lng_modules'))), is_file($overlay_po)];
+            $calls[] = [$lang_key, count(array_filter($this->queries, static fn(string $q): bool => str_starts_with($q, /** @lang text */ 'INSERT INTO lng_modules'))), is_file($overlay_po)];
         })->insertLanguageForInstallation('de');
 
         $this->assertSame([['de', 1, false]], $calls, 'once, after the lng_modules write, before the overlay sync');

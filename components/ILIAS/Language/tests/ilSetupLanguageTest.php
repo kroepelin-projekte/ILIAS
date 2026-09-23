@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Class ilSetupLanguageTest
@@ -309,7 +310,7 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function createDatabaseMock(): ilDBInterface
+    private function createDatabaseMock(): ilDBInterface&MockObject
     {
         $db = $this->createMock(ilDBInterface::class);
         $db->method('nextId')->willReturn(42);
@@ -328,7 +329,7 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         $db->expects($this->once())
             ->method('manipulate')
             ->with($this->logicalAnd(
-                $this->stringContains('INSERT INTO object_data'),
+                $this->stringContains(/** @lang text */ 'INSERT INTO object_data'),
                 $this->stringContains("'de'"),
                 $this->stringContains("'installed'")
             ))

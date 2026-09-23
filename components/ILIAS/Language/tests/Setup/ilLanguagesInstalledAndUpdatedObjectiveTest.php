@@ -450,6 +450,15 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         return MigratedPoFixture::directory($prefix, $path, $local);
     }
 
+    private static function manager(LanguageFileDirectory ...$directories): LanguageFileDirectoryManager
+    {
+        return new LanguageFileDirectoryManager(
+            new CustomizingLanguageFileDirectory(),
+            new MainLanguageFileDirectory(),
+            ...$directories
+        );
+    }
+
     private function hashFor(?LanguageFileDirectoryManager $manager): string
     {
         $setup_language = new ilSetupLanguage('en', $manager);
@@ -493,31 +502,28 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
 
     public static function differingConfigurations(): array
     {
-        $manager = static fn(LanguageFileDirectory ...$directories): LanguageFileDirectoryManager =>
-            new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), ...$directories);
-
         return [
             'default vs. with contributed directory' => [
                 static fn() => null,
-                static fn() => $manager(self::directory('tos', 'components/ILIAS/TermsOfService/lang/')),
+                static fn() => self::manager(self::directory('tos', 'components/ILIAS/TermsOfService/lang/')),
             ],
             'prefix differs' => [
-                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
-                static fn() => $manager(self::directory('file', 'components/x/lang/')),
+                static fn() => self::manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => self::manager(self::directory('file', 'components/x/lang/')),
             ],
             'path differs' => [
-                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
-                static fn() => $manager(self::directory('tos', 'components/y/lang/')),
+                static fn() => self::manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => self::manager(self::directory('tos', 'components/y/lang/')),
             ],
             'suffix differs' => [
-                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
-                static fn() => $manager(self::directory('tos', 'components/x/lang/', true)),
+                static fn() => self::manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => self::manager(self::directory('tos', 'components/x/lang/', true)),
             ],
             'only the class differs' => [
-                static fn() => $manager(new \ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory(new \ILIAS\Language(), 'tos')),
-                static function () use ($manager): LanguageFileDirectoryManager {
+                static fn() => self::manager(new \ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory(new \ILIAS\Language(), 'tos')),
+                static function (): LanguageFileDirectoryManager {
                     $component = new \ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory(new \ILIAS\Language(), 'tos');
-                    return $manager(self::directory('tos', $component->getPath()));
+                    return self::manager(self::directory('tos', $component->getPath()));
                 },
             ],
         ];

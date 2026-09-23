@@ -238,7 +238,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $this->assertTrue($object->removeLocalChanges());
 
         $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
-        $this->assertNotEmpty(array_filter($this->queries, static fn(string $q): bool => str_starts_with($q, 'INSERT INTO lng_modules')));
+        $this->assertNotEmpty(array_filter($this->queries, static fn(string $q): bool => str_starts_with($q, /** @lang text */ 'INSERT INTO lng_modules')));
     }
 
     public function testDoesNothingForALanguageThatIsNotInstalled(): void
