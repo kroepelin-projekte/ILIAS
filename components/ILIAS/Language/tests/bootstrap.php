@@ -18,4 +18,21 @@
 
 declare(strict_types=1);
 require_once 'vendor/composer/vendor/autoload.php';
+
+// ILIAS autoloads via a generated Composer classmap only. Classes added to
+// components/ILIAS/Language/src/ after the last `composer dump-autoload` are
+// not in that map yet; resolve them PSR-4 style (ILIAS\\Language\\X\\Y ->
+// src/X/Y.php) so the tests do not depend on a regenerated classmap.
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'ILIAS\\Language\\';
+    if (!str_starts_with($class, $prefix)) {
+        return;
+    }
+    $file = __DIR__ . '/../src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+    if (is_file($file)) {
+        require_once $file;
+    }
+});
+
 require_once 'ilLanguageBaseTestCase.php';
+require_once __DIR__ . '/MigratedPoFixture.php';

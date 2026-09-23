@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
-use Gettext\Translation;
+use ILIAS\Language\ComponentTranslation\Gettext\Entry;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -33,7 +33,7 @@ class LocalChangeCommentsTest extends TestCase
 {
     public function testANewlyMigratedEntryHasNoLocalChangeRightAfterOriginalIsSet(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
@@ -42,7 +42,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshSetsALocalChangeTimestampWhenTheValueDiffersFromTheOriginal(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         $now = new \DateTimeImmutable('2026-09-21T10:00:00Z');
@@ -53,7 +53,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshClearsTheLocalChangeWhenTheValueIsSetBackToTheOriginal(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -76,7 +76,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshDoesNotBumpAnAlreadyCurrentTimestampOnAnIdempotentResave(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -98,7 +98,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshUpdatesAnExistingTimestampWhenTheValueChangesAgain(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -126,7 +126,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testRefreshTreatsAMissingOriginalAsAlwaysLocallyChanged(): void
     {
-        $translation = Translation::create('demo', 'brand_new_key');
+        $translation = new Entry('demo', 'brand_new_key');
 
         LocalChangeComments::refresh($translation, '', 'Neuer Wert', new \DateTimeImmutable('2026-09-21T15:00:00Z'));
 
@@ -135,14 +135,12 @@ class LocalChangeCommentsTest extends TestCase
     }
 
     /**
-     * Gettext\Comments::add() only deduplicates exact string matches, it never replaces an existing
-     * entry (see vendor/composer/vendor/gettext/gettext/src/Comments.php) - a naive add() on every
-     * refresh() would leave every past timestamp sitting in the file forever. Exactly one
-     * "local_change: " line must exist after multiple refreshes.
+     * A naive "add a comment" on every refresh() would leave every past timestamp sitting in the
+     * file forever. Exactly one "local_change: " line must exist after multiple refreshes.
      */
     public function testRefreshNeverLeavesMoreThanOneLocalChangeCommentBehind(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         LocalChangeComments::refresh($translation, 'Hallo', 'A', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
@@ -150,7 +148,7 @@ class LocalChangeCommentsTest extends TestCase
         LocalChangeComments::refresh($translation, 'B', 'C', new \DateTimeImmutable('2026-09-21T12:00:00Z'));
 
         $localChangeComments = array_values(array_filter(
-            $translation->getComments()->toArray(),
+            $translation->getTranslatorComments(),
             static fn(string $comment): bool => str_starts_with($comment, 'local_change: ')
         ));
 
@@ -160,9 +158,110 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testEncodesANewlineInTheOriginalValueSoItCannotCorruptThePoCommentLine(): void
     {
-        $translation = Translation::create('demo', 'greeting');
+        $translation = new Entry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, "Zeile eins\nZeile zwei");
 
         $this->assertSame('Zeile eins Zeile zwei', LocalChangeComments::getOriginal($translation));
+    }
+
+    /**
+     * setOriginal() with the value already stored must not move the comment: a re-run of an
+     * unchanged sync has to produce byte-identical output (no-op guard in MigratedLanguageFileSync).
+     */
+    public function testSetOriginalWithTheSameValueKeepsTheCommentOrderStable(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+        $entry->addTranslatorComment('translator note');
+
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+
+        $this->assertSame(['original: Hallo', 'translator note'], $entry->getTranslatorComments());
+    }
+
+    public function testSetOriginalWithADifferentValueReplacesTheOldOriginalInsteadOfAddingASecondOne(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+        $entry->addTranslatorComment('translator note');
+
+        LocalChangeComments::setOriginal($entry, 'Servus');
+
+        $this->assertSame(['translator note', 'original: Servus'], $entry->getTranslatorComments());
+        $this->assertSame('Servus', LocalChangeComments::getOriginal($entry));
+    }
+
+    /**
+     * "original" is compared byte for byte against the value - leading/trailing whitespace is part
+     * of it and must neither be trimmed on write nor lost on read.
+     */
+    public function testOriginalKeepsLeadingAndTrailingWhitespaceExactly(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, '  Hallo ');
+
+        $this->assertSame('  Hallo ', LocalChangeComments::getOriginal($entry));
+
+        LocalChangeComments::refresh($entry, '  Hallo ', '  Hallo ', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+        $this->assertNull(LocalChangeComments::getLocalChange($entry));
+    }
+
+    /**
+     * An empty string is a valid original (an untranslated shipped entry) and must not be confused
+     * with "no original at all", which would mark the entry as locally changed.
+     */
+    public function testAnEmptyOriginalIsDistinctFromNoOriginal(): void
+    {
+        $entry = new Entry('demo', 'untranslated');
+        LocalChangeComments::setOriginal($entry, '');
+
+        $this->assertSame('', LocalChangeComments::getOriginal($entry));
+        LocalChangeComments::refresh($entry, '', '', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+        $this->assertNull(LocalChangeComments::getLocalChange($entry));
+    }
+
+    public function testRemoveOriginalLeavesOtherCommentsAlone(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        $entry->addTranslatorComment('translator note');
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+        LocalChangeComments::refresh($entry, 'Hallo', 'Hi', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+
+        LocalChangeComments::removeOriginal($entry);
+
+        $this->assertNull(LocalChangeComments::getOriginal($entry));
+        $this->assertSame(
+            ['translator note', 'local_change: 2026-09-21T10:00:00Z'],
+            $entry->getTranslatorComments()
+        );
+    }
+
+    public function testGetLocalChangeAsDatabaseTimestampConvertsTheIsoFormat(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        LocalChangeComments::refresh($entry, '', 'Hi', new \DateTimeImmutable('2026-12-31T23:59:59Z'));
+
+        $this->assertSame('2026-12-31 23:59:59', LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
+    }
+
+    public function testGetLocalChangeAsDatabaseTimestampIsNullWithoutALocalChange(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+
+        $this->assertNull(LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
+    }
+
+    /**
+     * A hand-edited or otherwise mangled timestamp must not turn into a bogus date that then wins a
+     * max() comparison against lng_data.local_change.
+     */
+    public function testGetLocalChangeAsDatabaseTimestampIsNullForAnUnparsableTimestamp(): void
+    {
+        $entry = new Entry('demo', 'greeting');
+        $entry->addTranslatorComment('local_change: yesterday');
+
+        $this->assertSame('yesterday', LocalChangeComments::getLocalChange($entry));
+        $this->assertNull(LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
     }
 }

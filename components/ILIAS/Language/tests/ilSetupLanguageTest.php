@@ -368,4 +368,73 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
             []
         );
     }
+
+    public function testWithoutInjectedDirectoriesOnlyTheDefaultDirectoriesAreUsed(): void
+    {
+        $setup_language = new ilSetupLanguage('de');
+
+        $this->assertTrue($setup_language->usesDefaultLanguageFileDirectories());
+        $this->assertSame(
+            [MainLanguageFileDirectory::class, CustomizingLanguageFileDirectory::class],
+            array_map(
+                static fn(LanguageFileDirectory $d): string => $d::class,
+                iterator_to_array($setup_language->getLanguageFileDirectoryManager()->getAllDirectories(), false)
+            )
+        );
+    }
+
+    /**
+     * Even a manager with exactly the default directories counts as "injected" - the flag is about
+     * who built the instance (component graph vs. plugin Setup objective), not about its content.
+     */
+    public function testAnInjectedDirectoryManagerIsUsedAndReported(): void
+    {
+        $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory());
+        $setup_language = new ilSetupLanguage('de', $manager);
+
+        $this->assertFalse($setup_language->usesDefaultLanguageFileDirectories());
+        $this->assertSame($manager, $setup_language->getLanguageFileDirectoryManager());
+    }
+
+    private function resolvedClientDataDir(ilSetupLanguage $setup_language): ?string
+    {
+        $manager = (new ReflectionProperty(ilSetupLanguage::class, 'manager'))->getValue($setup_language);
+        $resolver = (new ReflectionProperty(\ILIAS\Language\Setup\LanguageInstallationManager::class, 'client_data_dir_resolver'))
+            ->getValue($manager);
+
+        return $resolver();
+    }
+
+    /**
+     * setClientDataDir() overrides the resolution lazily (also after construction); null restores
+     * MigratedLanguageFilePaths::resolveClientDataDir().
+     */
+    public function testSetClientDataDirOverridesTheResolutionUntilResetWithNull(): void
+    {
+        $setup_language = new ilSetupLanguage('de');
+        $default = \ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths::resolveClientDataDir(
+            (string) realpath(__DIR__ . '/../../../../')
+        );
+
+        $setup_language->setClientDataDir('/from/the/setup/environment');
+        $this->assertSame('/from/the/setup/environment', $this->resolvedClientDataDir($setup_language));
+
+        $setup_language->setClientDataDir(null);
+        $this->assertSame($default, $this->resolvedClientDataDir($setup_language));
+    }
+
+    /**
+     * CLI Setup has no global cache - the cache invalidator must be a silent no-op there.
+     */
+    public function testTheCacheInvalidatorIsANoOpWithoutGlobalCache(): void
+    {
+        $setup_language = new ilSetupLanguage('de');
+        $manager = (new ReflectionProperty(ilSetupLanguage::class, 'manager'))->getValue($setup_language);
+        $invalidator = (new ReflectionProperty(\ILIAS\Language\Setup\LanguageInstallationManager::class, 'language_cache_invalidator'))
+            ->getValue($manager);
+
+        $this->assertInstanceOf(Closure::class, $invalidator);
+        $invalidator('de');
+        $this->addToAssertionCount(1);
+    }
 }

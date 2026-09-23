@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 
 /**
@@ -256,7 +257,9 @@ class ilObjLanguageExt extends ilObjLanguage
     *                       to have the same format) - forwarded to _saveValues()/replaceLangModule()
     *                       and to syncMigratedFilesAfterDeleteModeImport() (see their own docblocks).
     *                       Defaults to `false`: an uploaded or customizing file is never assumed to be
-    *                       the shipped baseline, even under "replace" mode.
+    *                       the shipped baseline, even under "replace" mode. When `true`, the values
+    *                       of every module migrated to PO/MO are taken from its shipped .po instead
+    *                       of $a_file (see withShippedMigratedValues()).
     */
     public function importLanguageFile(
         string $a_file,
@@ -309,9 +312,16 @@ class ilObjLanguageExt extends ilObjLanguage
                 return;
         }
 
+        $import_values = $import_file_obj->getAllValues();
+        if ($refreshOriginalFromShipped) {
+            // $a_file is the shipped .lang file - for a migrated module the shipped .po is the only
+            // source of its shipped values, not the module's (possibly outdated) .lang lines
+            $import_values = self::withShippedMigratedValues($this->key, $import_values);
+        }
+
         // process the values of the import file
         $to_save = array();
-        foreach ($import_file_obj->getAllValues() as $key => $value) {
+        foreach ($import_values as $key => $value) {
             if (!isset($to_keep[$key])) {
                 $to_save[$key] = $value;
             }
@@ -370,16 +380,15 @@ class ilObjLanguageExt extends ilObjLanguage
         }
 
         $manager = $DIC[LanguageFileDirectoryManager::class];
-        $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
+        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
         foreach (array_unique(array_merge($modules_before_delete, array_keys($entries_by_module))) as $module) {
             try {
                 MigratedLanguageFileSync::sync(
                     $manager,
                     ILIAS_ABSOLUTE_PATH,
                     $this->key,
-                    $module,
+                    (string) $module,
                     $entries_by_module[$module] ?? [],
-                    false,
                     $client_data_dir,
                     $refreshOriginalFromShipped
                 );
@@ -422,7 +431,7 @@ class ilObjLanguageExt extends ilObjLanguage
             $migrated_modules = MigratedLanguageFileSync::getMigratedModules(
                 $DIC[LanguageFileDirectoryManager::class],
                 $a_lang_key,
-                defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null
+                MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH)
             );
             $modules = array_unique(array_merge($modules, $migrated_modules));
             sort($modules);
@@ -500,28 +509,40 @@ class ilObjLanguageExt extends ilObjLanguage
         $migrated_modules_found = [];
         if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             $manager = $DIC[LanguageFileDirectoryManager::class];
-            $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
+            $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
             $candidate_modules = $a_modules !== []
                 ? $a_modules
                 : MigratedLanguageFileSync::getMigratedModules($manager, $a_lang_key, $client_data_dir);
 
             foreach ($candidate_modules as $module) {
-                $translations = MigratedLanguageFileSync::loadModuleTranslations(
-                    $manager,
-                    $a_lang_key,
-                    $module,
-                    $client_data_dir
-                );
+                try {
+                    $translations = MigratedLanguageFileSync::loadModuleTranslations(
+                        $manager,
+                        $a_lang_key,
+                        $module,
+                        $client_data_dir
+                    );
+                } catch (\Throwable $t) {
+                    // an unreadable overlay: show the (dual-written) lng_data rows instead
+                    $DIC->logger()->forComponent('lang')->warning(sprintf(
+                        'Could not read migrated language file for module "%s", language "%s": %s',
+                        $module,
+                        $a_lang_key,
+                        $t->getMessage()
+                    ));
+                    $translations = null;
+                }
                 if ($translations === null) {
                     continue;
                 }
                 $migrated_modules_found[] = $module;
 
                 foreach ($translations as $identifier => $entry) {
+                    $identifier = (string) $identifier;
                     if ($a_topics !== [] && !in_array($identifier, $a_topics, true)) {
                         continue;
                     }
-                    if ($a_pattern !== '' && !str_contains($entry['value'], $a_pattern)) {
+                    if ($a_pattern !== '' && !self::matchesLikePattern($entry['value'], $a_pattern)) {
                         continue;
                     }
                     if ($a_state === 'changed' && !$entry['local_change']) {
@@ -550,7 +571,7 @@ class ilObjLanguageExt extends ilObjLanguage
         if (is_array($a_topics) && count($a_topics) > 0) {
             $q .= " AND " . $ilDB->in("identifier", $a_topics, false, "text");
         }
-        if ($a_pattern) {
+        if ($a_pattern !== '') {
             $q .= " AND " . $ilDB->like("value", "text", "%" . $a_pattern . "%");
         }
         if ($a_state === "changed") {
@@ -572,6 +593,82 @@ class ilObjLanguageExt extends ilObjLanguage
         ksort($values);
 
         return $values;
+    }
+
+    /**
+     * Replaces, in a "module#:#identifier => value" map read from a shipped .lang file, every module
+     * migrated to PO/MO for $a_lang_key by the values of its shipped .po - which is the only source of
+     * a migrated module's shipped values (see LanguageInstallationManager). Unchanged if no
+     * LanguageFileDirectoryManager is registered; a shipped .po that cannot be read keeps that
+     * module's .lang values and is logged.
+     *
+     * @param array<string, string> $values
+     * @return array<string, string>
+     */
+    private static function withShippedMigratedValues(string $a_lang_key, array $values): array
+    {
+        global $DIC;
+
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return $values;
+        }
+
+        try {
+            $shipped_modules = MigratedLanguageFileSync::loadShippedModules(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $a_lang_key
+            );
+        } catch (\Throwable $t) {
+            $DIC->logger()->forComponent('lang')->warning(sprintf(
+                'Could not read shipped PO files for language "%s": %s',
+                $a_lang_key,
+                $t->getMessage()
+            ));
+            return $values;
+        }
+
+        $separator = $DIC->language()->separator;
+        foreach ($shipped_modules as $module => $entries) {
+            $prefix = $module . $separator;
+            foreach (array_keys($values) as $key) {
+                if (str_starts_with((string) $key, $prefix)) {
+                    unset($values[$key]);
+                }
+            }
+            foreach ($entries as $identifier => $value) {
+                $values[$prefix . $identifier] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * The PHP counterpart of the `UPPER(value) LIKE UPPER('%<pattern>%')` condition _getValues()
+     * applies to lng_data (see ilDBInterface::like()), so searching a migrated module behaves like
+     * searching any other one: case-insensitive, "%" matches any sequence and "_" any single
+     * character, "\" escapes the next character (MySQL's default LIKE escape), and the pattern may
+     * match anywhere in the value. Not replicated: accent-insensitivity of an *_unicode_ci collation.
+     */
+    private static function matchesLikePattern(string $value, string $pattern): bool
+    {
+        $regex = '';
+        $length = mb_strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            $char = mb_substr($pattern, $i, 1);
+            if ($char === '\\' && $i + 1 < $length) {
+                $regex .= preg_quote(mb_substr($pattern, ++$i, 1), '/');
+            } elseif ($char === '%') {
+                $regex .= '.*';
+            } elseif ($char === '_') {
+                $regex .= '.';
+            } else {
+                $regex .= preg_quote($char, '/');
+            }
+        }
+
+        return preg_match('/' . $regex . '/isu', $value) === 1;
     }
 
     /**
@@ -603,7 +700,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
         // read and get the global values
         $global_file_obj = ilLanguageFile::_getGlobalLanguageFile($a_lang_key);
-        $file_values = $global_file_obj->getAllValues();
+        $file_values = self::withShippedMigratedValues($a_lang_key, $global_file_obj->getAllValues());
         $file_comments = $global_file_obj->getAllComments();
         $db_values = self::_getValues($a_lang_key);
         $db_comments = self::_getRemarks($a_lang_key);

@@ -18,41 +18,33 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
+use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Loader\PoLoader;
-use Gettext\Translation;
-use Gettext\Translations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Direct unit coverage for MigratedLanguageFileSync::sync()/removeOverlay() themselves, independent
- * of any of its three callers (ilObjLanguage::replaceLangModule() - see PoMigrationWriteBackTest.php -,
- * ilObjLanguageExt::importLanguageFile(), ILIAS\Language\Setup\LanguageInstallationManager). Those
- * caller-level suites already exercise sync() end-to-end for their own scenarios; this file targets
- * behavior of sync() itself that either has no natural caller-level trigger (the "$entries = []"
- * full-wipe semantics; the getContext() guard on which stale entries get removed; the overlay-vs-
- * shipped split itself) or is more precisely pinned when asserted directly against the thrown
- * exception rather than through a caller's catch-and-swallow wrapper.
+ * Direct coverage of MigratedLanguageFileSync (sync(), loadShippedModules(), loadModuleTranslations(),
+ * getMigratedModules(), removeOverlay()), independent of its callers.
  *
- * Uses a throwaway fixture module, exactly like PoMigrationWriteBackTest.php - never real pilot
- * (tos) data.
- *
- * Two independent roots are used throughout, mirroring the production split:
- * - $this->fixture_directory (rooted so it resolves under ILIAS_ABSOLUTE_PATH) holds the SHIPPED
- *   `.po`/`.mo` pair - written once by seedFixtureModule(), and MigratedLanguageFileSync must never
- *   write to it again, ever, after this class' own constructor-time setup.
- * - $this->client_data_dir (a throwaway CLIENT_DATA_DIR-equivalent) holds the OVERLAY `.po`/`.mo`
- *   pair - the only thing sync()/removeOverlay() are allowed to write to or remove.
+ * Two roots, mirroring production:
+ * - the SHIPPED `.po` lives below ILIAS_ABSOLUTE_PATH ($this->fixture_directory) and must never be
+ *   written by the class under test;
+ * - the OVERLAY `.po`/`.mo` lives below a throwaway client data directory ($this->client_data_dir).
  */
 class MigratedLanguageFileSyncTest extends TestCase
 {
-    private ?string $fixture_directory = null;
-    private ?string $client_data_dir = null;
+    private const string MODULE = 'stest';
+
+    private string $fixture_directory;
+    private string $client_data_dir;
+    private LanguageFileDirectory $directory;
+    private LanguageFileDirectoryManager $manager;
 
     protected function setUp(): void
     {
@@ -62,788 +54,731 @@ class MigratedLanguageFileSyncTest extends TestCase
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../../'));
         }
 
+        $this->fixture_directory = __DIR__ . '/tmp-sync-fixtures-' . bin2hex(random_bytes(4));
+        mkdir($this->fixture_directory, 0775, true);
         $this->client_data_dir = sys_get_temp_dir() . '/ilias_mlfs_test_' . bin2hex(random_bytes(4));
         mkdir($this->client_data_dir, 0775, true);
+
+        $this->directory = MigratedPoFixture::directory(
+            self::MODULE,
+            'components/ILIAS/Language/tests/ComponentTranslation/' . basename($this->fixture_directory) . '/'
+        );
+        $this->manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $this->directory);
     }
 
     protected function tearDown(): void
     {
-        if (isset($this->fixture_directory) && is_dir($this->fixture_directory)) {
-            array_map('chmod', glob($this->fixture_directory . '/*') ?: [], array_fill(0, count(glob($this->fixture_directory . '/*') ?: []), 0664));
-            array_map('unlink', glob($this->fixture_directory . '/*') ?: []);
-            rmdir($this->fixture_directory);
-        }
-
-        if (isset($this->client_data_dir) && is_dir($this->client_data_dir)) {
-            $this->removeDirectoryRecursively($this->client_data_dir);
-        }
+        MigratedPoFixture::removeDirectory($this->fixture_directory);
+        MigratedPoFixture::removeDirectory($this->client_data_dir);
 
         parent::tearDown();
     }
 
-    private function removeDirectoryRecursively(string $directory): void
+    // ---------------------------------------------------------------- helpers
+
+    /**
+     * @param array<string, string|array<string, mixed>> $entries see MigratedPoFixture::catalog()
+     */
+    private function seedShipped(array $entries, string $lang_key = 'de', string $module = self::MODULE): void
     {
-        chmod($directory, 0775);
-        foreach (scandir($directory) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $path = $directory . '/' . $entry;
-            if (is_dir($path)) {
-                $this->removeDirectoryRecursively($path);
-            } else {
-                chmod($path, 0664);
-                unlink($path);
-            }
-        }
-        rmdir($directory);
+        MigratedPoFixture::writePo($this->shippedPo($lang_key, $module), MigratedPoFixture::catalog($module, $entries));
     }
 
     /**
-     * @param array<string, array{value: string, context?: string, original?: string}> $entries
-     *        identifier => details; 'context' defaults to $module - pass a different value to seed a
-     *        translation belonging to a different module's context inside the same fixture file (see
-     *        testLeavesTranslationsOfADifferentContextAloneWhenWipingAllEntries()). 'original', if
-     *        given, seeds an "original:" LocalChangeComments comment (see LocalChangeCommentsTest.php)
-     *        directly into this SHIPPED fixture - a shortcut standing in for "an overlay that
-     *        sync() already bootstrapped from here earlier", since the real shipped `.po` never
-     *        carries this comment itself (only MigratedLanguageFileSync::sync() adds it, into the
-     *        overlay, the first time it seeds one from a shipped file).
+     * @param array<string, string|array<string, mixed>> $entries see MigratedPoFixture::catalog()
      */
-    private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
+    private function seedOverlay(array $entries, string $lang_key = 'de'): void
     {
-        $this->fixture_directory ??= __DIR__ . '/tmp-sync-fixtures-' . bin2hex(random_bytes(4));
-        if (!is_dir($this->fixture_directory)) {
-            mkdir($this->fixture_directory, 0775, true);
-        }
-
-        $translations = Translations::create($module, $lang_key);
-        foreach ($entries as $identifier => $entry) {
-            $translation = Translation::create($entry['context'] ?? $module, $identifier)
-                ->translate($entry['value']);
-            if (isset($entry['original'])) {
-                \ILIAS\Language\ComponentTranslation\LocalChangeComments::setOriginal($translation, $entry['original']);
-            }
-            $translations->add($translation);
-        }
-
-        $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
-
-        $relative_path = 'components/ILIAS/Language/tests/ComponentTranslation/'
-            . basename($this->fixture_directory) . '/';
-
-        return new class ($module, $relative_path) implements LanguageFileDirectory {
-            public function __construct(private string $prefix, private string $path)
-            {
-            }
-
-            public function getPrefix(): string
-            {
-                return $this->prefix;
-            }
-
-            public function getPath(): string
-            {
-                return $this->path;
-            }
-
-            public function getSuffix(): string
-            {
-                return '';
-            }
-
-            public function isLocal(): bool
-            {
-                return false;
-            }
-        };
+        MigratedPoFixture::writePair($this->overlayBase($lang_key), MigratedPoFixture::catalog(self::MODULE, $entries));
     }
 
-    private function loadFixturePo(string $module, string $lang_key): Translations
+    private function shippedPo(string $lang_key = 'de', string $module = self::MODULE): string
     {
-        return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
+        return $this->fixture_directory . '/' . $module . '_' . $lang_key . '.po';
     }
 
-    private function overlayBase(string $module, string $lang_key): string
+    private function overlayBase(string $lang_key = 'de'): string
     {
-        return rtrim((string) $this->client_data_dir, '/') . '/lang/components/ILIAS/Language/tests/ComponentTranslation/'
-            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key;
+        return $this->client_data_dir . '/lang/components/ILIAS/Language/tests/ComponentTranslation/'
+            . basename($this->fixture_directory) . '/' . self::MODULE . '_' . $lang_key;
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): Translations
+    private function overlayPo(): Catalog
     {
-        return (new PoLoader())->loadFile($this->overlayBase($module, $lang_key) . '.po');
+        return MigratedPoFixture::readPo($this->overlayBase() . '.po');
     }
 
     /**
-     * Copies the current shipped `.po`/`.mo` pair for $module/$lang_key into the overlay location,
-     * simulating an already-migrated module whose overlay was compiled by an earlier install - the
-     * normal starting point for every test that exercises an "update" (as opposed to a first-ever
-     * "install") sync.
+     * @param array<string, string> $entries
      */
-    private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
+    private function sync(array $entries, bool $refresh = false, ?string $client_data_dir = 'default'): void
     {
-        $overlay_base = $this->overlayBase($module, $lang_key);
-        if (!is_dir(dirname($overlay_base))) {
-            mkdir(dirname($overlay_base), 0775, true);
-        }
-        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po', $overlay_base . '.po');
-        copy($this->fixture_directory . '/' . $module . '_' . $lang_key . '.mo', $overlay_base . '.mo');
-    }
-
-    public function testSyncingWithEmptyEntriesRemovesEveryExistingEntryForThatModule(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', [
-            'greeting' => ['value' => 'Hallo'],
-            'farewell' => ['value' => 'Tschüss'],
-        ]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', [], false, $this->client_data_dir);
-
-        $overlay = $this->loadOverlayPo('stest', 'de');
-        $this->assertNull($overlay->find('stest', 'greeting'));
-        $this->assertNull($overlay->find('stest', 'farewell'));
-        $this->assertCount(0, iterator_to_array($overlay->getTranslations()));
-
-        // the shipped file must never be touched by sync(), no matter what
-        $shipped = $this->loadFixturePo('stest', 'de');
-        $this->assertNotNull($shipped->find('stest', 'greeting'));
-        $this->assertNotNull($shipped->find('stest', 'farewell'));
-    }
-
-    /**
-     * The stale-detection only removes translations whose getContext() equals the module being
-     * synced (see sync()'s docblock/implementation) - a translation that happens to live in the same
-     * .po file under a different context must survive an "$entries = []" full wipe untouched. This
-     * pins that guard against a mutation that drops the getContext() check (which would wipe the
-     * entire file's contents regardless of context).
-     */
-    public function testLeavesTranslationsOfADifferentContextAloneWhenWipingAllEntries(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', [
-            'greeting' => ['value' => 'Hallo'],
-            'unrelated' => ['value' => 'Bleibt', 'context' => 'other_module'],
-        ]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', [], false, $this->client_data_dir);
-
-        $overlay = $this->loadOverlayPo('stest', 'de');
-        $this->assertNull($overlay->find('stest', 'greeting'));
-        $survivor = $overlay->find('other_module', 'unrelated');
-        $this->assertNotNull($survivor);
-        $this->assertSame('Bleibt', $survivor->getTranslation());
-    }
-
-    public function testIsANoOpWhenTheModuleHasNoContributedDirectory(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // "other_module" is not contributed by anyone -> must not throw, must not create any file
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'other_module', ['x' => 'y'], false, $this->client_data_dir);
-
-        $this->assertFileDoesNotExist($this->fixture_directory . '/other_module_de.po');
-        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
-    }
-
-    public function testIsANoOpWhenNoShippedPoFileExists(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        unlink($this->fixture_directory . '/stest_de.po');
-        unlink($this->fixture_directory . '/stest_de.mo');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo, geändert'], true, $this->client_data_dir);
-
-        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
-    }
-
-    /**
-     * The central overlay-vs-shipped behavior change: sync() must NEVER fall back to writing the
-     * shipped file when $client_data_dir cannot be resolved - it must no-op entirely instead. Falling
-     * back would reintroduce exactly the git-dirtying bug the overlay exists to fix.
-     */
-    public function testIsANoOpWhenClientDataDirIsNull(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $shipped_po_before = file_get_contents($this->fixture_directory . '/stest_de.po');
-        $shipped_mo_before = file_get_contents($this->fixture_directory . '/stest_de.mo');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // Both an ordinary update and an install-flavored call (create_missing_mo = true) must no-op
-        // when there is no client data dir to write an overlay into at all.
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo, geändert'], true, null);
-
-        $this->assertSame($shipped_po_before, file_get_contents($this->fixture_directory . '/stest_de.po'));
-        $this->assertSame($shipped_mo_before, file_get_contents($this->fixture_directory . '/stest_de.mo'));
-    }
-
-    /**
-     * Without an already-compiled overlay `.mo`, an ordinary write (the default, $create_missing_mo =
-     * false - see sync()'s docblock) must leave the overlay missing entirely, exactly mirroring the
-     * pre-overlay "a missing .mo stays missing" behavior, just against the overlay location now.
-     */
-    public function testIsANoOpWhenNoCompiledOverlayMoFileExistsYet(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        // deliberately no bootstrapOverlayFromShipped() call - no overlay exists at all yet
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo, geändert'], false, $this->client_data_dir);
-
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.mo');
-        // and, again, the shipped file was never touched
-        $this->assertSame(
-            'Hallo',
-            $this->loadFixturePo('stest', 'de')->find('stest', 'greeting')->getTranslation()
-        );
-    }
-
-    /**
-     * $create_missing_mo = true (only ever passed by LanguageInstallationManager for a genuine
-     * install, see its docblock) is the one case allowed to compile an overlay `.mo` that doesn't
-     * exist yet - bootstrapped from the shipped `.po`, the only place carrying every identifier's
-     * "original" comment to begin with. The counterpart to
-     * testIsANoOpWhenNoCompiledOverlayMoFileExistsYet() above, which pins the default (update/edit)
-     * behavior of leaving it missing.
-     */
-    public function testCreatesAMissingOverlayMoFileWhenCreateMissingMoIsTrue(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $shipped_po_before = file_get_contents($this->fixture_directory . '/stest_de.po');
-        $shipped_mo_before = file_get_contents($this->fixture_directory . '/stest_de.mo');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
         MigratedLanguageFileSync::sync(
-            $manager,
+            $this->manager,
             ILIAS_ABSOLUTE_PATH,
             'de',
-            'stest',
-            ['greeting' => 'Hallo, neu'],
-            true,
-            $this->client_data_dir
+            self::MODULE,
+            $entries,
+            $client_data_dir === 'default' ? $this->client_data_dir : $client_data_dir,
+            $refresh
         );
+    }
 
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.mo');
+    /**
+     * @return list<string>
+     */
+    private function overlayIdentifiers(): array
+    {
+        return array_map(static fn($entry): string => $entry->getId(), $this->overlayPo()->getEntries());
+    }
+
+    // ------------------------------------------------------- overlay creation
+
+    /**
+     * The overlay mirrors "language installed": a missing one is created by every sync, also by an
+     * ordinary admin edit (refresh = false) - the removed $create_missing_mo no longer gates it.
+     */
+    #[DataProvider('refreshFlags')]
+    public function testCreatesAMissingOverlayFromTheShippedPo(bool $refresh): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $shipped_before = file_get_contents($this->shippedPo());
+
+        $this->sync(['greeting' => 'Hallo', 'farewell' => 'Tschüss'], $refresh);
+
+        $this->assertFileExists($this->overlayBase() . '.po');
         $this->assertSame(
-            'Hallo, neu',
-            $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting')->getTranslation()
+            ['farewell' => 'Tschüss', 'greeting' => 'Hallo'],
+            MigratedPoFixture::readMo($this->overlayBase() . '.mo')
         );
-        // the shipped pair is the seed, never the target - it must be byte-identical afterwards
-        $this->assertSame($shipped_po_before, file_get_contents($this->fixture_directory . '/stest_de.po'));
-        $this->assertSame($shipped_mo_before, file_get_contents($this->fixture_directory . '/stest_de.mo'));
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
+        $this->assertNull(LocalChangeComments::getLocalChange($greeting));
+        $this->assertSame($shipped_before, file_get_contents($this->shippedPo()), 'the shipped .po is never written');
     }
 
-    /**
-     * $create_missing_mo = true still requires a shipped `.po` file to exist - it bootstraps the
-     * overlay from the shipped `.po`, it does not fabricate translations out of nothing.
-     */
-    public function testStillANoOpWithCreateMissingMoTrueWhenNoShippedPoFileExists(): void
+    public static function refreshFlags(): array
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        unlink($this->fixture_directory . '/stest_de.po');
-        unlink($this->fixture_directory . '/stest_de.mo');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo'], true, $this->client_data_dir);
-
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.mo');
+        return ['admin edit (refresh = false)' => [false], 'reconciling write (refresh = true)' => [true]];
     }
 
-    /**
-     * A bootstrap install must compile the overlay `.mo` even when the `.po` content itself would
-     * otherwise be byte-identical to the existing overlay (the no-op guard that skips rewriting an
-     * unchanged file must not also skip creating the still-missing `.mo` - see sync()'s docblock on
-     * $overlay_mo_missing).
-     */
-    public function testCreatesAMissingOverlayMoFileEvenWhenPoContentIsAlreadyUpToDate(): void
+    public function testCreatingTheOverlayWithADeviatingValueRecordsShippedOriginalAndALocalChange(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-        unlink($this->overlayBase('stest', 'de') . '.mo');
+        $this->seedShipped(['greeting' => 'Hallo']);
 
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
+        $this->sync(['greeting' => 'Servus']);
+
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Servus', $greeting->getTranslation());
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/',
+            (string) LocalChangeComments::getLocalChange($greeting)
         );
+    }
 
-        // Same value as already seeded - the overlay .po content will not change.
-        MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo'], true, $this->client_data_dir);
+    public function testCreatingTheOverlayGivesAnEntryWithoutShippedCounterpartNoOriginalButALocalChange(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
 
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.mo');
+        $this->sync(['greeting' => 'Hallo', 'custom' => 'Eigener Wert']);
+
+        $custom = $this->overlayPo()->find(self::MODULE, 'custom');
+        $this->assertSame('Eigener Wert', $custom->getTranslation());
+        $this->assertNull(LocalChangeComments::getOriginal($custom));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($custom));
     }
 
     /**
-     * Core overlay-continuity guarantee: once an overlay exists, every following sync() bases
-     * $translations on THE OVERLAY, never on the shipped `.po` again, UNLESS $refresh_original_from_
-     * shipped explicitly asks for the shipped `.po` to be additionally consulted per-entry (see
-     * testRefreshOriginalFromShippedUpdatesOriginalAndClearsLocalChangeForAnUnmodifiedEntry() below) -
-     * with the flag at its default (`false`, as here), an already-set "local_change" timestamp for one
-     * identifier must never be spuriously refreshed just because a sync() call touched a different
-     * identifier of the same module/language.
+     * A shipped "fuzzy" (an unreviewed value, usually the English fallback) must survive the very
+     * first sync as long as the value is still the shipped one - and must not be copied onto a
+     * value that differs from it.
+     */
+    public function testCreatingTheOverlayKeepsShippedFuzzyOnlyForTheUnchangedShippedValue(): void
+    {
+        $this->seedShipped([
+            'unchanged' => ['value' => 'Hello', 'fuzzy' => true],
+            'changed' => ['value' => 'Bye', 'fuzzy' => true],
+            'reviewed' => ['value' => 'Hallo'],
+        ]);
+
+        $this->sync(['unchanged' => 'Hello', 'changed' => 'Tschüss', 'reviewed' => 'Hallo']);
+
+        $overlay = $this->overlayPo();
+        $this->assertTrue($overlay->find(self::MODULE, 'unchanged')->hasFlag('fuzzy'));
+        $this->assertFalse($overlay->find(self::MODULE, 'changed')->hasFlag('fuzzy'));
+        $this->assertFalse($overlay->find(self::MODULE, 'reviewed')->hasFlag('fuzzy'));
+    }
+
+    /**
+     * Extracted comments ("#. ...", context for translators) are part of the shipped file and are
+     * carried into the overlay on creation/refresh.
+     */
+    public function testTheOverlayTakesTheExtractedCommentsOfTheShippedEntry(): void
+    {
+        $catalog = MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Hallo']);
+        $catalog->find(self::MODULE, 'greeting')->addExtractedComment('shown on the login page');
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+
+        $this->sync(['greeting' => 'Servus']);
+
+        $this->assertSame(['shown on the login page'], $this->overlayPo()->find(self::MODULE, 'greeting')->getExtractedComments());
+    }
+
+    public function testTheOverlayTakesTheHeadersOfTheShippedPo(): void
+    {
+        $catalog = MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Hallo']);
+        $catalog->setHeader('Language', 'de');
+        $catalog->setHeader('Plural-Forms', 'nplurals=2; plural=(n != 1);');
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+
+        $this->sync(['greeting' => 'Hallo']);
+
+        $this->assertSame('de', $this->overlayPo()->getHeader('Language'));
+        $this->assertSame('nplurals=2; plural=(n != 1);', $this->overlayPo()->getHeader('Plural-Forms'));
+    }
+
+    // ------------------------------------------------------------ admin edit
+
+    /**
+     * refresh = false (an ordinary admin edit): the baseline "original" must never move - even when
+     * the shipped file changed in the meantime.
+     */
+    public function testAnAdminEditNeverMovesTheOriginal(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo, neu']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+
+        $this->sync(['greeting' => 'Servus']);
+
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Servus', $greeting->getTranslation());
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
+    }
+
+    public function testAnAdminEditRemovesFuzzyOnlyFromTheValuesItActuallyChanges(): void
+    {
+        $this->seedShipped([
+            'kept' => ['value' => 'Hello', 'fuzzy' => true],
+            'edited' => ['value' => 'Bye', 'fuzzy' => true],
+        ]);
+        $this->seedOverlay([
+            'kept' => ['value' => 'Hello', 'original' => 'Hello', 'fuzzy' => true],
+            'edited' => ['value' => 'Bye', 'original' => 'Bye', 'fuzzy' => true],
+        ]);
+
+        $this->sync(['kept' => 'Hello', 'edited' => 'Tschüss']);
+
+        $overlay = $this->overlayPo();
+        $this->assertTrue($overlay->find(self::MODULE, 'kept')->hasFlag('fuzzy'));
+        $this->assertFalse($overlay->find(self::MODULE, 'edited')->hasFlag('fuzzy'));
+    }
+
+    public function testWritingTheOriginalValueBackClearsTheLocalChange(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+        ]);
+
+        $this->sync(['greeting' => 'Hallo']);
+
+        $this->assertNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')));
+    }
+
+    /**
+     * A full-replace write re-sends every value; an entry whose value did not change must keep its
+     * existing local_change timestamp (seeded with a fixed, old value - no sleep()/clock needed).
+     */
+    public function testTheLocalChangeTimestampOfAnUntouchedEntrySurvivesAnUnrelatedWrite(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+            'farewell' => ['value' => 'Tschüss', 'original' => 'Tschüss'],
+        ]);
+
+        $this->sync(['greeting' => 'Servus', 'farewell' => 'Pfiat di']);
+
+        $overlay = $this->overlayPo();
+        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'greeting')));
+        $farewell_change = LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'farewell'));
+        $this->assertNotNull($farewell_change);
+        $this->assertNotSame('2020-01-01T00:00:00Z', $farewell_change);
+    }
+
+    // ------------------------------------------------------ reconciling write
+
+    public function testRefreshMovesTheOriginalToTheNewShippedValueAndClearsTheLocalChangeOfAnUnmodifiedEntry(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo, überarbeitet']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+
+        $this->sync(['greeting' => 'Hallo, überarbeitet'], true);
+
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Hallo, überarbeitet', $greeting->getTranslation());
+        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($greeting));
+        $this->assertNull(LocalChangeComments::getLocalChange($greeting));
+    }
+
+    public function testRefreshMovesTheOriginalButKeepsALocalCustomizationFlagged(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo, überarbeitet']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+        ]);
+
+        $this->sync(['greeting' => 'Servus'], true);
+
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Servus', $greeting->getTranslation());
+        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($greeting));
+        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($greeting));
+    }
+
+    public function testRefreshRemovesTheOriginalOfAnEntryTheShippedPoNoLongerContains(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
+            'dropped' => ['value' => 'Alt', 'original' => 'Alt'],
+        ]);
+
+        $this->sync(['greeting' => 'Hallo', 'dropped' => 'Alt'], true);
+
+        $dropped = $this->overlayPo()->find(self::MODULE, 'dropped');
+        $this->assertNull(LocalChangeComments::getOriginal($dropped));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($dropped), 'without a baseline it counts as local');
+    }
+
+    /**
+     * On refresh fuzzy is recomputed from the shipped file: set exactly when the value is the shipped
+     * value and the shipped entry is fuzzy.
      *
-     * A real sleep (not an injected clock - sync() has none, it always uses the wall clock) is used to
-     * make the two writes fall in different clock seconds; local_change timestamps carry
-     * second-resolution only (see LocalChangeComments::refresh()'s 'Y-m-d\TH:i:s\Z' format), so without
-     * the sleep a regression that re-reads the shipped file and recomputes the timestamp could
-     * coincidentally produce the same string and this test would not reliably catch it.
+     * @param array<string, mixed> $shipped
+     * @param array<string, mixed> $overlay
      */
-    public function testLocalChangeTimestampOfAnUntouchedIdentifierSurvivesAnUnrelatedSync(): void
+    #[DataProvider('refreshFuzzyCases')]
+    public function testRefreshRecomputesFuzzyFromTheShippedEntry(
+        array $shipped,
+        array $overlay,
+        string $value,
+        bool $expected_fuzzy
+    ): void {
+        $this->seedShipped(['greeting' => $shipped]);
+        $this->seedOverlay(['greeting' => $overlay]);
+
+        $this->sync(['greeting' => $value], true);
+
+        $this->assertSame($expected_fuzzy, $this->overlayPo()->find(self::MODULE, 'greeting')->hasFlag('fuzzy'));
+    }
+
+    public static function refreshFuzzyCases(): array
     {
-        $directory = $this->seedFixtureModule('stest', 'de', [
+        return [
+            'shipped fuzzy, value is shipped' => [
+                ['value' => 'Hello', 'fuzzy' => true], ['value' => 'Hello', 'original' => 'Hello'], 'Hello', true,
+            ],
+            'shipped fuzzy, value differs' => [
+                ['value' => 'Hello', 'fuzzy' => true], ['value' => 'Hallo', 'original' => 'Hello', 'fuzzy' => true], 'Hallo', false,
+            ],
+            'shipped reviewed now, overlay still fuzzy' => [
+                ['value' => 'Hallo'], ['value' => 'Hallo', 'original' => 'Hello', 'fuzzy' => true], 'Hallo', false,
+            ],
+        ];
+    }
+
+    // ------------------------------------------------ replace + ordering + guard
+
+    public function testReplaceSemanticsRemoveEveryEntryThatIsNotPassed(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $this->seedOverlay([
             'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
             'farewell' => ['value' => 'Tschüss', 'original' => 'Tschüss'],
         ]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
 
-        // First (bootstrap) sync: only "greeting" is locally changed.
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo, geändert', 'farewell' => 'Tschüss'],
-            true,
-            $this->client_data_dir
-        );
+        $this->sync(['greeting' => 'Hallo']);
 
-        $greeting_after_first_sync = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $timestamp_after_first_sync = LocalChangeComments::getLocalChange($greeting_after_first_sync);
-        $this->assertNotNull($timestamp_after_first_sync);
+        $this->assertSame(['greeting'], $this->overlayIdentifiers());
+        $this->assertSame(['greeting' => 'Hallo'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+    }
 
-        sleep(1);
+    public function testSyncingNoEntriesEmptiesTheOverlayButKeepsItAndTheShippedFile(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
 
-        // Second sync: "greeting" is written again with the SAME value (a full-replace write, as
-        // every real caller does), only "farewell" actually changes this time.
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo, geändert', 'farewell' => 'Tschüss, geändert'],
-            false,
-            $this->client_data_dir
-        );
+        $this->sync([]);
 
-        $overlay = $this->loadOverlayPo('stest', 'de');
-        $greeting_after_second_sync = $overlay->find('stest', 'greeting');
-        $farewell_after_second_sync = $overlay->find('stest', 'farewell');
-
-        $this->assertSame(
-            $timestamp_after_first_sync,
-            LocalChangeComments::getLocalChange($greeting_after_second_sync),
-            'local_change of an identifier untouched in value must stay stable across an unrelated sync'
-        );
-        $this->assertNotNull(LocalChangeComments::getLocalChange($farewell_after_second_sync));
+        $this->assertSame([], $this->overlayIdentifiers());
+        $this->assertSame([], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertNotNull(MigratedPoFixture::readPo($this->shippedPo())->find(self::MODULE, 'greeting'));
     }
 
     /**
-     * The scenario $refresh_original_from_shipped exists for: an ILIAS core update ships a revised
-     * translation for a module that is already installed (see MigratedLanguageFileSync::sync()'s own
-     * docblock for exactly which real callers set this). Without the flag (the default - see
-     * testWithoutRefreshOriginalFromShippedAnUnmodifiedEntryIsWronglyFlaggedAfterAShippedUpdate()
-     * below), "original" stays frozen on the value shipped at overlay-creation time forever, so an
-     * entry nobody ever customized locally would incorrectly start looking "locally changed" the
-     * moment the caller starts passing the new shipped value through $entries. With the flag, sync()
-     * brings "original" up to date with the shipped `.po` FIRST, so an unmodified entry ends up
-     * exactly as if it had shipped with the new value from the start: no local_change.
+     * Entries of a different context (another module) are never taken over into this module's
+     * overlay: the overlay holds exactly $entries.
      */
-    public function testRefreshOriginalFromShippedUpdatesOriginalAndClearsLocalChangeForAnUnmodifiedEntry(): void
+    public function testEntriesOfAnotherContextInTheOldOverlayAreNotCarriedOver(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // A genuine first install - creates the overlay, "original" = "Hallo".
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo'],
-            true,
-            $this->client_data_dir
-        );
-
-        // An ILIAS core update ships a revised translation. Nobody customized this entry locally, so
-        // the caller (e.g. LanguageInstallationManager, re-parsing the updated .lang file) passes the
-        // new shipped value straight through.
-        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo, überarbeitet'],
-            false,
-            $this->client_data_dir,
-            true
-        );
-
-        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $this->assertSame('Hallo, überarbeitet', $translation->getTranslation());
-        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($translation));
-        $this->assertNull(LocalChangeComments::getLocalChange($translation));
-    }
-
-    /**
-     * The flip side of the test above: an entry an admin already customized locally stays flagged as
-     * locally changed even after "original" is brought up to date with a newer shipped value - it is
-     * still, correctly, a deviation from whatever the current shipped default is.
-     */
-    public function testRefreshOriginalFromShippedUpdatesOriginalButKeepsALocalCustomizationFlagged(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // First install, then an ordinary admin edit customizes the entry (flag stays false, exactly
-        // like ilObjLanguage::replaceLangModule() would pass it).
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo'],
-            true,
-            $this->client_data_dir
-        );
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Servus'],
-            false,
-            $this->client_data_dir
-        );
-        $this->assertNotNull(LocalChangeComments::getLocalChange(
-            $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting')
-        ));
-
-        // An ILIAS core update ships a revised translation too. The caller (re-parsing the updated
-        // .lang file, then merging the still-newer DB-recorded local change back on top) passes the
-        // admin's customization through unchanged - it remains the effectively correct value.
-        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Servus'],
-            false,
-            $this->client_data_dir,
-            true
-        );
-
-        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $this->assertSame('Servus', $translation->getTranslation());
-        $this->assertSame(
-            'Hallo, überarbeitet',
-            LocalChangeComments::getOriginal($translation),
-            'original must track the new shipped baseline even while the entry stays locally customized'
-        );
-        $this->assertNotNull(LocalChangeComments::getLocalChange($translation));
-    }
-
-    /**
-     * The guard $refresh_original_from_shipped's docblock promises: "original" is rewritten only for
-     * an entry whose shipped value actually changed - an entry the update didn't touch must be left
-     * exactly as it was, even while a sibling entry in the very same sync() call does get updated.
-     */
-    public function testRefreshOriginalFromShippedOnlyTouchesEntriesWhoseShippedValueActuallyChanged(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', [
-            'greeting' => ['value' => 'Hallo'],
-            'farewell' => ['value' => 'Tschüss'],
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
+            'foreign' => ['value' => 'Fremd', 'context' => 'other_module'],
         ]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
 
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo', 'farewell' => 'Tschüss'],
-            true,
-            $this->client_data_dir
-        );
+        $this->sync(['greeting' => 'Hallo']);
 
-        // The update revises only "greeting" - "farewell" ships completely unchanged.
-        $this->seedFixtureModule('stest', 'de', [
-            'greeting' => ['value' => 'Hallo, überarbeitet'],
-            'farewell' => ['value' => 'Tschüss'],
-        ]);
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo, überarbeitet', 'farewell' => 'Tschüss'],
-            false,
-            $this->client_data_dir,
-            true
-        );
-
-        $overlay = $this->loadOverlayPo('stest', 'de');
-        $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($overlay->find('stest', 'greeting')));
-        $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find('stest', 'farewell')));
-        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find('stest', 'greeting')));
-        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find('stest', 'farewell')));
+        $this->assertNull($this->overlayPo()->find('other_module', 'foreign'));
     }
 
     /**
-     * Documents the exact staleness bug $refresh_original_from_shipped fixes, by pinning what happens
-     * WITHOUT it (the default, and what every caller except LanguageInstallationManager and the
-     * "reset to shipped defaults" import passes): "original" stays frozen on the value shipped at
-     * overlay-creation time, so an entry nobody ever touched locally is incorrectly flagged as locally
-     * changed the moment a caller starts passing the new shipped value through $entries.
+     * Sorted byte-wise by identifier, independent of the order of $entries - keeps the file
+     * diff-stable. SORT_STRING: upper case before lower case, "10" before "9".
      */
-    public function testWithoutRefreshOriginalFromShippedAnUnmodifiedEntryIsWronglyFlaggedAfterAShippedUpdate(): void
+    public function testEntriesAreWrittenSortedByIdentifier(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
+        $this->seedShipped(['b' => 'B']);
 
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo'],
-            true,
-            $this->client_data_dir
-        );
+        $this->sync(['b' => 'B', 'a' => 'A', 'C' => 'C', '9' => 'neun', '10' => 'zehn']);
 
-        $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo, überarbeitet']]);
-        // $refresh_original_from_shipped omitted - defaults to false.
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo, überarbeitet'],
-            false,
-            $this->client_data_dir
-        );
-
-        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation), 'original stays frozen without the flag');
-        $this->assertNotNull($translation ? LocalChangeComments::getLocalChange($translation) : null);
+        $this->assertSame(['10', '9', 'C', 'a', 'b'], $this->overlayIdentifiers());
     }
 
     /**
-     * $refresh_original_from_shipped must have no effect on the very first sync for a module+language
-     * (overlay does not exist yet, see the !$overlay_exists branch) - that case already seeds
-     * "original" from the shipped `.po` unconditionally, regardless of this flag.
+     * No-op guard: an unchanged `.po` with an existing `.mo` writes nothing. Proven via a sentinel
+     * `.mo` content that a rewrite would replace.
      */
-    public function testRefreshOriginalFromShippedHasNoEffectOnTheVeryFirstOverlayCreation(): void
+    public function testAnUnchangedOverlayIsNotRewritten(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->sync(['greeting' => 'Servus']);
+        $po_before = file_get_contents($this->overlayBase() . '.po');
+        file_put_contents($this->overlayBase() . '.mo', 'SENTINEL');
 
-        MigratedLanguageFileSync::sync(
-            $manager,
-            ILIAS_ABSOLUTE_PATH,
-            'de',
-            'stest',
-            ['greeting' => 'Hallo'],
-            true,
-            $this->client_data_dir,
-            true
-        );
+        $this->sync(['greeting' => 'Servus']);
+        $this->sync(['greeting' => 'Servus'], true);
 
-        $translation = $this->loadOverlayPo('stest', 'de')->find('stest', 'greeting');
-        $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
-        $this->assertNull(LocalChangeComments::getLocalChange($translation));
+        $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
+        $this->assertSame('SENTINEL', file_get_contents($this->overlayBase() . '.mo'));
+    }
+
+    public function testAMissingMoIsRecompiledEvenWhenThePoIsUnchanged(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->sync(['greeting' => 'Hallo']);
+        $po_before = file_get_contents($this->overlayBase() . '.po');
+        unlink($this->overlayBase() . '.mo');
+
+        $this->sync(['greeting' => 'Hallo']);
+
+        $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
+        $this->assertSame(['greeting' => 'Hallo'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+    }
+
+    public function testAChangedValueRewritesBothFiles(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->sync(['greeting' => 'Hallo']);
+        file_put_contents($this->overlayBase() . '.mo', 'SENTINEL');
+
+        $this->sync(['greeting' => 'Servus']);
+
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+    }
+
+    public function testASyncInvalidatesTheIlLanguageReadCache(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'stale'], 'other|de' => ['x' => 'y']]);
+
+        try {
+            $this->sync(['greeting' => 'Servus']);
+
+            $this->assertSame(['other|de' => ['x' => 'y']], $cache->getValue());
+        } finally {
+            $cache->setValue(null, []);
+        }
+    }
+
+    // --------------------------------------------------------------- no-ops
+
+    public function testIsANoOpWhenTheModuleHasNoContributedDirectory(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+
+        MigratedLanguageFileSync::sync($this->manager, ILIAS_ABSOLUTE_PATH, 'de', 'other_module', ['x' => 'y'], $this->client_data_dir);
+        MigratedLanguageFileSync::sync($this->manager, ILIAS_ABSOLUTE_PATH, 'de', '', ['x' => 'y'], $this->client_data_dir, true);
+
+        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
+    }
+
+    public function testIsANoOpWhenNoShippedPoExistsForTheLanguage(): void
+    {
+        $this->seedShipped(['greeting' => 'Hello'], 'en');
+
+        $this->sync(['greeting' => 'Hallo'], true);
+
+        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
+    }
+
+    public function testIsANoOpWhenTheClientDataDirIsNull(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $shipped_before = file_get_contents($this->shippedPo());
+
+        $this->sync(['greeting' => 'Servus'], true, null);
+
+        $this->assertSame($shipped_before, file_get_contents($this->shippedPo()));
+        $this->assertSame(['stest_de.po'], array_values(array_diff(scandir($this->fixture_directory), ['.', '..'])));
+    }
+
+    // -------------------------------------------------------------- failures
+
+    /**
+     * A corrupt overlay `.po` is rebuilt like a missing one (original/local_change recomputed against
+     * the shipped file) instead of blocking every further write.
+     */
+    #[DataProvider('refreshFlags')]
+    public function testACorruptOverlayPoIsRebuiltFromEntriesAndTheShippedPo(bool $refresh): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+        file_put_contents($this->overlayBase() . '.po', "msgid \"broken\nmsgstr \"\"\n");
+
+        $this->sync(['greeting' => 'Hallo', 'farewell' => 'Servus'], $refresh);
+
+        $overlay = $this->overlayPo();
+        $this->assertSame(['farewell', 'greeting'], $this->overlayIdentifiers());
+        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'greeting')));
+        $farewell = $overlay->find(self::MODULE, 'farewell');
+        $this->assertSame('Tschüss', LocalChangeComments::getOriginal($farewell));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($farewell));
+        $this->assertSame(
+            ['farewell' => 'Servus', 'greeting' => 'Hallo'],
+            MigratedPoFixture::readMo($this->overlayBase() . '.mo')
+        );
+    }
+
+    public function testACorruptShippedPoThrows(): void
+    {
+        file_put_contents($this->shippedPo(), "msgid \"broken\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->sync(['greeting' => 'Hallo']);
     }
 
     /**
-     * Per its own docblock, sync() always throws instead of logging/swallowing - every caller decides
-     * that for itself. Pinned directly here rather than only observed indirectly through a caller's
-     * catch block.
+     * Root-proof write failure: a regular file sits where the overlay's "lang" directory has to be
+     * created - mkdir() fails for every user, root included.
      */
-    public function testThrowsWhenTheOverlayPoFileCannotBeWritten(): void
+    public function testThrowsWhenTheOverlayDirectoryCannotBeCreated(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-        chmod($this->overlayBase('stest', 'de') . '.po', 0444);
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
+        $this->seedShipped(['greeting' => 'Hallo']);
+        file_put_contents($this->client_data_dir . '/lang', 'not a directory');
 
         set_error_handler(static fn(): bool => true, E_WARNING);
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessageMatches('/PO file/');
-            MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', 'stest', ['greeting' => 'Hallo, geändert'], false, $this->client_data_dir);
+            $this->expectExceptionMessageMatches('/Could not create directory/');
+            $this->sync(['greeting' => 'Servus']);
         } finally {
             restore_error_handler();
-            chmod($this->overlayBase('stest', 'de') . '.po', 0664);
         }
     }
 
     /**
-     * removeOverlay() is the uninstall counterpart to sync()'s $create_missing_mo (see its docblock) -
-     * unlike the old removeMoFile() (which removed only the .mo, deliberately leaving the then-precious
-     * shipped .po alone), it removes BOTH overlay files together: the overlay has no "precious source"
-     * status of its own, so there is no reason to keep one half of it around. The shipped pair must
-     * stay completely untouched - it is never written to, and never removed, by this class.
+     * Root-proof write failure of the file itself: a directory sits at the overlay `.po` path, so the
+     * final rename() cannot replace it. The temporary file must not be left behind.
      */
-    public function testRemoveOverlayDeletesBothOverlayFilesButLeavesShippedFilesUntouched(): void
+    public function testThrowsWhenTheOverlayPoCannotBeReplacedAndLeavesNoTemporaryFile(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-        $shipped_po_before = file_get_contents($this->fixture_directory . '/stest_de.po');
-        $shipped_mo_before = file_get_contents($this->fixture_directory . '/stest_de.mo');
+        $this->seedShipped(['greeting' => 'Hallo']);
+        mkdir($this->overlayBase() . '.po', 0775, true);
 
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
+        set_error_handler(static fn(): bool => true, E_WARNING);
+        try {
+            $this->sync(['greeting' => 'Servus']);
+            $this->fail('Expected a RuntimeException');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Could not replace', $e->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame(
+            ['stest_de.po'],
+            array_values(array_diff(scandir(dirname($this->overlayBase())), ['.', '..'])),
+            'neither a temporary file nor a .mo may be left behind'
         );
-
-        MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', $this->client_data_dir);
-
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase('stest', 'de') . '.mo');
-        $this->assertSame($shipped_po_before, file_get_contents($this->fixture_directory . '/stest_de.po'));
-        $this->assertSame($shipped_mo_before, file_get_contents($this->fixture_directory . '/stest_de.mo'));
-    }
-
-    public function testRemoveOverlayIsANoOpWhenNoOverlayExistsYet(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        // deliberately no bootstrapOverlayFromShipped() call
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // must not throw even though there is nothing to remove
-        MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', $this->client_data_dir);
-
-        $this->assertFileExists($this->fixture_directory . '/stest_de.po');
-    }
-
-    public function testRemoveOverlayIsANoOpWhenTheModuleHasNoContributedDirectory(): void
-    {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-
-        // "other_module" is not contributed by anyone -> must not throw, must not touch stest's files
-        MigratedLanguageFileSync::removeOverlay($manager, 'de', 'other_module', $this->client_data_dir);
-
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.mo');
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.po');
     }
 
     /**
-     * $client_data_dir === null must no-op, exactly like sync() - never interpreted as "nothing to
-     * resolve, so fall back to the shipped location" (which removeOverlay() must never touch anyway).
+     * The client data directory (or one of its parents) being a symlink is common (e.g. a data volume
+     * mounted elsewhere). tempnam() resolves symlinks, so AtomicFileWriter's "same directory" check
+     * rejected every write (regression test for that bug).
      */
-    public function testRemoveOverlayIsANoOpWhenClientDataDirIsNull(): void
+    public function testWritesTheOverlayWhenTheClientDataDirIsASymlink(): void
     {
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $link = $this->client_data_dir . '-link';
+        symlink($this->client_data_dir, $link);
 
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
+        try {
+            MigratedLanguageFileSync::sync($this->manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Servus'], $link);
+        } finally {
+            unlink($link);
+        }
 
-        MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', null);
-
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.po');
-        $this->assertFileExists($this->overlayBase('stest', 'de') . '.mo');
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
     }
 
-    /**
-     * Per its own docblock, removeOverlay() always throws instead of logging/swallowing - every caller
-     * decides that for itself, exactly like sync().
-     */
+    // -------------------------------------------------------- loadShippedModules
+
+    public function testLoadShippedModulesReturnsTheShippedValuesOfEveryMigratedModuleForTheLanguage(): void
+    {
+        $second_directory = MigratedPoFixture::directory('stwo', $this->directory->getPath());
+        $not_migrated = MigratedPoFixture::directory('nomig', $this->directory->getPath());
+        $manager = new LanguageFileDirectoryManager(
+            new CustomizingLanguageFileDirectory(),
+            new MainLanguageFileDirectory(),
+            $this->directory,
+            $second_directory,
+            $not_migrated
+        );
+        $this->seedShipped([
+            'greeting' => 'Hallo',
+            'foreign' => ['value' => 'Fremd', 'context' => 'other_module'],
+        ]);
+        $this->seedShipped(['farewell' => 'Tschüss'], 'de', 'stwo');
+        $this->seedShipped(['farewell' => 'Bye'], 'en', 'stwo');
+        $this->seedShipped(['x' => 'only english'], 'en', 'nomig');
+
+        $this->assertSame(
+            [self::MODULE => ['greeting' => 'Hallo'], 'stwo' => ['farewell' => 'Tschüss']],
+            MigratedLanguageFileSync::loadShippedModules($manager, ILIAS_ABSOLUTE_PATH, 'de')
+        );
+    }
+
+    public function testLoadShippedModulesReturnsAnEmptyListForAModuleWhoseShippedPoIsEmpty(): void
+    {
+        $this->seedShipped([]);
+
+        $this->assertSame(
+            [self::MODULE => []],
+            MigratedLanguageFileSync::loadShippedModules($this->manager, ILIAS_ABSOLUTE_PATH, 'de')
+        );
+    }
+
+    // ---------------------------------------------------- loadModuleTranslations
+
+    public function testLoadModuleTranslationsReturnsValueLocalChangeDateAndOriginalPerEntry(): void
+    {
+        $this->seedOverlay([
+            'changed' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2026-09-21T10:11:12Z'],
+            'unchanged' => ['value' => 'Tschüss', 'original' => 'Tschüss'],
+            'foreign' => ['value' => 'x', 'context' => 'other_module'],
+        ]);
+
+        $this->assertSame(
+            [
+                'changed' => [
+                    'value' => 'Servus',
+                    'local_change' => true,
+                    'local_change_date' => '2026-09-21 10:11:12',
+                    'original' => 'Hallo',
+                ],
+                'unchanged' => [
+                    'value' => 'Tschüss',
+                    'local_change' => false,
+                    'local_change_date' => null,
+                    'original' => 'Tschüss',
+                ],
+            ],
+            MigratedLanguageFileSync::loadModuleTranslations($this->manager, 'de', self::MODULE, $this->client_data_dir)
+        );
+    }
+
+    #[DataProvider('incompleteOverlayFiles')]
+    public function testLoadModuleTranslationsAndGetMigratedModulesRequireBothOverlayFiles(string $missing): void
+    {
+        $this->seedOverlay(['greeting' => 'Hallo']);
+        unlink($this->overlayBase() . $missing);
+
+        $this->assertNull(MigratedLanguageFileSync::loadModuleTranslations($this->manager, 'de', self::MODULE, $this->client_data_dir));
+        $this->assertSame([], MigratedLanguageFileSync::getMigratedModules($this->manager, 'de', $this->client_data_dir));
+    }
+
+    public static function incompleteOverlayFiles(): array
+    {
+        return ['no .mo' => ['.mo'], 'no .po' => ['.po']];
+    }
+
+    public function testGetMigratedModulesListsModulesWithACompleteOverlayForTheLanguageOnly(): void
+    {
+        $this->seedOverlay(['greeting' => 'Hallo']);
+
+        $this->assertSame([self::MODULE], MigratedLanguageFileSync::getMigratedModules($this->manager, 'de', $this->client_data_dir));
+        $this->assertSame([], MigratedLanguageFileSync::getMigratedModules($this->manager, 'en', $this->client_data_dir));
+        $this->assertSame([], MigratedLanguageFileSync::getMigratedModules($this->manager, 'de', null));
+    }
+
+    // ------------------------------------------------------------ removeOverlay
+
+    public function testRemoveOverlayDeletesBothOverlayFilesButLeavesTheShippedPoUntouched(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => 'Hallo']);
+        $shipped_before = file_get_contents($this->shippedPo());
+
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $this->assertSame($shipped_before, file_get_contents($this->shippedPo()));
+    }
+
+    public function testRemoveOverlayOnlyRemovesTheRequestedLanguage(): void
+    {
+        $this->seedOverlay(['greeting' => 'Hallo'], 'de');
+        $this->seedOverlay(['greeting' => 'Hello'], 'en');
+
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
+
+        $this->assertFileExists($this->overlayBase('en') . '.po');
+        $this->assertFileExists($this->overlayBase('en') . '.mo');
+    }
+
+    public function testRemoveOverlayIsANoOpWithoutOverlayUnknownModuleOrClientDataDir(): void
+    {
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
+        $this->seedOverlay(['greeting' => 'Hallo']);
+
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', 'other_module', $this->client_data_dir);
+        MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, null);
+
+        $this->assertFileExists($this->overlayBase() . '.po');
+        $this->assertFileExists($this->overlayBase() . '.mo');
+    }
+
     public function testRemoveOverlayThrowsWhenAnOverlayFileCannotBeRemoved(): void
     {
-        if (posix_getuid() === 0) {
-            $this->markTestSkipped('Cannot force an unremovable file while running as root; skipping.');
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('A non-removable file cannot be forced for root (no root-proof variant for unlink()).');
         }
-
-        $directory = $this->seedFixtureModule('stest', 'de', ['greeting' => ['value' => 'Hallo']]);
-        $this->bootstrapOverlayFromShipped('stest', 'de');
-
-        $manager = new LanguageFileDirectoryManager(
-            new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-            $directory
-        );
-        // unlink() fails on a directory permission, not a file permission, and emits a PHP warning
-        // before returning false - silenced the same way testThrowsWhenTheOverlayPoFileCannotBeWritten() does.
-        $overlay_directory = dirname($this->overlayBase('stest', 'de'));
+        $this->seedOverlay(['greeting' => 'Hallo']);
+        $overlay_directory = dirname($this->overlayBase());
         chmod($overlay_directory, 0555);
 
         set_error_handler(static fn(): bool => true, E_WARNING);
         try {
             $this->expectException(RuntimeException::class);
             $this->expectExceptionMessageMatches('/overlay file/i');
-            MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', $this->client_data_dir);
+            MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
         } finally {
             restore_error_handler();
             chmod($overlay_directory, 0775);

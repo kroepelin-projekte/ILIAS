@@ -66,23 +66,27 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
-     * A genuine "install" (mode MODE_INSTALL, not-yet-installed language) must tell
-     * LanguageInstallationManager (via ilSetupLanguage) that it may bootstrap a migrated module's
-     * still-missing .mo file - see MigratedLanguageFileSync::sync()'s docblock.
-     * UpdateLanguage deliberately does not pass this flag.
+     * The former $create_missing_mo flag is gone (the overlay of a migrated module is always created
+     * once a language is installed): the Activity passes exactly the language key. Captures the raw
+     * arguments, as ->with('de') would also accept an additional argument.
      */
-    public function testFullInstallPassesCreateMissingMoTrue(): void
+    public function testFullInstallPassesOnlyTheLanguageKey(): void
     {
         $setup_language = $this->createSetupLanguageMock([], [], []);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $calls = [];
         $setup_language->expects($this->once())
             ->method('insertLanguageForInstallation')
-            ->with('de', true);
+            ->willReturnCallback(static function (mixed ...$args) use (&$calls): void {
+                $calls[] = $args;
+            });
 
         $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
             'mode' => InstallLanguage::MODE_INSTALL,
         ]);
+
+        $this->assertSame([['de']], $calls);
     }
 
     public function testMultipleLanguagesSeparatesNotInstalledFromAlreadyInstalledUnderInstallMode(): void
@@ -218,25 +222,26 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->assertSame([], $result['invalid_local_language_files']);
     }
 
-    /**
-     * "install_local" is still an install action (see MigratedLanguageFileSync::sync()'s docblock) -
-     * it must pass $create_missing_mo = true too, not just the full-install branch above.
-     */
-    public function testInstallLocalModePassesCreateMissingMoTrue(): void
+    public function testInstallLocalModePassesOnlyTheLanguageKey(): void
     {
         $setup_language = $this->createSetupLanguageMock(
             ['de' => ['obj_id' => 1, 'status' => 'installed']],
             ['de'],
             ['de']
         );
+        $calls = [];
         $setup_language->expects($this->once())
             ->method('insertLanguageForApplyingLocalChanges')
-            ->with('de', true);
+            ->willReturnCallback(static function (mixed ...$args) use (&$calls): void {
+                $calls[] = $args;
+            });
 
         $this->createActivity($setup_language)->perform([
             'language_keys' => 'de',
             'mode' => InstallLanguage::MODE_INSTALL_LOCAL,
         ]);
+
+        $this->assertSame([['de']], $calls);
     }
 
     /**

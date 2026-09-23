@@ -24,6 +24,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Activities\UninstallLanguage;
@@ -89,12 +90,17 @@ class Language implements Component\Component
                 $ilias_root
             );
 
+        // Without a client data directory resolver the overlay of migrated modules would silently
+        // never be maintained through this instance (no language cache invalidator: that cache is a
+        // legacy-$DIC service not reachable through the component graph).
         $internal[LanguageInstallationManager::class] = static fn() =>
             new LanguageInstallationManager(
                 $resolve_db,
                 $internal[LanguageFileDirectoryManager::class],
                 $ilias_root,
-                $internal[InstalledLanguageDatabaseRepository::class]
+                $internal[InstalledLanguageDatabaseRepository::class],
+                null,
+                static fn(): ?string => MigratedLanguageFilePaths::resolveClientDataDir($ilias_root)
             );
 
         $internal[\ilSetupLanguage::class] = static fn() =>

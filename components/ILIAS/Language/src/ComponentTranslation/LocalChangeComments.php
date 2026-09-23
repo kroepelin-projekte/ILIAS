@@ -21,13 +21,12 @@ declare(strict_types=1);
 namespace ILIAS\Language\ComponentTranslation;
 
 use DateTimeImmutable;
-use Gettext\Translation;
+use ILIAS\Language\ComponentTranslation\Gettext\Entry;
 
 /**
- * PO/MO pilot: tracks, per entry, whether the current value still matches the one shipped in the
- * reference `.lang` file at migration time - the same distinction `lng_data.local_change`/`remarks`
- * draws against the DB's merged default, now carried on the entry itself instead of in a separate
- * table.
+ * PO/MO pilot: tracks, per overlay entry, whether the current value still matches the value the
+ * shipped `.po` carries for it - the same distinction `lng_data.local_change` draws, now carried on
+ * the entry itself instead of in a separate table.
  *
  * Stored as plain gettext translator comments (`# ...`), the only place this can live: the compiled
  * `.mo` format has no comment section at all, so this metadata is `.po`-only, exactly mirroring the
@@ -56,58 +55,81 @@ final class LocalChangeComments
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
 
     /**
-     * Called by MigratedLanguageFileSync::sync(), in two situations: once, while seeding a
-     * module+language's overlay for the very first time, for each entry that already existed in the
-     * shipped `.po`; and again later, whenever a $refresh_original_from_shipped-flagged call finds
-     * that the shipped `.po`'s value for an entry no longer matches what "original" already says (see
-     * this class' own docblock). Deliberately does not touch "local_change" itself - refresh() (below)
-     * is always called again right after and recomputes it against whatever "original" now holds.
+     * Does not touch "local_change" - refresh() is always called right after and recomputes it
+     * against whatever "original" now holds.
      */
-    public static function setOriginal(Translation $translation, string $value): void
+    public static function setOriginal(Entry $entry, string $value): void
     {
-        self::replace($translation, self::ORIGINAL_PREFIX, self::encode($value));
+        // unchanged: keep the comment where it is, so re-running a sync produces identical output
+        if (self::getOriginal($entry) === self::encode($value)) {
+            return;
+        }
+        self::replace($entry, self::ORIGINAL_PREFIX, self::encode($value));
     }
 
-    public static function getOriginal(Translation $translation): ?string
+    public static function removeOriginal(Entry $entry): void
     {
-        return self::find($translation, self::ORIGINAL_PREFIX);
+        self::replace($entry, self::ORIGINAL_PREFIX, null);
     }
 
-    public static function getLocalChange(Translation $translation): ?string
+    public static function getOriginal(Entry $entry): ?string
     {
-        return self::find($translation, self::LOCAL_CHANGE_PREFIX);
+        return self::find($entry, self::ORIGINAL_PREFIX);
     }
 
     /**
-     * Called by ilObjLanguage::syncMigratedLanguageFile() for every entry it writes, after the new
-     * value has already been set via Translation::translate(). $previousValue is that same
-     * translation's value just before this write, used only to avoid bumping an already-current
-     * timestamp on an idempotent re-save of the same, already locally-changed value.
+     * @return string|null ISO-8601 UTC ('Y-m-d\TH:i:s\Z') or null if the entry is unmodified
+     */
+    public static function getLocalChange(Entry $entry): ?string
+    {
+        return self::find($entry, self::LOCAL_CHANGE_PREFIX);
+    }
+
+    /**
+     * getLocalChange() in the database's "Y-m-d H:i:s" (UTC) format, as used by
+     * lng_data.local_change, or null if unmodified or unparsable.
+     */
+    public static function getLocalChangeAsDatabaseTimestamp(Entry $entry): ?string
+    {
+        $change = self::getLocalChange($entry);
+        if ($change === null) {
+            return null;
+        }
+        $date = DateTimeImmutable::createFromFormat('Y-m-d\TH:i:s\Z', $change, new \DateTimeZone('UTC'));
+
+        return $date === false ? null : $date->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Called by MigratedLanguageFileSync::sync() for every entry it writes, after the new value has
+     * been set. $previous_value is the entry's value just before this write, used only to avoid
+     * bumping an already-current timestamp on an idempotent re-save of the same, already locally
+     * changed value.
      */
     public static function refresh(
-        Translation $translation,
-        string $previousValue,
+        Entry $entry,
+        string $previous_value,
         string $value,
         DateTimeImmutable $now
     ): void {
-        $original = self::getOriginal($translation);
-        $isLocalChange = $original === null || $original !== $value;
+        $original = self::getOriginal($entry);
+        $is_local_change = $original === null || $original !== $value;
 
-        if (!$isLocalChange) {
-            self::replace($translation, self::LOCAL_CHANGE_PREFIX, null);
+        if (!$is_local_change) {
+            self::replace($entry, self::LOCAL_CHANGE_PREFIX, null);
             return;
         }
 
-        if ($previousValue === $value && self::getLocalChange($translation) !== null) {
+        if ($previous_value === $value && self::getLocalChange($entry) !== null) {
             return;
         }
 
-        self::replace($translation, self::LOCAL_CHANGE_PREFIX, self::encode($now->format('Y-m-d\TH:i:s\Z')));
+        self::replace($entry, self::LOCAL_CHANGE_PREFIX, $now->format('Y-m-d\TH:i:s\Z'));
     }
 
-    private static function find(Translation $translation, string $prefix): ?string
+    private static function find(Entry $entry, string $prefix): ?string
     {
-        foreach ($translation->getComments() as $comment) {
+        foreach ($entry->getTranslatorComments() as $comment) {
             if (str_starts_with($comment, $prefix)) {
                 return substr($comment, strlen($prefix));
             }
@@ -116,16 +138,11 @@ final class LocalChangeComments
         return null;
     }
 
-    private static function replace(Translation $translation, string $prefix, ?string $value): void
+    private static function replace(Entry $entry, string $prefix, ?string $value): void
     {
-        $comments = $translation->getComments();
-        foreach ($comments->toArray() as $comment) {
-            if (str_starts_with($comment, $prefix)) {
-                $comments->delete($comment);
-            }
-        }
+        $entry->removeTranslatorCommentsStartingWith($prefix);
         if ($value !== null) {
-            $comments->add($prefix . $value);
+            $entry->addTranslatorComment($prefix . $value);
         }
     }
 

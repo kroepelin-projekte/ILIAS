@@ -22,10 +22,6 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Translation;
-use Gettext\Translations;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
@@ -104,9 +100,9 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $entry) {
-            $translation = Translation::create($module, $identifier)->translate($entry['value']);
+            $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if (isset($entry['original'])) {
                 LocalChangeComments::setOriginal($translation, $entry['original']);
             }
@@ -131,8 +127,8 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         }
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
+        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -294,18 +290,18 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = Translations::create('lctest', 'de');
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         // Foreign context: same .po file, but a translation entry belonging to a *different* module
         // (e.g. left behind by a merge/copy mistake) - must never be able to leak a local_change into
         // "lctest"'s result.
-        $foreign = Translation::create('other_module', 'greeting')->translate('Hallo, geändert');
+        $foreign = MigratedPoFixture::entry('other_module', 'greeting', 'Hallo, geändert');
         LocalChangeComments::setOriginal($foreign, 'Hallo');
         LocalChangeComments::refresh($foreign, 'Hallo', 'Hallo, geändert', new DateTimeImmutable('2026-09-21T10:00:00Z'));
         $translations->add($foreign);
 
         $base_path = $this->fixture_directory . '/lctest_de';
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
+        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
         $directory = new class ('lctest', $relative_path) implements LanguageFileDirectory {

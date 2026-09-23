@@ -56,11 +56,26 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
     }
 
     /**
-     * @inheritDoc
+     * Includes the language file directory configuration: an instance built with the component
+     * graph's directories (ilLanguageSetupAgent) and one built with only the default directories
+     * (plugin Setup Objectives, see ilSetupLanguage::usesDefaultLanguageFileDirectories()) are
+     * different objectives. With a class-only hash the Setup would keep just one of them - and if
+     * that was the default-directory one, it would refresh every language without the
+     * component-contributed modules.
      */
     public function getHash(): string
     {
-        return hash("sha256", self::class);
+        $directories = [];
+        foreach ($this->il_setup_language->getLanguageFileDirectoryManager()->getAllDirectories() as $directory) {
+            $directories[] = implode('|', [
+                $directory::class,
+                $directory->getPrefix(),
+                $directory->getPath(),
+                $directory->getSuffix(),
+            ]);
+        }
+
+        return hash("sha256", self::class . "\n" . implode("\n", $directories));
     }
 
     /**
@@ -104,7 +119,28 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
     {
         // Must come first: getInstallLanguages() reads from the database too.
         $this->useSetupDatabase($environment);
-        $this->installLanguages($this->getInstallLanguages());
+        $this->useSetupClientDataDir($environment);
+
+        $language_keys = [];
+        $invalid_language_keys = [];
+        foreach ($this->getInstallLanguages() as $language_key) {
+            if ($this->il_setup_language->checkLanguageForInstallation($language_key)) {
+                $language_keys[] = $language_key;
+            } else {
+                $invalid_language_keys[] = $language_key;
+            }
+        }
+        if ($invalid_language_keys !== []) {
+            // as before the Component Revision: an invalid language file only skips that language,
+            // it does not abort the whole Setup run
+            $this->inform(
+                $environment,
+                'Skipped languages with invalid language files (left unchanged): '
+                . implode(', ', $invalid_language_keys)
+            );
+        }
+
+        $this->installLanguages($language_keys);
 
         return $environment;
     }
@@ -135,6 +171,38 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
     }
 
     /**
+     * The overlay of migrated modules lives in the client data directory. The Setup environment
+     * knows it (ilias.ini `datadir` + client id) even when ilias.ini.php is not written yet; if it
+     * does not, ilSetupLanguage falls back to reading ilias.ini.php itself.
+     */
+    protected function useSetupClientDataDir(Setup\Environment $environment): void
+    {
+        $ini = $environment->getResource(Setup\Environment::RESOURCE_ILIAS_INI);
+        $client_id = $environment->getResource(Setup\Environment::RESOURCE_CLIENT_ID);
+        if (!$ini instanceof ilIniFile || $client_id === null) {
+            return;
+        }
+
+        $client_data_dir = \ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths::fromDataDirAndClientId(
+            (string) $ini->readVariable('clients', 'datadir'),
+            (string) $client_id
+        );
+        if ($client_data_dir !== null) {
+            $this->il_setup_language->setClientDataDir($client_data_dir);
+        }
+    }
+
+    protected function inform(Setup\Environment $environment, string $message): void
+    {
+        $io = $environment->getResource(Setup\Environment::RESOURCE_ADMIN_INTERACTION);
+        if ($io instanceof Setup\AdminInteraction) {
+            $io->inform($message);
+            return;
+        }
+        error_log($message);
+    }
+
+    /**
      * Installs every given key that is not yet installed, and refreshes
      * every given key that already is - unconditionally, this Objective's
      * job (label "Install/Update languages") is to keep already-installed
@@ -153,20 +221,33 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
      * independent Activities) and the freshly installed keys are also
      * freshly refreshed, which is harmless.
      *
-     * Each Activity validates and throws \RuntimeException only for the
-     * keys it actually processes (see InstallLanguage::perform() and
-     * UpdateLanguage::perform()); a validation error in the first call
-     * prevents the second from running at all, instead of collecting
-     * invalid keys from both into a single combined error.
+     * achieve() only passes keys whose language files are valid (invalid
+     * ones are skipped and reported there), so neither Activity's own
+     * validation error is expected here.
+     *
+     * An instance that only knows the default language file directories
+     * (see ilSetupLanguage::usesDefaultLanguageFileDirectories()) installs
+     * missing languages but never refreshes installed ones: a refresh
+     * without the component-contributed directories would delete those
+     * modules' lng_data rows. The instance ilLanguageSetupAgent builds
+     * with the component graph's directories does the refresh.
      *
      * @param list<string> $language_keys
      */
     protected function installLanguages(array $language_keys): void
     {
+        if ($language_keys === []) {
+            return;
+        }
+
         $this->install_language->perform([
             'language_keys' => $language_keys,
             'mode' => InstallLanguage::MODE_INSTALL,
         ]);
+
+        if ($this->il_setup_language->usesDefaultLanguageFileDirectories()) {
+            return;
+        }
 
         $this->update_language->perform([
             'language_keys' => $language_keys,

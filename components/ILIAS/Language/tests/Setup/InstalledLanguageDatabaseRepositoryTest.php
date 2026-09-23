@@ -493,6 +493,64 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         $this->assertFalse($repository->checkLocalLanguageFile('de'));
     }
 
+    /**
+     * checkLanguage() for a migrated module: the shipped `.po` is the only source of its shipped
+     * values, so an unparsable one makes the language invalid (it is then skipped/refused before
+     * anything is flushed). Returns the repository for a root with a valid main lang file and a
+     * "pilot" component directory whose shipped de `.po` has $po_content (null = no `.po`).
+     */
+    private function checkLanguageWithShippedPo(?string $po_content, bool $local_directory = false): bool
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/ilias_de.lang', "<!-- language file start -->\ncommon#:#yes#:#Ja\n");
+        mkdir($root . '/components/pilot/lang', 0777, true);
+        if ($po_content !== null) {
+            file_put_contents($root . '/components/pilot/lang/pilot_de.po', $po_content);
+        }
+        $pilot = MigratedPoFixture::directory('pilot', 'components/pilot/lang/', $local_directory);
+
+        try {
+            $repository = new InstalledLanguageDatabaseRepository(
+                $this->createReadDatabaseMock(),
+                $local_directory
+                    ? new LanguageFileDirectoryManager($pilot, new MainLanguageFileDirectory())
+                    : new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $pilot),
+                $root
+            );
+            return $repository->checkLanguage('de');
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testCheckLanguageAcceptsAParsableShippedPo(): void
+    {
+        $this->assertTrue($this->checkLanguageWithShippedPo("msgctxt \"pilot\"\nmsgid \"greeting\"\nmsgstr \"Hallo\"\n"));
+    }
+
+    public function testCheckLanguageRejectsAnUnparsableShippedPo(): void
+    {
+        $this->assertFalse($this->checkLanguageWithShippedPo("msgctxt \"pilot\"\nmsgid \"abc\nmsgstr \"Hallo\"\n"));
+    }
+
+    public function testCheckLanguageAcceptsAModuleWithoutShippedPoForTheLanguage(): void
+    {
+        $this->assertTrue($this->checkLanguageWithShippedPo(null));
+    }
+
+    public function testCheckLanguageDoesNotParsePoFilesOfTheLocalDirectory(): void
+    {
+        $this->assertTrue($this->checkLanguageWithShippedPo("msgid \"abc\n", true));
+    }
+
+    /**
+     * An empty `.po` is a valid (empty) catalog - not a reason to refuse the language.
+     */
+    public function testCheckLanguageAcceptsAnEmptyShippedPo(): void
+    {
+        $this->assertTrue($this->checkLanguageWithShippedPo(''));
+    }
+
     private function createTempInstallationRoot(): string
     {
         $dir = sys_get_temp_dir() . '/ilias_lang_repo_test_' . bin2hex(random_bytes(8));
@@ -511,7 +569,7 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
                 continue;
             }
             $path = $dir . '/' . $item;
-            if (is_dir($path)) {
+            if (is_dir($path) && !is_link($path)) {
                 $this->removeDirectory($path);
             } else {
                 unlink($path);

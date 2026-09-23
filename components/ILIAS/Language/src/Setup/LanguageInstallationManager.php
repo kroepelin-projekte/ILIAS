@@ -48,12 +48,13 @@ class LanguageInstallationManager
      *        the current UTC time. Exists so change/update timestamps can be
      *        asserted in tests without depending on wall-clock time.
      * @param (\Closure():?string)|null $client_data_dir_resolver Resolved lazily and re-read on every
-     *        call, exactly like $db - see ilSetupLanguage::resolveClientDataDir(), the one production
-     *        implementation, for why this cannot simply be a plain string computed once in the
-     *        constructor (no client may exist yet at construction time). `null` (the default) means
-     *        "cannot resolve one" unconditionally, forwarded as-is to MigratedLanguageFileSync::sync(),
-     *        which treats it as "no overlay can be maintained for this call" rather than falling back
-     *        to writing into the shipped, git-tracked directory.
+     *        call, exactly like $db (no client may exist yet at construction time). Production callers
+     *        pass MigratedLanguageFilePaths::resolveClientDataDir() or a Setup-environment based
+     *        variant of it (see ilSetupLanguage). `null` (the default) means "no overlay can be
+     *        maintained" - the database is written regardless.
+     * @param (\Closure(string):void)|null $language_cache_invalidator Called with the language key after
+     *        lng_modules was rewritten for it, so the global language cache (ilCachedLanguage) does
+     *        not keep serving the previous content. `null` where no such cache exists (CLI Setup).
      */
     public function __construct(
         private readonly \ilDBInterface|\Closure $db,
@@ -62,6 +63,7 @@ class LanguageInstallationManager
         private readonly InstalledLanguageRepository $repository,
         private readonly ?\Closure $now = null,
         private readonly ?\Closure $client_data_dir_resolver = null,
+        private readonly ?\Closure $language_cache_invalidator = null,
     ) {
     }
 
@@ -225,64 +227,43 @@ class LanguageInstallationManager
     }
 
     /**
-     * @param bool $create_missing_mo Whether a migrated module's compiled `.mo` file may be created
-     *        from scratch if it doesn't exist yet for this language (see
-     *        MigratedLanguageFileSync::sync()). Pass `true` only for a genuine install of a language
-     *        that was not previously installed - an update/refresh of an already-installed language
-     *        must leave a still-missing `.mo` missing, only recompiling one that already exists.
+     * Install or update (refresh) a language: every directory the LanguageFileDirectoryManager knows
+     * about, including the customizing/local one - so an existing custom language file is
+     * (re-)applied automatically - merged on top of whatever local changes are already recorded.
+     *
+     * For a module migrated to PO/MO the shipped `.po` is the only source of shipped values, and the
+     * shipped/local decision is a three-way comparison per entry (see mergeShippedMigratedModules()):
+     * only entries whose shipped value changed are taken over, local changes are kept.
      */
-    public function insertLanguageForInstallation(string $lang_key, bool $create_missing_mo = false): void
+    public function insertLanguageForInstallation(string $lang_key): void
     {
-        // Every directory the LanguageFileDirectoryManager knows about,
-        // including the customizing/local one - so an existing custom
-        // language file is (re-)applied automatically - merged on top of
-        // whatever local changes are already recorded in the DB.
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getAllDirectories(),
             $this->repository->getLocalChanges($lang_key),
-            $create_missing_mo
+            true,
+            true
         );
     }
 
     /**
-     * Re-seed a language purely from the global/component language files,
-     * deliberately leaving out the customizing/local directory.
+     * Re-seed a language purely from the shipped global/component language files (`.lang`, and the
+     * shipped `.po` of migrated modules), deliberately leaving out the customizing/local directory and
+     * every local change - the write path behind "remove local changes". Going through
+     * insertLanguageForInstallation() instead would immediately re-apply the customizing file.
      *
-     * This is the write path behind "remove local changes": that action
-     * flushes all data for the language and must reinstall a clean copy -
-     * if it went through insertLanguageForInstallation() instead, the
-     * customizing directory's file would immediately be re-applied (and
-     * re-marked with a fresh local_change timestamp), silently undoing the
-     * removal it was just asked to perform.
-     *
-     * insertLanguage()'s unconditional PO/MO sync (see its own docblock) matters here too: $lang_array
-     * is exactly the shipped global/component content (no customizing), so syncing it is precisely
-     * what "remove local changes" needs for a migrated module too - including a case the caller's own
-     * follow-up step, ilObjLanguage::removeLocalChanges()'s resetMigratedLocalChanges(), cannot
-     * handle by itself. resetMigratedLocalChanges() only resets entries that carry an "original"
-     * comment (the shipped value the entry is currently tracked against, see LocalChangeComments); an
-     * entry added *after* migration via "add new variable" never has one, so it would survive a "remove
-     * local changes" pass forever if this method's generic sync were skipped - the DB row for it is
-     * gone (flush("all") + this method's empty customizing seed dropped it), but the .po/.mo file,
-     * untouched, would keep serving it through ilLanguage's migrated-file read path regardless.
-     * Running both is intentional, not redundant: this sync (a full "replace with $lang_array")
-     * removes exactly that kind of orphaned entry and resets every value+local_change timestamp to
-     * the current shipped state; resetMigratedLocalChanges() afterwards then finds nothing left to
-     * do for any entry this sync already brought back in line, which is what makes it safe to keep
-     * calling unconditionally rather than needing to know in advance whether this ran first.
+     * This also rebuilds the overlay of every migrated module from the shipped `.po` ("replace"
+     * semantics): locally changed values are reset, entries added locally ("add new variable") are
+     * removed - the overlay equivalent of the flush the caller performs on lng_data/lng_modules.
      */
     public function insertLanguageForRemovingLocalChanges(string $lang_key): void
     {
-        // Global/component directories only, and an empty seed - a clean
-        // slate with nothing to preserve or merge. Never bootstraps a missing
-        // `.mo`: this reinstalls an already-installed language's shipped
-        // state, it does not install it for the first time (see
-        // insertLanguageForInstallation()'s $create_missing_mo docblock).
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getDirectories(),
-            []
+            [],
+            true,
+            false
         );
     }
 
@@ -311,53 +292,75 @@ class LanguageInstallationManager
      * overridden by the customizing file silently disappear from that
      * module's cache row.
      */
-    /**
-     * @param bool $create_missing_mo see insertLanguageForInstallation()'s docblock - pass `true` only
-     *        for the "install_local" mode of a genuine install (an already-installed language whose
-     *        customizing/local file is being (re-)applied as part of installing it), not for an
-     *        unrelated later re-application of local changes.
-     */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key, bool $create_missing_mo = false): void
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
     {
+        // The seed already holds every stored entry (including those of migrated modules), so the
+        // shipped `.po` files are not merged in again here.
         $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getCustomizingDirectories(),
             $this->repository->getLanguageEntries($lang_key),
-            $create_missing_mo
+            false,
+            true
         );
     }
 
+
     /**
-     * Writes whatever data the given $directories/$lang_array seed produce - it does not
-     * itself decide which directories to read or what to seed with; that is entirely up to
-     * the caller (see the three call sites above, each of which already states its intent in its
-     * own name).
+     * Writes whatever data the given $directories/$lang_array seed produce - which directories to read
+     * and what to seed with is decided by the three callers above.
      *
-     * After writing lng_modules, also mirrors the final per-module content into a PO/MO pilot
-     * module's .po/.mo files too: until this was added, an install/update never touched a migrated
-     * module's files at all, so a new/changed key added only to the .lang file would land in
-     * lng_modules but stay invisible to ilLanguage::txt(), which reads the stale .mo file first for
-     * a migrated module. $lang_array is exactly the same complete, final identifier => value map per module
-     * that the lng_modules INSERT below uses - the exact shape MigratedLanguageFileSync::sync()
-     * expects, mirroring replaceLangModule()'s contract. All three callers above want this: even
-     * insertLanguageForRemovingLocalChanges() needs it, since its own DB-side "remove local
-     * changes" reinstall can drop entries (e.g. one added after migration via "add new variable")
-     * that the caller's separate resetMigratedLocalChanges() step cannot reach on its own - see that
-     * method's docblock.
+     * For every module migrated to PO/MO (see MigratedLanguageFileSync) whose shipped `.po` is merged
+     * ($merge_shipped_migrated_modules), the module's lines in the global/component `.lang` files are
+     * ignored - the shipped `.po` is the only source of its shipped values - and each shipped entry is
+     * reconciled with the local state via resolveMigratedModule(). Lines for such a module in the
+     * customizing/local file are still applied, as local changes.
+     *
+     * After lng_data/lng_modules are written, the stored module arrays are verified (collation
+     * problems, see mantis #20046/#19140), the language cache is invalidated and every migrated
+     * module's overlay is brought in line with the final content.
      *
      * @param iterable<LanguageFileDirectory> $directories
      * @param array<string, array<string, string>> $lang_array module => identifier => value
-     * @param bool $create_missing_mo forwarded verbatim to MigratedLanguageFileSync::sync() for every
-     *        module - see insertLanguageForInstallation()'s docblock for what it controls.
+     * @param bool $keep_local_changes whether local changes recorded only in a migrated module's
+     *        overlay count as local changes (false for "remove local changes")
      */
     private function insertLanguage(
         string $lang_key,
         iterable $directories,
         array $lang_array,
-        bool $create_missing_mo = false
+        bool $merge_shipped_migrated_modules,
+        bool $keep_local_changes
     ): void {
         $ilDB = $this->db();
         $working_dir = getcwd();
+        $client_data_dir = $this->clientDataDir();
+        $shipped_migrated_modules = $merge_shipped_migrated_modules
+            ? MigratedLanguageFileSync::loadShippedModules(
+                $this->language_file_directory_manager,
+                $this->absolute_path,
+                $lang_key
+            )
+            : [];
+
+        $values_sql = [];
+        $add_row = static function (
+            string $module,
+            string $identifier,
+            string $value,
+            ?string $local_change,
+            ?string $remarks
+        ) use (&$values_sql, $ilDB, $lang_key): void {
+            $values_sql[] = sprintf(
+                "(%s,%s,%s,%s,%s,%s)",
+                $ilDB->quote($module, "text"),
+                $ilDB->quote($identifier, "text"),
+                $ilDB->quote($lang_key, "text"),
+                $ilDB->quote($value, "text"),
+                $ilDB->quote($local_change, "timestamp"),
+                $ilDB->quote($remarks, "text")
+            );
+        };
 
         // Every exit path below - including an exception thrown out of a DB
         // call - must restore the working directory. This method chdir()s
@@ -365,13 +368,11 @@ class LanguageInstallationManager
         // relative path; PHP-FPM/mod_php worker processes are long-lived and
         // reused across unrelated requests, so a cwd left dangling here (e.g.
         // inside lang/customizing/ after an error) would silently corrupt
-        // relative-path filesystem checks - such as this same class'
-        // checkLanguageFile() - for every later request handled by that
-        // worker, for any language, not just this one. This is why a
-        // language check can spuriously fail for a file that is perfectly
-        // valid on disk.
+        // relative-path filesystem checks for every later request handled by
+        // that worker.
         try {
-            $values_sql = [];
+            $customized = [];
+            $duplicates = [];
 
             foreach ($directories as $directory) {
                 $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
@@ -396,10 +397,7 @@ class LanguageInstallationManager
 
                 // Both of these depend only on the language and on this
                 // directory's file - never on the individual entry - so they
-                // are resolved once per directory. Doing it inside the loop
-                // below meant one "SELECT ... FROM lng_data" per line of the
-                // file: a customizing file with a few thousand entries issued
-                // a few thousand identical queries.
+                // are resolved once per directory instead of once per line.
                 $change_date = null;
                 $newer_db_changes = [];
                 if ($is_local) {
@@ -413,6 +411,7 @@ class LanguageInstallationManager
                     $change_date = $this->utcTimestamp();
                 }
 
+                $seen_in_file = [];
                 foreach ($content as $line) {
                     $line = trim($line);
                     if ($line === '') {
@@ -434,7 +433,17 @@ class LanguageInstallationManager
                     $identifier = $separated[1];
                     $value = $separated[2];
 
+                    if (isset($seen_in_file[$module][$identifier])) {
+                        $duplicates[] = $path . $lang_file . ': ' . $module . self::SEPARATOR . $identifier;
+                        continue;
+                    }
+                    $seen_in_file[$module][$identifier] = true;
+
                     if (!$is_local) {
+                        if (isset($shipped_migrated_modules[$module])) {
+                            // migrated: the shipped .po is the only source, see resolveMigratedModule()
+                            continue;
+                        }
                         // Respect local changes already recorded in the
                         // database, and let an earlier directory win.
                         if (isset($lang_array[$module][$identifier])) {
@@ -445,17 +454,39 @@ class LanguageInstallationManager
                         continue;
                     }
 
-                    $values_sql[] = sprintf(
-                        "(%s,%s,%s,%s,%s,%s)",
-                        $ilDB->quote($module, "text"),
-                        $ilDB->quote($identifier, "text"),
-                        $ilDB->quote($lang_key, "text"),
-                        $ilDB->quote($value, "text"),
-                        $ilDB->quote($change_date, "timestamp"),
-                        $ilDB->quote($separated[3] ?? null, "text")
-                    );
-
+                    $add_row($module, $identifier, $value, $change_date, $separated[3] ?? null);
                     $lang_array[$module][$identifier] = $value;
+                    if ($is_local) {
+                        $customized[$module][$identifier] = true;
+                    }
+                }
+            }
+
+            if ($duplicates !== []) {
+                // The pre-Component-Revision GUI path aborted on a duplicate entry, Setup silently
+                // let one occurrence win. Shipped files do contain duplicates (e.g. ilias_fa.lang,
+                // ilias_nl.lang), so aborting would make such a language impossible to update - the
+                // first occurrence wins (the second is not written) and the duplicates are reported.
+                error_log(sprintf(
+                    'Duplicate language entries for language "%s" (first occurrence used): %s',
+                    $lang_key,
+                    implode(', ', $duplicates)
+                ));
+            }
+
+            foreach ($shipped_migrated_modules as $module => $shipped_entries) {
+                $overlay = $keep_local_changes ? $this->loadOverlay($lang_key, (string) $module, $client_data_dir) : null;
+
+                $lang_array[$module] = $this->resolveMigratedModule(
+                    $lang_array[$module] ?? [],
+                    $customized[$module] ?? [],
+                    $shipped_entries,
+                    $overlay ?? [],
+                    static fn(string $identifier, string $value, ?string $local_change) =>
+                        $add_row($module, $identifier, $value, $local_change, null)
+                );
+                if ($lang_array[$module] === []) {
+                    unset($lang_array[$module]);
                 }
             }
 
@@ -470,7 +501,7 @@ class LanguageInstallationManager
                 return;
             }
 
-            $modules = array_keys($lang_array);
+            $modules = array_map('strval', array_keys($lang_array));
             $inModulesToDelete = $ilDB->in('module', $modules, false, 'text');
             $ilDB->manipulate(sprintf(
                 "DELETE FROM lng_modules WHERE lang_key = %s AND $inModulesToDelete",
@@ -481,7 +512,7 @@ class LanguageInstallationManager
             foreach ($lang_array as $module => $lang_arr) {
                 $modulesValuesSql[] = sprintf(
                     "(%s,%s,%s)",
-                    $ilDB->quote($module, "text"),
+                    $ilDB->quote((string) $module, "text"),
                     $ilDB->quote($lang_key, "text"),
                     $ilDB->quote(serialize($lang_arr), "clob")
                 );
@@ -492,42 +523,166 @@ class LanguageInstallationManager
                 . ";";
             $ilDB->manipulate($query);
 
-            $client_data_dir = $this->clientDataDir();
-            foreach ($lang_array as $module => $entries) {
-                try {
-                    MigratedLanguageFileSync::sync(
-                        $this->language_file_directory_manager,
-                        $this->absolute_path,
-                        $lang_key,
-                        $module,
-                        $entries,
-                        $create_missing_mo,
-                        $client_data_dir,
-                        // Every caller of insertLanguage() (install, update/refresh, "remove local
-                        // changes", "apply local changes") represents reconciling this language with
-                        // some current, authoritative state of the language files - never an ad-hoc
-                        // single-value admin edit (that goes through ilObjLanguage::replaceLangModule()
-                        // instead, which never sets this). See MigratedLanguageFileSync::sync()'s own
-                        // docblock for what this actually does.
-                        true
-                    );
-                } catch (\Throwable $t) {
-                    // No injected logger here (unlike ilObjLanguage's $DIC-based write paths) -
-                    // this class is constructed in Setup contexts too, before a full logging
-                    // service is guaranteed to exist. error_log() is the one sink guaranteed to
-                    // work everywhere this class runs. The lng_modules write above already
-                    // succeeded and must not be undone by a problem with the file mirror (e.g. a
-                    // read-only lang/ directory).
-                    error_log(sprintf(
-                        'Could not sync migrated language file for module "%s", language "%s": %s',
-                        $module,
-                        $lang_key,
-                        $t->getMessage()
-                    ));
-                }
-            }
+            $this->assertModulesCorrectlySaved($lang_key, $modules);
+            $this->invalidateLanguageCache($lang_key);
+            $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir);
         } finally {
             chdir($working_dir);
+        }
+    }
+
+    /**
+     * The shipped/local decision for one migrated module - a three-way comparison per shipped entry
+     * between
+     *   L = the local value ($local_entries: local changes recorded in lng_data, the
+     *       customizing/local file, or - with $overlay - a local change recorded only in the overlay),
+     *   O = the shipped value the overlay tracked the entry against so far ("original"), and
+     *   S = the value the shipped `.po` carries now:
+     *
+     * - no L                       -> S (a new or unchanged entry; also every entry of a new language)
+     * - L === S                    -> S, no longer marked as local change
+     * - L === O (so S changed)     -> S: the "local" value only was the previously shipped one
+     * - otherwise                  -> L: a real local change is never overwritten - also not when the
+     *                                 shipped value changed as well (then only "original" moves to S,
+     *                                 so "remove local changes" resets to the current shipped value)
+     *
+     * A value from the customizing/local file ($customized) always stays local, exactly like for a
+     * not migrated module. Local entries without a shipped counterpart (added via "add new variable")
+     * are kept; overlay entries that are neither shipped nor local are dropped.
+     *
+     * @param array<string, string> $local_entries identifier => value
+     * @param array<string, true> $customized identifiers that came from the customizing/local file
+     * @param array<string, string> $shipped_entries identifier => shipped value
+     * @param array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}> $overlay
+     * @param \Closure(string, string, ?string):void $write_row persists one lng_data row
+     * @return array<string, string> the module's final identifier => value map
+     */
+    private function resolveMigratedModule(
+        array $local_entries,
+        array $customized,
+        array $shipped_entries,
+        array $overlay,
+        \Closure $write_row
+    ): array {
+        foreach ($overlay as $identifier => $state) {
+            $identifier = (string) $identifier;
+            if ($state['local_change'] && !isset($local_entries[$identifier])) {
+                $local_entries[$identifier] = $state['value'];
+                $write_row($identifier, $state['value'], $state['local_change_date'] ?? $this->utcTimestamp());
+            }
+        }
+
+        foreach ($shipped_entries as $identifier => $shipped_value) {
+            $identifier = (string) $identifier;
+            if (isset($local_entries[$identifier]) && !isset($customized[$identifier])) {
+                $local_value = $local_entries[$identifier];
+                $previously_shipped_value = $overlay[$identifier]['original'] ?? null;
+                if ($local_value !== $shipped_value && $local_value !== $previously_shipped_value) {
+                    continue;
+                }
+            } elseif (isset($local_entries[$identifier])) {
+                continue;
+            }
+
+            $local_entries[$identifier] = $shipped_value;
+            $write_row($identifier, $shipped_value, null);
+        }
+
+        return $local_entries;
+    }
+
+    /**
+     * The overlay state of a migrated module, or null. An unreadable overlay must not abort a
+     * reinstall whose data the caller has already flushed: it is reported and treated as absent - the
+     * local changes recorded in lng_data still apply, and sync() rewrites the overlay afterwards.
+     *
+     * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
+     */
+    private function loadOverlay(string $lang_key, string $module, ?string $client_data_dir): ?array
+    {
+        try {
+            return MigratedLanguageFileSync::loadModuleTranslations(
+                $this->language_file_directory_manager,
+                $lang_key,
+                $module,
+                $client_data_dir
+            );
+        } catch (\Throwable $t) {
+            error_log(sprintf(
+                'Could not read the overlay of migrated module "%s", language "%s" - ignoring it: %s',
+                $module,
+                $lang_key,
+                $t->getMessage()
+            ));
+            return null;
+        }
+    }
+
+    /**
+     * Restores the check the pre-Component-Revision GUI write path (ilObjLanguageDBAccess) did after
+     * writing lng_modules: a wrong table collation silently corrupts the serialized module arrays,
+     * which would otherwise only surface as missing translations everywhere.
+     *
+     * @param list<string> $modules
+     */
+    private function assertModulesCorrectlySaved(string $lang_key, array $modules): void
+    {
+        $ilDB = $this->db();
+        $result = $ilDB->query(sprintf(
+            "SELECT module, lang_array FROM lng_modules WHERE lang_key = %s AND %s",
+            $ilDB->quote($lang_key, "text"),
+            $ilDB->in('module', $modules, false, 'text')
+        ));
+
+        while ($row = $ilDB->fetchAssoc($result)) {
+            if (!is_array(@unserialize((string) $row["lang_array"], ["allowed_classes" => false]))) {
+                throw new LanguageDataNotSavedException((string) $row["module"], $lang_key);
+            }
+        }
+    }
+
+    private function invalidateLanguageCache(string $lang_key): void
+    {
+        if ($this->language_cache_invalidator === null) {
+            return;
+        }
+        try {
+            ($this->language_cache_invalidator)($lang_key);
+        } catch (\Throwable $t) {
+            // a cache that cannot be invalidated must not undo the successful database write
+            error_log(sprintf('Could not invalidate the language cache for "%s": %s', $lang_key, $t->getMessage()));
+        }
+    }
+
+    /**
+     * @param array<string, array<string, string>> $lang_array
+     */
+    private function syncMigratedModules(string $lang_key, array $lang_array, ?string $client_data_dir): void
+    {
+        foreach ($lang_array as $module => $entries) {
+            try {
+                MigratedLanguageFileSync::sync(
+                    $this->language_file_directory_manager,
+                    $this->absolute_path,
+                    $lang_key,
+                    (string) $module,
+                    $entries,
+                    $client_data_dir,
+                    // every caller of insertLanguage() reconciles the language with the shipped
+                    // files, see MigratedLanguageFileSync::sync()
+                    true
+                );
+            } catch (\Throwable $t) {
+                // No injected logger here - this class also runs in Setup contexts before a
+                // logging service exists; error_log() works everywhere. The lng_modules write above
+                // already succeeded and must not be undone by a problem with the file mirror.
+                error_log(sprintf(
+                    'Could not sync migrated language file for module "%s", language "%s": %s',
+                    $module,
+                    $lang_key,
+                    $t->getMessage()
+                ));
+            }
         }
     }
 }

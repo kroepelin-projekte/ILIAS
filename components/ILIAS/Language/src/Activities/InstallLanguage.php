@@ -199,11 +199,7 @@ MARKDOWN
 
             foreach ($to_fully_install as $language_key) {
                 $this->setup_language->flushLanguageForInstallation($language_key);
-                // true: this genuinely installs a not-yet-installed language, so a migrated module's
-                // still-missing .mo file must be compiled now - see
-                // MigratedLanguageFileSync::sync()'s docblock. UpdateLanguage (refreshing an
-                // already-installed language) deliberately leaves a missing .mo missing instead.
-                $this->setup_language->insertLanguageForInstallation($language_key, true);
+                $this->setup_language->insertLanguageForInstallation($language_key);
                 $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
 
                 if (in_array($language_key, $local_language_keys, true)) {
@@ -214,9 +210,7 @@ MARKDOWN
             }
 
             foreach ($to_apply_local_changes as $language_key) {
-                // true: "install_local" is still an install action (see MigratedLanguageFileSync::
-                // sync()'s docblock) - it may bootstrap a migrated module's still-missing .mo file.
-                $this->setup_language->insertLanguageForApplyingLocalChanges($language_key, true);
+                $this->setup_language->insertLanguageForApplyingLocalChanges($language_key);
                 $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
 
                 if (in_array($language_key, $local_language_keys, true)) {

@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 
 /**
@@ -197,7 +198,7 @@ class ilPluginLanguage
 
         /** @var LanguageFileDirectoryManager $manager */
         $manager = $DIC[LanguageFileDirectoryManager::class];
-        $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null;
+        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
 
         foreach ($this->getAvailableLangFiles() as $lang) {
             try {

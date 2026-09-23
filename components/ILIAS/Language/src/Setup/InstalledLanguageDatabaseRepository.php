@@ -20,7 +20,10 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Setup;
 
+use ILIAS\Language\ComponentTranslation\Gettext\PoParser;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 
 class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
 {
@@ -260,6 +263,34 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
             if (!$this->checkLanguageFile($lang_key, $directory, $required)) {
                 return false;
             }
+            if (!$this->checkShippedPoFile($lang_key, $directory)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * A migrated module's shipped `.po` is the only source of its shipped values (see
+     * LanguageInstallationManager) - a file that cannot be parsed makes the language invalid, so it
+     * is refused (GUI) or skipped (Setup) before its data is flushed, instead of failing halfway
+     * through the reinstall. A directory without a shipped `.po` for $lang_key is not migrated for
+     * it and trivially valid.
+     */
+    private function checkShippedPoFile(string $lang_key, LanguageFileDirectory $directory): bool
+    {
+        if ($directory->isLocal() || $directory->getPrefix() === '') {
+            return true;
+        }
+        $shipped_po = MigratedLanguageFilePaths::shippedBasePath($this->absolute_path, $directory, $lang_key) . '.po';
+        if (!is_file($shipped_po)) {
+            return true;
+        }
+        try {
+            PoParser::parseFile($shipped_po);
+        } catch (\RuntimeException) {
+            return false;
         }
 
         return true;

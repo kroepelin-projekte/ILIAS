@@ -19,9 +19,9 @@
 declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
-use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -64,15 +64,24 @@ class ilSetupLanguage extends ilLanguage
     public string $separator = "#:#";
     public string $comment_separator = "###";
     protected ?ilDBInterface $db = null;
+    private ?string $client_data_dir = null;
+    private readonly bool $uses_default_language_file_directories;
+    private readonly LanguageFileDirectoryManager $language_file_directory_manager;
     private readonly InstalledLanguageRepository $repository;
     private readonly LanguageInstallationManager $manager;
 
+    /**
+     * @param LanguageFileDirectoryManager|null $language_file_directory_manager the directories
+     *        contributed through the component graph (see Language.php). Without it only the main
+     *        lang/ and the customizing directory are known - see usesDefaultLanguageFileDirectories().
+     */
     public function __construct(
         string $a_lang_key,
-        private ?LanguageFileDirectoryManager $language_file_directory_manager = null,
+        ?LanguageFileDirectoryManager $language_file_directory_manager = null,
     ) {
         $this->lang_key = $a_lang_key ?: $this->lang_default;
         $this->absolute_path = (string) realpath(__DIR__ . "/../../../../../");
+        $this->uses_default_language_file_directories = $language_file_directory_manager === null;
         $this->language_file_directory_manager = $language_file_directory_manager ?? new LanguageFileDirectoryManager(
             new CustomizingLanguageFileDirectory(),
             new MainLanguageFileDirectory()
@@ -99,59 +108,43 @@ class ilSetupLanguage extends ilLanguage
             $this->absolute_path,
             $this->repository,
             null,
-            $this->resolveClientDataDir(...)
+            fn(): ?string => $this->client_data_dir
+                ?? MigratedLanguageFilePaths::resolveClientDataDir($this->absolute_path),
+            static function (string $lang_key): void {
+                // Only a fully bootstrapped request has a global cache; CLI Setup does not.
+                $dic = $GLOBALS['DIC'] ?? null;
+                if ($dic instanceof \ILIAS\DI\Container && $dic->offsetExists('global_cache')) {
+                    ilCachedLanguage::getInstance($lang_key)->deleteInCache();
+                }
+            }
         );
     }
 
     /**
-     * The Setup-context equivalent of the CLIENT_DATA_DIR global constant (see
-     * MigratedLanguageFileSync's docblock for why this class cannot simply read that constant like the
-     * fully-bootstrapped $DIC-based write paths do): CLIENT_DATA_DIR is only defined once
-     * ilInitialisation::initClientDataDir() has run, which never happens during Setup, and this class
-     * is also constructed standalone before any client is guaranteed to even exist yet (e.g.
-     * `new ilSetupLanguage('en')` for plugin-language Setup Objectives - see that constructor's other
-     * call sites). Mirrors ILIAS\Setup\Objective\ClientIdReadObjective's own resolution (a single
-     * subdirectory of the configured data directory - ILIAS has not supported more than one client per
-     * installation since https://docu.ilias.de/goto.php?target=wiki_1357_Setup_-_Abandon_Multi_Client)
-     * without depending on a Setup\Environment, which this class is never given one of.
-     *
-     * Returns `null` - rather than throwing - for every way this can legitimately fail to resolve
-     * (most commonly: no client has been created yet at all, i.e. a from-scratch installation before
-     * its first client exists). A `null` result only ever means MigratedLanguageFileSync::sync()
-     * cannot maintain a migrated module's overlay files for this call - it never blocks the
-     * DB-backed install/update itself, which is the rollback-safe source of truth regardless (see that
-     * class' own docblock).
+     * The client data directory the overlay of migrated modules is maintained in. Setup Objectives
+     * set it from the Setup environment (ilias.ini `datadir` + client id); without it, it is
+     * resolved via MigratedLanguageFilePaths::resolveClientDataDir(). `null` resets to that default.
      */
-    private function resolveClientDataDir(): ?string
+    public function setClientDataDir(?string $client_data_dir): void
     {
-        $ini_file = $this->absolute_path . '/ilias.ini.php';
-        if (!is_file($ini_file)) {
-            return null;
-        }
-        $ini = parse_ini_file($ini_file, true);
-        $data_dir = $ini['clients']['datadir'] ?? null;
-        if (!is_string($data_dir) || $data_dir === '') {
-            return null;
-        }
-        if (!str_starts_with($data_dir, '/')) {
-            $data_dir = $this->absolute_path . '/' . $data_dir;
-        }
-        if (!is_dir($data_dir)) {
-            return null;
-        }
+        $this->client_data_dir = $client_data_dir;
+    }
 
-        $candidates = array_values(array_filter(
-            scandir($data_dir) ?: [],
-            static fn(string $entry): bool => $entry !== '.' && $entry !== '..'
-                && is_dir($data_dir . '/' . $entry)
-        ));
-        if (count($candidates) !== 1) {
-            // Either no client has been created yet, or (long unsupported, see above) more than one -
-            // either way, there is no single unambiguous client data directory to resolve.
-            return null;
-        }
+    /**
+     * Whether this instance only knows the built-in main and customizing directories, because no
+     * LanguageFileDirectoryManager from the component graph was handed in (e.g. `new
+     * ilSetupLanguage('en')` in plugin Setup Objectives). Such an instance must not refresh an
+     * installed language: a refresh flushes all non-local lng_data rows and re-inserts only what
+     * its directories provide, which would drop every component-contributed module.
+     */
+    public function usesDefaultLanguageFileDirectories(): bool
+    {
+        return $this->uses_default_language_file_directories;
+    }
 
-        return $data_dir . '/' . $candidates[0];
+    public function getLanguageFileDirectoryManager(): LanguageFileDirectoryManager
+    {
+        return $this->language_file_directory_manager;
     }
 
     /**
@@ -256,9 +249,9 @@ class ilSetupLanguage extends ilLanguage
         $this->manager->flushLanguageForUninstallation($lang_key);
     }
 
-    public function insertLanguageForInstallation(string $lang_key, bool $create_missing_mo = false): void
+    public function insertLanguageForInstallation(string $lang_key): void
     {
-        $this->manager->insertLanguageForInstallation($lang_key, $create_missing_mo);
+        $this->manager->insertLanguageForInstallation($lang_key);
     }
 
     /**
@@ -267,9 +260,9 @@ class ilSetupLanguage extends ilLanguage
      * LanguageInstallationManager::insertLanguageForApplyingLocalChanges()
      * for why.
      */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key, bool $create_missing_mo = false): void
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
     {
-        $this->manager->insertLanguageForApplyingLocalChanges($lang_key, $create_missing_mo);
+        $this->manager->insertLanguageForApplyingLocalChanges($lang_key);
     }
 
     /**

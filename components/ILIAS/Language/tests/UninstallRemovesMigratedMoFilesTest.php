@@ -21,11 +21,6 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Loader\PoLoader;
-use Gettext\Translation;
-use Gettext\Translations;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 /**
@@ -81,7 +76,6 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         }
 
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_translations_cache')->setValue(null, []);
     }
 
     protected function tearDown(): void
@@ -125,13 +119,13 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $value) {
-            $translations->add(Translation::create($module, $identifier)->translate($value));
+            $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -174,9 +168,9 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
     {
         $this->ensureClientDataDirDefined();
 
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $value) {
-            $translations->add(Translation::create($module, $identifier)->translate($value));
+            $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
 
         $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
@@ -186,8 +180,8 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         }
 
         $base_path = $overlay_dir . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
+        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
@@ -209,9 +203,9 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
     }
 
-    private function loadShippedPo(string $module, string $lang_key): Translations
+    private function loadShippedPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
     {
-        return (new PoLoader())->loadFile($this->shippedPath($module, $lang_key, 'po'));
+        return MigratedPoFixture::readPo($this->shippedPath($module, $lang_key, 'po'));
     }
 
     /**
@@ -388,15 +382,15 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         // the "working" module's normal fixture root, so only its overlay directory gets locked down.
         $shipped_readonly_dir = $this->fixture_directory . '/readonly';
         mkdir($shipped_readonly_dir, 0775, true);
-        $shipped_translations = Translations::create('uone', 'de');
-        $shipped_translations->add(Translation::create('uone', 'greeting')->translate('Hallo'));
-        (new PoGenerator())->generateFile($shipped_translations, $shipped_readonly_dir . '/uone_de.po');
+        $shipped_translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $shipped_translations->add(MigratedPoFixture::entry('uone', 'greeting', 'Hallo'));
+        MigratedPoFixture::writePo($shipped_readonly_dir . '/uone_de.po', $shipped_translations);
 
         $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
         $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_readonly_path;
         mkdir($overlay_readonly_dir, 0775, true);
-        (new PoGenerator())->generateFile($shipped_translations, $overlay_readonly_dir . 'uone_de.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($shipped_translations, $overlay_readonly_dir . 'uone_de.mo');
+        MigratedPoFixture::writePo($overlay_readonly_dir . 'uone_de.po', $shipped_translations);
+        MigratedPoFixture::writeMo($overlay_readonly_dir . 'uone_de.mo', $shipped_translations);
 
         $failing = new class ('uone', $relative_readonly_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)

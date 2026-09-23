@@ -21,11 +21,6 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Loader\PoLoader;
-use Gettext\Translation;
-use Gettext\Translations;
 
 /**
  * Covers ilObjLanguageExt::syncMigratedFilesAfterDeleteModeImport() (see its docblock in
@@ -134,13 +129,13 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $value) {
-            $translations->add(Translation::create($module, $identifier)->translate($value));
+            $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -189,10 +184,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             $this->fixture_directory . '/' . $module . '_' . $lang_key . '.po',
             $overlay_dir . $module . '_' . $lang_key . '.po'
         );
-        (new MoGenerator())->includeHeaders(true)->generateFile(
-            (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po'),
-            $overlay_dir . $module . '_' . $lang_key . '.mo'
-        );
+        MigratedPoFixture::writeMo($overlay_dir . $module . '_' . $lang_key . '.mo', MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po'));
     }
 
     private function overlayDirectory(): string
@@ -209,14 +201,14 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function loadFixturePo(string $module, string $lang_key): Translations
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
     {
-        return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
+        return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): Translations
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
     {
-        return (new PoLoader())->loadFile($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
+        return MigratedPoFixture::readPo($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
     }
 
     private function overlayMoExists(string $module, string $lang_key): bool
@@ -348,13 +340,10 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * $create_missing_mo is not passed by this call site (defaults to false, see the method's own
-     * docblock: "an import is not an install") - a module whose overlay .mo does not exist yet at all
-     * must stay without one, exactly mirroring MigratedLanguageFileSync::sync()'s own
-     * testIsANoOpWhenNoCompiledOverlayMoFileExistsYet(). Pins that this call site really does leave
-     * $create_missing_mo at its default rather than accidentally passing `true`.
+     * The overlay mirrors "language installed": an import into a language without overlay creates
+     * it (the removed $create_missing_mo no longer gates this), seeded with the shipped originals.
      */
-    public function testDoesNotCreateAMissingOverlayMoFile(): void
+    public function testCreatesAMissingOverlayWithTheShippedOriginal(): void
     {
         $directory = $this->seedFixtureModule('dtest', 'de', ['greeting' => 'Hallo']);
         // deliberately no bootstrapOverlayFromShipped() call - no overlay exists at all yet
@@ -362,6 +351,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
         $this->invoke(['dtest'], ['dtest#:#greeting' => 'Hallo, neu']);
 
-        $this->assertFalse($this->overlayMoExists('dtest', 'de'));
+        $this->assertTrue($this->overlayMoExists('dtest', 'de'));
+        $greeting = $this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting');
+        $this->assertSame('Hallo, neu', $greeting->getTranslation());
+        $this->assertSame('Hallo', \ILIAS\Language\ComponentTranslation\LocalChangeComments::getOriginal($greeting));
     }
 }

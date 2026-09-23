@@ -22,11 +22,6 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Loader\PoLoader;
-use Gettext\Translation;
-use Gettext\Translations;
 
 /**
  * Covers the PO/MO pilot's write-back path: ilObjLanguage::replaceLangModule() - the primitive every
@@ -67,7 +62,6 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         }
 
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_translations_cache')->setValue(null, []);
     }
 
     protected function tearDown(): void
@@ -107,11 +101,11 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $entry) {
-            $translation = Translation::create($module, $identifier)->translate($entry['value']);
+            $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if ($entry['fuzzy'] ?? false) {
-                $translation->getFlags()->add('fuzzy');
+                $translation->addFlag('fuzzy');
             }
             if (isset($entry['original'])) {
                 LocalChangeComments::setOriginal($translation, $entry['original']);
@@ -120,8 +114,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         }
 
         $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
+        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
 
@@ -198,14 +192,14 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $this->setGlobalVariable('ilDB', $db);
     }
 
-    private function loadFixturePo(string $module, string $lang_key): Translations
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
     {
-        return (new PoLoader())->loadFile($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
+        return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): Translations
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
     {
-        return (new PoLoader())->loadFile($this->overlayBase($module, $lang_key) . '.po');
+        return MigratedPoFixture::readPo($this->overlayBase($module, $lang_key) . '.po');
     }
 
     public function testUpdatesAnExistingEntryAndClearsItsFuzzyFlag(): void
@@ -222,12 +216,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo, geändert', $translation->getTranslation());
-        $this->assertFalse($translation->getFlags()->has('fuzzy'));
+        $this->assertFalse($translation->hasFlag('fuzzy'));
 
         // the shipped file must never be touched by an ordinary admin edit, no matter what
         $shipped = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertSame('Hallo', $shipped->getTranslation());
-        $this->assertTrue($shipped->getFlags()->has('fuzzy'));
+        $this->assertTrue($shipped->hasFlag('fuzzy'));
     }
 
     public function testAddsANewEntryThatDidNotExistInTheFileBefore(): void
@@ -275,13 +269,11 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * The pilot's "roll back one language" lever is removing just the overlay's .mo file - the
-     * overlay .po (and the shipped pair entirely) stay. If the write path only
-     * checked for the .po, the very next admin edit would silently regenerate the .mo and undo that
-     * rollback. Gating on the .mo file too (matching exactly what ilLanguage's read path checks)
-     * prevents that.
+     * The overlay mirrors "language installed": an admin edit recompiles a missing overlay `.mo`
+     * (the former "remove only the .mo as per-language rollback" lever no longer exists - the
+     * overlay is always maintained for an installed language).
      */
-    public function testIsANoOpWhenOnlyTheMoFileWasRemovedAsAPerLanguageRollback(): void
+    public function testRecompilesAMissingOverlayMoOnTheNextEdit(): void
     {
         $this->stubDatabaseForReplaceLangModule();
         $directory = $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => 'Hallo']]);
@@ -291,9 +283,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $this->assertFileDoesNotExist($this->overlayBase('wtest', 'de') . '.mo');
         $this->assertSame(
-            'Hallo',
+            ['greeting' => 'Hallo, geändert'],
+            MigratedPoFixture::readMo($this->overlayBase('wtest', 'de') . '.mo')
+        );
+        $this->assertSame(
+            'Hallo, geändert',
             $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
         );
         // shipped pair untouched throughout

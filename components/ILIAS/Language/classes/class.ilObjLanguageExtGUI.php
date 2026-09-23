@@ -719,8 +719,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 $lang_file = $this->object->getLangPath() . "/ilias_" . $this->object->key . ".lang";
                 if (is_file($lang_file) and is_readable($lang_file)) {
                     // $lang_file here genuinely IS the shipped core file (see getLangPath()), unlike
-                    // "load" below (a customizing/local override) - so a migrated module's "original"
-                    // baseline may be refreshed to match it (see importLanguageFile()'s docblock).
+                    // "load" above (a customizing/local override) - so a migrated module's "original"
+                    // baseline may be refreshed; for such a module importLanguageFile() takes the
+                    // values from its shipped .po instead of the .lang file (see its docblock).
                     $this->object->importLanguageFile($lang_file, "replace", true);
                     $this->object->setLocal(false);
                     $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_cleared_local"), true);

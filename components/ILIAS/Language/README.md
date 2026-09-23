@@ -55,9 +55,18 @@ side effects). See each class's own `getDescription()` for its authoritative, up
 description rather than a copy here, which would drift out of sync:
 
 * **InstallLanguage** (`src/Activities/InstallLanguage.php`) - installs/re-applies one or more
-  languages, depending on the chosen mode.
+  languages, depending on the chosen mode. Mode `install` (`MODE_INSTALL`) fully installs a
+  language that is not installed yet and is a no-op for an installed one. Mode `install_local`
+  (`MODE_INSTALL_LOCAL`) only applies to already installed languages: it re-applies just the
+  customizing/local file (`ilias_<lang>.lang.local`) on top of the stored data; not installed
+  languages are skipped (reported as `not_installed_language_keys`). This is intended.
 * **UpdateLanguage** (`src/Activities/UpdateLanguage.php`) - refreshes one or more already
-  installed languages from the current language files.
+  installed languages from the current language files. For a module migrated to PO/MO (currently
+  only `tos`, see `tools/po-migration/README.md`) the shipped `.po` is the only source of shipped
+  values, and each entry is reconciled three-way: an unchanged entry, or one whose local value equals
+  the new or the previously shipped value, takes the new shipped value; a genuine local change is
+  kept, even if the shipped value changed too ("remove local changes" then resets it to the current
+  shipped value). Values from the customizing file always stay local.
 * **UninstallLanguage** (`src/Activities/UninstallLanguage.php`) - uninstalls one or more already
   installed languages.
 * **RemoveLocalLanguageChanges** (`src/Activities/RemoveLocalLanguageChanges.php`) - removes all

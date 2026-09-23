@@ -22,10 +22,6 @@ use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
-use Gettext\Generator\MoGenerator;
-use Gettext\Loader\PoLoader;
-use Gettext\Translation;
-use Gettext\Translations;
 
 /**
  * Covers the PO/MO pilot's addition to ilLanguage::loadLanguageModule(): a module whose owning
@@ -60,7 +56,6 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         // PHPUnit run, all test methods share that same process, so it must be reset here or a
         // result cached by one test (or a real page load) would silently leak into the next.
         (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_translations_cache')->setValue(null, []);
     }
 
     protected function tearDown(): void
@@ -113,13 +108,13 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
             mkdir($overlay_dir, 0775, true);
         }
 
-        $translations = (new PoLoader())->loadFile($shipped_po);
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $mo_path);
+        $translations = MigratedPoFixture::readPo($shipped_po);
+        MigratedPoFixture::writeMo($mo_path, $translations);
         $this->created_real_tos_mo = $mo_path;
     }
 
     /**
-     * ntxt()'s plural support and the cross-module collision logging both need a migrated module
+     * The corrupt-.mo fallback and the cross-module collision logging both need a migrated module
      * whose .mo content is test-local (not tos's real 17 production keys). Builds a real .mo file
      * directly at the OVERLAY location under CLIENT_DATA_DIR - since ilLanguage::migratedOverlayMoFile()
      * only ever reads there, never under the git-tracked tests/ directory - via a minimal anonymous
@@ -127,7 +122,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      * real components, so this exercises the exact same code path in ilLanguage. Cleaned up in
      * tearDown().
      */
-    private function contributeFixtureModule(string $module, Translations $translations): LanguageFileDirectory
+    private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Gettext\Catalog $translations): LanguageFileDirectory
     {
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-fixtures-' . bin2hex(random_bytes(4));
@@ -136,12 +131,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         }
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
-        // includeHeaders(true): without it, the Plural-Forms header (and its CLDR formula) isn't
-        // written at all - matching what the real conversion script does (see convert_module_to_po.php)
-        (new MoGenerator())->includeHeaders(true)->generateFile(
-            $translations,
-            $this->fixture_directory . '/' . $module . '_de.mo'
-        );
+        MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $translations);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
@@ -368,39 +358,68 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * ntxt() (FR "PO-Files for improving language handling", 2.2): the counterpart to ngettext() -
-     * given a count, the correct plural form is selected via the target language's CLDR plural
-     * formula, without the caller having to know that formula. German has 2 forms (singular for
-     * n==1, plural otherwise); proven with both n=1 and n=5 against the same migrated fixture module.
+     * A corrupt overlay `.mo` must never break a request: loadLanguageModule() falls back to the
+     * database (cached_modules/lng_modules), logs a warning via the "lang" logger once, and caches
+     * the failed read for the rest of the request.
      */
-    public function testNtxtSelectsTheCorrectPluralFormUsingTheLanguagesCldrFormula(): void
+    public function testACorruptOverlayMoFallsBackToTheDatabaseAndWarnsOnce(): void
     {
-        $translations = Translations::create('demo', 'de');
-        $translations->getHeaders()->setPluralForm(2, 'n != 1');
-        $translation = Translation::create('demo', 'cart_items');
-        $translation->setPlural('cart_items_plural');
-        // msgstr[0] (n==1) comes from translate(); translatePlural()'s arguments are msgstr[1..] only
-        $translation->translate('Ein Artikel');
-        $translation->translatePlural('Mehrere Artikel');
-        $translations->add($translation);
+        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
+        $directory = $this->contributeFixtureModule('broken', $catalog);
+        $mo_file = $this->fixture_directory . '/broken_de.mo';
+        file_put_contents($mo_file, substr((string) file_get_contents($mo_file), 0, 20));
 
-        $this->registerDirectoryManager($this->contributeFixtureModule('demo', $translations));
+        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
+        $this->registerDirectoryManager($directory);
+        $logger = $this->createMock(ilLogger::class);
+        $logger->expects($this->once())
+            ->method('warning')
+            ->with($this->stringContains('broken_de.mo'));
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
+
         $language = $this->buildLanguageWithoutRunningConstructor('de');
+        (new ReflectionObject($language))->getProperty('cached_modules')->setValue(
+            $language,
+            ['broken' => ['greeting' => 'Aus der Datenbank']]
+        );
 
-        $this->assertSame('Ein Artikel', $language->ntxt('demo', 'cart_items', 'cart_items_plural', 1));
-        $this->assertSame('Mehrere Artikel', $language->ntxt('demo', 'cart_items', 'cart_items_plural', 5));
+        $language->loadLanguageModule('broken');
+        $this->assertSame('Aus der Datenbank', $language->txt('greeting'));
+
+        // repaired within the same request: the failed read stays cached (no second warning)
+        MigratedPoFixture::writeMo($mo_file, $catalog);
+        $second = $this->buildLanguageWithoutRunningConstructor('de');
+        (new ReflectionObject($second))->getProperty('cached_modules')->setValue(
+            $second,
+            ['broken' => ['greeting' => 'Aus der Datenbank']]
+        );
+        $second->loadLanguageModule('broken');
+        $this->assertSame('Aus der Datenbank', $second->txt('greeting'));
     }
 
     /**
-     * There is no legacy lng_data equivalent for plural data (that absence is exactly what this FR
-     * entry addresses), so an unresolved ntxt() call has nothing sensible to fall back to. It mirrors
-     * txt()'s own "not found" placeholder instead of e.g. silently returning $a_topic verbatim.
+     * Without a usable DIC logger (e.g. early bootstrap) the problem goes to error_log() - still no
+     * exception.
      */
-    public function testNtxtReturnsThePlaceholderWhenTheModuleIsNotMigratedOrHasNoPluralForThisTopic(): void
+    public function testACorruptOverlayMoWithoutLoggerIsReportedViaErrorLog(): void
     {
-        $language = $this->buildLanguageWithoutRunningConstructor('de');
+        $this->expectErrorLog();
+        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
+        $directory = $this->contributeFixtureModule('broken', $catalog);
+        file_put_contents($this->fixture_directory . '/broken_de.mo', 'not a mo file at all, but long enough');
 
-        $this->assertSame('-cart_items-', $language->ntxt('demo', 'cart_items', 'cart_items_plural', 5));
+        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
+        $this->registerDirectoryManager($directory);
+
+        $this->assertNull($this->callLoadFromMigratedLanguageFile('broken', 'de'));
+        $this->assertStringContainsString(
+            'falling back to the database',
+            (string) file_get_contents((string) ini_get('error_log'))
+        );
     }
 
     /**
@@ -412,11 +431,11 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     public function testLogsACrossModuleKeyCollisionInsteadOfSilentlyOverwritingIt(): void
     {
-        $alpha = Translations::create('alpha', 'de');
-        $alpha->add(Translation::create('alpha', 'shared_key')->translate('Value from alpha'));
+        $alpha = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $alpha->add(MigratedPoFixture::entry('alpha', 'shared_key', 'Value from alpha'));
 
-        $beta = Translations::create('beta', 'de');
-        $beta->add(Translation::create('beta', 'shared_key')->translate('Value from beta'));
+        $beta = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $beta->add(MigratedPoFixture::entry('beta', 'shared_key', 'Value from beta'));
 
         $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
         $this->registerDirectoryManager(

@@ -23,10 +23,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
-use Gettext\Generator\MoGenerator;
-use Gettext\Generator\PoGenerator;
-use Gettext\Translation;
-use Gettext\Translations;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Covers the admin-GUI read side of the PO/MO pilot:
@@ -45,6 +42,10 @@ use Gettext\Translations;
 class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
 {
     private ?string $fixture_directory = null;
+    /** @var list<array{0: string, 1: string}> column and value of every ilDBInterface::like() call */
+    private array $like_calls = [];
+    /** @var list<string> every query _getValues() sent */
+    private array $sent_queries = [];
 
     protected function setUp(): void
     {
@@ -104,9 +105,9 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         }
 
         $now = new DateTimeImmutable('2026-01-02T03:04:05Z', new DateTimeZone('UTC'));
-        $translations = Translations::create($module, $lang_key);
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
         foreach ($entries as $identifier => $entry) {
-            $translation = Translation::create($module, $identifier)->translate($entry['value']);
+            $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if (isset($entry['original'])) {
                 LocalChangeComments::setOriginal($translation, $entry['original']);
             }
@@ -123,8 +124,8 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         }
 
         $base_path = $overlay_dir . '/' . $module . '_' . $lang_key;
-        (new PoGenerator())->generateFile($translations, $base_path . '.po');
-        (new MoGenerator())->includeHeaders(true)->generateFile($translations, $base_path . '.mo');
+        MigratedPoFixture::writePo($base_path . '.po', $translations);
+        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . $this->fixture_directory . '/';
 
@@ -191,8 +192,12 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
             static fn(mixed $value, string $type = ''): string => "'" . (string) $value . "'"
         );
         $db->method('in')->willReturn("module IN ('placeholder')");
-        $db->method('like')->willReturn("value LIKE '%placeholder%'");
-        $db->method('query')->willReturnCallback(function () use ($db_rows): ilDBStatement {
+        $db->method('like')->willReturnCallback(function (string $column, string $type, string $value = '?'): string {
+            $this->like_calls[] = [$column, $value];
+            return "value LIKE '%placeholder%'";
+        });
+        $db->method('query')->willReturnCallback(function (string $query) use ($db_rows): ilDBStatement {
+            $this->sent_queries[] = $query;
             $statement = $this->createStub(ilDBStatement::class);
             $calls = array_map(static fn(array $row): array => $row, $db_rows);
             $calls[] = false; // terminates _getValues()'s/_getModules()'s while ($rec = ...) loop
@@ -229,8 +234,18 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
 
         $this->assertSame(
             [
-                'greeting' => ['value' => 'Hallo, geändert', 'local_change' => true],
-                'farewell' => ['value' => 'Tschüss', 'local_change' => false],
+                'greeting' => [
+                    'value' => 'Hallo, geändert',
+                    'local_change' => true,
+                    'local_change_date' => '2026-01-02 03:04:05',
+                    'original' => 'Hallo',
+                ],
+                'farewell' => [
+                    'value' => 'Tschüss',
+                    'local_change' => false,
+                    'local_change_date' => null,
+                    'original' => 'Tschüss',
+                ],
             ],
             $result
         );
@@ -319,6 +334,111 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         $values = ilObjLanguageExt::_getValues('de', [], [], 'Welt');
 
         $this->assertSame(['mtest#:#greeting' => 'Hallo Welt'], $values);
+    }
+
+    /**
+     * The search in a migrated module behaves like `UPPER(value) LIKE UPPER('%pattern%')` on
+     * lng_data: case-insensitive (also for non-ASCII), "%" = any sequence, "_" = exactly one
+     * character, "\" escapes the next character, match anywhere in the value; every other regex
+     * meta character is literal.
+     *
+     * @param list<string> $expected identifiers expected to match
+     */
+    #[DataProvider('likePatterns')]
+    public function testThePatternFilterOfAMigratedModuleFollowsSqlLikeSemantics(string $pattern, array $expected): void
+    {
+        $values = [
+            'plain' => 'Hallo Welt',
+            'umlaut' => 'ÄRGER über Öl',
+            'percent' => 'Rabatt 50% heute',
+            'fifty' => 'Rabatt 50 heute',
+            'underscore' => 'snake_case',
+            'snakeXcase' => 'snakeXcase',
+            'regex' => 'a.b*c (d) [e] $f ^g |h /i',
+            'backslash' => 'C:\\temp',
+            'multiline' => "erste Zeile\nzweite Zeile",
+        ];
+        $directory = $this->seedFixtureModule('mtest', 'de', array_map(static fn(string $v): array => ['value' => $v], $values));
+        $this->registerDirectoryManager($directory);
+        $this->stubDatabase([]);
+
+        $found = array_map(
+            static fn(string $key): string => substr($key, strlen('mtest#:#')),
+            array_keys(ilObjLanguageExt::_getValues('de', [], [], $pattern))
+        );
+
+        sort($found);
+        sort($expected);
+        $this->assertSame($expected, $found);
+    }
+
+    public static function likePatterns(): array
+    {
+        return [
+            'case-insensitive ascii' => ['hallo WELT', ['plain']],
+            'case-insensitive umlaut' => ['ärger ÜBER öl', ['umlaut']],
+            'substring anywhere' => ['lo We', ['plain']],
+            'percent is a wildcard' => ['Hallo%Welt', ['plain']],
+            'percent wildcard across the value' => ['Rabatt%heute', ['fifty', 'percent']],
+            'escaped percent is literal' => ['50\\%', ['percent']],
+            'underscore is exactly one character' => ['snake_case', ['snakeXcase', 'underscore']],
+            'underscore does not match zero characters' => ['Hallo_Welt', ['plain']],
+            'escaped underscore is literal' => ['snake\\_case', ['underscore']],
+            'two underscores need two characters' => ['Hallo__Welt', []],
+            'two underscores match exactly two characters' => ['Hall__Welt', ['plain']],
+            'regex meta characters are literal' => ['a.b*c (d) [e] $f ^g |h /i', ['regex']],
+            'a dot is not a wildcard' => ['Hallo.Welt', []],
+            'escaped backslash' => ['C:\\\\temp', ['backslash']],
+            'wildcard spans a newline' => ['erste%zweite', ['multiline']],
+            'no match' => ['gibt es nicht', []],
+        ];
+    }
+
+    /**
+     * Regression: the SQL branch checked the pattern for truthiness, so searching for "0" returned
+     * every lng_data row. Both branches must filter for "0".
+     */
+    public function testTheSearchPatternZeroIsAppliedToLngDataAndToMigratedModules(): void
+    {
+        $directory = $this->seedFixtureModule('mtest', 'de', [
+            'with_zero' => ['value' => 'Version 10'],
+            'without_zero' => ['value' => 'Version eins'],
+        ]);
+        $this->registerDirectoryManager($directory);
+        $this->stubDatabase([]);
+
+        $values = ilObjLanguageExt::_getValues('de', [], [], '0');
+
+        $this->assertSame(['mtest#:#with_zero' => 'Version 10'], $values);
+        $this->assertSame([['value', '%0%']], $this->like_calls);
+        $this->assertStringContainsString("value LIKE '%placeholder%'", $this->sent_queries[0]);
+    }
+
+    public function testAnEmptySearchPatternDoesNotFilter(): void
+    {
+        $this->stubDatabase([['module' => 'common', 'identifier' => 'hello', 'value' => 'Welt']]);
+
+        $this->assertSame(['common#:#hello' => 'Welt'], ilObjLanguageExt::_getValues('de', [], [], ''));
+        $this->assertSame([], $this->like_calls);
+    }
+
+    /**
+     * An overlay that cannot be read must not break the admin GUI: warning, then the dual-written
+     * lng_data rows are shown for that module.
+     */
+    public function testAnUnreadableOverlayFallsBackToLngDataWithAWarning(): void
+    {
+        $directory = $this->seedFixtureModule('mtest', 'de', ['greeting' => ['value' => 'Aus dem Overlay']]);
+        file_put_contents($this->overlayFile('mtest', 'de', 'po'), "msgid \"kaputt\n");
+        $this->registerDirectoryManager($directory);
+        $this->stubDatabase([['module' => 'mtest', 'identifier' => 'greeting', 'value' => 'Aus lng_data']]);
+        $logger = $this->createMock(ilLogger::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('"mtest"'));
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
+
+        $this->assertSame(['mtest#:#greeting' => 'Aus lng_data'], ilObjLanguageExt::_getValues('de'));
     }
 
     public function testAppliesTheTopicsFilterToTheMigratedModulesValues(): void

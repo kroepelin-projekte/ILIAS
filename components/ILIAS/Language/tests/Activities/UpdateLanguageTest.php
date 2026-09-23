@@ -43,14 +43,10 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
-     * UpdateLanguage refreshes an already-installed language - it must never pass
-     * $create_missing_mo = true to insertLanguageForInstallation() (that bootstrap is reserved for a
-     * genuine install, see InstallLanguageTest::testFullInstallPassesCreateMissingMoTrue() and
-     * MigratedLanguageFileSync::sync()'s docblock): a still-missing .mo for a migrated module must stay
-     * missing across an update. Captures the actual call arguments directly rather than asserting
-     * ->with('de') alone, since that constraint would still pass even if a second argument were added.
+     * The former $create_missing_mo flag is gone: UpdateLanguage passes exactly the language key.
+     * Captures the raw arguments, as ->with('de') would also accept an additional argument.
      */
-    public function testDoesNotPassCreateMissingMoTrueToInsertLanguageForInstallation(): void
+    public function testPassesOnlyTheLanguageKeyToInsertLanguageForInstallation(): void
     {
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
@@ -63,9 +59,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
         $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
 
-        // PHPUnit's mock materializes the method's declared default (false) for the omitted
-        // second argument - this pins that UpdateLanguage itself never passes `true` explicitly.
-        $this->assertSame([['de', false]], $calls);
+        $this->assertSame([['de']], $calls);
     }
 
     public function testSingleAlreadyInstalledLanguageIsRefreshed(): void

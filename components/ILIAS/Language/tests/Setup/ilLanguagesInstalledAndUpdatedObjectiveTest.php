@@ -19,6 +19,11 @@
 declare(strict_types=1);
 
 use ILIAS\Setup;
+use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\Stub;
 
@@ -226,5 +231,295 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         // (['de', 'fr']) and flushes both again - 'de' because it always
         // was installed, 'fr' because InstallLanguage just registered it.
         $this->assertSame(['fr', 'de', 'fr'], $log);
+    }
+
+    // ------------------------------------------------ achieve(): invalid languages
+
+    /**
+     * @param list<string> $flushed collects every flushed language key
+     */
+    private function createAchievableSetupLanguage(array $installed, array $invalid, array &$flushed, bool $default_directories = false): Stub&ilSetupLanguage
+    {
+        $setup_language = $this->createStub(ilSetupLanguage::class);
+        $setup_language->method('getInstalledLanguages')->willReturn($installed);
+        $setup_language->method('getAvailableLanguagesForInstallation')->willReturn([]);
+        $setup_language->method('getLocalLanguages')->willReturn([]);
+        $setup_language->method('getInvalidLocalLanguageFiles')->willReturn([]);
+        $setup_language->method('checkLanguageForInstallation')->willReturnCallback(
+            static fn(string $lang_key): bool => !in_array($lang_key, $invalid, true)
+        );
+        $setup_language->method('usesDefaultLanguageFileDirectories')->willReturn($default_directories);
+        $setup_language->method('flushLanguageForInstallation')->willReturnCallback(
+            static function (string $lang_key) use (&$flushed): void {
+                $flushed[] = $lang_key;
+            }
+        );
+
+        return $setup_language;
+    }
+
+    private function databaseStub(): ilDBInterface
+    {
+        return $this->createStub(ilDBInterface::class);
+    }
+
+    /**
+     * An invalid language file only skips that language (reported), it does not abort the whole
+     * Setup run - the valid languages are still refreshed.
+     */
+    public function testAchieveSkipsInvalidLanguagesAndInformsTheAdministrator(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'xx', 'fr'], ['xx'], $flushed);
+        $messages = [];
+        $io = $this->createStub(Setup\AdminInteraction::class);
+        $io->method('inform')->willReturnCallback(static function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]));
+
+        $this->assertSame(['de', 'fr'], $flushed, 'valid languages are refreshed, the invalid one is untouched');
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('xx', $messages[0]);
+        $this->assertStringNotContainsString('de', str_replace('Skipped languages', '', $messages[0]));
+    }
+
+    public function testAchieveReportsSkippedLanguagesViaErrorLogWithoutAdminInteraction(): void
+    {
+        $this->expectErrorLog();
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'xx'], ['xx'], $flushed);
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+        ]));
+
+        $this->assertSame(['de'], $flushed);
+        $this->assertStringContainsString('xx', (string) file_get_contents((string) ini_get('error_log')));
+    }
+
+    public function testAchieveWithOnlyInvalidLanguagesDoesNotThrowAndWritesNothing(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['xx'], ['xx'], $flushed);
+        $io = $this->createMock(Setup\AdminInteraction::class);
+        $io->expects($this->once())->method('inform');
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]));
+
+        $this->assertSame([], $flushed);
+    }
+
+    public function testAchieveDoesNotInformWhenEveryLanguageIsValid(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $io = $this->createMock(Setup\AdminInteraction::class);
+        $io->expects($this->never())->method('inform');
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]));
+
+        $this->assertSame(['de'], $flushed);
+    }
+
+    // ------------------------------------------ installLanguages(): directories
+
+    /**
+     * An instance with only the default directories (plugin Setup Objectives) must never refresh an
+     * installed language - that would drop every component-contributed module from lng_data.
+     */
+    public function testAnInstanceWithDefaultDirectoriesInstallsMissingLanguagesButNeverRefreshes(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed, true);
+
+        $this->invokeInstallLanguages(new ilLanguagesInstalledAndUpdatedObjective($setup_language), ['de', 'fr']);
+
+        $this->assertSame(['fr'], $flushed);
+    }
+
+    public function testInstallLanguagesWithoutKeysDoesNothing(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+
+        $this->invokeInstallLanguages(new ilLanguagesInstalledAndUpdatedObjective($setup_language), []);
+
+        $this->assertSame([], $flushed);
+    }
+
+    // ------------------------------------------------ client data directory
+
+    private function iniStub(string $datadir): ilIniFile
+    {
+        $ini = $this->createStub(ilIniFile::class);
+        $ini->method('readVariable')->willReturnCallback(
+            static fn(string $group, string $name): string => $group === 'clients' && $name === 'datadir' ? $datadir : ''
+        );
+        return $ini;
+    }
+
+    /**
+     * @param array<string, mixed> $resources
+     * @return list<?string> every value setClientDataDir() was called with
+     */
+    private function achieveCapturingClientDataDir(array $resources): array
+    {
+        $flushed = [];
+        $calls = [];
+        $setup_language = $this->createAchievableSetupLanguage([], [], $flushed);
+        $setup_language->method('setClientDataDir')->willReturnCallback(
+            static function (?string $dir) use (&$calls): void {
+                $calls[] = $dir;
+            }
+        );
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment(
+            [Setup\Environment::RESOURCE_DATABASE => $this->databaseStub()] + $resources
+        ));
+
+        return $calls;
+    }
+
+    public function testAchieveTakesTheClientDataDirFromTheSetupEnvironment(): void
+    {
+        $datadir = sys_get_temp_dir() . '/ilias_obj_cdd_' . bin2hex(random_bytes(4));
+        mkdir($datadir . '/myclient', 0775, true);
+
+        try {
+            $calls = $this->achieveCapturingClientDataDir([
+                Setup\Environment::RESOURCE_ILIAS_INI => $this->iniStub($datadir . '/'),
+                Setup\Environment::RESOURCE_CLIENT_ID => 'myclient',
+            ]);
+        } finally {
+            MigratedPoFixture::removeDirectory($datadir);
+        }
+
+        $this->assertSame([$datadir . '/myclient'], $calls);
+    }
+
+    /**
+     * @param array<string, mixed> $resources
+     */
+    #[DataProvider('incompleteClientEnvironments')]
+    public function testAchieveKeepsTheDefaultResolutionWithoutAUsableClientDataDir(\Closure $resources): void
+    {
+        $datadir = sys_get_temp_dir() . '/ilias_obj_cdd_' . bin2hex(random_bytes(4));
+        mkdir($datadir . '/myclient', 0775, true);
+
+        try {
+            $calls = $this->achieveCapturingClientDataDir($resources($this->iniStub($datadir)));
+        } finally {
+            MigratedPoFixture::removeDirectory($datadir);
+        }
+
+        $this->assertSame([], $calls, 'setClientDataDir() must not be called (not even with null)');
+    }
+
+    public static function incompleteClientEnvironments(): array
+    {
+        return [
+            'no ini, no client id' => [static fn(ilIniFile $ini): array => []],
+            'no client id' => [static fn(ilIniFile $ini): array => [Setup\Environment::RESOURCE_ILIAS_INI => $ini]],
+            'no ini' => [static fn(ilIniFile $ini): array => [Setup\Environment::RESOURCE_CLIENT_ID => 'myclient']],
+            'client directory does not exist' => [static fn(ilIniFile $ini): array => [
+                Setup\Environment::RESOURCE_ILIAS_INI => $ini,
+                Setup\Environment::RESOURCE_CLIENT_ID => 'other',
+            ]],
+            'unsafe client id' => [static fn(ilIniFile $ini): array => [
+                Setup\Environment::RESOURCE_ILIAS_INI => $ini,
+                Setup\Environment::RESOURCE_CLIENT_ID => '../myclient',
+            ]],
+        ];
+    }
+
+    // ------------------------------------------------------------ getHash()
+
+    private static function directory(string $prefix, string $path, bool $local = false): LanguageFileDirectory
+    {
+        return MigratedPoFixture::directory($prefix, $path, $local);
+    }
+
+    private function hashFor(?LanguageFileDirectoryManager $manager): string
+    {
+        $setup_language = new ilSetupLanguage('en', $manager);
+        return (new ilLanguagesInstalledAndUpdatedObjective(
+            $setup_language,
+            $this->createStub(\ILIAS\Language\Activities\InstallLanguage::class),
+            $this->createStub(\ILIAS\Language\Activities\UpdateLanguage::class)
+        ))->getHash();
+    }
+
+    public function testTheHashIsStableForTheSameDirectoryConfiguration(): void
+    {
+        $build = static fn(): LanguageFileDirectoryManager => new LanguageFileDirectoryManager(
+            new CustomizingLanguageFileDirectory(),
+            new MainLanguageFileDirectory(),
+            self::directory('tos', 'components/ILIAS/TermsOfService/lang/')
+        );
+
+        $this->assertSame($this->hashFor($build()), $this->hashFor($build()));
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $this->hashFor($build()));
+    }
+
+    public function testTheDefaultDirectoriesHashLikeAnExplicitlyEqualConfiguration(): void
+    {
+        $this->assertSame(
+            $this->hashFor(null),
+            $this->hashFor(new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory()))
+        );
+    }
+
+    /**
+     * Each part of a directory's configuration (class, prefix, path, suffix) and the presence of a
+     * contributed directory must change the hash - otherwise the Setup keeps only one of two
+     * differently configured objectives.
+     */
+    #[DataProvider('differingConfigurations')]
+    public function testTheHashDiffersForDifferentDirectoryConfigurations(\Closure $a, \Closure $b): void
+    {
+        $this->assertNotSame($this->hashFor($a()), $this->hashFor($b()));
+    }
+
+    public static function differingConfigurations(): array
+    {
+        $manager = static fn(LanguageFileDirectory ...$directories): LanguageFileDirectoryManager =>
+            new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), ...$directories);
+
+        return [
+            'default vs. with contributed directory' => [
+                static fn() => null,
+                static fn() => $manager(self::directory('tos', 'components/ILIAS/TermsOfService/lang/')),
+            ],
+            'prefix differs' => [
+                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => $manager(self::directory('file', 'components/x/lang/')),
+            ],
+            'path differs' => [
+                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => $manager(self::directory('tos', 'components/y/lang/')),
+            ],
+            'suffix differs' => [
+                static fn() => $manager(self::directory('tos', 'components/x/lang/')),
+                static fn() => $manager(self::directory('tos', 'components/x/lang/', true)),
+            ],
+            'only the class differs' => [
+                static fn() => $manager(new \ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory(new \ILIAS\Language(), 'tos')),
+                static function () use ($manager): LanguageFileDirectoryManager {
+                    $component = new \ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory(new \ILIAS\Language(), 'tos');
+                    return $manager(self::directory('tos', $component->getPath()));
+                },
+            ],
+        ];
     }
 }
