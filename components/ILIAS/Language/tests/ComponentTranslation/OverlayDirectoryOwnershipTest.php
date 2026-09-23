@@ -152,6 +152,13 @@ class OverlayDirectoryOwnershipTest extends TestCase
      */
     public function testTheOwnerNeedsTheOwnerWriteAndSearchBitsRegardlessOfGroupOrOtherBits(): void
     {
+        if (posix_getuid() === 0) {
+            $this->markTestSkipped(
+                'The current process is root, so its own uid would only hit the for_user_id===0 short-circuit '
+                . '(see testRootMayAlwaysWriteRegardlessOfMode()) instead of the owner branch under test; '
+                . 'testAnArbitraryChownedOwnerNeedsTheOwnerWriteAndSearchBits() covers the owner branch as root.'
+            );
+        }
         // We create the overlay directory ourselves (see assertReported()/assertNotReported()), so
         // its owner is always the current process - exactly what fileowner() would report once it
         // exists.

@@ -94,6 +94,38 @@ class AtomicFileWriterTest extends TestCase
         $this->assertSame('0644', sprintf('%04o', fileperms($this->directory . '/target.mo') & 0777));
     }
 
+    /**
+     * An existing target keeps its own mode - not the "new file" mode from testTheWrittenFileDoesNotKeepTheRestrictiveTempnamPermissions()
+     * above, and not whatever tempnam() or umask would otherwise produce.
+     *
+     * Mutation: the `is_file($file) ? @fileperms($file) : ...` branch being dropped or inverted, or
+     * the `& 07777` mask being wrong (e.g. dropping the setuid/setgid/sticky bits it must preserve).
+     */
+    public function testAnExistingTargetKeepsItsOwnModeInsteadOfANewFilesMode(): void
+    {
+        file_put_contents($this->directory . '/target.po', 'alt');
+        chmod($this->directory . '/target.po', 0600);
+        $previous_umask = umask(0022); // would produce 0644 for a NEW file - must not leak in here
+        try {
+            AtomicFileWriter::write($this->directory . '/target.po', 'neu');
+        } finally {
+            umask($previous_umask);
+        }
+
+        clearstatcache();
+        $this->assertSame('0600', sprintf('%04o', fileperms($this->directory . '/target.po') & 0777));
+    }
+
+    // NOT COVERED: acceptUnchangeableMode()'s "chmod() failed, but the effective mode already grants
+    // at least as much as intended -> no exception" vs. "... grants less -> RuntimeException" branching
+    // (AtomicFileWriter.php ~98-116). AtomicFileWriter is `final` with only static methods and real
+    // filesystem calls - no injectable seam (no filesystem abstraction, no constructor to subclass) -
+    // and simulating a chmod() failure without also breaking the write itself could not be reproduced
+    // in this sandbox: `chattr +i` (the one lever that makes chmod() fail while leaving writes to the
+    // existing content alone) is refused with "Operation not permitted" on both the reference host and
+    // the ILIAS container - even as root - because neither filesystem (the host's, and the container's
+    // overlay2) supports the immutable attribute here.
+
     public function testThrowsWhenTheTargetDirectoryDoesNotExist(): void
     {
         set_error_handler(static fn(): bool => true, E_NOTICE | E_WARNING);

@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use PHPUnit\Framework\MockObject\Stub;
 
 /**
  * T10: ilObjLanguageExt::currentModuleContent() (~975-1036) - the "current content a partial
@@ -142,7 +143,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
      * @param list<array{identifier: string, value: string}> $lng_data_rows rows the plain lng_data
      *        values SELECT returns, in order
      */
-    private function mockDatabaseForWrites(?array $lng_modules_row, array $lng_data_rows = []): ilDBInterface
+    private function mockDatabaseForWrites(?array $lng_modules_row, array $lng_data_rows = []): ilDBInterface&Stub
     {
         $lng_modules_stmt = $this->createStub(ilDBStatement::class);
         $remarks_stmt = $this->createStub(ilDBStatement::class);
