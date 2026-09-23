@@ -234,10 +234,13 @@ class LanguageInstallationManager
      * For a module migrated to PO/MO the shipped `.po` is the only source of shipped values, and the
      * shipped/local decision is a three-way comparison per entry (see mergeShippedMigratedModules()):
      * only entries whose shipped value changed are taken over, local changes are kept.
+     *
+     * @return list<string> the migrated modules whose overlay could not be written (see
+     *         insertLanguage()) - empty if every overlay is in sync
      */
-    public function insertLanguageForInstallation(string $lang_key): void
+    public function insertLanguageForInstallation(string $lang_key): array
     {
-        $this->insertLanguage(
+        return $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getAllDirectories(),
             $this->repository->getLocalChanges($lang_key),
@@ -255,10 +258,12 @@ class LanguageInstallationManager
      * This also rebuilds the overlay of every migrated module from the shipped `.po` ("replace"
      * semantics): locally changed values are reset, entries added locally ("add new variable") are
      * removed - the overlay equivalent of the flush the caller performs on lng_data/lng_modules.
+     *
+     * @return list<string> see insertLanguageForInstallation()
      */
-    public function insertLanguageForRemovingLocalChanges(string $lang_key): void
+    public function insertLanguageForRemovingLocalChanges(string $lang_key): array
     {
-        $this->insertLanguage(
+        return $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getDirectories(),
             [],
@@ -291,12 +296,14 @@ class LanguageInstallationManager
      * only previously local entries) would make any base entry not
      * overridden by the customizing file silently disappear from that
      * module's cache row.
+     *
+     * @return list<string> see insertLanguageForInstallation()
      */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): array
     {
         // The seed already holds every stored entry (including those of migrated modules), so the
         // shipped `.po` files are not merged in again here.
-        $this->insertLanguage(
+        return $this->insertLanguage(
             $lang_key,
             $this->language_file_directory_manager->getCustomizingDirectories(),
             $this->repository->getLanguageEntries($lang_key),
@@ -305,6 +312,26 @@ class LanguageInstallationManager
         );
     }
 
+
+    /**
+     * The overlay directories of the modules migrated for any of $lang_keys that cannot be written
+     * in the client data directory this instance maintains the overlay in - see
+     * MigratedLanguageFileSync::findUnwritableOverlayDirectories(). Meant to be checked before
+     * installing/updating, so a missing permission is reported up front instead of only being
+     * logged per module afterwards.
+     *
+     * @param list<string> $lang_keys
+     * @return list<string>
+     */
+    public function findUnwritableOverlayDirectories(array $lang_keys): array
+    {
+        return MigratedLanguageFileSync::findUnwritableOverlayDirectories(
+            $this->language_file_directory_manager,
+            $this->absolute_path,
+            $lang_keys,
+            $this->clientDataDir()
+        );
+    }
 
     /**
      * Writes whatever data the given $directories/$lang_array seed produce - which directories to read
@@ -324,6 +351,8 @@ class LanguageInstallationManager
      * @param array<string, array<string, string>> $lang_array module => identifier => value
      * @param bool $keep_local_changes whether local changes recorded only in a migrated module's
      *        overlay count as local changes (false for "remove local changes")
+     * @return list<string> the migrated modules whose overlay could not be written - the database
+     *         write is not undone for them, see syncMigratedModules()
      */
     private function insertLanguage(
         string $lang_key,
@@ -331,7 +360,7 @@ class LanguageInstallationManager
         array $lang_array,
         bool $merge_shipped_migrated_modules,
         bool $keep_local_changes
-    ): void {
+    ): array {
         $ilDB = $this->db();
         $working_dir = getcwd();
         $client_data_dir = $this->clientDataDir();
@@ -441,7 +470,7 @@ class LanguageInstallationManager
 
                     if (!$is_local) {
                         if (isset($shipped_migrated_modules[$module])) {
-                            // migrated: the shipped .po is the only source, see resolveMigratedModule()
+                            // Migrated: the shipped .po is the only source, see resolveMigratedModule()
                             continue;
                         }
                         // Respect local changes already recorded in the
@@ -498,7 +527,7 @@ class LanguageInstallationManager
             }
 
             if ($lang_array === []) {
-                return;
+                return [];
             }
 
             $modules = array_map('strval', array_keys($lang_array));
@@ -525,7 +554,8 @@ class LanguageInstallationManager
 
             $this->assertModulesCorrectlySaved($lang_key, $modules);
             $this->invalidateLanguageCache($lang_key);
-            $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir);
+
+            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir);
         } finally {
             chdir($working_dir);
         }
@@ -649,16 +679,18 @@ class LanguageInstallationManager
         try {
             ($this->language_cache_invalidator)($lang_key);
         } catch (\Throwable $t) {
-            // a cache that cannot be invalidated must not undo the successful database write
+            // A cache that cannot be invalidated must not undo the successful database write
             error_log(sprintf('Could not invalidate the language cache for "%s": %s', $lang_key, $t->getMessage()));
         }
     }
 
     /**
      * @param array<string, array<string, string>> $lang_array
+     * @return list<string> the modules whose overlay could not be written
      */
-    private function syncMigratedModules(string $lang_key, array $lang_array, ?string $client_data_dir): void
+    private function syncMigratedModules(string $lang_key, array $lang_array, ?string $client_data_dir): array
     {
+        $failed_modules = [];
         foreach ($lang_array as $module => $entries) {
             try {
                 MigratedLanguageFileSync::sync(
@@ -675,14 +707,18 @@ class LanguageInstallationManager
             } catch (\Throwable $t) {
                 // No injected logger here - this class also runs in Setup contexts before a
                 // logging service exists; error_log() works everywhere. The lng_modules write above
-                // already succeeded and must not be undone by a problem with the file mirror.
+                // already succeeded and must not be undone by a problem with the file mirror - the
+                // failure is returned so the caller can report it visibly.
                 error_log(sprintf(
                     'Could not sync migrated language file for module "%s", language "%s": %s',
                     $module,
                     $lang_key,
                     $t->getMessage()
                 ));
+                $failed_modules[] = (string) $module;
             }
         }
+
+        return $failed_modules;
     }
 }

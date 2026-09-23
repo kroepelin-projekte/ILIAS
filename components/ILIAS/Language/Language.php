@@ -91,8 +91,10 @@ class Language implements Component\Component
             );
 
         // Without a client data directory resolver the overlay of migrated modules would silently
-        // never be maintained through this instance (no language cache invalidator: that cache is a
-        // legacy-$DIC service not reachable through the component graph).
+        // never be maintained through this instance. The global language cache is a legacy-$DIC
+        // service not reachable through the component graph; ilCachedLanguage::deleteInCacheIfAvailable()
+        // resolves it at call time - only where it exists (a full request, not CLI Setup) - the
+        // same way ilSetupLanguage does.
         $internal[LanguageInstallationManager::class] = static fn() =>
             new LanguageInstallationManager(
                 $resolve_db,
@@ -100,7 +102,8 @@ class Language implements Component\Component
                 $ilias_root,
                 $internal[InstalledLanguageDatabaseRepository::class],
                 null,
-                static fn(): ?string => MigratedLanguageFilePaths::resolveClientDataDir($ilias_root)
+                static fn(): ?string => MigratedLanguageFilePaths::resolveClientDataDir($ilias_root),
+                static fn(string $lang_key) => \ilCachedLanguage::deleteInCacheIfAvailable($lang_key)
             );
 
         $internal[\ilSetupLanguage::class] = static fn() =>

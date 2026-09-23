@@ -23,11 +23,8 @@ namespace ILIAS\Language\ComponentTranslation;
 use DateTimeImmutable;
 use DateTimeZone;
 use ILIAS\Language\ComponentTranslation\Gettext\AtomicFileWriter;
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
-use ILIAS\Language\ComponentTranslation\Gettext\MoWriter;
-use ILIAS\Language\ComponentTranslation\Gettext\PoParser;
-use ILIAS\Language\ComponentTranslation\Gettext\PoWriter;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
 use RuntimeException;
 
 /**
@@ -68,8 +65,11 @@ final class MigratedLanguageFileSync
      *   different value is written.
      * - "local_change" is recomputed via LocalChangeComments::refresh().
      *
-     * Both files are written atomically (temporary file + rename) and only when the `.po` content
-     * actually changed or the `.mo` is missing.
+     * Both files are written atomically (temporary file + rename). The `.po` only when its content
+     * actually changed; the `.mo` whenever it does not hold exactly what TranslationCatalog::toMoString()
+     * compiles from the resulting catalog - so a missing, truncated or otherwise stale `.mo` next to an
+     * unchanged `.po` is rebuilt as well (that output is deterministic, so a byte comparison suffices
+     * and no read-back of the `.mo` is needed).
      *
      * @param array<string, string> $entries identifier => value, the complete, final set for this
      *        module/language - exactly what the caller just wrote to lng_modules.
@@ -96,12 +96,12 @@ final class MigratedLanguageFileSync
         $overlay_po = $overlay_base . '.po';
         $overlay_mo = $overlay_base . '.mo';
 
-        $shipped = PoParser::parseFile($shipped_po);
+        $shipped = TranslationCatalog::fromPoFile($shipped_po);
         $overlay_exists = is_file($overlay_po);
         $existing = null;
         if ($overlay_exists) {
             try {
-                $existing = PoParser::parseFile($overlay_po);
+                $existing = TranslationCatalog::fromPoFile($overlay_po);
             } catch (RuntimeException) {
                 // A corrupt overlay is rebuilt like a missing one: $entries carries every value, and
                 // "original"/"local_change" are recomputed against the shipped file - only the
@@ -109,11 +109,11 @@ final class MigratedLanguageFileSync
                 $overlay_exists = false;
             }
         }
-        // a separate instance even when seeding from the shipped file: the entries taken from it
+        // A separate instance even when seeding from the shipped file: the entries taken from it
         // are modified below, while $shipped must keep the shipped values for comparison
-        $existing ??= PoParser::parseFile($shipped_po);
+        $existing ??= TranslationCatalog::fromPoFile($shipped_po);
 
-        $catalog = new Catalog();
+        $catalog = new TranslationCatalog();
         foreach ($shipped->getHeaders() as $name => $value) {
             $catalog->setHeader($name, $value);
         }
@@ -124,7 +124,7 @@ final class MigratedLanguageFileSync
             $identifier = (string) $identifier;
             $value = (string) $value;
             $shipped_entry = $shipped->find($module, $identifier);
-            $entry = $existing->find($module, $identifier) ?? new Entry($module, $identifier);
+            $entry = $existing->find($module, $identifier) ?? new TranslationEntry($module, $identifier);
             $previous_value = $entry->getTranslation();
             $reconcile = !$overlay_exists || $refresh_original_from_shipped;
 
@@ -144,7 +144,7 @@ final class MigratedLanguageFileSync
                     && $shipped_entry->getTranslation() === $value;
                 $is_shipped_fuzzy ? $entry->addFlag('fuzzy') : $entry->removeFlag('fuzzy');
             } elseif ($value !== $previous_value) {
-                // a value someone actually wrote is, by definition, no longer an unreviewed placeholder
+                // A value someone actually wrote is, by definition, no longer an unreviewed placeholder
                 $entry->removeFlag('fuzzy');
             }
 
@@ -152,20 +152,23 @@ final class MigratedLanguageFileSync
             $catalog->add($entry);
         }
 
-        $po_content = PoWriter::toString($catalog);
+        $po_content = $catalog->toPoString();
+        $mo_content = $catalog->toMoString();
         $po_unchanged = $overlay_exists && $po_content === file_get_contents($overlay_po);
-        if ($po_unchanged && is_file($overlay_mo)) {
+        $mo_unchanged = is_file($overlay_mo) && $mo_content === @file_get_contents($overlay_mo);
+        if ($po_unchanged && $mo_unchanged) {
             return;
         }
 
         self::ensureDirectoryExists(dirname($overlay_po));
-        // .po first: it carries the bookkeeping the .mo lacks, and ilLanguage only reads the .mo -
-        // so a failure in between leaves a stale-but-consistent .mo being served, never a new .mo
-        // whose bookkeeping got lost.
+        // The .po first: it carries the bookkeeping the .mo lacks, and ilLanguage only reads the
+        // .mo - so a failure in between leaves the previous .mo being served (a .po that is newer
+        // than its .mo is repaired by the next sync, see above), never a new .mo whose bookkeeping
+        // got lost.
         if (!$po_unchanged) {
             AtomicFileWriter::write($overlay_po, $po_content);
         }
-        AtomicFileWriter::write($overlay_mo, MoWriter::toString($catalog));
+        AtomicFileWriter::write($overlay_mo, $mo_content);
 
         \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
     }
@@ -181,24 +184,107 @@ final class MigratedLanguageFileSync
         string $lang_key
     ): array {
         $modules = [];
+        foreach (self::findShippedModuleFiles($language_file_directory_manager, $ilias_absolute_path, $lang_key) as $module => $shipped_po) {
+            $modules[$module] = array_map(
+                static fn(array $entry): string => $entry['value'],
+                self::loadShippedModuleEntries($shipped_po, $module)
+            );
+        }
+
+        return $modules;
+    }
+
+    /**
+     * Every module migrated for $lang_key - i.e. whose shipped `.po` exists, whether or not it can
+     * be parsed - with the absolute path of that shipped `.po`.
+     *
+     * @return array<string, string> module => shipped `.po` path
+     */
+    public static function findShippedModuleFiles(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        string $lang_key
+    ): array {
+        $files = [];
         foreach ($language_file_directory_manager->getDirectories() as $directory) {
             $module = $directory->getPrefix();
             if ($module === '') {
                 continue;
             }
             $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
-            if (!is_file($shipped_po)) {
+            if (is_file($shipped_po)) {
+                $files[$module] = $shipped_po;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * The entries of $module in the shipped `.po` $shipped_po (see findShippedModuleFiles()), with
+     * their extracted comments ("#.", the counterpart of a `.lang` file's "###" comment) joined into
+     * one line - `null` if an entry has none.
+     *
+     * @return array<string, array{value: string, comment: ?string}> identifier => entry
+     * @throws RuntimeException if the file cannot be read or parsed
+     */
+    public static function loadShippedModuleEntries(string $shipped_po, string $module): array
+    {
+        $entries = [];
+        foreach (TranslationCatalog::fromPoFile($shipped_po)->getEntries() as $entry) {
+            if ($entry->getContext() !== $module) {
                 continue;
             }
-            $modules[$module] = [];
-            foreach (PoParser::parseFile($shipped_po)->getEntries() as $entry) {
-                if ($entry->getContext() === $module) {
-                    $modules[$module][$entry->getId()] = $entry->getTranslation();
+            $comment = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', implode(' ', $entry->getExtractedComments())) ?? '');
+            $entries[$entry->getId()] = [
+                'value' => $entry->getTranslation(),
+                'comment' => $comment === '' ? null : $comment,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The directories the overlay of the modules migrated for any of $lang_keys would have to be
+     * written to, but cannot: for every such overlay directory the closest existing path (the
+     * directory itself or the first existing parent it would be created in) must be a writable
+     * directory. Meant to be checked BEFORE writing, so a missing permission is reported up front -
+     * typically because Setup is not run as the web server user (a mandatory requirement, the
+     * overlay is written by the web server later on as well) or a file occupies the directory's
+     * place. Empty if $client_data_dir is `null` (no overlay is maintained then at all).
+     *
+     * @param list<string> $lang_keys
+     * @return list<string> the affected overlay directories
+     */
+    public static function findUnwritableOverlayDirectories(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        array $lang_keys,
+        ?string $client_data_dir
+    ): array {
+        if ($client_data_dir === null) {
+            return [];
+        }
+
+        $unwritable = [];
+        foreach ($lang_keys as $lang_key) {
+            foreach ($language_file_directory_manager->getDirectories() as $directory) {
+                if ($directory->getPrefix() === '') {
+                    continue;
+                }
+                $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
+                if (!is_file($shipped_po)) {
+                    continue;
+                }
+                $overlay_directory = dirname(MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key));
+                if (!self::isCreatableOrWritableDirectory($overlay_directory)) {
+                    $unwritable[$overlay_directory] = $overlay_directory;
                 }
             }
         }
 
-        return $modules;
+        return array_values($unwritable);
     }
 
     /**
@@ -257,7 +343,7 @@ final class MigratedLanguageFileSync
         }
 
         $result = [];
-        foreach (PoParser::parseFile($base_path . '.po')->getEntries() as $entry) {
+        foreach (TranslationCatalog::fromPoFile($base_path . '.po')->getEntries() as $entry) {
             if ($entry->getContext() !== $module) {
                 continue;
             }
@@ -312,6 +398,24 @@ final class MigratedLanguageFileSync
         }
 
         return null;
+    }
+
+    private static function isCreatableOrWritableDirectory(string $directory): bool
+    {
+        $path = $directory;
+        while (!file_exists($path)) {
+            // A dangling symlink does not "exist", but mkdir() cannot create anything in its place
+            if (is_link($path)) {
+                return false;
+            }
+            $parent = dirname($path);
+            if ($parent === $path) {
+                return false;
+            }
+            $path = $parent;
+        }
+
+        return is_dir($path) && is_writable($path);
     }
 
     private static function ensureDirectoryExists(string $directory): void

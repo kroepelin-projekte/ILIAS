@@ -20,7 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -33,7 +35,7 @@ class LocalChangeCommentsTest extends TestCase
 {
     public function testANewlyMigratedEntryHasNoLocalChangeRightAfterOriginalIsSet(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
@@ -42,7 +44,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshSetsALocalChangeTimestampWhenTheValueDiffersFromTheOriginal(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         $now = new \DateTimeImmutable('2026-09-21T10:00:00Z');
@@ -53,7 +55,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshClearsTheLocalChangeWhenTheValueIsSetBackToTheOriginal(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -76,7 +78,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshDoesNotBumpAnAlreadyCurrentTimestampOnAnIdempotentResave(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -98,7 +100,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testRefreshUpdatesAnExistingTimestampWhenTheValueChangesAgain(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
         LocalChangeComments::refresh(
             $translation,
@@ -126,7 +128,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testRefreshTreatsAMissingOriginalAsAlwaysLocallyChanged(): void
     {
-        $translation = new Entry('demo', 'brand_new_key');
+        $translation = new TranslationEntry('demo', 'brand_new_key');
 
         LocalChangeComments::refresh($translation, '', 'Neuer Wert', new \DateTimeImmutable('2026-09-21T15:00:00Z'));
 
@@ -140,7 +142,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testRefreshNeverLeavesMoreThanOneLocalChangeCommentBehind(): void
     {
-        $translation = new Entry('demo', 'greeting');
+        $translation = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($translation, 'Hallo');
 
         LocalChangeComments::refresh($translation, 'Hallo', 'A', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
@@ -156,12 +158,192 @@ class LocalChangeCommentsTest extends TestCase
         $this->assertSame('local_change: 2026-09-21T12:00:00Z', $localChangeComments[0]);
     }
 
-    public function testEncodesANewlineInTheOriginalValueSoItCannotCorruptThePoCommentLine(): void
-    {
-        $translation = new Entry('demo', 'greeting');
-        LocalChangeComments::setOriginal($translation, "Zeile eins\nZeile zwei");
+    /**
+     * A translator comment is a single PO line: a value with a line break or a backslash is stored
+     * reversibly escaped under its own prefix - and read back exactly as it was set (formerly line
+     * breaks were flattened into spaces, so an unchanged multi-line shipped value looked locally
+     * changed on every sync).
+     */
+    #[DataProvider('valuesNeedingEscaping')]
+    public function testAValueWithALineBreakOrBackslashRoundTripsExactlyViaASingleEscapedComment(
+        string $value,
+        string $expected_comment
+    ): void {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, $value);
 
-        $this->assertSame('Zeile eins Zeile zwei', LocalChangeComments::getOriginal($translation));
+        $this->assertSame([$expected_comment], $entry->getTranslatorComments());
+        $this->assertSame($value, LocalChangeComments::getOriginal($entry));
+    }
+
+    public static function valuesNeedingEscaping(): array
+    {
+        return [
+            'LF' => ["Zeile eins\nZeile zwei", 'original_escaped: Zeile eins\\nZeile zwei'],
+            'CRLF' => ["Zeile eins\r\nZeile zwei", 'original_escaped: Zeile eins\\r\\nZeile zwei'],
+            'lone CR' => ["a\rb", 'original_escaped: a\\rb'],
+            'trailing LF' => ["Hallo\n", 'original_escaped: Hallo\\n'],
+            'backslash' => ['C:\\pfad', 'original_escaped: C:\\\\pfad'],
+            // A literal backslash followed by "n" must not come back as a line feed
+            'literal backslash-n' => ['a\\nb', 'original_escaped: a\\\\nb'],
+            'literal backslash before a real LF' => ["a\\\nb", 'original_escaped: a\\\\\\nb'],
+            'double backslash' => ['a\\\\b', 'original_escaped: a\\\\\\\\b'],
+            'only a line break' => ["\n", 'original_escaped: \\n'],
+        ];
+    }
+
+    public static function valuesSurvivingAPoFileRoundTrip(): array
+    {
+        return self::valuesNeedingEscaping() + [
+            'leading and trailing spaces' => ['  Hallo  ', 'original:   Hallo  '],
+            'trailing tab' => ["Hallo\t", "original: Hallo\t"],
+            'only a space' => [' ', 'original:  '],
+            'empty' => ['', 'original: '],
+            'zero' => ['0', 'original: 0'],
+            'escaped with surrounding spaces' => ["  a\nb  ", 'original_escaped:   a\\nb  '],
+        ];
+    }
+
+    /**
+     * Every other value is stored verbatim under "original: ", byte-identical to earlier versions -
+     * existing overlays are read and rewritten exactly as before.
+     */
+    public function testAValueWithoutLineBreakOrBackslashIsStoredVerbatimUnderTheLegacyPrefix(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Hallo "Welt" %s #:# ###');
+
+        $this->assertSame(['original: Hallo "Welt" %s #:# ###'], $entry->getTranslatorComments());
+    }
+
+    /**
+     * An "original: " comment written by an earlier version (line breaks already flattened into
+     * spaces, a backslash stored unescaped) is returned exactly as stored - never unescaped.
+     */
+    #[DataProvider('legacyOriginalComments')]
+    public function testALegacyOriginalCommentIsReadVerbatim(string $comment, string $expected): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->addTranslatorComment($comment);
+
+        $this->assertSame($expected, LocalChangeComments::getOriginal($entry));
+    }
+
+    public static function legacyOriginalComments(): array
+    {
+        return [
+            'flattened line break' => ['original: a b', 'a b'],
+            'unescaped backslash' => ['original: C:\\pfad', 'C:\\pfad'],
+            'backslash-n stays two characters' => ['original: a\\nb', 'a\\nb'],
+        ];
+    }
+
+    /**
+     * A legacy comment holding a value that now needs escaping reads as unchanged (no local change),
+     * and setting that same value again migrates it to exactly one escaped comment.
+     */
+    public function testALegacyCommentWithABackslashIsMigratedToTheEscapedPrefixWithoutALocalChange(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->addTranslatorComment('original: C:\\pfad');
+
+        LocalChangeComments::refresh($entry, 'C:\\pfad', 'C:\\pfad', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+        $this->assertNull(LocalChangeComments::getLocalChange($entry));
+
+        LocalChangeComments::setOriginal($entry, 'C:\\pfad');
+        $this->assertSame(['original_escaped: C:\\\\pfad'], $entry->getTranslatorComments());
+        $this->assertSame('C:\\pfad', LocalChangeComments::getOriginal($entry));
+    }
+
+    /**
+     * Switching between a value that needs escaping and one that does not never leaves both prefixes
+     * behind (getOriginal() prefers the escaped one - a stale one would win).
+     */
+    public function testSwitchingBetweenEscapedAndVerbatimValuesKeepsExactlyOneOriginalComment(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->addTranslatorComment('translator note');
+
+        LocalChangeComments::setOriginal($entry, "Zeile\nzwei");
+        LocalChangeComments::setOriginal($entry, 'einzeilig');
+        $this->assertSame(['translator note', 'original: einzeilig'], $entry->getTranslatorComments());
+        $this->assertSame('einzeilig', LocalChangeComments::getOriginal($entry));
+
+        LocalChangeComments::setOriginal($entry, "wieder\nmehrzeilig");
+        $this->assertSame(['translator note', 'original_escaped: wieder\\nmehrzeilig'], $entry->getTranslatorComments());
+        $this->assertSame("wieder\nmehrzeilig", LocalChangeComments::getOriginal($entry));
+    }
+
+    /**
+     * Idempotence for escaped values, too: setting the same multi-line value again keeps the comment
+     * where it is (no-op guard of MigratedLanguageFileSync::sync()).
+     */
+    public function testSetOriginalWithTheSameEscapedValueKeepsTheCommentOrderStable(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, "Zeile\r\nzwei");
+        $entry->addTranslatorComment('translator note');
+
+        LocalChangeComments::setOriginal($entry, "Zeile\r\nzwei");
+
+        $this->assertSame(['original_escaped: Zeile\\r\\nzwei', 'translator note'], $entry->getTranslatorComments());
+    }
+
+    /**
+     * Both "original" comments present (a hand-edited or mixed file): setOriginal() with the value of
+     * one of them still cleans up the other one instead of treating the entry as unchanged.
+     */
+    public function testSetOriginalRemovesAStaleCommentOfTheOtherPrefix(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->addTranslatorComment('original: Hallo');
+        $entry->addTranslatorComment('original_escaped: Alt\\nZeile');
+
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+
+        $this->assertSame(['original: Hallo'], $entry->getTranslatorComments());
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($entry));
+    }
+
+    /**
+     * refresh() compares against the DECODED original: an unchanged multi-line value is no local
+     * change, a different one is.
+     */
+    public function testRefreshComparesAMultiLineValueAgainstTheDecodedOriginal(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, "Zeile eins\r\nZeile zwei");
+
+        LocalChangeComments::refresh($entry, "Zeile eins\r\nZeile zwei", "Zeile eins\r\nZeile zwei", new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+        $this->assertNull(LocalChangeComments::getLocalChange($entry));
+
+        LocalChangeComments::refresh($entry, "Zeile eins\r\nZeile zwei", "Zeile eins\nZeile zwei", new \DateTimeImmutable('2026-09-21T11:00:00Z'));
+        $this->assertSame('2026-09-21T11:00:00Z', LocalChangeComments::getLocalChange($entry));
+    }
+
+    /**
+     * The "original" comment survives a toPoString()/fromPoString() round trip byte for byte - and
+     * so does the decoded value: an escaped one (the writer would otherwise flatten a raw line break
+     * into a space) as well as a verbatim one with surrounding whitespace (gettext/gettext must not
+     * trim comment text - a trimmed "original" would never match the value again, and an empty one
+     * would lose its prefix's trailing space and turn into "no original" = locally changed).
+     */
+    #[DataProvider('valuesSurvivingAPoFileRoundTrip')]
+    public function testTheOriginalSurvivesAPoFileRoundTrip(string $value, string $expected_comment): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->translate($value);
+        LocalChangeComments::setOriginal($entry, $value);
+        $entry->addTranslatorComment('local_change: 2026-09-21T10:00:00Z');
+        $catalog = new TranslationCatalog();
+        $catalog->add($entry);
+
+        $parsed = TranslationCatalog::fromPoString($catalog->toPoString())->find('demo', 'greeting');
+
+        $this->assertNotNull($parsed);
+        $this->assertSame([$expected_comment, 'local_change: 2026-09-21T10:00:00Z'], $parsed->getTranslatorComments());
+        $this->assertSame($value, LocalChangeComments::getOriginal($parsed));
+        $this->assertSame($value, $parsed->getTranslation());
     }
 
     /**
@@ -170,7 +352,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testSetOriginalWithTheSameValueKeepsTheCommentOrderStable(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($entry, 'Hallo');
         $entry->addTranslatorComment('translator note');
 
@@ -181,7 +363,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testSetOriginalWithADifferentValueReplacesTheOldOriginalInsteadOfAddingASecondOne(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($entry, 'Hallo');
         $entry->addTranslatorComment('translator note');
 
@@ -197,7 +379,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testOriginalKeepsLeadingAndTrailingWhitespaceExactly(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($entry, '  Hallo ');
 
         $this->assertSame('  Hallo ', LocalChangeComments::getOriginal($entry));
@@ -212,7 +394,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testAnEmptyOriginalIsDistinctFromNoOriginal(): void
     {
-        $entry = new Entry('demo', 'untranslated');
+        $entry = new TranslationEntry('demo', 'untranslated');
         LocalChangeComments::setOriginal($entry, '');
 
         $this->assertSame('', LocalChangeComments::getOriginal($entry));
@@ -220,9 +402,26 @@ class LocalChangeCommentsTest extends TestCase
         $this->assertNull(LocalChangeComments::getLocalChange($entry));
     }
 
+    /**
+     * removeOriginal() removes both prefixes - an escaped "original" left behind would still be
+     * returned by getOriginal() (e.g., when refresh() drops an entry the shipped .po no longer has).
+     */
+    public function testRemoveOriginalRemovesBothTheLegacyAndTheEscapedPrefix(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $entry->addTranslatorComment('original: Hallo');
+        $entry->addTranslatorComment('translator note');
+        $entry->addTranslatorComment('original_escaped: Zeile\\nzwei');
+
+        LocalChangeComments::removeOriginal($entry);
+
+        $this->assertNull(LocalChangeComments::getOriginal($entry));
+        $this->assertSame(['translator note'], $entry->getTranslatorComments());
+    }
+
     public function testRemoveOriginalLeavesOtherCommentsAlone(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         $entry->addTranslatorComment('translator note');
         LocalChangeComments::setOriginal($entry, 'Hallo');
         LocalChangeComments::refresh($entry, 'Hallo', 'Hi', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
@@ -238,7 +437,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testGetLocalChangeAsDatabaseTimestampConvertsTheIsoFormat(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::refresh($entry, '', 'Hi', new \DateTimeImmutable('2026-12-31T23:59:59Z'));
 
         $this->assertSame('2026-12-31 23:59:59', LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
@@ -246,7 +445,7 @@ class LocalChangeCommentsTest extends TestCase
 
     public function testGetLocalChangeAsDatabaseTimestampIsNullWithoutALocalChange(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         LocalChangeComments::setOriginal($entry, 'Hallo');
 
         $this->assertNull(LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
@@ -258,7 +457,7 @@ class LocalChangeCommentsTest extends TestCase
      */
     public function testGetLocalChangeAsDatabaseTimestampIsNullForAnUnparsableTimestamp(): void
     {
-        $entry = new Entry('demo', 'greeting');
+        $entry = new TranslationEntry('demo', 'greeting');
         $entry->addTranslatorComment('local_change: yesterday');
 
         $this->assertSame('yesterday', LocalChangeComments::getLocalChange($entry));

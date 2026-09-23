@@ -40,10 +40,11 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
  *
  * Under the current design, the sync targets the per-installation OVERLAY `.po`/`.mo` pair under
  * CLIENT_DATA_DIR - never the SHIPPED `.po` (written exactly once by the conversion tool). The method passes
- * $client_data_dir = defined('CLIENT_DATA_DIR') ? CLIENT_DATA_DIR : null as MigratedLanguageFileSync::
- * sync()'s trailing argument, with $create_missing_mo = false (an import is not an install) - so every
- * test that expects a real write needs an already-compiled overlay .mo to update, exactly like an
- * ordinary admin-GUI edit would find.
+ * the resolved client data directory (CLIENT_DATA_DIR here) to MigratedLanguageFileSync::sync(),
+ * together with the import's $refreshOriginalFromShipped as sync()'s only flag. A missing overlay is
+ * created by every sync (the overlay mirrors "language installed"); most tests nevertheless start
+ * from an already-compiled overlay, exactly like an ordinary admin-GUI edit of an installed
+ * language would find it.
  *
  * Deliberately tests this private method directly via reflection instead of driving the whole
  * importLanguageFile() end-to-end: importLanguageFile()'s "delete" mode routes through
@@ -129,7 +130,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         foreach ($entries as $identifier => $value) {
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
@@ -169,10 +170,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     /**
      * Bootstraps the OVERLAY `.po`+`.mo` pair for $module/$lang_key from its current shipped `.po`
      * content, mirroring the shipped file's relative path under CLIENT_DATA_DIR - simulating an
-     * already-migrated module whose overlay was compiled by an earlier install. Required for any test
-     * that expects syncMigratedFilesAfterDeleteModeImport() to actually write something:
-     * MigratedLanguageFileSync::sync() is called with $create_missing_mo = false (an import is not an
-     * install, see this class' own docblock), so a still-missing overlay .mo stays missing.
+     * already-migrated module whose overlay was compiled by an earlier install - the usual starting
+     * point of an import into an installed language (a still-missing overlay would be created by
+     * MigratedLanguageFileSync::sync() as well, see testCreatesAMissingOverlayWithTheShippedOriginal()).
      */
     private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
     {
@@ -201,12 +201,12 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         );
     }
 
-    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
     }
@@ -341,7 +341,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
     /**
      * The overlay mirrors "language installed": an import into a language without overlay creates
-     * it (the removed $create_missing_mo no longer gates this), seeded with the shipped originals.
+     * it - unconditionally, sync() has no flag gating this -, seeded with the shipped originals.
      */
     public function testCreatesAMissingOverlayWithTheShippedOriginal(): void
     {

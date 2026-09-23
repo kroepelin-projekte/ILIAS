@@ -24,6 +24,7 @@ use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -65,6 +66,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * tearDown() so it never leaks between tests.
      */
     private ?\ilLogger $stubbed_activity_error_logger = null;
+
+    /** The throwaway directory of maintenanceLanguageObject(), removed by runMaintenance() */
+    private ?string $maintenance_directory = null;
 
     /**
      * The logger to wire onto a GUI instance's `activity_error_logger`
@@ -591,5 +595,234 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->setProperty($gui, 'http', $http);
 
         $gui->saveNewEntryObject();
+    }
+
+    /**
+     * AddLanguageEntry wrote the entry to the database, but the PO/MO overlay of a module
+     * maintained in PO files could not be written for some languages: a failure naming them is
+     * shown instead of "settings_saved" - still redirecting to "view".
+     */
+    #[AllowMockObjectsWithoutExpectations]
+    public function testSaveNewEntryObjectShowsAFailureInsteadOfSuccessWhenAnOverlayWasNotWritten(): void
+    {
+        $user = $this->createStub(ilObjUser::class);
+        $user->method('getId')->willReturn(6);
+        $add_language_entry = $this->createStub(AddLanguageEntry::class);
+        $add_language_entry->method('maybePerformAs')->willReturn(new ResultOk([
+            'added_language_keys' => ['de', 'en'],
+            'overlay_write_failed_language_keys' => ['de', 'en'],
+        ]));
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with(
+            'failure',
+            'lng_po_overlay_not_written_languages: de, en',
+            true
+        );
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with($this->isInstanceOf(ilObjLanguageExtGUI::class), 'view');
+
+        $gui = $this->createGuiForSaveNewEntry(
+            $add_language_entry,
+            $ctrl,
+            $user,
+            $tpl,
+            $this->mockCheckedFormWithInputs(['mod' => 'common', 'id' => 'sometopic']),
+            $this->createLanguageMockWithFormatStrings(['de', 'en'])
+        );
+
+        $gui->saveNewEntryObject();
+    }
+
+    #[AllowMockObjectsWithoutExpectations]
+    public function testSaveNewEntryObjectShowsSuccessWhenTheOverlayListIsEmpty(): void
+    {
+        $user = $this->createStub(ilObjUser::class);
+        $user->method('getId')->willReturn(6);
+        $add_language_entry = $this->createStub(AddLanguageEntry::class);
+        $add_language_entry->method('maybePerformAs')->willReturn(new ResultOk([
+            'added_language_keys' => ['de'],
+            'overlay_write_failed_language_keys' => [],
+        ]));
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with('success', 'settings_saved', true);
+
+        $gui = $this->createGuiForSaveNewEntry(
+            $add_language_entry,
+            $this->createStub(ilCtrl::class),
+            $user,
+            $tpl,
+            $this->mockCheckedFormWithInputs(['mod' => 'common', 'id' => 'sometopic']),
+            $this->createLanguageMockWithFormatStrings(['de'])
+        );
+
+        $gui->saveNewEntryObject();
+    }
+
+    // -----------------------------------------------------------------
+    // maintainExecuteObject(): "clear", "load", "merge"
+    // -----------------------------------------------------------------
+
+    /**
+     * Like createLanguageMockReturningTopicAsIs(), but the new "lng_*" format strings carry a "%s",
+     * so the module/language list sprintf()'d into them becomes visible to the assertions.
+     *
+     * @param list<string> $installed_languages
+     */
+    private function createLanguageMockWithFormatStrings(array $installed_languages = []): ilLanguage&Stub
+    {
+        $lng = $this->createStub(ilLanguage::class);
+        $lng->method('txt')->willReturnCallback(
+            static fn(string $topic): string => str_starts_with($topic, 'lng_') ? $topic . ': %s' : $topic
+        );
+        $lng->method('getInstalledLanguages')->willReturn($installed_languages);
+
+        return $lng;
+    }
+
+    /**
+     * A throwaway directory holding the files the maintenance actions check with is_file() before
+     * acting: the shipped "ilias_zz.lang" (clear, merge) and the customizing "ilias_zz.lang.local"
+     * (load). The language object itself is a mock - its import/merge is covered elsewhere.
+     */
+    private function maintenanceLanguageObject(): ilObjLanguageExt&MockObject
+    {
+        $this->maintenance_directory = sys_get_temp_dir() . '/ilias_lang_maintain_' . bin2hex(random_bytes(4));
+        mkdir($this->maintenance_directory);
+        file_put_contents($this->maintenance_directory . '/ilias_zz.lang', "header\n<!-- language file start -->\ncommon#:#yes#:#Ja");
+        file_put_contents($this->maintenance_directory . '/ilias_zz.lang.local', "header\n<!-- language file start -->\ncommon#:#yes#:#Jawohl");
+
+        $object = $this->createMock(ilObjLanguageExt::class);
+        $object->key = 'zz';
+        $object->method('getLangPath')->willReturn($this->maintenance_directory);
+        $object->method('getCustLangPath')->willReturn($this->maintenance_directory);
+
+        return $object;
+    }
+
+    /**
+     * @param list<array{0: string, 1: string}> $messages collects type and message of every
+     *        setOnScreenMessage() call, in call order
+     */
+    private function runMaintenance(string $action, ilObjLanguageExt $object, array &$messages): void
+    {
+        $tpl = $this->createStub(ilGlobalTemplateInterface::class);
+        $tpl->method('setOnScreenMessage')->willReturnCallback(
+            static function (string $type, string $message) use (&$messages): void {
+                $messages[] = [$type, $message];
+            }
+        );
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->expects($this->once())->method('redirect')->with($this->isInstanceOf(ilObjLanguageExtGUI::class), 'maintain');
+
+        $gui = (new ReflectionClass(ilObjLanguageExtGUI::class))->newInstanceWithoutConstructor();
+        $this->setProperty($gui, 'http', $this->mockHttpWithParsedBody(['maintain' => $action]));
+        $this->setProperty($gui, 'tpl', $tpl);
+        $this->setProperty($gui, 'ctrl', $ctrl);
+        $this->setProperty($gui, 'lng', $this->createLanguageMockWithFormatStrings());
+        $this->setProperty($gui, 'object', $object);
+
+        $session_before = $_SESSION ?? null;
+        try {
+            $gui->maintainExecuteObject();
+        } finally {
+            if ($session_before === null) {
+                unset($_SESSION);
+            } else {
+                $_SESSION = $session_before;
+            }
+            MigratedPoFixture::removeDirectory((string) $this->maintenance_directory);
+        }
+    }
+
+    /**
+     * "clear" resets to the shipped values - and must not do so with a module's outdated .lang lines
+     * when its shipped .po cannot be read: importLanguageFile() aborts before changing anything, the
+     * GUI shows a failure naming the modules and does NOT mark the language as without local
+     * changes (setLocal(false)).
+     */
+    public function testClearWithAnUnreadableShippedPoShowsAFailureAndKeepsTheLocalFlag(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('importLanguageFile')
+            ->with($this->maintenance_directory . '/ilias_zz.lang', 'replace', true)
+            ->willThrowException(new ilLanguageException('The shipped PO files of the following modules cannot be read: pilot'));
+        $object->method('getUnreadableShippedPoModules')->willReturn(['pilot', 'tos']);
+        $object->expects($this->never())->method('setLocal');
+        $messages = [];
+
+        $this->runMaintenance('clear', $object, $messages);
+
+        $this->assertSame([['failure', 'lng_error_clear_shipped_po_unreadable: pilot, tos']], $messages);
+    }
+
+    public function testClearWithAnUnwrittenOverlayShowsTheSuccessTextAsFailureNamingTheModules(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('importLanguageFile')->willReturn(['pilot']);
+        $object->expects($this->once())->method('setLocal')->with(false);
+        $messages = [];
+
+        $this->runMaintenance('clear', $object, $messages);
+
+        $this->assertSame([['failure', 'language_cleared_local<br />lng_po_overlay_not_written: pilot']], $messages);
+    }
+
+    public function testClearWithEveryOverlayWrittenShowsSuccess(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('importLanguageFile')->willReturn([]);
+        $object->expects($this->once())->method('setLocal')->with(false);
+        $messages = [];
+
+        $this->runMaintenance('clear', $object, $messages);
+
+        $this->assertSame([['success', 'language_cleared_local']], $messages);
+    }
+
+    /**
+     * "load" (the customizing file) never refreshes the shipped baseline - and reports an unwritten
+     * overlay the same way as "clear".
+     */
+    public function testLoadWithAnUnwrittenOverlayShowsAFailureNamingTheModules(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('importLanguageFile')
+            ->with($this->maintenance_directory . '/ilias_zz.lang.local', 'replace')
+            ->willReturn(['pilot', 'tos']);
+        $object->expects($this->once())->method('setLocal')->with(true);
+        $messages = [];
+
+        $this->runMaintenance('load', $object, $messages);
+
+        $this->assertSame([['failure', 'language_loaded_local<br />lng_po_overlay_not_written: pilot, tos']], $messages);
+    }
+
+    /**
+     * "merge" goes through mergeLocalChangesIntoGlobalLanguageFile() and names the skipped modules
+     * maintained in PO files in an additional info message.
+     */
+    public function testMergeReportsTheSkippedModulesMaintainedInPoFiles(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn(['pilot', 'tos']);
+        $messages = [];
+
+        $this->runMaintenance('merge', $object, $messages);
+
+        $this->assertSame(
+            [['success', 'language_merged_global'], ['info', 'lng_merge_skipped_po_modules: pilot, tos']],
+            $messages
+        );
+    }
+
+    public function testMergeWithoutModulesMaintainedInPoFilesShowsOnlyTheSuccess(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([]);
+        $messages = [];
+
+        $this->runMaintenance('merge', $object, $messages);
+
+        $this->assertSame([['success', 'language_merged_global']], $messages);
     }
 }

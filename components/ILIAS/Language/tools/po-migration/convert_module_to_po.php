@@ -22,9 +22,11 @@ declare(strict_types=1);
  * Pilot conversion tool for the PO/MO migration.
  *
  * Reads the legacy `lang/ilias_<lang>.lang` files for one ILIAS language module and emits, via the
- * language component's own PO implementation (ILIAS\Language\ComponentTranslation\Gettext):
- *   - a POT template (<module>.pot)
- *   - one PO file per shipped language (<module>_<lang>.po)
+ * gettext/gettext library (through the language component's adapter
+ * ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog, so the tool writes exactly what the
+ * runtime reads and writes, including the adapter's safeguards around the library):
+ *   - A POT template (<module>.pot)
+ *   - One PO file per shipped language (<module>_<lang>.po)
  *
  * No `.mo` file is written here - like the legacy `.lang` files before them, the `.po` files are the
  * shipped, version-controlled source of truth. The compiled `.mo` (the runtime format `ilLanguage`
@@ -32,7 +34,7 @@ declare(strict_types=1);
  * or updated - by `ILIAS\Language\Setup\LanguageInstallationManager` via
  * `MigratedLanguageFileSync::sync()`.
  *
- * Headers of an already existing target `.po` (e.g. "Plural-Forms") are kept, so re-running the tool
+ * Headers of an already existing target `.po` (e.g., "Plural-Forms") are kept, so re-running the tool
  * for a module only changes what the `.lang` files changed.
  *
  * Deliberately declares no named classes or functions: this file lives inside the classmap-scanned
@@ -45,10 +47,8 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
-use ILIAS\Language\ComponentTranslation\Gettext\PoParser;
-use ILIAS\Language\ComponentTranslation\Gettext\PoWriter;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
 
 /**
  * @return list<array{0: string, 1: string, 2: string}> [module, key, raw value] of every entry line
@@ -122,14 +122,14 @@ $find_duplicate_keys = static function (string $file, string $module) use ($read
  * markers, not authored notes.
  */
 $is_fuzzy_marker = static function (string $comment): bool {
-    return (bool) preg_match(
+    return preg_match(
         '/^\s*(\d{1,2}\s+\d{1,2}\s+\d{4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{4}-\d{1,2}-\d{1,2})\b.*\bnew variable\b/i',
         $comment
-    ) || (bool) preg_match('/\bnew variable\b|\badd new translation\b/i', $comment);
+    ) === 1 || preg_match('/\bnew variable\b|\badd new translation\b/i', $comment) === 1;
 };
 
 /**
- * @param array<string, array{value: string, comment: ?string}> $reference_entries msgid order + fallback extracted comments
+ * @param array<array-key, array{value: string, comment: ?string}> $reference_entries msgid order + fallback extracted comments
  * @param array<string, array{value: string, comment: ?string}>|null $translation_entries null => POT (no msgstr, no fuzzy)
  * @param array<string, string> $existing_headers headers of an already existing target file
  */
@@ -139,9 +139,9 @@ $build_catalog = static function (
     array $reference_entries,
     ?array $translation_entries,
     array $existing_headers
-) use ($is_fuzzy_marker): Catalog {
+) use ($is_fuzzy_marker): TranslationCatalog {
     $is_template = $translation_entries === null;
-    $catalog = new Catalog();
+    $catalog = new TranslationCatalog();
     foreach ($existing_headers as $name => $value) {
         $catalog->setHeader($name, $value);
     }
@@ -156,7 +156,7 @@ $build_catalog = static function (
     foreach ($reference_entries as $key => $ref) {
         // msgctxt = owning module (FR "PO-Files for improving language handling", 2.4, Variant A):
         // structurally excludes collisions between modules that happen to pick the same identifier.
-        $entry = new Entry($module, (string) $key);
+        $entry = new TranslationEntry($module, (string) $key);
         $comment = $ref['comment'];
 
         if (!$is_template) {
@@ -184,7 +184,7 @@ $build_catalog = static function (
 
 $existing_headers = static function (string $file): array {
     try {
-        return is_file($file) ? PoParser::parseFile($file)->getHeaders() : [];
+        return is_file($file) ? TranslationCatalog::fromPoFile($file)->getHeaders() : [];
     } catch (RuntimeException) {
         return [];
     }
@@ -201,7 +201,7 @@ $write = static function (string $file, string $content): void {
 // outputDir defaults to this tool's own output/<module> scratch folder. For a module whose owning
 // component already contributes a ComponentLanguageFileDirectory (see
 // components/ILIAS/Language/src/ComponentTranslation/), pass that component's lang/ directory
-// explicitly instead - e.g. for "tos":
+// explicitly instead - e.g., for "tos":
 //   php convert_module_to_po.php tos de ../../../TermsOfService/lang
 
 $module = $argv[1] ?? 'tos';
@@ -254,19 +254,18 @@ if ($reference_entries === []) {
 
 // POT
 $pot_path = "$output_dir/$module.pot";
-$write($pot_path, PoWriter::toString(
-    $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path))
-));
+$write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path))->toPoString());
 
 $report = [];
 foreach ($per_language as $lang_key => $entries) {
-    $po_path = "$output_dir/{$module}_{$lang_key}.po";
-    $write($po_path, PoWriter::toString(
-        $build_catalog($module, $lang_key, $reference_entries, $entries, $existing_headers($po_path))
-    ));
+    $po_path = $output_dir . '/' . $module . '_' . $lang_key . '.po';
+    $write(
+        $po_path,
+        $build_catalog($module, $lang_key, $reference_entries, $entries, $existing_headers($po_path))->toPoString()
+    );
 
     // self-check: read the written file back and compare every value
-    $parsed = PoParser::parseFile($po_path);
+    $parsed = TranslationCatalog::fromPoFile($po_path);
     $po_mismatches = [];
     foreach ($reference_entries as $key => $ref) {
         $expected = $entries[$key]['value'] ?? '';

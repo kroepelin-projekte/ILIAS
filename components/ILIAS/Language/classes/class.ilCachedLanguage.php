@@ -146,6 +146,21 @@ class ilCachedLanguage implements Request
         $this->setTranslations($translations);
     }
 
+    /**
+     * deleteInCache() for $language_key - but only where a global cache exists at all: a fully
+     * bootstrapped request has one, CLI Setup and other early contexts do not (and then there is
+     * nothing to invalidate). The single place making that distinction for every
+     * LanguageInstallationManager that is not constructed inside a full request (ilSetupLanguage,
+     * the instance the Language component provides).
+     */
+    public static function deleteInCacheIfAvailable(string $language_key): void
+    {
+        $dic = $GLOBALS['DIC'] ?? null;
+        if ($dic instanceof \ILIAS\DI\Container && $dic->offsetExists('global_cache')) {
+            self::getInstance($language_key)->deleteInCache();
+        }
+    }
+
     public static function getInstance($key): self
     {
         if (!isset(self::$instances[$key])) {

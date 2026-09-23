@@ -50,10 +50,11 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * @param array<string, array{installed?: bool, remove_local_changes_return?: bool}> $language_objects
+     * @param array<string, array{installed?: bool, remove_local_changes_return?: bool, unwritten_overlay?: list<string>}> $language_objects
      *        Keyed by language key; each entry becomes a fake object with
-     *        the given isInstalled() answer (default true) and
-     *        removeLocalChanges() return value (default true) reachable
+     *        the given isInstalled() answer (default true),
+     *        removeLocalChanges() return value (default true) and
+     *        getModulesWithUnwrittenOverlay() answer (default []) reachable
      *        from the corresponding obj_id (assigned in iteration order,
      *        starting at 1).
      * @return array{0: array<int, FakeRemoveLocalLanguageChangesObject>, 1: \Closure, 2: \Closure}
@@ -70,6 +71,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             $fakes_by_obj_id[$obj_id] = new FakeRemoveLocalLanguageChangesObject(
                 is_installed: $flags['installed'] ?? true,
                 remove_local_changes_return_value: $flags['remove_local_changes_return'] ?? true,
+                modules_with_unwritten_overlay: $flags['unwritten_overlay'] ?? [],
             );
             $obj_id++;
         }
@@ -385,6 +387,29 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $this->assertSame([], $result['invalid_language_file_keys']);
         $this->assertSame([], $result['not_installed_language_keys']);
         $this->assertSame(1, $fakes[1]->removeLocalChangesCallCount());
+    }
+
+    /**
+     * A language whose local changes were removed, but for which a migrated module's PO/MO overlay
+     * could not be written, is still reported as removed - and additionally listed in
+     * "overlay_write_failed_language_keys". A language whose removal failed validation is never
+     * listed there, even if its object reports unwritten overlays from an earlier call.
+     */
+    public function testALanguageWithAnUnwrittenOverlayIsListedAdditionallyToBeingRemoved(): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => ['unwritten_overlay' => ['pilot']],
+            'en' => [],
+            'fr' => ['remove_local_changes_return' => false, 'unwritten_overlay' => ['pilot']],
+        ]);
+
+        $result = $this->createActivity($lng_objects, $obj_language_factory)->perform([
+            'language_keys' => ['de', 'en', 'fr'],
+        ]);
+
+        $this->assertSame(['de', 'en'], $result['removed_local_changes_language_keys']);
+        $this->assertSame(['fr'], $result['invalid_language_file_keys']);
+        $this->assertSame(['de'], $result['overlay_write_failed_language_keys']);
     }
 
     public function testExistingButNotInstalledLanguageObjectIsReportedAsNotInstalledWithoutCallingRemoveLocalChanges(): void
@@ -739,10 +764,14 @@ final class FakeRemoveLocalLanguageChangesObject
      *        changes; false mimics \ilObjLanguage::removeLocalChanges()
      *        rejecting the call because the underlying language file failed
      *        check() (isInstalled() having already let it through).
+     * @param list<string> $modules_with_unwritten_overlay What
+     *        getModulesWithUnwrittenOverlay() returns - the migrated modules
+     *        whose PO/MO overlay the last removeLocalChanges() could not write.
      */
     public function __construct(
         private readonly bool $is_installed,
         private readonly bool $remove_local_changes_return_value = true,
+        private readonly array $modules_with_unwritten_overlay = [],
     ) {
     }
 
@@ -756,6 +785,14 @@ final class FakeRemoveLocalLanguageChangesObject
         $this->remove_local_changes_calls++;
 
         return $this->remove_local_changes_return_value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getModulesWithUnwrittenOverlay(): array
+    {
+        return $this->modules_with_unwritten_overlay;
     }
 
     public function removeLocalChangesCallCount(): int

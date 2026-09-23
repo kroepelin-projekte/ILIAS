@@ -11157,6 +11157,11 @@ lng#:#language_detection#:#Automatische Spracherkennung
 lng#:#lng_disable_language_detection#:#Automatische Spracherkennung deaktivieren
 lng#:#lng_download_deprecated#:#Veraltete Einträge herunterladen
 lng#:#lng_enable_language_detection#:#Automatische Spracherkennung aktivieren
+lng#:#lng_error_clear_shipped_po_unreadable#:#Die lokalen Änderungen wurden nicht gelöscht: Die ausgelieferten PO-Dateien folgender Module können nicht gelesen werden: %s. Details stehen im Log.
+lng#:#lng_merge_skipped_po_modules#:#Folgende Module werden über PO-Dateien gepflegt und wurden nicht in die Standard-Sprachdatei übernommen, ihre Zeilen darin blieben unverändert: %s
+lng#:#lng_po_overlay_not_written#:#Die Änderungen wurden in der Datenbank gespeichert, aber die PO/MO-Dateien folgender über PO-Dateien gepflegter Module konnten nicht geschrieben werden: %s. Für diese Module werden weiterhin die bisherigen Texte angezeigt. Bitte prüfen Sie, ob der Webserver-Nutzer Schreibrechte auf das Verzeichnis "lang" im Client-Datenverzeichnis hat. Details stehen im Log.
+lng#:#lng_po_overlay_not_written_languages#:#Die Sprachdaten wurden in der Datenbank gespeichert, aber für folgende Sprachen konnten die PO/MO-Dateien der über PO-Dateien gepflegten Module nicht geschrieben werden: %s. Für diese Module werden weiterhin die bisherigen Texte angezeigt. Bitte prüfen Sie, ob der Webserver-Nutzer Schreibrechte auf das Verzeichnis "lang" im Client-Datenverzeichnis hat. Details stehen im Log.
+lng#:#lng_shipped_po_unreadable_fallback#:#Die ausgelieferten PO-Dateien folgender Module können nicht gelesen werden: %s. Als Standardwerte werden für diese Module ersatzweise die möglicherweise veralteten Einträge der Sprachdatei (.lang) angezeigt. Details stehen im Log.
 lng#:#lng_switch_language_detection#:#Automatische Spracherkennung umschalten
 log#:#log_component_btn_reset#:#Einstellungen zurücksetzen
 log#:#log_component_col_component#:#Komponente

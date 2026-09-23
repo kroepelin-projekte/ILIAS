@@ -21,7 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
-use ILIAS\Language\ComponentTranslation\Gettext\MoReader;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
 
 /**
  * language handling
@@ -393,7 +393,7 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         try {
-            $text = MoReader::readTranslations($mo_file);
+            $text = TranslationCatalog::readMoTranslations($mo_file);
         } catch (\Throwable $t) {
             self::logMigratedLanguageFileProblem(sprintf(
                 'Could not read migrated language file "%s", falling back to the database: %s',

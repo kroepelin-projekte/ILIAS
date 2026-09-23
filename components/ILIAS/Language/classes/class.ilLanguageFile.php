@@ -43,6 +43,14 @@ class ilLanguageFile
     private array $values;
     private array $comments;
     private string $error_message = "";
+    /** @var array<string, string> key => line as read, only where it is not just the trimmed entry */
+    private array $read_lines = [];
+    /** @var array<string, string> */
+    private array $read_values = [];
+    /** @var array<string, string> */
+    private array $read_comments = [];
+    /** @var array<string, true> */
+    private array $kept_keys = [];
 
     /**
     * Constructor
@@ -98,6 +106,8 @@ class ilLanguageFile
         $this->values = array();
         $this->comments = array();
         $this->error_message = "";
+        $this->read_lines = [];
+        $this->kept_keys = [];
 
         $content = file($this->lang_file);
         $in_header = true;
@@ -159,9 +169,20 @@ class ilLanguageFile
                         $value = substr($value, 0, $pos);
                     }
                     $this->values[$key] = $value;
+
+                    // Only kept where build() would not reproduce it (whitespace around the entry)
+                    $line_as_read = rtrim($line, "\r\n");
+                    if ($line_as_read !== trim($line)) {
+                        $this->read_lines[$key] = $line_as_read;
+                    } else {
+                        unset($this->read_lines[$key]);
+                    }
                 }
             }
         }
+        // Copy-on-write: no additional memory unless values/comments are replaced afterwards
+        $this->read_values = $this->values;
+        $this->read_comments = $this->comments;
         // still in header after parsing the whole file?
         if ($in_header) {
             $this->error_message = $lng->txt("file_not_valid") . " " . $lng->txt("err_wrong_header");
@@ -169,6 +190,25 @@ class ilLanguageFile
         }
 
         return true;
+    }
+
+    /**
+     * Makes build()/write() emit the lines of $keys exactly as read() found them in the file -
+     * regardless of the values and comments set for them since, and without the whitespace
+     * normalisation every other line gets. Used where a file is rewritten but some of its lines
+     * must stay untouched, e.g. the lines of modules maintained in PO files when local changes are
+     * merged into the global language file. A key not read from the file is ignored; the position
+     * of a kept line is still determined by the order of the values set.
+     *
+     * @param list<string> $keys module.separator.identifier
+     */
+    public function keepOriginalLines(array $keys): void
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $this->read_values)) {
+                $this->kept_keys[$key] = true;
+            }
+        }
     }
 
     /**
@@ -235,6 +275,15 @@ class ilLanguageFile
             }
             $add_newline = true;
 
+            if (isset($this->kept_keys[$key])) {
+                $content .= $this->read_lines[$key] ?? $this->buildLine(
+                    (string) $key,
+                    $this->read_values[$key],
+                    $this->read_comments[$key] ?? null
+                );
+                continue;
+            }
+
             $content .= $key . $this->separator . $value;
 
             if (isset($this->comments[$key])) {
@@ -244,6 +293,12 @@ class ilLanguageFile
         return $content;
     }
 
+
+    private function buildLine(string $key, string $value, ?string $comment): string
+    {
+        return $key . $this->separator . $value
+            . ($comment !== null ? $this->comment_separator . $comment : '');
+    }
 
     /**
     * Get the error message of the last read/write operation
@@ -373,9 +428,11 @@ class ilLanguageFile
     /**
     * Read and get a global language file as a singleton object
     * $a_lang_key     language key
-    * @return   object      language file object (with contents)
+    *
+    * Its lines of a module maintained in PO files are not that module's source - see
+    * ilObjLanguageExt::getShippedValues().
     */
-    public static function _getGlobalLanguageFile(string $a_lang_key)
+    public static function _getGlobalLanguageFile(string $a_lang_key): self
     {
         global $DIC;
         $lng = $DIC->language();

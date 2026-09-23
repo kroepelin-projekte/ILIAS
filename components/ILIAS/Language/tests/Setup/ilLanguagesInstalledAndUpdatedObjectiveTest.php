@@ -116,6 +116,10 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         $objective = new ilLanguagesInstalledAndUpdatedObjective(new ilSetupLanguage('en'));
         $environment = new Setup\ArrayEnvironment([
             Setup\Environment::RESOURCE_DATABASE => $this->createDatabaseMock('INJECTED', $log),
+            // The real ilSetupLanguage resolves the client data directory of the installation the
+            // tests run in - its owner check may warn (e.g., tests run as root), which is unrelated
+            // here and would otherwise end up in the error log / test output.
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $this->createStub(Setup\AdminInteraction::class),
         ]);
 
         $objective->achieve($environment);
@@ -330,6 +334,241 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
         ]));
 
         $this->assertSame(['de'], $flushed);
+    }
+
+    // ------------------------------------------ achieve(): PO/MO overlay warnings
+
+    /**
+     * @param list<string> $messages collects every message passed to AdminInteraction::inform()
+     */
+    private function informCollectingEnvironment(array &$messages): Setup\Environment
+    {
+        $io = $this->createStub(Setup\AdminInteraction::class);
+        $io->method('inform')->willReturnCallback(static function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        return new Setup\ArrayEnvironment([
+            Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+            Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+        ]);
+    }
+
+    /**
+     * Checked BEFORE anything is written: unwritable overlay directories of the languages about to
+     * be installed/updated are reported with a clear warning naming them - the update itself still
+     * runs (the database is written regardless).
+     */
+    public function testAchieveWarnsAboutUnwritableOverlayDirectoriesBeforeWritingAndStillUpdates(): void
+    {
+        $flushed = [];
+        $events = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'fr'], [], $flushed);
+        $setup_language->method('findUnwritableOverlayDirectories')->willReturnCallback(
+            static function (array $lang_keys) use (&$events, &$flushed): array {
+                $events[] = ['check', $lang_keys, count($flushed)];
+                return ['/data/client/lang/components/pilot/lang', '/data/client/lang/components/other/lang'];
+            }
+        );
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertSame([['check', ['de', 'fr'], 0]], $events, 'checked once, for all languages, before any write');
+        $this->assertSame(['de', 'fr'], $flushed, 'the update is not aborted');
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('WARNING:', $messages[0]);
+        $this->assertStringContainsString('/data/client/lang/components/pilot/lang, /data/client/lang/components/other/lang', $messages[0]);
+        $this->assertStringContainsString('web server user', $messages[0]);
+    }
+
+    /**
+     * Invalid languages are skipped before the check - their overlay is not written, so it is not
+     * checked either.
+     */
+    public function testTheWritabilityCheckOnlyCoversTheLanguagesThatAreActuallyWritten(): void
+    {
+        $flushed = [];
+        $checked = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'xx'], ['xx'], $flushed);
+        $setup_language->method('findUnwritableOverlayDirectories')->willReturnCallback(
+            static function (array $lang_keys) use (&$checked): array {
+                $checked[] = $lang_keys;
+                return [];
+            }
+        );
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertSame([['de']], $checked);
+    }
+
+    /**
+     * Overlays that could not be written although the check passed (e.g., a race or a single
+     * unwritable file) are reported afterwards from the Activity results - every affected language
+     * once, from InstallLanguage and UpdateLanguage together.
+     */
+    public function testAchieveInformsAboutTheLanguagesWhoseOverlayCouldNotBeWritten(): void
+    {
+        $install_language = $this->createMock(\ILIAS\Language\Activities\InstallLanguage::class);
+        $install_language->expects($this->once())->method('perform')->willReturn([
+            'overlay_write_failed_language_keys' => ['fr'],
+        ]);
+        $update_language = $this->createMock(\ILIAS\Language\Activities\UpdateLanguage::class);
+        $update_language->expects($this->once())->method('perform')->willReturn([
+            'overlay_write_failed_language_keys' => ['de', 'fr'],
+        ]);
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'fr'], [], $flushed);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language, $install_language, $update_language))
+            ->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('WARNING:', $messages[0]);
+        $this->assertStringContainsString('the languages fr, de ', $messages[0]);
+    }
+
+    /**
+     * installLanguages() returns the languages with an unwritten overlay: a missing result key (an
+     * Activity without the field) counts as none, duplicates are removed.
+     */
+    public function testInstallLanguagesReturnsTheDeduplicatedLanguagesWithAnUnwrittenOverlay(): void
+    {
+        $install_language = $this->createStub(\ILIAS\Language\Activities\InstallLanguage::class);
+        $install_language->method('perform')->willReturn(['overlay_write_failed_language_keys' => ['fr', 'de']]);
+        $update_language = $this->createStub(\ILIAS\Language\Activities\UpdateLanguage::class);
+        $update_language->method('perform')->willReturn(['overlay_write_failed_language_keys' => ['de', 'it']]);
+        $flushed = [];
+        $objective = new ilLanguagesInstalledAndUpdatedObjective(
+            $this->createAchievableSetupLanguage([], [], $flushed),
+            $install_language,
+            $update_language
+        );
+
+        $this->assertSame(
+            ['fr', 'de', 'it'],
+            (new ReflectionMethod($objective, 'installLanguages'))->invoke($objective, ['de', 'fr', 'it'])
+        );
+
+        $install_without_field = $this->createStub(\ILIAS\Language\Activities\InstallLanguage::class);
+        $install_without_field->method('perform')->willReturn([]);
+        $update_without_field = $this->createStub(\ILIAS\Language\Activities\UpdateLanguage::class);
+        $update_without_field->method('perform')->willReturn([]);
+        $objective = new ilLanguagesInstalledAndUpdatedObjective(
+            $this->createAchievableSetupLanguage([], [], $flushed),
+            $install_without_field,
+            $update_without_field
+        );
+        $this->assertSame([], (new ReflectionMethod($objective, 'installLanguages'))->invoke($objective, ['de']));
+    }
+
+    /**
+     * With only the default directories no UpdateLanguage runs - its result can therefore not
+     * contribute (only InstallLanguage's does).
+     */
+    public function testInstallLanguagesWithDefaultDirectoriesOnlyReportsTheInstallResult(): void
+    {
+        $install_language = $this->createStub(\ILIAS\Language\Activities\InstallLanguage::class);
+        $install_language->method('perform')->willReturn(['overlay_write_failed_language_keys' => ['fr']]);
+        $update_language = $this->createMock(\ILIAS\Language\Activities\UpdateLanguage::class);
+        $update_language->expects($this->never())->method('perform');
+        $flushed = [];
+        $objective = new ilLanguagesInstalledAndUpdatedObjective(
+            $this->createAchievableSetupLanguage([], [], $flushed, true),
+            $install_language,
+            $update_language
+        );
+
+        $this->assertSame(['fr'], (new ReflectionMethod($objective, 'installLanguages'))->invoke($objective, ['fr']));
+    }
+
+    /**
+     * Writable is not enough: a Setup run as another user than the owner of the client data
+     * directory (the web server user) is warned about. Root-proof: as root the directory is handed
+     * to another user; otherwise "/" (owned by root) serves as a directory of another user.
+     */
+    public function testAchieveWarnsWhenSetupDoesNotRunAsTheOwnerOfTheClientDataDirectory(): void
+    {
+        if (!function_exists('posix_geteuid')) {
+            $this->markTestSkipped('The owner check needs the POSIX extension.');
+        }
+        $datadir = sys_get_temp_dir() . '/ilias_obj_owner_' . bin2hex(random_bytes(4));
+        mkdir($datadir);
+        try {
+            $foreign_dir = $this->directoryOfAnotherUser($datadir);
+            $flushed = [];
+            $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+            $setup_language->method('getClientDataDir')->willReturn($foreign_dir);
+            $foreign_owner = fileowner($foreign_dir);
+            $messages = [];
+
+            (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+        } finally {
+            MigratedPoFixture::removeDirectory($datadir);
+        }
+
+        $this->assertNotSame(posix_geteuid(), $foreign_owner);
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('WARNING: Setup runs as user id ' . posix_geteuid() . ',', $messages[0]);
+        $this->assertStringContainsString($foreign_dir . ' belongs to user id ' . $foreign_owner . '.', $messages[0]);
+        $this->assertSame(['de'], $flushed);
+    }
+
+    private function directoryOfAnotherUser(string $own_directory): string
+    {
+        if (posix_geteuid() === 0) {
+            if (!@chown($own_directory, 65534)) {
+                $this->markTestSkipped('Cannot hand a directory to another user.');
+            }
+            clearstatcache();
+            return $own_directory;
+        }
+        if (fileowner('/') === posix_geteuid()) {
+            $this->markTestSkipped('No directory of another user available.');
+        }
+
+        return '/';
+    }
+
+    public function testAchieveDoesNotWarnWhenSetupRunsAsTheOwnerOfTheClientDataDirectory(): void
+    {
+        $datadir = sys_get_temp_dir() . '/ilias_obj_owner_' . bin2hex(random_bytes(4));
+        mkdir($datadir);
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getClientDataDir')->willReturn($datadir);
+        $io = $this->createMock(Setup\AdminInteraction::class);
+        $io->expects($this->never())->method('inform');
+
+        try {
+            (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve(new Setup\ArrayEnvironment([
+                Setup\Environment::RESOURCE_DATABASE => $this->databaseStub(),
+                Setup\Environment::RESOURCE_ADMIN_INTERACTION => $io,
+            ]));
+        } finally {
+            MigratedPoFixture::removeDirectory($datadir);
+        }
+    }
+
+    /**
+     * The owner warning is only given when the directories themselves are writable - an unwritable
+     * directory already produced the (more specific) warning, the two are not stacked.
+     */
+    public function testTheOwnerWarningIsNotAddedToTheUnwritableDirectoriesWarning(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('findUnwritableOverlayDirectories')->willReturn(['/x/lang/components/pilot/lang']);
+        $setup_language->method('getClientDataDir')->willReturn('/');
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('/x/lang/components/pilot/lang', $messages[0]);
     }
 
     // ------------------------------------------ installLanguages(): directories

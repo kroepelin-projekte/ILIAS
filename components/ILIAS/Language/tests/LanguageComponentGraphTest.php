@@ -277,6 +277,21 @@ class LanguageComponentGraphTest extends TestCase
         self::assertSame($expected_root, $manager_root);
     }
 
+    /**
+     * The manager provided through the component graph invalidates the global language cache after
+     * a write (formerly none was wired): via ilCachedLanguage::deleteInCacheIfAvailable() - a no-op
+     * where no global cache exists, as in this test.
+     */
+    public function testTheProvidedInstallationManagerHasALanguageCacheInvalidatorThatIsSafeWithoutGlobalCache(): void
+    {
+        [, , , , , $provide] = $this->initComponent();
+
+        $invalidator = self::readPrivateProperty($provide[LanguageInstallationManager::class], 'language_cache_invalidator');
+
+        self::assertInstanceOf(\Closure::class, $invalidator);
+        $invalidator('de');
+    }
+
     private static function readPrivateProperty(object $object, string $property): mixed
     {
         return (new \ReflectionProperty($object, $property))->getValue($object);

@@ -84,6 +84,7 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a not-yet-installed language.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
     }
@@ -122,13 +123,16 @@ MARKDOWN
             );
         }
 
+        $overlay_write_failed_language_keys = [];
         if ($to_update !== []) {
             $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
             $local_language_keys = $this->setup_language->getLocalLanguages();
 
             foreach ($to_update as $language_key) {
                 $this->setup_language->flushLanguageForInstallation($language_key);
-                $this->setup_language->insertLanguageForInstallation($language_key);
+                if ($this->setup_language->insertLanguageForInstallation($language_key) !== []) {
+                    $overlay_write_failed_language_keys[] = $language_key;
+                }
                 $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
             }
         }
@@ -136,6 +140,7 @@ MARKDOWN
         return [
             'updated_language_keys' => $to_update,
             'not_installed_language_keys' => $not_installed_no_op,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
     }
 }

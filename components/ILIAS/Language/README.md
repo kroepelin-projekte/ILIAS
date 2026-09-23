@@ -41,6 +41,27 @@ and `LanguageFileDirectoryManager` aggregates all of them, contributed by other 
 `$seek[LanguageFileDirectory::class]`. `InstalledLanguageDatabaseRepository` and
 `LanguageInstallationManager` both depend on this manager rather than hardcoding paths.
 
+## Modules Maintained in PO Files (PO/MO Pilot)
+A component may ship a module as gettext files instead of `.lang` lines: it contributes a
+`LanguageFileDirectory` with the module as prefix and ships `<module>_<lang>.po` there (currently
+`TermsOfService`, module `tos`). For such a module the shipped `.po` is the only source of its
+shipped values - its lines in `lang/ilias_<lang>.lang` are ignored when installing/updating and are
+not the default the administration GUI compares with. Each installation keeps its own copy (the
+"overlay", `<client data dir>/lang/...po|.mo`), which `ilLanguage` reads at runtime and every write
+path maintains; the database tables are still written as a rollback-safe fallback.
+
+The `.po`/`.mo` files are read and written with the library `gettext/gettext`, which MUST only be
+used through the adapter `ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog`/
+`TranslationEntry` (no `Gettext\...` imports elsewhere, no use of the library's `Scanner`), so a
+change of the library version stays local and the adapter's safeguards always apply.
+
+**Operating requirement: Setup MUST be run as the web server user** (the owner of the client data
+directory). Both Setup and the administration GUI (i.e. the web server) write the overlay; files
+created by another user (e.g. root) cannot be replaced by the web server later on. Setup checks the
+overlay directories before writing and reports problems clearly; the GUI shows a warning instead of
+a plain success message whenever an overlay could not be written. Details:
+[tools/po-migration/README.md](tools/po-migration/README.md).
+
 ## User Settings Contribution
 This component contributes a personal "language" setting to the user settings framework
 (`ILIAS\Language\UserSettings\Settings`, wired in `Language.php` via

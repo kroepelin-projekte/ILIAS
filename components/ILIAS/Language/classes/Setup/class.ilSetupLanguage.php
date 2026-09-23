@@ -108,15 +108,8 @@ class ilSetupLanguage extends ilLanguage
             $this->absolute_path,
             $this->repository,
             null,
-            fn(): ?string => $this->client_data_dir
-                ?? MigratedLanguageFilePaths::resolveClientDataDir($this->absolute_path),
-            static function (string $lang_key): void {
-                // Only a fully bootstrapped request has a global cache; CLI Setup does not.
-                $dic = $GLOBALS['DIC'] ?? null;
-                if ($dic instanceof \ILIAS\DI\Container && $dic->offsetExists('global_cache')) {
-                    ilCachedLanguage::getInstance($lang_key)->deleteInCache();
-                }
-            }
+            fn(): ?string => $this->getClientDataDir(),
+            static fn(string $lang_key) => ilCachedLanguage::deleteInCacheIfAvailable($lang_key)
         );
     }
 
@@ -128,6 +121,15 @@ class ilSetupLanguage extends ilLanguage
     public function setClientDataDir(?string $client_data_dir): void
     {
         $this->client_data_dir = $client_data_dir;
+    }
+
+    /**
+     * The client data directory the overlay of migrated modules is maintained in (see
+     * setClientDataDir()), or `null` if there is none (yet).
+     */
+    public function getClientDataDir(): ?string
+    {
+        return $this->client_data_dir ?? MigratedLanguageFilePaths::resolveClientDataDir($this->absolute_path);
     }
 
     /**
@@ -249,9 +251,13 @@ class ilSetupLanguage extends ilLanguage
         $this->manager->flushLanguageForUninstallation($lang_key);
     }
 
-    public function insertLanguageForInstallation(string $lang_key): void
+    /**
+     * @return list<string> the migrated modules whose overlay could not be written, see
+     *         LanguageInstallationManager::insertLanguageForInstallation()
+     */
+    public function insertLanguageForInstallation(string $lang_key): array
     {
-        $this->manager->insertLanguageForInstallation($lang_key);
+        return $this->manager->insertLanguageForInstallation($lang_key);
     }
 
     /**
@@ -259,10 +265,24 @@ class ilSetupLanguage extends ilLanguage
      * installed language, without touching the base/global data - see
      * LanguageInstallationManager::insertLanguageForApplyingLocalChanges()
      * for why.
+     *
+     * @return list<string> see insertLanguageForInstallation()
      */
-    public function insertLanguageForApplyingLocalChanges(string $lang_key): void
+    public function insertLanguageForApplyingLocalChanges(string $lang_key): array
     {
-        $this->manager->insertLanguageForApplyingLocalChanges($lang_key);
+        return $this->manager->insertLanguageForApplyingLocalChanges($lang_key);
+    }
+
+    /**
+     * See LanguageInstallationManager::findUnwritableOverlayDirectories() - checked by Setup before
+     * installing/updating languages.
+     *
+     * @param list<string> $lang_keys
+     * @return list<string>
+     */
+    public function findUnwritableOverlayDirectories(array $lang_keys): array
+    {
+        return $this->manager->findUnwritableOverlayDirectories($lang_keys);
     }
 
     /**

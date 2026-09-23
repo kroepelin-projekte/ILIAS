@@ -438,4 +438,50 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         $invalidator('de');
         $this->addToAssertionCount(1);
     }
+
+    /**
+     * getClientDataDir() is what the overlay is maintained in (and what Setup checks the owner of):
+     * the directory set from the Setup environment, otherwise the default resolution.
+     */
+    public function testGetClientDataDirReturnsTheSetDirectoryOrTheDefaultResolution(): void
+    {
+        $setup_language = new ilSetupLanguage('de');
+        $default = \ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths::resolveClientDataDir(
+            (string) realpath(__DIR__ . '/../../../../')
+        );
+
+        $this->assertSame($default, $setup_language->getClientDataDir());
+        $setup_language->setClientDataDir('/from/the/setup/environment');
+        $this->assertSame('/from/the/setup/environment', $setup_language->getClientDataDir());
+    }
+
+    /**
+     * findUnwritableOverlayDirectories() checks the overlay directories of the modules migrated for
+     * the given languages in the client data directory set on this instance.
+     */
+    public function testFindUnwritableOverlayDirectoriesChecksTheSetClientDataDir(): void
+    {
+        $fixture = 'tmp-setup-unwritable-' . bin2hex(random_bytes(4));
+        $client_data_dir = sys_get_temp_dir() . '/ilias_setup_unwritable_' . bin2hex(random_bytes(4));
+        MigratedPoFixture::writePo(__DIR__ . '/' . $fixture . '/stest_de.po', MigratedPoFixture::catalog('stest', ['a' => 'b']));
+        mkdir($client_data_dir);
+        file_put_contents($client_data_dir . '/lang', 'not a directory');
+
+        try {
+            $setup_language = new ilSetupLanguage('de', new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
+                new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+                MigratedPoFixture::directory('stest', 'components/ILIAS/Language/tests/' . $fixture . '/')
+            ));
+            $setup_language->setClientDataDir($client_data_dir);
+
+            $this->assertSame(
+                [$client_data_dir . '/lang/components/ILIAS/Language/tests/' . $fixture],
+                $setup_language->findUnwritableOverlayDirectories(['de'])
+            );
+            $this->assertSame([], $setup_language->findUnwritableOverlayDirectories(['en']));
+        } finally {
+            MigratedPoFixture::removeDirectory(__DIR__ . '/' . $fixture);
+            MigratedPoFixture::removeDirectory($client_data_dir);
+        }
+    }
 }

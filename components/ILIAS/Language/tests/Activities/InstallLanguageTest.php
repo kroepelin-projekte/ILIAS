@@ -77,8 +77,9 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $calls = [];
         $setup_language->expects($this->once())
             ->method('insertLanguageForInstallation')
-            ->willReturnCallback(static function (mixed ...$args) use (&$calls): void {
-                $calls[] = $args;
+            ->willReturnCallback(static function () use (&$calls): array {
+                $calls[] = func_get_args();
+                return [];
             });
 
         $this->createActivity($setup_language)->perform([
@@ -87,6 +88,72 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         ]);
 
         $this->assertSame([['de']], $calls);
+    }
+
+    /**
+     * insertLanguageForInstallation() returns the migrated modules whose PO/MO overlay could not be
+     * written: a non-empty list lists the language in "overlay_write_failed_language_keys" - it is
+     * still reported as installed (the database was written). Only the affected language is listed.
+     */
+    public function testFullInstallListsOnlyTheLanguagesWhoseOverlayCouldNotBeWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], []);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation')->willReturnMap([
+            ['de', ['tos', 'pilot']],
+            ['fr', []],
+        ]);
+
+        $result = $this->createActivity($setup_language)->perform([
+            'language_keys' => 'de,fr',
+            'mode' => InstallLanguage::MODE_INSTALL,
+        ]);
+
+        $this->assertSame(['de', 'fr'], $result['installed_language_keys']);
+        $this->assertSame(['de'], $result['overlay_write_failed_language_keys']);
+    }
+
+    public function testInstallLocalModeListsTheLanguageWhoseOverlayCouldNotBeWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock(
+            [
+                'de' => ['obj_id' => 1, 'status' => 'installed'],
+                'en' => ['obj_id' => 2, 'status' => 'installed'],
+            ],
+            ['de', 'en'],
+            ['de', 'en']
+        );
+        $setup_language->expects($this->exactly(2))->method('insertLanguageForApplyingLocalChanges')->willReturnMap([
+            ['de', []],
+            ['en', ['pilot']],
+        ]);
+
+        $result = $this->createActivity($setup_language)->perform([
+            'language_keys' => ['de', 'en'],
+            'mode' => InstallLanguage::MODE_INSTALL_LOCAL,
+        ]);
+
+        $this->assertSame(['de', 'en'], $result['installed_with_local_language_keys']);
+        $this->assertSame(['en'], $result['overlay_write_failed_language_keys']);
+    }
+
+    public function testNothingIsListedWhenEveryOverlayWasWrittenOrNothingWasInstalled(): void
+    {
+        $setup_language = $this->createSetupLanguageMock(
+            ['de' => ['obj_id' => 1, 'status' => 'installed']],
+            [],
+            ['de']
+        );
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->once())->method('insertLanguageForInstallation')->with('fr')->willReturn([]);
+
+        $result = $this->createActivity($setup_language)->perform([
+            'language_keys' => ['de', 'fr'],
+            'mode' => InstallLanguage::MODE_INSTALL,
+        ]);
+
+        $this->assertSame(['fr'], $result['installed_language_keys']);
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
     public function testMultipleLanguagesSeparatesNotInstalledFromAlreadyInstalledUnderInstallMode(): void
@@ -232,8 +299,9 @@ class InstallLanguageTest extends ActivityWithPerformResultContractTestCase
         $calls = [];
         $setup_language->expects($this->once())
             ->method('insertLanguageForApplyingLocalChanges')
-            ->willReturnCallback(static function (mixed ...$args) use (&$calls): void {
-                $calls[] = $args;
+            ->willReturnCallback(static function () use (&$calls): array {
+                $calls[] = func_get_args();
+                return [];
             });
 
         $this->createActivity($setup_language)->perform([

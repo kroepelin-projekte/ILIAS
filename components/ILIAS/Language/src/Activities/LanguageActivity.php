@@ -22,6 +22,7 @@ namespace ILIAS\Language\Activities;
 
 use ILIAS\Component\Activities\ActivityImpl;
 use ILIAS\Component\Activities\ActivityType;
+use ILIAS\Data\Description;
 use ILIAS\Data\Result;
 use ILIAS\Data\Text;
 use ILIAS\Data\Text\Shape\SimpleDocumentMarkdown as SimpleDocumentMarkdownShape;
@@ -66,6 +67,25 @@ abstract class LanguageActivity extends ActivityImpl
                 $this->refinery->string()->markdown()
             ),
             $raw
+        );
+    }
+
+    /**
+     * The output field shared by every Activity that (re-)writes language data, and with it the
+     * per-installation PO/MO overlay of the modules maintained in PO files: the database write
+     * succeeded for these languages, but at least one overlay file could not be written (the
+     * details are logged). Callers must report this visibly instead of a plain success.
+     */
+    protected function overlayWriteFailedOutputField(Description\Factory $f): Description\Description
+    {
+        return $f->list(
+            $this->markdown(
+                'Languages whose database content was written, but for which the per-installation ' .
+                'PO/MO files of at least one module maintained in PO files could not be written ' .
+                '(typically missing write permissions of the web server user on the client data ' .
+                'directory) - the details are logged.'
+            ),
+            $f->string($this->markdown('Language key of a language with an unwritten PO/MO overlay.'))
         );
     }
 

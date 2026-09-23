@@ -175,6 +175,57 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
+     * update_module_cache() returns `false` when the entry reached the database, but the PO/MO
+     * overlay of a module maintained in PO files could not be written: that language is listed in
+     * "overlay_write_failed_language_keys" - and still counts as added. `true` and `null` (a closure
+     * without return value) are not a failure.
+     */
+    public function testALanguageWhoseModuleCacheUpdateReportsAnUnwrittenOverlayIsListed(): void
+    {
+        $results = ['de' => false, 'en' => true, 'fr' => null];
+        $update_module_cache = static fn(
+            string $lang_key,
+            string $module,
+            string $identifier,
+            string $value
+        ): ?bool => $results[$lang_key];
+
+        $result = $this->createActivity(['de', 'en', 'fr'], update_module_cache: $update_module_cache)->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo', 'en' => 'Hello', 'fr' => 'Bonjour'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de', 'en', 'fr'], $result['added_language_keys']);
+        $this->assertSame(['de'], $result['overlay_write_failed_language_keys']);
+    }
+
+    /**
+     * A skipped (empty) language never reaches update_module_cache() and therefore can never be
+     * listed as having an unwritten overlay.
+     */
+    public function testASkippedLanguageIsNeverListedAsHavingAnUnwrittenOverlay(): void
+    {
+        $update_module_cache = static fn(
+            string $lang_key,
+            string $module,
+            string $identifier,
+            string $value
+        ): bool => false;
+
+        $result = $this->createActivity(['de', 'en', 'fr'], update_module_cache: $update_module_cache)->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo', 'en' => 'Hello'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['fr'], $result['skipped_empty_language_keys']);
+        $this->assertSame(['de', 'en'], $result['overlay_write_failed_language_keys']);
+    }
+
+    /**
      * Regression test for the deliberate "not transactional" behaviour noted above perform()'s
      * write loop: if replace_lang_entry() throws partway through (here: the 3rd of 3 languages),
      * languages already written must remain written, and the exception must propagate rather than
@@ -1229,7 +1280,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     // getOutputDescription()
     // -----------------------------------------------------------------
 
-    public function testOutputDescriptionDeclaresTheExpectedFourFields(): void
+    public function testOutputDescriptionDeclaresTheExpectedFiveFields(): void
     {
         $string_group = $this->createStub(StringGroup::class);
         $string_group->method('markdown')->willReturn(
@@ -1248,7 +1299,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         }
 
         $this->assertSame(
-            ['module', 'identifier', 'added_language_keys', 'skipped_empty_language_keys'],
+            ['module', 'identifier', 'added_language_keys', 'skipped_empty_language_keys', 'overlay_write_failed_language_keys'],
             $field_names
         );
     }
@@ -1321,6 +1372,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         ]);
 
         $this->assertSame(['de'], $result['added_language_keys']);
+        // Nothing to mirror is not an overlay failure
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
     public function testDefaultUpdateModuleCacheDoesNothingWhenLangArrayColumnIsNull(): void

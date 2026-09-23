@@ -35,10 +35,10 @@ use ILIAS\Language\ComponentTranslation\LocalChangeComments;
  * CLIENT_DATA_DIR instead (see MigratedLanguageFileSyncTest.php for the same two-root fixture
  * pattern, applied there directly against MigratedLanguageFileSync itself rather than through this
  * class' caller). Every test below therefore seeds the SHIPPED pair, bootstraps the OVERLAY pair from
- * it (simulating a module whose language was already installed - sync()'s default $create_missing_mo
- * = false, exactly what replaceLangModule() passes, never creates a still-missing overlay .mo), reads
- * its assertions from the OVERLAY, and additionally verifies the SHIPPED pair stayed byte-identical
- * throughout (the git-dirtying bug this split exists to prevent).
+ * it (simulating a module whose language was already installed - the normal starting point of an
+ * admin edit; a still-missing overlay would be created by MigratedLanguageFileSync::sync() as well),
+ * reads its assertions from the OVERLAY, and additionally verifies the SHIPPED pair stayed
+ * byte-identical throughout (the git-dirtying bug this split exists to prevent).
  *
  * Uses a throwaway fixture module (not tos's real files) so these tests never touch real pilot data.
  */
@@ -101,7 +101,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         foreach ($entries as $identifier => $entry) {
             $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if ($entry['fuzzy'] ?? false) {
@@ -149,9 +149,9 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
     /**
      * Copies the current shipped `.po`/`.mo` pair for $module/$lang_key into the overlay location,
      * simulating a module whose language was already installed by an earlier run - the normal starting
-     * point for every write-back test here, since replaceLangModule() always passes sync()'s default
-     * $create_missing_mo = false (see MigratedLanguageFileSync::sync()'s docblock): it only ever
-     * refreshes an overlay that already exists, never bootstraps a still-missing one.
+     * point for every write-back test here. replaceLangModule() passes only
+     * $refresh_original_from_shipped to MigratedLanguageFileSync::sync() (false for an ordinary admin
+     * edit): the "original" baseline of an existing overlay is kept, see sync()'s docblock.
      */
     private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
     {
@@ -192,12 +192,12 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $this->setGlobalVariable('ilDB', $db);
     }
 
-    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
+    private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po');
     }
 
-    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\Catalog
+    private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayBase($module, $lang_key) . '.po');
     }

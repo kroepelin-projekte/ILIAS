@@ -18,20 +18,16 @@
 
 declare(strict_types=1);
 
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
-use ILIAS\Language\ComponentTranslation\Gettext\MoReader;
-use ILIAS\Language\ComponentTranslation\Gettext\MoWriter;
-use ILIAS\Language\ComponentTranslation\Gettext\PoParser;
-use ILIAS\Language\ComponentTranslation\Gettext\PoWriter;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 
 /**
  * Shared fixture helpers for the tests of modules migrated to PO/MO. Builds shipped/overlay files
- * with the component's own gettext implementation (ILIAS\Language\ComponentTranslation\Gettext) -
- * the same classes production uses - so the fixtures never depend on the (only transitively
- * installed) gettext/gettext package.
+ * with the component's gettext adapter (ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog
+ * and TranslationEntry) - the same classes production uses - so the fixtures never touch the
+ * gettext/gettext library directly.
  */
 final class MigratedPoFixture
 {
@@ -41,13 +37,13 @@ final class MigratedPoFixture
      *        'context' defaults to $module, 'original' seeds a LocalChangeComments "original",
      *        'local_change' a raw "local_change: <value>" comment, 'fuzzy' the fuzzy flag.
      */
-    public static function catalog(string $module, array $entries): Catalog
+    public static function catalog(string $module, array $entries): TranslationCatalog
     {
-        $catalog = new Catalog();
+        $catalog = new TranslationCatalog();
         $catalog->setHeader('Content-Type', 'text/plain; charset=UTF-8');
         foreach ($entries as $identifier => $details) {
             $details = is_array($details) ? $details : ['value' => $details];
-            $entry = new Entry(array_key_exists('context', $details) ? $details['context'] : $module, (string) $identifier);
+            $entry = new TranslationEntry(array_key_exists('context', $details) ? $details['context'] : $module, (string) $identifier);
             $entry->translate($details['value']);
             if (isset($details['original'])) {
                 LocalChangeComments::setOriginal($entry, $details['original']);
@@ -64,38 +60,38 @@ final class MigratedPoFixture
         return $catalog;
     }
 
-    public static function entry(?string $context, string $id, string $value): Entry
+    public static function entry(?string $context, string $id, string $value): TranslationEntry
     {
-        $entry = new Entry($context, $id);
+        $entry = new TranslationEntry($context, $id);
         $entry->translate($value);
 
         return $entry;
     }
 
-    public static function writePo(string $file, Catalog $catalog): void
+    public static function writePo(string $file, TranslationCatalog $catalog): void
     {
         self::ensureDirectory(dirname($file));
-        file_put_contents($file, PoWriter::toString($catalog));
+        file_put_contents($file, $catalog->toPoString());
     }
 
-    public static function writeMo(string $file, Catalog $catalog): void
+    public static function writeMo(string $file, TranslationCatalog $catalog): void
     {
         self::ensureDirectory(dirname($file));
-        file_put_contents($file, MoWriter::toString($catalog));
+        file_put_contents($file, $catalog->toMoString());
     }
 
     /**
      * Writes "<base>.po" and "<base>.mo" with the same content.
      */
-    public static function writePair(string $base_path, Catalog $catalog): void
+    public static function writePair(string $base_path, TranslationCatalog $catalog): void
     {
         self::writePo($base_path . '.po', $catalog);
         self::writeMo($base_path . '.mo', $catalog);
     }
 
-    public static function readPo(string $file): Catalog
+    public static function readPo(string $file): TranslationCatalog
     {
-        return PoParser::parseFile($file);
+        return TranslationCatalog::fromPoFile($file);
     }
 
     /**
@@ -103,7 +99,7 @@ final class MigratedPoFixture
      */
     public static function readMo(string $file): array
     {
-        return MoReader::readTranslations($file);
+        return TranslationCatalog::readMoTranslations($file);
     }
 
     public static function directory(string $prefix, string $path, bool $local = false): LanguageFileDirectory

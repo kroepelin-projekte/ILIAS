@@ -100,7 +100,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         foreach ($entries as $identifier => $entry) {
             $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if (isset($entry['original'])) {
@@ -290,7 +290,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             mkdir($this->fixture_directory, 0775, true);
         }
 
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         // Foreign context: same .po file, but a translation entry belonging to a *different* module
         // (e.g. left behind by a merge/copy mistake) - must never be able to leak a local_change into
         // "lctest"'s result.

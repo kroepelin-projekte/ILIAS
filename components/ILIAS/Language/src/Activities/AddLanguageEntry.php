@@ -38,7 +38,9 @@ class AddLanguageEntry extends LanguageActivity
      * @param \Closure|null $replace_lang_entry (string $module, string $identifier, string $lang_key,
      *        string $value, string $local_change, string $remarks): bool
      * @param \Closure|null $update_module_cache (string $lang_key, string $module, string $identifier,
-     *        string $value): void
+     *        string $value): ?bool - `false` if the entry reached the database, but the PO/MO overlay
+     *        of the module (if it is maintained in PO files) could not be written; `true`/`null`
+     *        otherwise
      * @param \Closure|null $user_login (int $usr_id): string
      * @param \ilDBInterface|\Closure $db (): \ilDBInterface
      */
@@ -70,7 +72,7 @@ class AddLanguageEntry extends LanguageActivity
                 string $module,
                 string $identifier,
                 string $value
-            ) use ($db_resolver): void {
+            ) use ($db_resolver): bool {
                 $db = $db_resolver();
 
                 $set = $db->query(
@@ -79,16 +81,16 @@ class AddLanguageEntry extends LanguageActivity
                 );
                 $row = $db->fetchAssoc($set);
                 if ($row === null || !is_string($row['lang_array'] ?? null)) {
-                    return;
+                    return true;
                 }
 
                 $entries = unserialize($row['lang_array'], ['allowed_classes' => false]);
                 if (!is_array($entries)) {
-                    return;
+                    return true;
                 }
 
                 $entries[$identifier] = $value;
-                \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
+                return \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
             };
         $this->user_login = $user_login
             ?? static fn(int $usr_id): string => \ilObjUser::_lookupLogin($usr_id);
@@ -192,6 +194,7 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a language with no given value.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
     }
@@ -254,6 +257,7 @@ MARKDOWN
 
         $added_language_keys = [];
         $skipped_empty_language_keys = [];
+        $overlay_write_failed_language_keys = [];
 
         // Not transactional across multiple languages: a failure partway through (e.g. a
         // database error) leaves languages processed so far written.
@@ -268,7 +272,9 @@ MARKDOWN
             }
 
             ($this->replace_lang_entry)($module, $identifier, $lang_key, $value, $local_change, $login);
-            ($this->update_module_cache)($lang_key, $module, $identifier, $value);
+            if (($this->update_module_cache)($lang_key, $module, $identifier, $value) === false) {
+                $overlay_write_failed_language_keys[] = $lang_key;
+            }
 
             $added_language_keys[] = $lang_key;
         }
@@ -278,6 +284,7 @@ MARKDOWN
             'identifier' => $identifier,
             'added_language_keys' => $added_language_keys,
             'skipped_empty_language_keys' => $skipped_empty_language_keys,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
     }
 

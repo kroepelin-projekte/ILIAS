@@ -406,13 +406,20 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        // Combined into one failure message, for the same reason as the messages above
+        $failure_messages = [];
         if (($invalid_local_language_files = $value['invalid_local_language_files']) !== []) {
-            $message = $this->lng->txt('local_language_files') . ': '
+            $failure_messages[] = $this->lng->txt('local_language_files') . ': '
                 . implode(', ', $invalid_local_language_files) . '. '
                 . $this->lng->txt('file_not_valid');
+        }
+        if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
+            $failure_messages[] = $this->overlayWriteFailedMessage($overlay_write_failed);
+        }
+        if ($failure_messages !== []) {
             $this->tpl->setOnScreenMessage(
                 'failure',
-                $message,
+                implode('<br />', $failure_messages),
                 true
             );
         }
@@ -565,12 +572,16 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        // Combined into one failure message: setOnScreenMessage() only keeps one message per type
+        $failure_messages = [];
         if (($lang_invalid = $value['invalid_language_file_keys']) !== []) {
-            $this->tpl->setOnScreenMessage(
-                'failure',
-                $this->languageKeysToLocalizedList($lang_invalid) . ": " . $this->lng->txt("file_not_valid"),
-                true
-            );
+            $failure_messages[] = $this->languageKeysToLocalizedList($lang_invalid) . ": " . $this->lng->txt("file_not_valid");
+        }
+        if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
+            $failure_messages[] = $this->overlayWriteFailedMessage($overlay_write_failed);
+        }
+        if ($failure_messages !== []) {
+            $this->tpl->setOnScreenMessage('failure', implode('<br />', $failure_messages), true);
         }
 
         if (($lang_not_installed = $value['not_installed_language_keys']) !== []) {
@@ -661,7 +672,25 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
+            $this->tpl->setOnScreenMessage('failure', $this->overlayWriteFailedMessage($overlay_write_failed), true);
+        }
+
         $this->ctrl->redirect($this, 'view');
+    }
+
+    /**
+     * The database content of these languages was written, but the PO/MO files of at least one
+     * module maintained in PO files could not be (see LanguageActivity::overlayWriteFailedOutputField()).
+     *
+     * @param list<string> $lang_keys
+     */
+    private function overlayWriteFailedMessage(array $lang_keys): string
+    {
+        return sprintf(
+            $this->lng->txt('lng_po_overlay_not_written_languages'),
+            $this->languageKeysToLocalizedList($lang_keys)
+        );
     }
 
     /**

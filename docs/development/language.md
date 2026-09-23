@@ -63,6 +63,17 @@ Adding new entries into language files will not make them available in the user 
 refresh the languages by executing the `Refresh Languages` action in the global ILIAS language administration
 (`Administration » Languages`).
 
+## Modules Maintained in PO Files
+A few modules are no longer maintained in the `.lang` files but in gettext `.po` files shipped by
+their component (a pilot, currently the module `tos` of `components/ILIAS/TermsOfService/lang/`).
+For such a module the shipped `<module>_<lang>.po` is the only source of its translations: its
+lines in `lang/ilias_<lang>.lang` are ignored when installing or updating languages, and changes to
+its entries MUST be made in the `.po` files. A comment of a `.lang` entry corresponds to an
+extracted comment (`#.`) in the `.po` file. The developer mode action that merges local changes into
+the global language file skips these modules. Each installation keeps its own copy of these files
+in the client data directory, which is why the ILIAS setup MUST be run as the web server user. See
+[the Language component](../../components/ILIAS/Language/README.md) for details.
+
 ## Supported HTML Tags in Language Files
 Only a defined set of HTML tags are allowed to be used within the `text_content` of a language entry:
 

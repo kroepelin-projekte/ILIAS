@@ -11129,6 +11129,11 @@ lng#:#language_detection#:#Language Detection
 lng#:#lng_disable_language_detection#:#Disable Language Detection
 lng#:#lng_download_deprecated#:#Download Deprecated List
 lng#:#lng_enable_language_detection#:#Enable Language Detection
+lng#:#lng_error_clear_shipped_po_unreadable#:#The local changes were not cleared: the shipped PO files of the following modules cannot be read: %s. See the log for details.
+lng#:#lng_merge_skipped_po_modules#:#The following modules are maintained in PO files and were not merged into the standard language file, their lines in it were left unchanged: %s
+lng#:#lng_po_overlay_not_written#:#The changes were saved in the database, but the PO/MO files of the following modules maintained in PO files could not be written: %s. The previous texts are still shown for these modules. Please check whether the web server user may write to the directory "lang" in the client data directory. See the log for details.
+lng#:#lng_po_overlay_not_written_languages#:#The language data was saved in the database, but the PO/MO files of the modules maintained in PO files could not be written for the following languages: %s. The previous texts are still shown for these modules. Please check whether the web server user may write to the directory "lang" in the client data directory. See the log for details.
+lng#:#lng_shipped_po_unreadable_fallback#:#The shipped PO files of the following modules cannot be read: %s. The possibly outdated entries of the language file (.lang) are shown as default values for these modules instead. See the log for details.
 lng#:#lng_switch_language_detection#:#Switch Language Detection
 log#:#log_component_btn_reset#:#Reset Settings
 log#:#log_component_col_component#:#Component

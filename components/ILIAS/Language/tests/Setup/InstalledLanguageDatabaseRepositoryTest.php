@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
@@ -528,9 +529,39 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         $this->assertTrue($this->checkLanguageWithShippedPo("msgctxt \"pilot\"\nmsgid \"greeting\"\nmsgstr \"Hallo\"\n"));
     }
 
-    public function testCheckLanguageRejectsAnUnparsableShippedPo(): void
+    /**
+     * Everything gettext/gettext's StrictPoLoader rejects makes the language invalid - including
+     * what the old, more tolerant parser accepted (a duplicate, a message without msgstr).
+     */
+    #[DataProvider('unparsableShippedPo')]
+    public function testCheckLanguageRejectsAnUnparsableShippedPo(string $po_content): void
     {
-        $this->assertFalse($this->checkLanguageWithShippedPo("msgctxt \"pilot\"\nmsgid \"abc\nmsgstr \"Hallo\"\n"));
+        $this->assertFalse($this->checkLanguageWithShippedPo($po_content));
+    }
+
+    public static function unparsableShippedPo(): array
+    {
+        $message = "msgctxt \"pilot\"\nmsgid \"greeting\"\nmsgstr \"Hallo\"\n";
+
+        return [
+            'unterminated string' => ["msgctxt \"pilot\"\nmsgid \"abc\nmsgstr \"Hallo\"\n"],
+            'duplicate message' => [$message . "\n" . $message],
+            'message without msgstr' => ["msgctxt \"pilot\"\nmsgid \"greeting\"\n"],
+            'truncated inside a string' => [substr($message, 0, -4)],
+            'binary data' => ["\xde\x12\x04\x95\x00\x00\x00\x00"],
+            'header value with a line break' => ["msgid \"\"\nmsgstr \"\"\n\"X-A: a\\rb\\n\"\n\n" . $message],
+        ];
+    }
+
+    /**
+     * A BOM and CRLF line endings (e.g., a file saved by a Windows editor) are no reason to refuse
+     * the language.
+     */
+    public function testCheckLanguageAcceptsAShippedPoWithBomAndCrLf(): void
+    {
+        $this->assertTrue($this->checkLanguageWithShippedPo(
+            "\xEF\xBB\xBFmsgid \"\"\r\nmsgstr \"\"\r\n\"Language: de\\n\"\r\n\r\nmsgctxt \"pilot\"\r\nmsgid \"greeting\"\r\nmsgstr \"Hallo\"\r\n"
+        ));
     }
 
     public function testCheckLanguageAcceptsAModuleWithoutShippedPoForTheLanguage(): void

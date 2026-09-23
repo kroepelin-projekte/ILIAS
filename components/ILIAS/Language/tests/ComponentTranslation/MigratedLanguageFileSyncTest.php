@@ -19,7 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
@@ -103,7 +103,7 @@ class MigratedLanguageFileSyncTest extends TestCase
             . basename($this->fixture_directory) . '/' . self::MODULE . '_' . $lang_key;
     }
 
-    private function overlayPo(): Catalog
+    private function overlayPo(): TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayBase() . '.po');
     }
@@ -449,21 +449,34 @@ class MigratedLanguageFileSyncTest extends TestCase
     }
 
     /**
-     * No-op guard: an unchanged `.po` with an existing `.mo` writes nothing. Proven via a sentinel
-     * `.mo` content that a rewrite would replace.
+     * No-op guard: an unchanged `.po` next to a `.mo` that holds exactly what TranslationCatalog::toMoString() compiles writes
+     * nothing - neither file is replaced (AtomicFileWriter renames a new file into place, so a
+     * rewrite would change the inode) and the read cache is not invalidated.
      */
-    public function testAnUnchangedOverlayIsNotRewritten(): void
+    #[DataProvider('refreshFlags')]
+    public function testAnUnchangedOverlayWithACorrectMoWritesNothing(bool $refresh): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->sync(['greeting' => 'Servus']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
-        file_put_contents($this->overlayBase() . '.mo', 'SENTINEL');
+        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        $po_inode = fileinode($this->overlayBase() . '.po');
+        $mo_inode = fileinode($this->overlayBase() . '.mo');
+        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'cached']]);
 
-        $this->sync(['greeting' => 'Servus']);
-        $this->sync(['greeting' => 'Servus'], true);
+        try {
+            $this->sync(['greeting' => 'Servus'], $refresh);
 
+            $this->assertSame([self::MODULE . '|de' => ['greeting' => 'cached']], $cache->getValue(), 'no invalidation');
+        } finally {
+            $cache->setValue(null, []);
+        }
+        clearstatcache();
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
-        $this->assertSame('SENTINEL', file_get_contents($this->overlayBase() . '.mo'));
+        $this->assertSame($mo_before, file_get_contents($this->overlayBase() . '.mo'));
+        $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the .po was not replaced');
+        $this->assertSame($mo_inode, fileinode($this->overlayBase() . '.mo'), 'the .mo was not replaced');
     }
 
     public function testAMissingMoIsRecompiledEvenWhenThePoIsUnchanged(): void
@@ -471,12 +484,70 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->sync(['greeting' => 'Hallo']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
+        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        $po_inode = fileinode($this->overlayBase() . '.po');
         unlink($this->overlayBase() . '.mo');
 
         $this->sync(['greeting' => 'Hallo']);
 
+        clearstatcache();
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
+        $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the unchanged .po is not rewritten');
         $this->assertSame(['greeting' => 'Hallo'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame($mo_before, file_get_contents($this->overlayBase() . '.mo'));
+    }
+
+    /**
+     * Self-healing: a `.mo` that does not hold exactly what TranslationCatalog::toMoString() compiles from the (unchanged)
+     * `.po` - garbage, truncated, empty, or the compiled content of another catalog - is rebuilt,
+     * byte for byte, although the `.po` itself is left untouched. ilLanguage serves the `.mo`, so
+     * without this a broken `.mo` would be served until the next actual value change.
+     */
+    #[DataProvider('staleMoContents')]
+    public function testAStaleMoNextToAnUnchangedPoIsRebuilt(\Closure $stale_content, bool $refresh): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $this->sync(['greeting' => 'Servus', 'farewell' => 'Tschüss']);
+        $po_before = file_get_contents($this->overlayBase() . '.po');
+        $po_inode = fileinode($this->overlayBase() . '.po');
+        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        file_put_contents($this->overlayBase() . '.mo', $stale_content($mo_before));
+        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'stale']]);
+
+        try {
+            $this->sync(['greeting' => 'Servus', 'farewell' => 'Tschüss'], $refresh);
+
+            $this->assertSame([], $cache->getValue(), 'the rebuilt .mo invalidates the read cache');
+        } finally {
+            $cache->setValue(null, []);
+        }
+
+        clearstatcache();
+        $mo_after = file_get_contents($this->overlayBase() . '.mo');
+        $this->assertSame($mo_before, $mo_after);
+        $this->assertSame(MigratedPoFixture::readPo($this->overlayBase() . '.po')->toMoString(), $mo_after);
+        $this->assertSame(
+            ['farewell' => 'Tschüss', 'greeting' => 'Servus'],
+            MigratedPoFixture::readMo($this->overlayBase() . '.mo')
+        );
+        $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
+        $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the unchanged .po is not rewritten');
+    }
+
+    public static function staleMoContents(): array
+    {
+        return [
+            'garbage' => [static fn(string $mo): string => 'SENTINEL', false],
+            'truncated' => [static fn(string $mo): string => substr($mo, 0, intdiv(strlen($mo), 2)), false],
+            'one byte missing' => [static fn(string $mo): string => substr($mo, 0, -1), false],
+            'empty' => [static fn(string $mo): string => '', false],
+            'another catalog' => [
+                static fn(string $mo): string => MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Veraltet'])->toMoString(),
+                false,
+            ],
+            'garbage, reconciling write' => [static fn(string $mo): string => 'SENTINEL', true],
+        ];
     }
 
     public function testAChangedValueRewritesBothFiles(): void
@@ -503,6 +574,172 @@ class MigratedLanguageFileSyncTest extends TestCase
         } finally {
             $cache->setValue(null, []);
         }
+    }
+
+    // ---------------------------------------------------------- value "0"
+
+    /**
+     * gettext/gettext treats a falsy translation as absent; the adapter's workaround must hold on
+     * the whole way through sync(): "0" (it occurs in the legacy ilias_fr.lang/ilias_pl.lang) is
+     * written as `msgstr "0"`, served from the `.mo` as "0", is no local change when shipped that
+     * way - and re-syncing it is a no-op (the `.mo` byte comparison must see identical output).
+     */
+    public function testTheValueZeroSurvivesTheSyncAndResyncingIsANoOp(): void
+    {
+        $this->seedShipped(['zero' => '0', 'greeting' => 'Hallo']);
+
+        $this->sync(['zero' => '0', 'greeting' => 'Hallo']);
+
+        $po = file_get_contents($this->overlayBase() . '.po');
+        $this->assertStringContainsString("msgid \"zero\"\nmsgstr \"0\"\n", $po);
+        $this->assertSame(['greeting' => 'Hallo', 'zero' => '0'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $zero = $this->overlayPo()->find(self::MODULE, 'zero');
+        $this->assertSame('0', LocalChangeComments::getOriginal($zero));
+        $this->assertNull(LocalChangeComments::getLocalChange($zero));
+
+        $po_inode = fileinode($this->overlayBase() . '.po');
+        $mo_inode = fileinode($this->overlayBase() . '.mo');
+        $this->sync(['zero' => '0', 'greeting' => 'Hallo'], true);
+        $this->sync(['zero' => '0', 'greeting' => 'Hallo']);
+
+        clearstatcache();
+        $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the .po was not replaced');
+        $this->assertSame($mo_inode, fileinode($this->overlayBase() . '.mo'), 'the .mo was not replaced');
+    }
+
+    public function testAValueChangedToZeroIsALocalChangeAndServedAsZero(): void
+    {
+        $this->seedShipped(['count' => '1']);
+        $this->sync(['count' => '1']);
+
+        $this->sync(['count' => '0']);
+
+        $count = $this->overlayPo()->find(self::MODULE, 'count');
+        $this->assertSame('0', $count?->getTranslation());
+        $this->assertSame('1', LocalChangeComments::getOriginal($count));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($count));
+        $this->assertSame(['count' => '0'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+    }
+
+    // ------------------------------------------------- multi-line originals
+
+    /**
+     * A shipped value with line breaks or backslashes is stored as "original" losslessly: re-syncing
+     * the unchanged value is no local change - neither on creation nor on a reconciling write - and
+     * produces byte-identical files (formerly the flattened "original" never matched the value again).
+     */
+    public function testAnUnchangedMultiLineShippedValueIsNoLocalChangeAndResyncingIsANoOp(): void
+    {
+        $shipped = ['lf' => "Zeile 1\nZeile 2", 'crlf' => "Zeile 1\r\nZeile 2", 'backslash' => 'C:\\pfad', 'literal' => 'a\\nb'];
+        $this->seedShipped($shipped);
+
+        $this->sync($shipped);
+        $po_before = file_get_contents($this->overlayBase() . '.po');
+        $this->sync($shipped, true);
+        $this->sync($shipped);
+
+        $overlay = $this->overlayPo();
+        foreach ($shipped as $identifier => $value) {
+            $entry = $overlay->find(self::MODULE, $identifier);
+            $this->assertSame($value, $entry->getTranslation(), $identifier);
+            $this->assertSame($value, LocalChangeComments::getOriginal($entry), $identifier);
+            $this->assertNull(LocalChangeComments::getLocalChange($entry), $identifier);
+        }
+        $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
+        $expected_mo = $shipped;
+        ksort($expected_mo);
+        $this->assertSame($expected_mo, $this->sortedMo());
+    }
+
+    public function testChangingOnlyTheLineBreakOfAMultiLineValueIsALocalChange(): void
+    {
+        $this->seedShipped(['lf' => "Zeile 1\nZeile 2"]);
+        $this->sync(['lf' => "Zeile 1\nZeile 2"]);
+
+        $this->sync(['lf' => "Zeile 1\r\nZeile 2"]);
+
+        $entry = $this->overlayPo()->find(self::MODULE, 'lf');
+        $this->assertSame("Zeile 1\nZeile 2", LocalChangeComments::getOriginal($entry));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($entry));
+    }
+
+    /**
+     * An overlay written by an earlier version has the multi-line original flattened into spaces - a
+     * reconciling write (refresh) replaces it by the losslessly escaped shipped value and clears the
+     * resulting false local change.
+     */
+    public function testAReconcilingWriteRepairsALegacyFlattenedOriginal(): void
+    {
+        $this->seedShipped(['lf' => "Zeile 1\nZeile 2"]);
+        $catalog = MigratedPoFixture::catalog(self::MODULE, ['lf' => ['value' => "Zeile 1\nZeile 2", 'local_change' => '2020-01-01T00:00:00Z']]);
+        $catalog->find(self::MODULE, 'lf')->addTranslatorComment('original: Zeile 1 Zeile 2');
+        MigratedPoFixture::writePair($this->overlayBase(), $catalog);
+
+        $this->sync(['lf' => "Zeile 1\nZeile 2"], true);
+
+        $entry = $this->overlayPo()->find(self::MODULE, 'lf');
+        $this->assertSame("Zeile 1\nZeile 2", LocalChangeComments::getOriginal($entry));
+        $this->assertNull(LocalChangeComments::getLocalChange($entry));
+        $this->assertSame(
+            ['original_escaped: Zeile 1\\nZeile 2'],
+            array_values(array_filter($entry->getTranslatorComments(), static fn(string $c): bool => str_starts_with($c, 'original')))
+        );
+    }
+
+    /**
+     * An "original: " comment of the legacy format containing a backslash is read verbatim: an admin
+     * edit of another entry keeps the untouched entry unchanged and not locally changed.
+     */
+    public function testALegacyOriginalWithABackslashIsReadVerbatimByAnAdminEdit(): void
+    {
+        $this->seedShipped(['path' => 'C:\\pfad', 'greeting' => 'Hallo']);
+        $catalog = MigratedPoFixture::catalog(self::MODULE, ['path' => 'C:\\pfad', 'greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+        $catalog->find(self::MODULE, 'path')->addTranslatorComment('original: C:\\pfad');
+        MigratedPoFixture::writePair($this->overlayBase(), $catalog);
+
+        $this->sync(['path' => 'C:\\pfad', 'greeting' => 'Servus']);
+
+        $path = $this->overlayPo()->find(self::MODULE, 'path');
+        $this->assertSame('C:\\pfad', LocalChangeComments::getOriginal($path));
+        $this->assertNull(LocalChangeComments::getLocalChange($path));
+        $this->assertContains('original: C:\\pfad', $path->getTranslatorComments(), 'an admin edit never moves the original');
+    }
+
+    public function testLoadModuleTranslationsReturnsTheDecodedMultiLineOriginal(): void
+    {
+        $this->seedOverlay(['lf' => ['value' => "Zeile 1\nZeile 2", 'original' => "Zeile 1\nZeile 2"]]);
+
+        $this->assertSame(
+            "Zeile 1\nZeile 2",
+            MigratedLanguageFileSync::loadModuleTranslations($this->manager, 'de', self::MODULE, $this->client_data_dir)['lf']['original']
+        );
+    }
+
+    public function testRefreshRemovesAnEscapedOriginalOfAnEntryTheShippedPoNoLongerContains(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay([
+            'greeting' => ['value' => 'Hallo', 'original' => 'Hallo'],
+            'dropped' => ['value' => "Alt\nZeile", 'original' => "Alt\nZeile"],
+        ]);
+
+        $this->sync(['greeting' => 'Hallo', 'dropped' => "Alt\nZeile"], true);
+
+        $dropped = $this->overlayPo()->find(self::MODULE, 'dropped');
+        $this->assertNull(LocalChangeComments::getOriginal($dropped));
+        $this->assertSame([], array_filter($dropped->getTranslatorComments(), static fn(string $c): bool => str_starts_with($c, 'original')));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($dropped));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sortedMo(): array
+    {
+        $translations = MigratedPoFixture::readMo($this->overlayBase() . '.mo');
+        ksort($translations);
+
+        return $translations;
     }
 
     // --------------------------------------------------------------- no-ops
@@ -564,12 +801,69 @@ class MigratedLanguageFileSyncTest extends TestCase
         );
     }
 
+    /**
+     * gettext/gettext's StrictPoLoader rejects more than the old parser did (e.g., a duplicate or a
+     * message without msgstr) - every such overlay is rebuilt, too, instead of failing the write.
+     */
+    #[DataProvider('overlaysOnlyAStrictParserRejects')]
+    public function testAnOverlayPoTheStrictParserRejectsIsRebuilt(string $content): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
+        file_put_contents($this->overlayBase() . '.po', $content);
+
+        $this->sync(['greeting' => 'Servus']);
+
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame('Servus', $greeting?->getTranslation());
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+    }
+
+    public static function overlaysOnlyAStrictParserRejects(): array
+    {
+        $message = "msgctxt \"" . self::MODULE . "\"\nmsgid \"greeting\"\nmsgstr \"Hallo\"\n";
+
+        return [
+            'duplicate message' => [$message . "\n" . $message],
+            'message without msgstr' => ["msgctxt \"" . self::MODULE . "\"\nmsgid \"greeting\"\n"],
+            'truncated inside a string' => [substr($message, 0, -4)],
+            'gap in the plural forms' => ["msgid \"a\"\nmsgid_plural \"as\"\nmsgstr[0] \"x\"\nmsgstr[2] \"z\"\n"],
+            'binary data' => ["\x00\x01\x02\xde\x12\x04\x95"],
+            'header value with a line break' => ["msgid \"\"\nmsgstr \"\"\n\"X-A: a\\rb\\n\"\n\n" . $message],
+        ];
+    }
+
     public function testACorruptShippedPoThrows(): void
     {
         file_put_contents($this->shippedPo(), "msgid \"broken\n");
 
         $this->expectException(RuntimeException::class);
         $this->sync(['greeting' => 'Hallo']);
+    }
+
+    /**
+     * A shipped `.po` whose header keeps a line break is broken (checkLanguage() refuses the
+     * language): sync() fails with a RuntimeException before writing anything, never with the
+     * InvalidArgumentException setHeader() would raise while copying the header.
+     */
+    public function testAShippedPoWithALineBreakInAHeaderValueThrowsARuntimeExceptionAndWritesNothing(): void
+    {
+        file_put_contents(
+            $this->shippedPo(),
+            "msgid \"\"\nmsgstr \"\"\n\"X-A: a\\rb\\n\"\n\nmsgctxt \"" . self::MODULE . "\"\nmsgid \"greeting\"\nmsgstr \"Hallo\"\n"
+        );
+
+        try {
+            $this->sync(['greeting' => 'Hallo']);
+            $this->fail('Expected a RuntimeException');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('contains a line break', $e->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
     }
 
     /**
@@ -671,6 +965,227 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->assertSame(
             [self::MODULE => []],
             MigratedLanguageFileSync::loadShippedModules($this->manager, ILIAS_ABSOLUTE_PATH, 'de')
+        );
+    }
+
+    // ------------------------------------ findShippedModuleFiles / loadShippedModuleEntries
+
+    /**
+     * Every module with a shipped `.po` for the language - also one whose `.po` cannot be parsed
+     * (the callers need to know it is maintained in PO files to report it) - but neither a module
+     * without shipped `.po` for that language nor the main directory (empty prefix).
+     */
+    public function testFindShippedModuleFilesListsEveryModuleWithAShippedPoForTheLanguage(): void
+    {
+        $corrupt = MigratedPoFixture::directory('scorrupt', $this->directory->getPath());
+        $english_only = MigratedPoFixture::directory('senonly', $this->directory->getPath());
+        $manager = new LanguageFileDirectoryManager(
+            new CustomizingLanguageFileDirectory(),
+            new MainLanguageFileDirectory(),
+            $this->directory,
+            $corrupt,
+            $english_only
+        );
+        $this->seedShipped(['greeting' => 'Hallo']);
+        file_put_contents($this->shippedPo('de', 'scorrupt'), "msgid \"kaputt\n");
+        $this->seedShipped(['x' => 'only english'], 'en', 'senonly');
+
+        $this->assertSame(
+            [self::MODULE => $this->shippedPo(), 'scorrupt' => $this->shippedPo('de', 'scorrupt')],
+            MigratedLanguageFileSync::findShippedModuleFiles($manager, ILIAS_ABSOLUTE_PATH, 'de')
+        );
+    }
+
+    /**
+     * The extracted comments ("#.", the counterpart of a .lang "###" comment) of an entry are joined
+     * into one line; an entry without one gets `null`, entries of another context are not returned.
+     */
+    public function testLoadShippedModuleEntriesReturnsValueAndJoinedExtractedComment(): void
+    {
+        $catalog = MigratedPoFixture::catalog(self::MODULE, [
+            'greeting' => "Hallo\nWelt",
+            'farewell' => 'Tschüss',
+            'foreign' => ['value' => 'Fremd', 'context' => 'other_module'],
+        ]);
+        $catalog->find(self::MODULE, 'greeting')->addExtractedComment('shown on the login page');
+        $catalog->find(self::MODULE, 'greeting')->addExtractedComment('keep it short');
+        $catalog->find('other_module', 'foreign')->addExtractedComment('not returned');
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+
+        $entries = MigratedLanguageFileSync::loadShippedModuleEntries($this->shippedPo(), self::MODULE);
+        ksort($entries);
+
+        $this->assertSame(
+            [
+                'farewell' => ['value' => 'Tschüss', 'comment' => null],
+                'greeting' => ['value' => "Hallo\nWelt", 'comment' => 'shown on the login page keep it short'],
+            ],
+            $entries
+        );
+    }
+
+    public function testLoadShippedModuleEntriesThrowsForACorruptPo(): void
+    {
+        file_put_contents($this->shippedPo(), "msgid \"kaputt\n");
+
+        $this->expectException(RuntimeException::class);
+        MigratedLanguageFileSync::loadShippedModuleEntries($this->shippedPo(), self::MODULE);
+    }
+
+    // ---------------------------------------------- findUnwritableOverlayDirectories
+
+    private function overlayDirectory(): string
+    {
+        return dirname($this->overlayBase());
+    }
+
+    /**
+     * @param list<string> $lang_keys
+     * @return list<string>
+     */
+    private function findUnwritable(array $lang_keys = ['de'], ?string $client_data_dir = 'default', ?LanguageFileDirectoryManager $manager = null): array
+    {
+        return MigratedLanguageFileSync::findUnwritableOverlayDirectories(
+            $manager ?? $this->manager,
+            ILIAS_ABSOLUTE_PATH,
+            $lang_keys,
+            $client_data_dir === 'default' ? $this->client_data_dir : $client_data_dir
+        );
+    }
+
+    /**
+     * Root-proof: a regular file occupies the place of the overlay directory - no user can create
+     * the directory, so it is reported (the exact directory the overlay would be written to).
+     */
+    public function testAFileInPlaceOfTheOverlayDirectoryIsReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        mkdir(dirname($this->overlayDirectory()), 0775, true);
+        file_put_contents($this->overlayDirectory(), 'not a directory');
+
+        $this->assertSame([$this->overlayDirectory()], $this->findUnwritable());
+    }
+
+    /**
+     * A file further up (here: where "<client data dir>/lang" has to be created) blocks the creation
+     * of the whole path just as well.
+     */
+    public function testAFileInPlaceOfAParentOfTheOverlayDirectoryIsReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        file_put_contents($this->client_data_dir . '/lang', 'not a directory');
+
+        $this->assertSame([$this->overlayDirectory()], $this->findUnwritable());
+    }
+
+    /**
+     * A dangling symlink does not "exist" for file_exists(), but mkdir() cannot create anything in
+     * its place - at the position of the overlay directory or of one of its parents.
+     */
+    #[DataProvider('danglingSymlinkPositions')]
+    public function testADanglingSymlinkInTheOverlayPathIsReported(\Closure $link_path): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $link = $link_path($this);
+        if (!is_dir(dirname($link))) {
+            mkdir(dirname($link), 0775, true);
+        }
+        symlink($this->client_data_dir . '/does-not-exist', $link);
+
+        $this->assertSame([$this->overlayDirectory()], $this->findUnwritable());
+    }
+
+    public static function danglingSymlinkPositions(): array
+    {
+        return [
+            'the overlay directory' => [static fn(self $test): string => $test->overlayDirectory()],
+            'a parent ("lang")' => [static fn(self $test): string => $test->client_data_dir . '/lang'],
+        ];
+    }
+
+    /**
+     * A symlink to an existing writable directory is fine (e.g., a data volume mounted elsewhere).
+     */
+    public function testASymlinkToAWritableDirectoryIsNotReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        mkdir($this->client_data_dir . '/elsewhere');
+        symlink($this->client_data_dir . '/elsewhere', $this->client_data_dir . '/lang');
+
+        $this->assertSame([], $this->findUnwritable());
+    }
+
+    /**
+     * Not existing yet is not a problem as long as the closest existing parent is a writable
+     * directory - sync() creates the missing directories.
+     */
+    public function testAMissingButCreatableOverlayDirectoryIsNotReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+
+        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang');
+        $this->assertSame([], $this->findUnwritable());
+        $this->assertDirectoryDoesNotExist($this->client_data_dir . '/lang', 'the check itself creates nothing');
+    }
+
+    public function testAMissingClientDataDirWithACreatableParentIsNotReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+
+        $this->assertSame([], $this->findUnwritable(['de'], $this->client_data_dir . '/not-yet-created'));
+    }
+
+    public function testAnExistingWritableOverlayDirectoryIsNotReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        mkdir($this->overlayDirectory(), 0775, true);
+
+        $this->assertSame([], $this->findUnwritable());
+    }
+
+    public function testWithoutClientDataDirNothingIsReported(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        file_put_contents($this->client_data_dir . '/lang', 'not a directory');
+
+        $this->assertSame([], $this->findUnwritable(['de'], null));
+    }
+
+    /**
+     * Only modules migrated for one of the given languages count: without a shipped `.po` for the
+     * language no overlay is written, so a blocked overlay directory does not matter - nor does one
+     * of a module without contributed directory or the main directory.
+     */
+    public function testAModuleThatIsNotMigratedForTheLanguageIsIgnored(): void
+    {
+        $this->seedShipped(['greeting' => 'Hello'], 'en');
+        file_put_contents($this->client_data_dir . '/lang', 'not a directory');
+
+        $this->assertSame([], $this->findUnwritable(['de']));
+        $this->assertSame([$this->overlayDirectory()], $this->findUnwritable(['de', 'en']));
+    }
+
+    /**
+     * The overlay directory is the same for every language of a module (the language is part of the
+     * file name) - it is reported once, and the overlay directories of several modules are all
+     * reported.
+     */
+    public function testEachUnwritableOverlayDirectoryIsReportedOnceAcrossLanguagesAndModules(): void
+    {
+        $second = MigratedPoFixture::directory('stwo', 'components/ILIAS/Language/tests/ComponentTranslation/' . basename($this->fixture_directory) . '/sub/');
+        $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $this->directory, $second);
+        $this->seedShipped(['greeting' => 'Hallo'], 'de');
+        $this->seedShipped(['greeting' => 'Hello'], 'en');
+        MigratedPoFixture::writePo(
+            $this->fixture_directory . '/sub/stwo_de.po',
+            MigratedPoFixture::catalog('stwo', ['x' => 'y'])
+        );
+        mkdir(dirname($this->overlayDirectory()), 0775, true);
+        file_put_contents($this->overlayDirectory(), 'not a directory');
+
+        $this->assertSame(
+            [$this->overlayDirectory(), $this->overlayDirectory() . '/sub'],
+            $this->findUnwritable(['de', 'en'], 'default', $manager)
         );
     }
 

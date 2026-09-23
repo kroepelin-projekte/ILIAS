@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Setup;
 
-use ILIAS\Language\ComponentTranslation\Gettext\PoParser;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
@@ -288,7 +288,7 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
             return true;
         }
         try {
-            PoParser::parseFile($shipped_po);
+            TranslationCatalog::fromPoFile($shipped_po);
         } catch (\RuntimeException) {
             return false;
         }

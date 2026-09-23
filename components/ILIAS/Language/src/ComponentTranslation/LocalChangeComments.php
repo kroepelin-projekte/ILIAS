@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Language\ComponentTranslation;
 
 use DateTimeImmutable;
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationEntry;
 
 /**
  * PO/MO pilot: tracks, per overlay entry, whether the current value still matches the value the
@@ -43,7 +43,7 @@ use ILIAS\Language\ComponentTranslation\Gettext\Entry;
  *   shipped `.po` says now, and update it - but only when it actually changed, e.g. because an ILIAS
  *   update revised a translation for a language that was already installed. See sync()'s own docblock
  *   for exactly which callers set that flag.
- * - "local_change" is maintained solely by ilObjLanguage::syncMigratedLanguageFile() on every write:
+ * - "local_change" is maintained solely by refresh(), called by MigratedLanguageFileSync::sync() on every write:
  *   present, with the write's timestamp, whenever the current value differs from "original" (or there
  *   is no "original" at all - a key added after migration never had one to begin with); absent
  *   whenever it matches. Saving the original value again therefore clears it on its own, without a
@@ -52,35 +52,58 @@ use ILIAS\Language\ComponentTranslation\Gettext\Entry;
 final class LocalChangeComments
 {
     private const string ORIGINAL_PREFIX = 'original: ';
+    private const string ESCAPED_ORIGINAL_PREFIX = 'original_escaped: ';
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
 
     /**
      * Does not touch "local_change" - refresh() is always called right after and recomputes it
      * against whatever "original" now holds.
+     *
+     * A translator comment is a single PO line, so a value containing a line break or a backslash
+     * is stored escaped under its own prefix ("original_escaped: ", see escape()); every other value
+     * is stored verbatim under "original: " - byte-identical to what earlier versions wrote, so
+     * existing overlays keep being read exactly as before.
      */
-    public static function setOriginal(Entry $entry, string $value): void
+    public static function setOriginal(TranslationEntry $entry, string $value): void
     {
-        // unchanged: keep the comment where it is, so re-running a sync produces identical output
-        if (self::getOriginal($entry) === self::encode($value)) {
+        [$prefix, $other_prefix, $stored] = self::needsEscaping($value)
+            ? [self::ESCAPED_ORIGINAL_PREFIX, self::ORIGINAL_PREFIX, self::escape($value)]
+            : [self::ORIGINAL_PREFIX, self::ESCAPED_ORIGINAL_PREFIX, $value];
+
+        // Unchanged: keep the comment where it is, so re-running a sync produces identical output
+        if (self::find($entry, $prefix) === $stored && self::find($entry, $other_prefix) === null) {
             return;
         }
-        self::replace($entry, self::ORIGINAL_PREFIX, self::encode($value));
+        self::replace($entry, $other_prefix, null);
+        self::replace($entry, $prefix, $stored);
     }
 
-    public static function removeOriginal(Entry $entry): void
+    public static function removeOriginal(TranslationEntry $entry): void
     {
         self::replace($entry, self::ORIGINAL_PREFIX, null);
+        self::replace($entry, self::ESCAPED_ORIGINAL_PREFIX, null);
     }
 
-    public static function getOriginal(Entry $entry): ?string
+    /**
+     * The decoded "original" value, exactly as it was passed to setOriginal(). An "original: "
+     * comment written by an earlier version that flattened line breaks into spaces is returned
+     * as stored - that loss cannot be undone; the next reconciling sync (Setup update, "remove
+     * local changes") rewrites it from the shipped value.
+     */
+    public static function getOriginal(TranslationEntry $entry): ?string
     {
+        $escaped = self::find($entry, self::ESCAPED_ORIGINAL_PREFIX);
+        if ($escaped !== null) {
+            return self::unescape($escaped);
+        }
+
         return self::find($entry, self::ORIGINAL_PREFIX);
     }
 
     /**
      * @return string|null ISO-8601 UTC ('Y-m-d\TH:i:s\Z') or null if the entry is unmodified
      */
-    public static function getLocalChange(Entry $entry): ?string
+    public static function getLocalChange(TranslationEntry $entry): ?string
     {
         return self::find($entry, self::LOCAL_CHANGE_PREFIX);
     }
@@ -89,7 +112,7 @@ final class LocalChangeComments
      * getLocalChange() in the database's "Y-m-d H:i:s" (UTC) format, as used by
      * lng_data.local_change, or null if unmodified or unparsable.
      */
-    public static function getLocalChangeAsDatabaseTimestamp(Entry $entry): ?string
+    public static function getLocalChangeAsDatabaseTimestamp(TranslationEntry $entry): ?string
     {
         $change = self::getLocalChange($entry);
         if ($change === null) {
@@ -107,7 +130,7 @@ final class LocalChangeComments
      * changed value.
      */
     public static function refresh(
-        Entry $entry,
+        TranslationEntry $entry,
         string $previous_value,
         string $value,
         DateTimeImmutable $now
@@ -127,7 +150,7 @@ final class LocalChangeComments
         self::replace($entry, self::LOCAL_CHANGE_PREFIX, $now->format('Y-m-d\TH:i:s\Z'));
     }
 
-    private static function find(Entry $entry, string $prefix): ?string
+    private static function find(TranslationEntry $entry, string $prefix): ?string
     {
         foreach ($entry->getTranslatorComments() as $comment) {
             if (str_starts_with($comment, $prefix)) {
@@ -138,7 +161,7 @@ final class LocalChangeComments
         return null;
     }
 
-    private static function replace(Entry $entry, string $prefix, ?string $value): void
+    private static function replace(TranslationEntry $entry, string $prefix, ?string $value): void
     {
         $entry->removeTranslatorCommentsStartingWith($prefix);
         if ($value !== null) {
@@ -146,10 +169,22 @@ final class LocalChangeComments
         }
     }
 
-    // Comments are single PO lines; a value containing a newline would otherwise corrupt the file.
-    // Not expected for the short UI strings these modules hold, but kept safe regardless.
-    private static function encode(string $value): string
+    private static function needsEscaping(string $value): bool
     {
-        return str_replace(["\r\n", "\n", "\r"], ' ', $value);
+        return strpbrk($value, "\\\n\r") !== false;
+    }
+
+    /**
+     * Reversible single-line encoding: a backslash is doubled, a line feed becomes backslash + "n"
+     * and a carriage return becomes backslash + "r".
+     */
+    private static function escape(string $value): string
+    {
+        return strtr($value, ['\\' => '\\\\', "\n" => '\\n', "\r" => '\\r']);
+    }
+
+    private static function unescape(string $value): string
+    {
+        return strtr($value, ['\\\\' => '\\', '\\n' => "\n", '\\r' => "\r"]);
     }
 }

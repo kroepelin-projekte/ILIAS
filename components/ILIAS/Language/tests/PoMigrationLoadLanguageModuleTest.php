@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Covers the PO/MO pilot's addition to ilLanguage::loadLanguageModule(): a module whose owning
@@ -122,7 +123,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      * real components, so this exercises the exact same code path in ilLanguage. Cleaned up in
      * tearDown().
      */
-    private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Gettext\Catalog $translations): LanguageFileDirectory
+    private function contributeFixtureModule(string $module, \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog $translations): LanguageFileDirectory
     {
         $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
             . 'tmp-fixtures-' . bin2hex(random_bytes(4));
@@ -364,7 +365,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     public function testACorruptOverlayMoFallsBackToTheDatabaseAndWarnsOnce(): void
     {
-        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
         $directory = $this->contributeFixtureModule('broken', $catalog);
         $mo_file = $this->fixture_directory . '/broken_de.mo';
@@ -407,7 +408,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     public function testACorruptOverlayMoWithoutLoggerIsReportedViaErrorLog(): void
     {
         $this->expectErrorLog();
-        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $catalog = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
         $directory = $this->contributeFixtureModule('broken', $catalog);
         file_put_contents($this->fixture_directory . '/broken_de.mo', 'not a mo file at all, but long enough');
@@ -423,6 +424,42 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * A `.mo` cut off anywhere - e.g., by a full disk or an interrupted copy - is never served
+     * partially: gettext/gettext's MoLoader alone would return silently shortened or missing messages,
+     * raise warnings or a TypeError for these; the adapter rejects them and ilLanguage falls back to
+     * the database with a logged problem.
+     */
+    #[DataProvider('truncatedMoContents')]
+    public function testATruncatedOverlayMoIsNeverServedPartially(\Closure $truncate): void
+    {
+        $this->expectErrorLog();
+        $catalog = MigratedPoFixture::catalog('broken', ['alpha' => 'A', 'beta' => 'B', 'greeting' => 'Aus der MO-Datei']);
+        $directory = $this->contributeFixtureModule('broken', $catalog);
+        $mo_file = $this->fixture_directory . '/broken_de.mo';
+        file_put_contents($mo_file, $truncate((string) file_get_contents($mo_file)));
+
+        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
+        $this->registerDirectoryManager($directory);
+
+        $this->assertNull($this->callLoadFromMigratedLanguageFile('broken', 'de'));
+        $this->assertStringContainsString(
+            'falling back to the database',
+            (string) file_get_contents((string) ini_get('error_log'))
+        );
+    }
+
+    public static function truncatedMoContents(): array
+    {
+        return [
+            '10 bytes' => [static fn(string $mo): string => substr($mo, 0, 10)],
+            '40 bytes' => [static fn(string $mo): string => substr($mo, 0, 40)],
+            'half' => [static fn(string $mo): string => substr($mo, 0, intdiv(strlen($mo), 2))],
+            'last 3 bytes missing' => [static fn(string $mo): string => substr($mo, 0, -3)],
+            'empty' => [static fn(string $mo): string => ''],
+        ];
+    }
+
+    /**
      * Cross-module identifier collisions (FR "PO-Files for improving language handling", 2.4): two
      * modules independently defining the same identifier used to overwrite each other silently in
      * $this->text. Full structural exclusion isn't possible without changing txt()'s signature (see
@@ -431,10 +468,10 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     public function testLogsACrossModuleKeyCollisionInsteadOfSilentlyOverwritingIt(): void
     {
-        $alpha = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $alpha = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         $alpha->add(MigratedPoFixture::entry('alpha', 'shared_key', 'Value from alpha'));
 
-        $beta = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $beta = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         $beta->add(MigratedPoFixture::entry('beta', 'shared_key', 'Value from beta'));
 
         $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));

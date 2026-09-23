@@ -105,7 +105,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         }
 
         $now = new DateTimeImmutable('2026-01-02T03:04:05Z', new DateTimeZone('UTC'));
-        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\Catalog();
+        $translations = new \ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog();
         foreach ($entries as $identifier => $entry) {
             $translation = MigratedPoFixture::entry($module, $identifier, $entry['value']);
             if (isset($entry['original'])) {
@@ -347,18 +347,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
     #[DataProvider('likePatterns')]
     public function testThePatternFilterOfAMigratedModuleFollowsSqlLikeSemantics(string $pattern, array $expected): void
     {
-        $values = [
-            'plain' => 'Hallo Welt',
-            'umlaut' => 'ÄRGER über Öl',
-            'percent' => 'Rabatt 50% heute',
-            'fifty' => 'Rabatt 50 heute',
-            'underscore' => 'snake_case',
-            'snakeXcase' => 'snakeXcase',
-            'regex' => 'a.b*c (d) [e] $f ^g |h /i',
-            'backslash' => 'C:\\temp',
-            'multiline' => "erste Zeile\nzweite Zeile",
-        ];
-        $directory = $this->seedFixtureModule('mtest', 'de', array_map(static fn(string $v): array => ['value' => $v], $values));
+        $directory = $this->seedFixtureModule('mtest', 'de', array_map(static fn(string $v): array => ['value' => $v], self::likeValues()));
         $this->registerDirectoryManager($directory);
         $this->stubDatabase([]);
 
@@ -370,6 +359,24 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         sort($found);
         sort($expected);
         $this->assertSame($expected, $found);
+    }
+
+    /**
+     * @return array<string, string> identifier => value the LIKE patterns are matched against
+     */
+    private static function likeValues(): array
+    {
+        return [
+            'plain' => 'Hallo Welt',
+            'umlaut' => 'ÄRGER über Öl',
+            'percent' => 'Rabatt 50% heute',
+            'fifty' => 'Rabatt 50 heute',
+            'underscore' => 'snake_case',
+            'snakeXcase' => 'snakeXcase',
+            'regex' => 'a.b*c (d) [e] $f ^g |h /i',
+            'backslash' => 'C:\\temp',
+            'multiline' => "erste Zeile\nzweite Zeile",
+        ];
     }
 
     public static function likePatterns(): array
@@ -390,8 +397,74 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
             'a dot is not a wildcard' => ['Hallo.Welt', []],
             'escaped backslash' => ['C:\\\\temp', ['backslash']],
             'wildcard spans a newline' => ['erste%zweite', ['multiline']],
+            'consecutive percent signs match like one' => ['Hallo%%Welt', ['plain']],
+            'only percent signs match everything' => ['%%', array_keys(self::likeValues())],
+            'escaped percent followed by a wildcard' => ['50\\%%heute', ['percent']],
             'no match' => ['gibt es nicht', []],
         ];
+    }
+
+    /**
+     * Consecutive "%" are collapsed into one "any sequence" - equivalent to a single "%", also
+     * around other characters, at the start/end and for the empty value.
+     */
+    #[DataProvider('consecutivePercentPatterns')]
+    public function testConsecutivePercentSignsMatchLikeASinglePercentSign(string $value, string $pattern, bool $expected): void
+    {
+        $matches = new ReflectionMethod(ilObjLanguageExt::class, 'matchesLikePattern');
+
+        $this->assertSame($expected, $matches->invoke(null, $value, $pattern));
+        if (!str_contains($pattern, '\\')) {
+            $this->assertSame(
+                $expected,
+                $matches->invoke(null, $value, (string) preg_replace('/%+/', '%', $pattern)),
+                'same result as with single percent signs'
+            );
+        }
+    }
+
+    public static function consecutivePercentPatterns(): array
+    {
+        return [
+            '%% matches an empty value' => ['', '%%', true],
+            '%% matches any value' => ['beliebig', '%%', true],
+            'a%%%b: nothing in between' => ['ab', 'a%%%b', true],
+            'a%%%b: something in between' => ['aXYZb', 'a%%%b', true],
+            'a%%%b: order matters' => ['ba', 'a%%%b', false],
+            'a%%%b: across a line break' => ["a\nb", 'a%%%b', true],
+            '%%a%% anywhere' => ['xxaxx', '%%a%%', true],
+            '%%a%% not contained' => ['xxbxx', '%%a%%', false],
+            'escaped percent then wildcard' => ['50% Rabatt', '50\\%%Rabatt', true],
+            'escaped percent is still required' => ['50 Rabatt', '50\\%%Rabatt', false],
+            'underscore between percent runs' => ['ab', 'a%%_%%b', false],
+            'underscore between percent runs, one char' => ['axb', 'a%%_%%b', true],
+        ];
+    }
+
+    /**
+     * The merged-in migrated modules are sorted like lng_data's ORDER BY module, identifier under
+     * the *_unicode_ci collation: case-insensitive (a plain ksort() sorts every upper-case
+     * identifier before every lower-case one), module first.
+     */
+    public function testValuesAreSortedCaseInsensitivelyByModuleAndIdentifier(): void
+    {
+        $directory = $this->seedFixtureModule('mtest', 'de', [
+            'beta' => ['value' => 'b'],
+            'Alpha' => ['value' => 'A'],
+            'gamma' => ['value' => 'g'],
+            'Delta' => ['value' => 'D'],
+        ]);
+        $this->registerDirectoryManager($directory);
+        // Already in ORDER BY module, identifier order, as the database returns them
+        $this->stubDatabase([
+            ['module' => 'aaa', 'identifier' => 'Zeta', 'value' => 'z'],
+            ['module' => 'zzz', 'identifier' => 'eta', 'value' => 'e'],
+        ]);
+
+        $this->assertSame(
+            ['aaa#:#Zeta', 'mtest#:#Alpha', 'mtest#:#beta', 'mtest#:#Delta', 'mtest#:#gamma', 'zzz#:#eta'],
+            array_keys(ilObjLanguageExt::_getValues('de'))
+        );
     }
 
     /**

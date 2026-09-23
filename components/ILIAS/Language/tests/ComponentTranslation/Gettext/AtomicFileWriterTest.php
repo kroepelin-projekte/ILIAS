@@ -21,15 +21,14 @@ declare(strict_types=1);
 namespace ILIAS\Language\Tests\ComponentTranslation\Gettext;
 
 use ILIAS\Language\ComponentTranslation\Gettext\AtomicFileWriter;
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
-use ILIAS\Language\ComponentTranslation\Gettext\Entry;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
- * The small data classes Catalog/Entry and AtomicFileWriter.
+ * AtomicFileWriter: the overlay `.po`/`.mo` are replaced via a temporary file in the same directory
+ * plus rename(), so ilLanguage never reads a half-written `.mo`.
  */
-class CatalogEntryAtomicWriterTest extends TestCase
+class AtomicFileWriterTest extends TestCase
 {
     private string $directory;
 
@@ -51,133 +50,6 @@ class CatalogEntryAtomicWriterTest extends TestCase
     {
         return array_values(array_diff(scandir($this->directory) ?: [], ['.', '..']));
     }
-
-    // ------------------------------------------------------------- Catalog
-
-    public function testFindDistinguishesContextNullFromEmptyContextAndFromOtherContexts(): void
-    {
-        $catalog = new Catalog();
-        $catalog->add(new Entry(null, 'id'));
-
-        $this->assertNotNull($catalog->find(null, 'id'));
-        $this->assertNull($catalog->find('', 'id'));
-        $this->assertNull($catalog->find('mod', 'id'));
-        $this->assertSame('id', Catalog::key(null, 'id'));
-        $this->assertSame("mod\x04id", Catalog::key('mod', 'id'));
-    }
-
-    public function testAddReplacesAnEntryWithTheSameContextAndIdKeepingItsPosition(): void
-    {
-        $catalog = new Catalog();
-        $first = new Entry('mod', 'a');
-        $catalog->add($first);
-        $catalog->add(new Entry('mod', 'b'));
-        $replacement = new Entry('mod', 'a');
-        $replacement->translate('neu');
-        $catalog->add($replacement);
-
-        $this->assertSame([$replacement, $catalog->find('mod', 'b')], $catalog->getEntries());
-    }
-
-    public function testRemoveOnlyRemovesTheMatchingEntry(): void
-    {
-        $catalog = new Catalog();
-        $catalog->add(new Entry('mod', 'a'));
-        $catalog->add(new Entry('other', 'a'));
-
-        $catalog->remove(new Entry('mod', 'a'));
-
-        $this->assertNull($catalog->find('mod', 'a'));
-        $this->assertNotNull($catalog->find('other', 'a'));
-    }
-
-    public function testHeaderFlagsAreDeduplicatedAndEmptyOnesIgnored(): void
-    {
-        $catalog = new Catalog();
-        $catalog->addHeaderFlag('fuzzy');
-        $catalog->addHeaderFlag('fuzzy');
-        $catalog->addHeaderFlag('');
-
-        $this->assertSame(['fuzzy'], $catalog->getHeaderFlags());
-        $this->assertNull($catalog->getHeader('Language'));
-    }
-
-    // --------------------------------------------------------------- Entry
-
-    public function testFlagsAreDeduplicatedEmptyOnesIgnoredAndRemovable(): void
-    {
-        $entry = new Entry('mod', 'id');
-        $entry->addFlag('fuzzy');
-        $entry->addFlag('php-format');
-        $entry->addFlag('fuzzy');
-        $entry->addFlag('');
-
-        $this->assertSame(['fuzzy', 'php-format'], $entry->getFlags());
-
-        $entry->removeFlag('fuzzy');
-        $entry->removeFlag('not-set');
-
-        $this->assertSame(['php-format'], $entry->getFlags());
-        $this->assertFalse($entry->hasFlag('fuzzy'));
-        $this->assertTrue($entry->hasFlag('php-format'));
-    }
-
-    public function testRemoveTranslatorCommentsStartingWithOnlyRemovesMatchingComments(): void
-    {
-        $entry = new Entry('mod', 'id');
-        $entry->addTranslatorComment('original: a');
-        $entry->addTranslatorComment('note');
-        $entry->addTranslatorComment('original: b');
-        $entry->addTranslatorComment(' original: indented');
-
-        $entry->removeTranslatorCommentsStartingWith('original: ');
-
-        $this->assertSame(['note', ' original: indented'], $entry->getTranslatorComments());
-    }
-
-    public function testPluralTranslationsAreOrderedByIndexAndReplaceable(): void
-    {
-        $entry = new Entry('mod', 'id');
-        $entry->setPluralTranslation(1, 'eins');
-        $entry->setPluralTranslation(2, 'zwei');
-        $entry->setPluralTranslation(1, 'eins, neu');
-
-        $this->assertSame(['eins, neu', 'zwei'], $entry->getPluralTranslations());
-    }
-
-    /**
-     * Regression: msgstr[2] set before msgstr[1] used to be renumbered by array_values() and then
-     * overwritten. The index n is kept as key n-1; a missing form stays absent.
-     */
-    public function testPluralTranslationsSetOutOfOrderKeepTheirIndex(): void
-    {
-        $entry = new Entry('mod', 'id');
-        $entry->setPluralTranslation(2, 'zwei');
-        $entry->setPluralTranslation(1, 'eins');
-
-        $this->assertSame([0 => 'eins', 1 => 'zwei'], $entry->getPluralTranslations());
-    }
-
-    public function testAMissingPluralFormStaysAbsent(): void
-    {
-        $entry = new Entry('mod', 'id');
-        $entry->setPluralTranslation(3, 'drei');
-        $entry->setPluralTranslation(1, 'eins');
-
-        $this->assertSame([0 => 'eins', 2 => 'drei'], $entry->getPluralTranslations());
-    }
-
-    public function testANewEntryHasAnEmptyTranslationAndNoPlural(): void
-    {
-        $entry = new Entry(null, 'id');
-
-        $this->assertSame('', $entry->getTranslation());
-        $this->assertNull($entry->getPlural());
-        $this->assertNull($entry->getContext());
-        $this->assertSame([], $entry->getPluralTranslations());
-    }
-
-    // ----------------------------------------------------- AtomicFileWriter
 
     public function testWritesANewFileAndLeavesNoTemporaryFileBehind(): void
     {

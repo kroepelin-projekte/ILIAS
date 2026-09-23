@@ -140,9 +140,86 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
             );
         }
 
-        $this->installLanguages($language_keys);
+        $this->informAboutUnwritableOverlayDirectories($environment, $language_keys);
+        $this->informAboutUnwrittenOverlays($environment, $this->installLanguages($language_keys));
 
         return $environment;
+    }
+
+    /**
+     * Checked BEFORE writing: the per-installation PO/MO files of modules maintained in PO files live
+     * in the client data directory, and Setup must run as the web server user (a mandatory
+     * requirement - the web server rewrites these files on every administrative change later on).
+     * The update itself is not aborted - the database is written regardless and the files are
+     * repaired by the next run with sufficient permissions -, but the problem is reported clearly
+     * instead of only being logged per module.
+     *
+     * @param list<string> $language_keys
+     */
+    protected function informAboutUnwritableOverlayDirectories(Setup\Environment $environment, array $language_keys): void
+    {
+        $unwritable_directories = $this->il_setup_language->findUnwritableOverlayDirectories($language_keys);
+        if ($unwritable_directories === []) {
+            $this->informIfNotRunAsClientDataDirectoryOwner($environment);
+            return;
+        }
+
+        $this->inform(
+            $environment,
+            'WARNING: The PO/MO language files of modules maintained in PO files cannot be written to '
+            . implode(', ', $unwritable_directories) . ' (not writable, or a file occupies the '
+            . 'directory\'s place). The languages are still installed/updated in the database, but these '
+            . 'modules keep showing outdated texts. Setup must be run as the web server user (the owner '
+            . 'of the client data directory) - re-run "setup update" as that user to repair the files.'
+        );
+    }
+
+    /**
+     * Writable is not enough: a Setup run as another user than the web server (typically root)
+     * creates PO/MO files the web server cannot replace later on. The owner of the client data
+     * directory is taken as the web server user. Only checked where the POSIX extension is available.
+     */
+    protected function informIfNotRunAsClientDataDirectoryOwner(Setup\Environment $environment): void
+    {
+        $client_data_dir = $this->il_setup_language->getClientDataDir();
+        if ($client_data_dir === null || !function_exists('posix_geteuid')) {
+            return;
+        }
+        $owner = @fileowner($client_data_dir);
+        $current_user = posix_geteuid();
+        if ($owner === false || $owner === $current_user) {
+            return;
+        }
+
+        $this->inform(
+            $environment,
+            sprintf(
+                'WARNING: Setup runs as user id %d, but the client data directory %s belongs to user id %d. '
+                . 'PO/MO language files written now may not be writable for the web server later on. '
+                . 'Setup must be run as the web server user.',
+                $current_user,
+                $client_data_dir,
+                $owner
+            )
+        );
+    }
+
+    /**
+     * @param list<string> $language_keys languages whose PO/MO overlay could not be written, see
+     *        installLanguages()
+     */
+    protected function informAboutUnwrittenOverlays(Setup\Environment $environment, array $language_keys): void
+    {
+        if ($language_keys === []) {
+            return;
+        }
+
+        $this->inform(
+            $environment,
+            'WARNING: The PO/MO language files of modules maintained in PO files could not be written for '
+            . 'the languages ' . implode(', ', $language_keys) . ' (see the PHP error log for details). '
+            . 'Setup must be run as the web server user - re-run "setup update" as that user.'
+        );
     }
 
     /**
@@ -233,24 +310,31 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
      * with the component graph's directories does the refresh.
      *
      * @param list<string> $language_keys
+     * @return list<string> the languages whose PO/MO overlay could not be written (see
+     *         InstallLanguage/UpdateLanguage, "overlay_write_failed_language_keys")
      */
-    protected function installLanguages(array $language_keys): void
+    protected function installLanguages(array $language_keys): array
     {
         if ($language_keys === []) {
-            return;
+            return [];
         }
 
-        $this->install_language->perform([
+        $install_result = $this->install_language->perform([
             'language_keys' => $language_keys,
             'mode' => InstallLanguage::MODE_INSTALL,
         ]);
+        $overlay_write_failed = $install_result['overlay_write_failed_language_keys'] ?? [];
 
-        if ($this->il_setup_language->usesDefaultLanguageFileDirectories()) {
-            return;
+        if (!$this->il_setup_language->usesDefaultLanguageFileDirectories()) {
+            $update_result = $this->update_language->perform([
+                'language_keys' => $language_keys,
+            ]);
+            $overlay_write_failed = array_merge(
+                $overlay_write_failed,
+                $update_result['overlay_write_failed_language_keys'] ?? []
+            );
         }
 
-        $this->update_language->perform([
-            'language_keys' => $language_keys,
-        ]);
+        return array_values(array_unique($overlay_write_failed));
     }
 }

@@ -25,6 +25,7 @@ use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Data\Result\Error as ResultError;
 use ILIAS\Data\Result\Ok as ResultOk;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -1849,5 +1850,198 @@ class ilObjLanguageFolderGUITest extends TestCase
         );
 
         $gui->confirmUninstallChangesObject();
+    }
+
+    // -----------------------------------------------------------------
+    // "overlay_write_failed_language_keys": the database was written, but
+    // the PO/MO overlay of a module maintained in PO files was not - a
+    // failure message naming the languages (never a plain success only).
+    // -----------------------------------------------------------------
+
+    /**
+     * Like createLanguageMockReturningTopicAsIs(), but the new "lng_*" format strings carry a "%s",
+     * so the language list sprintf()'d into them becomes visible to the assertions.
+     */
+    private function createLanguageMockWithFormatStrings(): ilLanguage&\PHPUnit\Framework\MockObject\Stub
+    {
+        $lng = $this->createStub(ilLanguage::class);
+        $lng->method('txt')->willReturnCallback(
+            static fn(string $topic): string => str_starts_with($topic, 'lng_') ? $topic . ': %s' : $topic
+        );
+
+        return $lng;
+    }
+
+    /**
+     * @param list<array{0: string, 1: string}> $messages collects type and message of every
+     *        setOnScreenMessage() call, in call order
+     */
+    private function messageCollectingTemplate(array &$messages): ilGlobalTemplateInterface&\PHPUnit\Framework\MockObject\Stub
+    {
+        $tpl = $this->createStub(ilGlobalTemplateInterface::class);
+        $tpl->method('setOnScreenMessage')->willReturnCallback(
+            static function (string $type, string $message) use (&$messages): void {
+                $messages[] = [$type, $message];
+            }
+        );
+
+        return $tpl;
+    }
+
+    #[AllowMockObjectsWithoutExpectations]
+    public function testInstallObjectShowsAFailureNamingTheLanguagesWhoseOverlayWasNotWritten(): void
+    {
+        $this->stubObjDataCache([5 => 'lng', 6 => 'lng'], [5 => 'de', 6 => 'fr']);
+        $install_language = $this->createStub(InstallLanguage::class);
+        $install_language->method('maybePerformAs')->willReturn(new ResultOk(
+            ['installed_language_keys' => ['de', 'fr'], 'overlay_write_failed_language_keys' => ['de', 'fr']] + $this->emptyPerformResult()
+        ));
+        $messages = [];
+        $tpl = $this->messageCollectingTemplate($messages);
+
+        $gui = $this->createGuiWithCollaborators(
+            $install_language,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->installObject(['5', '6'], InstallLanguage::MODE_INSTALL);
+
+        $this->assertSame(
+            [
+                ['success', 'meta_l_de, meta_l_fr installed.'],
+                ['failure', 'lng_po_overlay_not_written_languages: meta_l_de, meta_l_fr'],
+            ],
+            $messages
+        );
+    }
+
+    /**
+     * setOnScreenMessage() keeps one message per type: the overlay failure is combined with an
+     * invalid local language file into ONE failure message instead of overwriting it.
+     */
+    #[AllowMockObjectsWithoutExpectations]
+    public function testInstallObjectCombinesTheOverlayFailureWithTheInvalidLocalFileFailure(): void
+    {
+        $this->stubObjDataCache([5 => 'lng'], [5 => 'de']);
+        $install_language = $this->createStub(InstallLanguage::class);
+        $install_language->method('maybePerformAs')->willReturn(new ResultOk([
+            'installed_language_keys' => ['de'],
+            'invalid_local_language_files' => ['ilias_de.lang.local'],
+            'overlay_write_failed_language_keys' => ['de'],
+        ] + $this->emptyPerformResult()));
+        $messages = [];
+        $tpl = $this->messageCollectingTemplate($messages);
+
+        $gui = $this->createGuiWithCollaborators(
+            $install_language,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->installObject(['5'], InstallLanguage::MODE_INSTALL);
+
+        $failures = array_values(array_filter($messages, static fn(array $m): bool => $m[0] === 'failure'));
+        $this->assertSame(
+            [['failure', 'local_language_files: ilias_de.lang.local. file_not_valid<br />lng_po_overlay_not_written_languages: meta_l_de']],
+            $failures
+        );
+    }
+
+    #[AllowMockObjectsWithoutExpectations]
+    public function testInstallObjectShowsNoFailureWhenEveryOverlayWasWritten(): void
+    {
+        $this->stubObjDataCache([5 => 'lng'], [5 => 'de']);
+        $install_language = $this->createStub(InstallLanguage::class);
+        $install_language->method('maybePerformAs')->willReturn(new ResultOk(
+            ['installed_language_keys' => ['de'], 'overlay_write_failed_language_keys' => []] + $this->emptyPerformResult()
+        ));
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with('success', 'meta_l_de installed.', true);
+
+        $gui = $this->createGuiWithCollaborators(
+            $install_language,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->installObject(['5'], InstallLanguage::MODE_INSTALL);
+    }
+
+    #[AllowMockObjectsWithoutExpectations]
+    public function testRefreshSelectedObjectShowsAFailureNamingTheLanguagesWhoseOverlayWasNotWritten(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+        $this->stubObjDataCache([5 => 'lng', 6 => 'lng'], [5 => 'de', 6 => 'fr']);
+        $update_language = $this->createStub(UpdateLanguage::class);
+        $update_language->method('maybePerformAs')->willReturn(new ResultOk(
+            ['overlay_write_failed_language_keys' => ['fr']] + $this->updatePerformResult(['de', 'fr'], [])
+        ));
+        $messages = [];
+        $tpl = $this->messageCollectingTemplate($messages);
+
+        $gui = $this->createGuiWithUpdateLanguageCollaborators(
+            $update_language,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->refreshSelectedObject(['5', '6']);
+
+        $this->assertSame(
+            [
+                ['success', 'selected_languages_updated meta_l_de, meta_l_fr'],
+                ['failure', 'lng_po_overlay_not_written_languages: meta_l_fr'],
+            ],
+            $messages
+        );
+    }
+
+    public function testUninstallChangesObjectCombinesTheOverlayFailureWithTheInvalidFileFailure(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultOk(
+            ['overlay_write_failed_language_keys' => ['de']] + $this->removeLocalChangesPerformResult(['de'], ['fr'], [])
+        ));
+        $messages = [];
+        $tpl = $this->messageCollectingTemplate($messages);
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->uninstallChangesObject([]);
+
+        $this->assertSame(
+            [
+                ['success', 'selected_languages_updated<br />meta_l_de'],
+                ['failure', 'meta_l_fr: file_not_valid<br />lng_po_overlay_not_written_languages: meta_l_de'],
+            ],
+            $messages
+        );
+    }
+
+    public function testUninstallChangesObjectShowsTheOverlayFailureAlone(): void
+    {
+        $this->stubComponentRepositoryWithNoPlugins();
+        $remove_local_language_changes = $this->createStub(RemoveLocalLanguageChanges::class);
+        $remove_local_language_changes->method('maybePerformAs')->willReturn(new ResultOk(
+            ['overlay_write_failed_language_keys' => ['de']] + $this->removeLocalChangesPerformResult(['de'], [], [])
+        ));
+        $messages = [];
+        $tpl = $this->messageCollectingTemplate($messages);
+
+        $gui = $this->createGuiWithRemoveLocalLanguageChangesCollaborators(
+            $remove_local_language_changes,
+            $tpl,
+            $this->createStub(ilCtrl::class),
+            $this->createLanguageMockWithFormatStrings()
+        );
+        $gui->uninstallChangesObject([]);
+
+        $this->assertContains(['failure', 'lng_po_overlay_not_written_languages: meta_l_de'], $messages);
     }
 }

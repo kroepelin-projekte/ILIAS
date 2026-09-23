@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
-use ILIAS\Language\ComponentTranslation\Gettext\Catalog;
+use ILIAS\Language\ComponentTranslation\Gettext\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
@@ -165,7 +165,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         return $this->root . '/client-data/lang/components/pilot/lang/pilot_de';
     }
 
-    private function overlayPo(): Catalog
+    private function overlayPo(): TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayBase() . '.po');
     }
@@ -571,13 +571,136 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         set_error_handler(static fn(): bool => true, E_WARNING);
         try {
-            $this->manager()->insertLanguageForInstallation('de');
+            $unwritten = $this->manager()->insertLanguageForInstallation('de');
         } finally {
             restore_error_handler();
         }
 
         $this->assertSame(['greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
         $this->assertStringContainsString('Could not sync migrated language file for module "pilot"', $this->errorLog());
+        $this->assertSame([self::MODULE], $unwritten, 'the failed module is returned so callers can report it');
+    }
+
+    /**
+     * The same failure is returned by all three write paths - and only the migrated module whose
+     * overlay failed is listed, never a non-migrated one written in the same run.
+     */
+    #[DataProvider('writePaths')]
+    public function testEveryWritePathReturnsOnlyTheModulesWhoseOverlayCouldNotBeWritten(string $method): void
+    {
+        $this->expectErrorLog();
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->writeLang('lang/ilias_de.lang', ['common#:#yes#:#Ja']);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['pilot#:#greeting#:#Servus']);
+        $this->db_entries = [self::MODULE => ['greeting' => 'Hallo'], 'common' => ['yes' => 'Ja']];
+        file_put_contents($this->root . '/client-data/lang', 'not a directory');
+
+        set_error_handler(static fn(): bool => true, E_WARNING);
+        try {
+            $unwritten = $this->manager()->$method('de');
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([self::MODULE], $unwritten);
+    }
+
+    #[DataProvider('writePaths')]
+    public function testEveryWritePathReturnsNothingWhenTheOverlayWasWritten(string $method): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->writeLang('lang/ilias_de.lang', ['common#:#yes#:#Ja']);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['pilot#:#greeting#:#Servus']);
+        $this->db_entries = [self::MODULE => ['greeting' => 'Hallo'], 'common' => ['yes' => 'Ja']];
+
+        $this->assertSame([], $this->manager()->$method('de'));
+        $this->assertFileExists($this->overlayBase() . '.mo');
+    }
+
+    public static function writePaths(): array
+    {
+        return [
+            'install/update' => ['insertLanguageForInstallation'],
+            'remove local changes' => ['insertLanguageForRemovingLocalChanges'],
+            'apply local changes' => ['insertLanguageForApplyingLocalChanges'],
+        ];
+    }
+
+    /**
+     * No overlay is maintained without client data directory - that is not a failure to report.
+     */
+    public function testWithoutClientDataDirNothingIsReturnedAsUnwritten(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+
+        $this->assertSame([], $this->manager(static fn(): ?string => null)->insertLanguageForInstallation('de'));
+    }
+
+    // ------------------------------------------- findUnwritableOverlayDirectories
+
+    /**
+     * Checked against the client data directory the instance maintains the overlay in (resolved at
+     * call time), for the migrated modules of the given languages only.
+     */
+    public function testFindUnwritableOverlayDirectoriesChecksTheResolvedClientDataDir(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $blocked = $this->root . '/blocked';
+        mkdir($blocked);
+        file_put_contents($blocked . '/lang', 'not a directory');
+        $target = $this->root . '/client-data';
+        $manager = $this->manager(static function () use (&$target): ?string {
+            return $target;
+        });
+
+        $this->assertSame([], $manager->findUnwritableOverlayDirectories(['de']));
+
+        $target = $blocked;
+        $this->assertSame([$blocked . '/lang/components/pilot/lang'], $manager->findUnwritableOverlayDirectories(['de']));
+        $this->assertSame([], $manager->findUnwritableOverlayDirectories(['en']), 'pilot is not migrated for en');
+
+        $target = null;
+        $this->assertSame([], $manager->findUnwritableOverlayDirectories(['de']));
+    }
+
+    // ------------------------------------------------ multi-line shipped values
+
+    /**
+     * Three-way reconciliation with a multi-line shipped value: the overlay "original" (O) is read
+     * back losslessly, so a database local change L that equals O is recognised as "only S changed"
+     * and S wins - with a flattened O, L !== O would have been kept as a false local change.
+     */
+    public function testAMultiLineLocalValueEqualToTheOriginalIsReplacedByTheNewShippedValue(): void
+    {
+        $this->shipPo(['greeting' => "Neu\nZeile 2"]);
+        $this->seedOverlay(['greeting' => ['value' => "Alt\r\nZeile 2", 'original' => "Alt\r\nZeile 2"]]);
+        $this->db_local_changes = [self::MODULE => ['greeting' => "Alt\r\nZeile 2"]];
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame("Neu\nZeile 2", $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertSame(['value' => "Neu\nZeile 2", 'local_change' => null], $this->lngData()['pilot|greeting']);
+        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $this->assertSame("Neu\nZeile 2", LocalChangeComments::getOriginal($greeting));
+        $this->assertNull(LocalChangeComments::getLocalChange($greeting));
+    }
+
+    /**
+     * An unchanged multi-line shipped value without any local change is no local change after an
+     * update - neither in lng_data nor in the overlay, also on a second run.
+     */
+    public function testAnUnchangedMultiLineShippedValueStaysUnchangedAcrossUpdates(): void
+    {
+        $this->shipPo(['greeting' => "Zeile 1\nZeile 2 mit C:\\pfad"]);
+
+        $this->manager()->insertLanguageForInstallation('de');
+        $po_after_first_run = file_get_contents($this->overlayBase() . '.po');
+        $this->queries = [];
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(['value' => "Zeile 1\nZeile 2 mit C:\\pfad", 'local_change' => null], $this->lngData()['pilot|greeting']);
+        $this->assertNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')));
+        $this->assertSame($po_after_first_run, file_get_contents($this->overlayBase() . '.po'));
     }
 
     /**

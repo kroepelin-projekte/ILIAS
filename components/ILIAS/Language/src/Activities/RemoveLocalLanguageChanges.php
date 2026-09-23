@@ -95,6 +95,7 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a not-installed language.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
     }
@@ -125,6 +126,7 @@ MARKDOWN
         $removed_local_changes_language_keys = [];
         $invalid_language_file_keys = [];
         $not_installed_language_keys = [];
+        $overlay_write_failed_language_keys = [];
 
         // Not transactional across multiple keys: a failure partway through (e.g. a database
         // error) leaves languages processed so far changed.
@@ -146,6 +148,9 @@ MARKDOWN
             // is already excluded above, so false here can only mean validation failed.
             if ($language_object->removeLocalChanges()) {
                 $removed_local_changes_language_keys[] = $language_key;
+                if ($language_object->getModulesWithUnwrittenOverlay() !== []) {
+                    $overlay_write_failed_language_keys[] = $language_key;
+                }
             } else {
                 $invalid_language_file_keys[] = $language_key;
             }
@@ -155,6 +160,7 @@ MARKDOWN
             'removed_local_changes_language_keys' => $removed_local_changes_language_keys,
             'invalid_language_file_keys' => $invalid_language_file_keys,
             'not_installed_language_keys' => $not_installed_language_keys,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
     }
 }

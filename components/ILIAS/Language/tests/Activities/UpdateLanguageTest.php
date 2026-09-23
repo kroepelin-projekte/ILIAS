@@ -52,14 +52,46 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
         $calls = [];
         $setup_language->method('insertLanguageForInstallation')->willReturnCallback(
-            static function (mixed ...$args) use (&$calls): void {
-                $calls[] = $args;
+            static function () use (&$calls): array {
+                $calls[] = func_get_args();
+                return [];
             }
         );
 
         $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
 
         $this->assertSame([['de']], $calls);
+    }
+
+    /**
+     * A non-empty return of insertLanguageForInstallation() (migrated modules whose PO/MO overlay
+     * could not be written) lists the language - which is still reported as updated.
+     */
+    public function testListsOnlyTheLanguagesWhoseOverlayCouldNotBeWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation')->willReturnMap([
+            ['de', []],
+            ['fr', ['pilot']],
+        ]);
+
+        $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de,fr,it']);
+
+        $this->assertSame(['de', 'fr'], $result['updated_language_keys']);
+        $this->assertSame(['it'], $result['not_installed_language_keys']);
+        $this->assertSame(['fr'], $result['overlay_write_failed_language_keys']);
+    }
+
+    public function testNothingIsListedWhenEveryOverlayWasWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->once())->method('insertLanguageForInstallation')->with('de')->willReturn([]);
+
+        $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
+
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
     public function testSingleAlreadyInstalledLanguageIsRefreshed(): void

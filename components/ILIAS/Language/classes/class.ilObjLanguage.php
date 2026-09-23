@@ -53,6 +53,8 @@ class ilObjLanguage extends ilObject
     private LanguageFileDirectoryManager $language_file_directory_manager;
     private InstalledLanguageRepository $repository;
     private LanguageInstallationManager $manager;
+    /** @var list<string> */
+    private array $modules_with_unwritten_overlay = [];
 
     /**
      * Constructor
@@ -628,7 +630,19 @@ class ilObjLanguage extends ilObject
      */
     public function insert(string $scope = ""): void
     {
-        $this->manager->insertLanguageForInstallation($this->key);
+        $this->modules_with_unwritten_overlay = $this->manager->insertLanguageForInstallation($this->key);
+    }
+
+    /**
+     * The modules maintained in PO files whose per-installation PO/MO overlay could not be written by
+     * the last insert()/install()/refresh()/removeLocalChanges() of this object - the database was
+     * written regardless (see LanguageInstallationManager). Empty if every overlay is in sync.
+     *
+     * @return list<string>
+     */
+    public function getModulesWithUnwrittenOverlay(): array
+    {
+        return $this->modules_with_unwritten_overlay;
     }
 
     /**
@@ -652,8 +666,8 @@ class ilObjLanguage extends ilObject
         }
 
         $this->flush("all");
-        // also rebuilds the overlay of every migrated module from its shipped .po
-        $this->manager->insertLanguageForRemovingLocalChanges($this->key);
+        // Also rebuilds the overlay of every migrated module from its shipped .po
+        $this->modules_with_unwritten_overlay = $this->manager->insertLanguageForRemovingLocalChanges($this->key);
         $this->setTitle($this->getKey());
         $this->setDescription("installed");
         $this->update();
@@ -683,13 +697,17 @@ class ilObjLanguage extends ilObject
      *        customizing file import); `true` only where the caller can vouch that $a_array reflects
      *        the current SHIPPED content for $a_module/$a_key (e.g. "reset this module to its shipped
      *        defaults" or a plugin's own language file being (re-)applied).
+     * @return bool `false` if the database was written, but the PO/MO overlay of a module maintained
+     *         in PO files could not be (see syncMigratedLanguageFile()) - callers report that
+     *         visibly instead of a plain success; `true` otherwise, including every module that is
+     *         not maintained in PO files.
      */
     final public static function replaceLangModule(
         string $a_key,
         string $a_module,
         array $a_array,
         bool $refresh_original_from_shipped = false
-    ): void {
+    ): bool {
         global $DIC;
         $ilDB = $DIC->database();
 
@@ -732,7 +750,7 @@ class ilObjLanguage extends ilObject
             $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
-        self::syncMigratedLanguageFile($a_key, $a_module, $a_array, $refresh_original_from_shipped);
+        return self::syncMigratedLanguageFile($a_key, $a_module, $a_array, $refresh_original_from_shipped);
     }
 
     /**
@@ -746,20 +764,21 @@ class ilObjLanguage extends ilObject
      *
      * A no-op for every module that is not migrated for $a_key (no contributed LanguageFileDirectory
      * or no shipped .po); a missing overlay of an installed language is created (see
-     * MigratedLanguageFileSync::sync()). Failures are logged and swallowed rather than thrown, since
-     * the lng_data/lng_modules write above already succeeded and must not be undone by a problem with
-     * the file mirror (e.g. a read-only data directory).
+     * MigratedLanguageFileSync::sync()). Failures are logged and signalled by returning `false`
+     * rather than thrown, since the lng_data/lng_modules write above already succeeded and must not
+     * be undone by a problem with the file mirror (e.g. a data directory the web server user cannot
+     * write to).
      */
     private static function syncMigratedLanguageFile(
         string $a_key,
         string $a_module,
         array $a_array,
         bool $refresh_original_from_shipped = false
-    ): void {
+    ): bool {
         global $DIC;
 
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
-            return;
+            return true;
         }
 
         try {
@@ -779,7 +798,10 @@ class ilObjLanguage extends ilObject
                 $a_key,
                 $t->getMessage()
             ));
+            return false;
         }
+
+        return true;
     }
 
     /**
