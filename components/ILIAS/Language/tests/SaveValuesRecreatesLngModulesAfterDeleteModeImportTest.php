@@ -71,6 +71,12 @@ class SaveValuesRecreatesLngModulesAfterDeleteModeImportTest extends ilLanguageB
     {
         parent::setUp();
 
+        // _saveValues() reads ILIAS_ABSOLUTE_PATH (via withOverlayLock()); define it here so this test
+        // does not depend on another test having defined it first. A PHP constant cannot be redefined.
+        if (!defined('ILIAS_ABSOLUTE_PATH')) {
+            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
+        }
+
         // ilCachedLanguage::getInstance() is a process-wide singleton keyed by lang_key
         // (static::$instances) - reset it so an instance built for this lang_key by an earlier test
         // (or an earlier method in this file) can never leak in and short-circuit our DB mock's

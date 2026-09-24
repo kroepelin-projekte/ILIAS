@@ -781,4 +781,30 @@ class TranslationCatalogPoTest extends TestCase
         $this->expectExceptionMessageMatches('/Could not read PO file/');
         TranslationCatalog::fromPoFile($file);
     }
+
+    /**
+     * MigratedLanguageFileSync seeds a new overlay from a clone of the shipped catalog and relies on
+     * the shipped one keeping its values; a shallow clone would share the messages.
+     */
+    public function testCloneIsIndependentOfTheOriginal(): void
+    {
+        $original = self::singleEntryCatalog(self::entry('common', 'save', 'Speichern'));
+        $original->setHeader('Language', 'de');
+        $original_po = $original->toPoString();
+
+        $clone = clone $original;
+        $cloned_entry = $clone->find('common', 'save');
+        $cloned_entry->translate('Sichern');
+        $cloned_entry->addFlag('fuzzy');
+        $cloned_entry->setExtractedComments(['changed']);
+        $clone->add($cloned_entry);
+        $clone->add(self::entry('common', 'cancel', 'Abbrechen'));
+        $clone->setHeader('Language', 'en');
+
+        $this->assertSame($original_po, $original->toPoString());
+        $this->assertSame('Speichern', $original->find('common', 'save')->getTranslation());
+        $this->assertNull($original->find('common', 'cancel'));
+        $this->assertSame('Sichern', $clone->find('common', 'save')->getTranslation());
+        $this->assertSame('en', $clone->getHeader('Language'));
+    }
 }

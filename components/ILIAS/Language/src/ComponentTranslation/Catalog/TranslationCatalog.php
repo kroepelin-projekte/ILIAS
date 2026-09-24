@@ -81,6 +81,15 @@ final class TranslationCatalog
     }
 
     /**
+     * A clone is independent of the original: Translations::__clone() copies every message and the
+     * headers, so changing an entry or header of one catalog never changes the other.
+     */
+    public function __clone()
+    {
+        $this->translations = clone $this->translations;
+    }
+
+    /**
      * @throws RuntimeException if $file cannot be read or is not a valid `.po` file
      */
     public static function fromPoFile(string $file): self
