@@ -385,10 +385,12 @@ class MigratedLanguageFileSyncLockTest extends TestCase
         clearstatcache(true, $overlay_base . '.lock');
         $this->assertFileDoesNotExist($overlay_base . '.po', 'the nested removeOverlay() must still actually remove the overlay files');
         $this->assertFileDoesNotExist($overlay_base . '.mo');
-        $this->assertFileExists(
-            $overlay_base . '.lock',
-            'a removeOverlay() nested inside an already-held lock must NOT delete the lock file - the outer caller still relies on it'
+        $this->assertStringContainsString(
+            'AFTER_NESTED:' . $lock_inode_before . "\n",
+            $result['output'],
+            'a removeOverlay() nested inside an already-held lock must NOT delete or replace the lock file - the outer caller still relies on it'
         );
+        $this->assertFileExists($overlay_base . '.lock');
         $this->assertSame(
             $lock_inode_before,
             lstat($overlay_base . '.lock')['ino'],
@@ -445,6 +447,9 @@ class MigratedLanguageFileSyncLockTest extends TestCase
                 $client_data_dir,
                 function () use ($manager, $client_data_dir): void {
                     MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', $client_data_dir);
+                    clearstatcache();
+                    $lock = @lstat($client_data_dir . '/lang/x/stest_de.lock');
+                    echo 'AFTER_NESTED:' . ($lock === false ? 'missing' : $lock['ino']) . "\n";
                 }
             );
             echo "done\n";
@@ -476,7 +481,9 @@ class MigratedLanguageFileSyncLockTest extends TestCase
         $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $directory, 'de');
 
         try {
-            MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Hallo'], $this->client_data_dir);
+            // Adapted to the delta overlay: a local change - a shipped value writes no overlay, and
+            // without overlay no lock file is kept
+            MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Moin'], $this->client_data_dir);
             $this->assertFileExists($overlay_base . '.lock', 'sync() must leave a .lock file behind for later callers to serialize on');
 
             MigratedLanguageFileSync::removeOverlay($manager, 'de', self::MODULE, $this->client_data_dir);
@@ -645,8 +652,13 @@ class MigratedLanguageFileSyncLockTest extends TestCase
                     'de',
                     'stest',
                     $client_data_dir,
-                    static function () use (&$calls): string {
+                    static function () use (&$calls, $client_data_dir): string {
                         $calls++;
+                        // the inode of the lock file held right now - the lock file itself is
+                        // removed afterwards (no overlay exists here)
+                        clearstatcache();
+                        $held = @lstat($client_data_dir . '/lang/x/stest_de.lock');
+                        echo 'HELD:' . ($held === false ? '' : $held['ino']) . "\n";
 
                         return 'ok';
                     }
@@ -809,6 +821,7 @@ class MigratedLanguageFileSyncLockTest extends TestCase
             $this->assertTrue($result['finished'], 'the child must not hang: ' . $result['output']);
             $this->assertStringContainsString('RESULT:ok', $result['output']);
 
+            $this->assertStringContainsString('HELD:' . $final_inode . "\n", $result['output']);
             clearstatcache(true, $lock_file);
             $this->assertSame(
                 $final_inode,

@@ -205,6 +205,85 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         };
     }
 
+    /**
+     * contributeFixtureModule() with independent content for the shipped `.po` and the overlay `.mo`
+     * - needed to prove the array_replace() merge of readMigratedLanguageFile(), rather than only
+     * "the overlay wins for an identifier both sides have" (see testACorruptOverlayMoFallsBackToTheDatabaseAndWarnsOnce()
+     * and the "STALE"/"servus" scenarios above, which never exercise a key that exists on only one side).
+     */
+    private function contributeFixtureModuleWithDistinctShippedAndOverlay(
+        string $module,
+        \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog $shipped,
+        \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog $overlay
+    ): LanguageFileDirectory {
+        $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
+        $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
+        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . 'tmp-fixtures-' . bin2hex(random_bytes(4));
+        if (!is_dir($this->fixture_directory)) {
+            mkdir($this->fixture_directory, 0775, true);
+        }
+
+        $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
+        MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $overlay);
+        MigratedPoFixture::writeShippedPo($relative_path, $module, 'de', $shipped);
+
+        return new class ($module, $relative_path) implements LanguageFileDirectory {
+            public function __construct(private string $prefix, private string $path)
+            {
+            }
+
+            public function getPrefix(): string
+            {
+                return $this->prefix;
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '';
+            }
+
+            public function isLocal(): bool
+            {
+                return false;
+            }
+        };
+    }
+
+    /**
+     * The array_replace($shipped, $overlay) merge of readMigratedLanguageFile(): a key that exists
+     * ONLY in the overlay is added (an AddLanguageEntry-style local addition, absent from the shipped
+     * .po), a key that exists ONLY in the shipped state is kept (not dropped merely because the
+     * overlay does not mention it), and a key both sides have is won by the overlay - all three at
+     * once, in a single merged result.
+     */
+    public function testMergesTheOverlayOntoTheShippedStateKeepingKeysUniqueToEitherSide(): void
+    {
+        $shipped = MigratedPoFixture::catalog('merge', [
+            'only_shipped' => 'Nur im Shipped-Stand',
+            'both' => 'Shipped-Wert',
+        ]);
+        $overlay = MigratedPoFixture::catalog('merge', [
+            'only_overlay' => 'Nur im Overlay',
+            'both' => 'Lokal geändert',
+        ]);
+        $directory = $this->contributeFixtureModuleWithDistinctShippedAndOverlay('merge', $shipped, $overlay);
+        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
+        $this->registerDirectoryManager($directory);
+
+        $result = $this->callLoadFromMigratedLanguageFile('merge', 'de');
+
+        $this->assertSame('Nur im Shipped-Stand', $result['only_shipped'] ?? null);
+        $this->assertSame('Lokal geändert', $result['both'] ?? null);
+        $this->assertSame('Nur im Overlay', $result['only_overlay'] ?? null);
+        $this->assertCount(3, $result);
+    }
+
     private function buildLanguageWithoutRunningConstructor(string $lang_key, ?string $lang_default = null): ilLanguage
     {
         $language = (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
@@ -291,7 +370,12 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         $this->assertNull($this->callLoadFromMigratedLanguageFile('common', 'de'));
     }
 
-    public function testFallsBackToNullWhenDirectoryIsContributedButHasNoMoFileForThisLanguage(): void
+    /**
+     * Naming note: under the current shipped+overlay design "migrated for a language" means "has a
+     * shipped `.po` for it" (see ShippedTranslations/readMigratedLanguageFile()) - it is the absence
+     * of a shipped `tos_xx.po` that makes this null, not the absence of an overlay `.mo`.
+     */
+    public function testFallsBackToNullWhenDirectoryIsContributedButHasNoShippedPoForThisLanguage(): void
     {
         $this->registerDirectoryManager(
             new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos')

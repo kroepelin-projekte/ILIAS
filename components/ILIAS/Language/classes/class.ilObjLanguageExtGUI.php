@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\FileUpload\DTO\ProcessingStatus;
 use ILIAS\FileUpload\Location;
 use ILIAS\HTTP\Services as HTTPServices;
@@ -182,9 +183,14 @@ class ilObjLanguageExtGUI extends ilObjectGUI
      * @param list<string> $modules_with_unwritten_overlay after saving: the modules maintained in PO
      *        files whose PO/MO files could not be written (see ilObjLanguageExt::_saveValues()) - a
      *        warning is shown for them instead of the plain success message
+     * @param list<string> $additional_failure_messages HTML, shown together with the failure messages
+     *        of this view (only one failure message is kept per request)
      */
-    public function viewObject(int $changesSuccessBool = 0, array $modules_with_unwritten_overlay = []): void
-    {
+    public function viewObject(
+        int $changesSuccessBool = 0,
+        array $modules_with_unwritten_overlay = [],
+        array $additional_failure_messages = []
+    ): void {
         global $DIC;
         $tpl = $DIC["tpl"];
 
@@ -397,7 +403,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         }
 
         // Combined into one message: setOnScreenMessage() only keeps one message per type
-        $failure_messages = [];
+        $failure_messages = $additional_failure_messages;
         if ($changesSuccessBool && $modules_with_unwritten_overlay !== []) {
             $failure_messages[] = $this->overlayNotWrittenMessage($modules_with_unwritten_overlay);
         } elseif ($changesSuccessBool) {
@@ -463,14 +469,23 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
             if (count($keys) === 2) {
                 // avoid line breaks
-                $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", $value);
+                $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", (string) $value);
                 $value = str_replace("<<", "«", $value);
-                $value = ilUtil::stripSlashes($value, true, "<strong><em><u><strike><ol><li><ul><p><div><i><b><code><sup><pre><gap><a><img><bdo><br><span>");
+                // Markup is checked below (TranslationMarkupPolicy), not stripped: a value with markup
+                // that is not allowed rejects the whole save
                 $save_array[$key] = $value;
 
                 // the comment has the key of the language with the suffix
                 $remarks_array[$key] = $post[$orginal_key . $this->lng->separator . "comment"];
             }
+        }
+
+        // Nothing is saved if any value has markup that is not allowed - all affected keys are named
+        // Only the values this save changes are checked (see findInvalidMarkupOfChangedValues())
+        $invalid_values = ilObjLanguageExt::findInvalidMarkupOfChangedValues($this->object->key, $save_array);
+        if ($invalid_values !== []) {
+            $this->viewObject(0, [], [$this->invalidMarkupMessage($invalid_values)]);
+            return;
         }
 
         // save the translations
@@ -556,10 +571,16 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 // todo: refactor when importLanguageFile() is able to work with the new Filesystem service
                 $tempfile = ilFileUtils::ilTempnam() . ".sec";
                 $upload->moveOneFileTo($UploadResult, '', Location::TEMPORARY, basename($tempfile), true);
-                $modules_with_unwritten_overlay = $this->object->importLanguageFile($tempfile, $post_mode_existing);
-
-                $tempfs = $DIC->filesystem()->temp();
-                $tempfs->delete(basename($tempfile));
+                try {
+                    $modules_with_unwritten_overlay = $this->object->importLanguageFile($tempfile, $post_mode_existing);
+                } finally {
+                    $tempfs = $DIC->filesystem()->temp();
+                    $tempfs->delete(basename($tempfile));
+                }
+            } catch (ilLanguageInvalidMarkupException $e) {
+                // nothing was imported
+                $this->tpl->setOnScreenMessage('failure', $this->invalidMarkupMessage($e->getInvalidValues()), true);
+                $this->ctrl->redirect($this, 'import');
             } catch (Exception $e) {
                 $this->tpl->setOnScreenMessage('failure', $e->getMessage(), true);
                 $this->ctrl->redirect($this, 'import');
@@ -574,6 +595,30 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
         $form->setValuesByPost();
         $this->tpl->setContent($form->getHTML());
+    }
+
+    /**
+     * The message naming the entries whose value has markup that is not allowed (see
+     * TranslationMarkupPolicy). The keys are client-supplied (form field names, file content), so
+     * they are escaped; the values themselves are not repeated.
+     *
+     * @param array<string, list<string>> $invalid_values key => violations
+     */
+    private function invalidMarkupMessage(array $invalid_values): string
+    {
+        global $DIC;
+
+        // The complete list goes to the log, the message names at most PlainLogText::MAX_LISTED_KEYS
+        $keys = array_map('strval', array_keys($invalid_values));
+        $DIC->logger()->forComponent('lang')->warning(PlainLogText::of(sprintf(
+            'Language entries rejected or not applied, their value contains markup that is not allowed: %s',
+            implode(', ', $keys)
+        )));
+
+        // TODO: "form_input_not_valid" is a placeholder - replace it by the proposed key
+        // "lng_invalid_markup" (sprintf with the key list) once it exists in lang/ilias_*.lang
+        return $this->lng->txt("form_input_not_valid") . ' '
+            . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::keyList($keys));
     }
 
     /**
@@ -744,9 +789,25 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             case "load":
                 $lang_file = $this->object->getCustLangPath() . "/ilias_" . $this->object->key . ".lang.local";
                 if (is_file($lang_file) and is_readable($lang_file)) {
-                    $modules_with_unwritten_overlay = $this->object->importLanguageFile($lang_file, "replace");
+                    // like at installation: a value of the customizing file with markup that is not
+                    // allowed is left out (and named), the others are applied
+                    $modules_with_unwritten_overlay = $this->object->importLanguageFile($lang_file, "replace", false, true);
                     $this->object->setLocal(true);
-                    $this->setSuccessOrOverlayWarning($this->lng->txt("language_loaded_local"), $modules_with_unwritten_overlay);
+                    $skipped = $this->object->getSkippedInvalidMarkupValues();
+                    if ($skipped !== [] && $modules_with_unwritten_overlay === []) {
+                        // the file was loaded (success box), what was left out is named separately
+                        $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_loaded_local"), true);
+                        $this->tpl->setOnScreenMessage('failure', $this->invalidMarkupMessage($skipped), true);
+                    } elseif ($skipped !== []) {
+                        // only one failure box is kept: the overlay warning and the left-out entries together
+                        $this->tpl->setOnScreenMessage('failure', implode('<br />', [
+                            $this->lng->txt("language_loaded_local"),
+                            $this->overlayNotWrittenMessage($modules_with_unwritten_overlay),
+                            $this->invalidMarkupMessage($skipped),
+                        ]), true);
+                    } else {
+                        $this->setSuccessOrOverlayWarning($this->lng->txt("language_loaded_local"), $modules_with_unwritten_overlay);
+                    }
                 } else {
                     $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_error_read_local"), true);
                 }

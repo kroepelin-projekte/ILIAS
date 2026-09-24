@@ -292,9 +292,19 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
      */
     public function testDeleteValuesWithoutOverlayAndWithoutLngModulesRowFallsBackToLngDataExcludingDeletedKeys(): void
     {
-        $directory = $this->seedShippedAndOverlay('ctest2', ['greeting' => 'Shipped'], null);
+        // Adapted to the delta overlay: without overlay the shipped state is a readable base (no
+        // local changes), so the lng_data fallback is only reached with an unreadable overlay
+        $directory = $this->seedShippedAndOverlay('ctest2', ['greeting' => 'Shipped'], ['greeting' => 'Lokal']);
+        file_put_contents(
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory . '/ctest2_de.po',
+            "msgid \"kaputt\n"
+        );
         $this->registerDirectoryManager($directory);
         $lng = $this->stubLng();
+        // the unreadable overlay is logged
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($this->createStub(ilLogger::class));
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
 
         $db = $this->mockDatabaseForWrites(null, [
             ['identifier' => 'greeting', 'value' => 'Aus lng_data'],
@@ -314,6 +324,118 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         ilObjLanguageExt::_deleteValues('de', ['ctest2' . $lng->separator . 'greeting' => 'irrelevant']);
 
         $this->assertSame(['farewell' => 'Tschüss aus lng_data'], $captured);
+    }
+
+    /**
+     * The overlay-write-failure path of _deleteValues(): the database write (lng_data delete +
+     * lng_modules rewrite) is never undone by a filesystem problem, but the affected module is
+     * reported back via the returned list - exactly what ilObjLanguageExtGUI shows the admin as a
+     * separate warning (see overlayNotWrittenMessage()). Forced root-proof by putting a regular file
+     * where the overlay's language directory has to be created, so AtomicFileWriter's mkdir() fails
+     * for every user, root included.
+     */
+    public function testDeleteValuesReportsTheModuleWhoseOverlayCouldNotBeWritten(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('A non-writable directory cannot be forced for root (no root-proof variant here).');
+        }
+        // A real local change ("greeting") must survive the delete of "farewell", so sync() actually
+        // has something to write (an empty delta would make it a no-op that never touches the
+        // filesystem at all, see MigratedLanguageFileSyncTest::testSyncingOnlyShippedValuesWritesNoOverlay()).
+        // currentModuleContent() reads the overlay (readable, unlike the write attempt below) and
+        // returns 'greeting' => 'Lokal', 'farewell' => 'Tschüss' - deleting "farewell" leaves exactly
+        // the one real local change, so sync() has to rewrite the (still readable) overlay files.
+        $directory = $this->seedShippedAndOverlay(
+            'ctest3',
+            ['greeting' => 'Shipped', 'farewell' => 'Tschüss'],
+            ['greeting' => 'Lokal']
+        );
+        $this->registerDirectoryManager($directory);
+        $lng = $this->stubLng();
+        $logger = $this->createMock(ilLogger::class);
+        $logger->expects($this->atLeastOnce())->method('warning');
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
+        $this->mockDatabaseForWrites(['greeting' => 'Lokal', 'farewell' => 'Tschüss']);
+
+        // The overlay files stay readable (so currentModuleContent() above still sees "Lokal"), but
+        // their directory is made non-writable, so AtomicFileWriter cannot create a temporary file to
+        // rewrite them with - the write itself fails, not the read.
+        $overlay_directory = dirname(rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . $this->fixture_directory . '/ctest3_de.po');
+        chmod($overlay_directory, 0555);
+
+        set_error_handler(static fn(): bool => true, E_WARNING);
+        try {
+            $unwritten = ilObjLanguageExt::_deleteValues('de', ['ctest3' . $lng->separator . 'farewell' => 'irrelevant']);
+        } finally {
+            restore_error_handler();
+            chmod($overlay_directory, 0775);
+        }
+
+        $this->assertSame(['ctest3'], $unwritten);
+    }
+
+    // -----------------------------------------------------------------
+    // findInvalidMarkupOfChangedValues()
+    // -----------------------------------------------------------------
+
+    /**
+     * The expensive part (reading the current lng_data values and the shipped/global file) must never
+     * run at all when every value already passes the plain markup check - proven with an empty
+     * $GLOBALS['DIC'] (no 'ilDB', no 'lng', nothing): if the production code touched either
+     * regardless, it would itself fatal (Pimple "identifier not defined") instead of letting this test
+     * pass quietly.
+     */
+    public function testFindInvalidMarkupOfChangedValuesNeverReadsCurrentOrShippedValuesWhenNothingIsSuspicious(): void
+    {
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+
+        $result = ilObjLanguageExt::findInvalidMarkupOfChangedValues('zz_no_db_needed', [
+            'common#:#greeting' => 'Hallo',
+            'common#:#formatting' => '<b>Hallo</b>',
+        ]);
+
+        $this->assertSame([], $result);
+    }
+
+    /**
+     * Once a value fails the plain check, it is only truly rejected if it also differs from BOTH the
+     * current (lng_data) value and the shipped one (Konzept-Schritt-4) - reusing the exact
+     * current/shipped comparison sync()'s delta uses.
+     */
+    public function testFindInvalidMarkupOfChangedValuesAppliesTheCurrentAndShippedComparison(): void
+    {
+        $lang_key = 'zz_changed_markup_test';
+        $bad = '<script>alert(1)</script>';
+        $this->seedEmptyGlobalLanguageFile($lang_key);
+        $this->stubLng();
+
+        // _getValues() reads the current lng_data rows via $set->fetchRow(), one query for every
+        // filter-less call (no module/topic/pattern/state restriction here)
+        $rows = [
+            ['module' => 'common', 'identifier' => 'unmodified', 'value' => $bad],
+            ['module' => 'common', 'identifier' => 'changed', 'value' => 'Hallo'],
+        ];
+        $statement = $this->createStub(ilDBStatement::class);
+        $statement->method('fetchRow')->willReturnCallback(static function () use (&$rows) {
+            return array_shift($rows);
+        });
+        $db = $this->createStub(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(static fn($value, string $type = ''): string => "'" . (string) $value . "'");
+        $db->method('in')->willReturn("module IN ('placeholder')");
+        $db->method('like')->willReturn('1=1');
+        $db->method('query')->willReturn($statement);
+        $this->setGlobalVariable('ilDB', $db);
+
+        $result = ilObjLanguageExt::findInvalidMarkupOfChangedValues($lang_key, [
+            'common#:#unmodified' => $bad,
+            'common#:#changed' => $bad,
+        ]);
+
+        $this->assertArrayNotHasKey('common#:#unmodified', $result, 'unchanged from the current lng_data value - not rejected');
+        $this->assertArrayHasKey('common#:#changed', $result, 'genuinely changed to a disallowed value - rejected');
     }
 
     // -----------------------------------------------------------------

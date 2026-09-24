@@ -24,6 +24,7 @@ use ILIAS\UI;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
+use ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective;
 
 class ilLanguageSetupAgent implements Setup\Agent
 {
@@ -99,11 +100,16 @@ class ilLanguageSetupAgent implements Setup\Agent
     }
 
     /**
-     * @inheritdoc
+     * Compiles the shipped `.po` of every migrated module to artifacts/language - see
+     * ShippedLanguageFilesCompiledObjective. The directories come from the component graph through
+     * the same LanguageFileDirectoryManager ilSetupLanguage uses.
      */
     public function getBuildObjective(): Setup\Objective
     {
-        return new Setup\Objective\NullObjective();
+        return new ShippedLanguageFilesCompiledObjective(
+            $this->il_setup_language->getLanguageFileDirectoryManager(),
+            dirname(__DIR__, 5)
+        );
     }
 
     /**

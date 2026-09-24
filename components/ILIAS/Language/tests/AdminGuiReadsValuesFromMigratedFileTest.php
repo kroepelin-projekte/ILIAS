@@ -302,25 +302,36 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         );
     }
 
-    public function testLoadModuleTranslationsReturnsNullWhenThereIsNoMoFileForThisLanguageYet(): void
+    /**
+     * Adapted to the delta overlay (was: "returns null when there is no .mo yet"): without overlay
+     * the module is served in its shipped state - that is what is read, not the database.
+     */
+    public function testLoadModuleTranslationsReturnsTheShippedStateWithoutOverlay(): void
     {
         $directory = $this->seedFixtureModule('mtest', 'de', ['greeting' => ['value' => 'Hallo']]);
         unlink($this->overlayFile('mtest', 'de', 'mo'));
+        unlink($this->overlayFile('mtest', 'de', 'po'));
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
 
-        $this->assertNull(
+        $this->assertSame(
+            ['greeting' => ['value' => 'Hallo', 'local_change' => false, 'local_change_date' => null, 'original' => 'Hallo']],
             MigratedLanguageFileSync::loadModuleTranslations($manager, 'de', 'mtest', CLIENT_DATA_DIR)
         );
     }
 
-    public function testGetMigratedModulesListsOnlyContributedModulesWithACompiledMoFile(): void
+    /**
+     * Adapted to the delta overlay (was: "only modules with a compiled .mo"): "migrated" means a
+     * shipped .po exists - with or without overlay.
+     */
+    public function testGetMigratedModulesListsEveryContributedModuleWithAShippedPo(): void
     {
         $with_mo = $this->seedFixtureModule('mone', 'de', ['greeting' => ['value' => 'Hallo']]);
         $without_mo = $this->seedFixtureModule('mtwo', 'de', ['greeting' => ['value' => 'Hallo']]);
         unlink($this->overlayFile('mtwo', 'de', 'mo'));
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $with_mo, $without_mo);
 
-        $this->assertSame(['mone'], MigratedLanguageFileSync::getMigratedModules($manager, 'de', CLIENT_DATA_DIR));
+        $this->assertSame(['mone', 'mtwo'], MigratedLanguageFileSync::getMigratedModules($manager, 'de', CLIENT_DATA_DIR));
+        $this->assertSame([], MigratedLanguageFileSync::getMigratedModules($manager, 'en', CLIENT_DATA_DIR));
     }
 
     // -----------------------------------------------------------------

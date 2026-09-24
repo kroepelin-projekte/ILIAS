@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\ShippedTranslations;
 
 /**
  * language handling
@@ -35,9 +36,10 @@ use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
  *
  * Two coexisting backends per module: the legacy DB tables lng_data/lng_modules (still the
  * fallback for every not-yet-migrated module, and read by default), and - for a module that
- * contributed a LanguageFileDirectory and has a compiled overlay .mo for the requested language -
- * a file-based overlay under CLIENT_DATA_DIR (see loadFromMigratedLanguageFile() below), which then
- * takes priority over the DB. The DB path exists to be fully replaced and eventually removed as
+ * contributed a LanguageFileDirectory and ships a .po for the requested language - its shipped
+ * state (compiled by Setup's build) with the file-based overlay of local changes under
+ * CLIENT_DATA_DIR on top (see loadFromMigratedLanguageFile() below), which then takes priority over
+ * the DB. The DB path exists to be fully replaced and eventually removed as
  * more modules migrate onto the file-based one, not to be maintained forever alongside it.
  *
  * @author Peter Gabriel <pgabriel@databay.de>
@@ -67,6 +69,12 @@ class ilLanguage implements \ILIAS\Language\Language
      * in the same process, which ilLanguageBaseTestCase-based tests do via reflection.
      */
     private static array $migrated_language_file_cache = [];
+
+    /**
+     * Whether ShippedTranslations reported a missing build artifact in this request already -
+     * reported once per request only, see readMigratedLanguageFile().
+     */
+    private static bool $missing_shipped_artifact_logged = false;
 
     /**
      * Tracks, for topics loaded via the migrated .mo path (not the legacy lng_modules path), which
@@ -268,14 +276,14 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         // PO/MO pilot: a module whose owning component contributes a LanguageFileDirectory for
-        // $a_module, and that actually has a compiled .mo file for $lang_key sitting there, is read
-        // from that .mo instead of lng_modules.
-        // Modules that haven't been migrated yet (no contribution, or no .mo present for this
+        // $a_module and ships a .po for $lang_key is read from its shipped state plus overlay
+        // instead of lng_modules.
+        // Modules that haven't been migrated yet (no contribution, or no shipped .po for this
         // language) fall through to the unchanged DB/cache path below. This check must run before the
         // cached_modules check: ilCachedLanguage::isActive() is hard-coded to true, so cached_modules
         // is always populated from lng_modules for every module that still has a DB row there - which
         // migrated modules do on purpose (dual-write, see ilObjLanguage::syncMigratedLanguageFile()).
-        // Checking cached_modules first would therefore always win and the .mo file would never be read.
+        // Checking cached_modules first would therefore always win and the files would never be read.
         $mo_text = self::loadFromMigratedLanguageFile($a_module, $lang_key);
         if ($mo_text !== null) {
             $this->logCrossModuleKeyCollisions($a_module, $mo_text);
@@ -370,11 +378,20 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
-     * Returns $a_module's translations for $lang_key as a flat topic => value array, read from the
-     * overlay `.mo` (see MigratedLanguageFilePaths), if (and only if) $a_module's owning component
-     * contributes a LanguageFileDirectory for it and that overlay `.mo` exists. Returns null in every
-     * other case so the caller falls back to lng_modules - including a `.mo` that cannot be read or is
-     * corrupt: that is logged once per request and never breaks the request.
+     * Returns $a_module's translations for $lang_key as a flat topic => value array if (and only if)
+     * $a_module is migrated for $lang_key - its owning component contributes a LanguageFileDirectory
+     * for it and ships a `.po` for $lang_key: the shipped state (see ShippedTranslations: the build
+     * artifact, or the `.po` itself if that is newer or the artifact is missing) with the overlay
+     * `.mo` of the local changes (see MigratedLanguageFilePaths), if there is one, applied on top -
+     * an overlay value wins. Returns null in every other case so the caller falls back to
+     * lng_modules - including a shipped state or an overlay that cannot be read: that is logged and
+     * never breaks the request (lng_modules still holds the same values, see the dual-write in
+     * ilObjLanguage::syncMigratedLanguageFile()).
+     *
+     * Deliberately only when the CLIENT_DATA_DIR constant is defined, not via
+     * MigratedLanguageFilePaths::resolveClientDataDir()'s ilias.ini fallback: reading translations is
+     * a runtime concern, and before ilInitialisation::initClientDataDir() has run (e.g. the ilLanguage
+     * instances plugin Setup Objectives create) lng_modules is the correct source.
      *
      * Static so _lookupEntry() (itself static, used by txtlng() and txt()'s fallback-module branch)
      * can share it with loadLanguageModule(). Result is cached per "<module>|<lang_key>" for the rest
@@ -387,32 +404,90 @@ class ilLanguage implements \ILIAS\Language\Language
             return self::$migrated_language_file_cache[$cache_key];
         }
 
-        $mo_file = self::migratedOverlayMoFile($a_module, $lang_key);
-        if ($mo_file === null || !is_file($mo_file)) {
-            return self::$migrated_language_file_cache[$cache_key] = null;
+        return self::$migrated_language_file_cache[$cache_key] = self::readMigratedLanguageFile($a_module, $lang_key);
+    }
+
+    private static function readMigratedLanguageFile(string $a_module, string $lang_key): ?array
+    {
+        if (!defined('CLIENT_DATA_DIR')) {
+            return null;
+        }
+        $directory = self::findLanguageFileDirectory($a_module);
+        if ($directory === null) {
+            return null;
+        }
+
+        $ilias_absolute_path = defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 4);
+        try {
+            $shipped = (new ShippedTranslations())->read(
+                $ilias_absolute_path,
+                $directory,
+                $lang_key,
+                static function (string $message, bool $is_missing): void {
+                    // A broken artifact is a warning. A missing one only a notice (the .po is compiled
+                    // instead, nothing is lost but time), and only once per request, not once per
+                    // module and language: a missing build affects all of them.
+                    if (!$is_missing) {
+                        self::logMigratedLanguageFileProblem($message);
+                    } elseif (!self::$missing_shipped_artifact_logged) {
+                        self::$missing_shipped_artifact_logged = true;
+                        self::logMigratedLanguageFileProblem($message, false);
+                    }
+                }
+            );
+            $overlay_mo = MigratedLanguageFilePaths::overlayBasePath((string) CLIENT_DATA_DIR, $directory, $lang_key) . '.mo';
+        } catch (\InvalidArgumentException) {
+            // not a language key (e.g. passed to the public _lookupEntry()): never a file path -
+            // the database lookup, which quotes it, answers instead
+            return null;
+        } catch (\Throwable $t) {
+            self::logMigratedLanguageFileProblem(sprintf(
+                'Could not read the shipped language file of module "%s" for "%s", falling back to the database: %s',
+                $a_module,
+                $lang_key,
+                $t->getMessage()
+            ));
+            return null;
+        }
+        if ($shipped === null) {
+            // no shipped .po: not migrated (any more) for $lang_key - an overlay left behind is frozen
+            // and must not be served
+            return null;
+        }
+        if (!is_file($overlay_mo)) {
+            return $shipped;
         }
 
         try {
-            $text = TranslationCatalog::readMoTranslations($mo_file);
+            return array_replace($shipped, TranslationCatalog::readMoTranslations($overlay_mo));
         } catch (\Throwable $t) {
             self::logMigratedLanguageFileProblem(sprintf(
                 'Could not read migrated language file "%s", falling back to the database: %s',
-                $mo_file,
+                $overlay_mo,
                 $t->getMessage()
             ));
-            $text = null;
+            return null;
         }
-
-        return self::$migrated_language_file_cache[$cache_key] = $text;
     }
 
-    private static function logMigratedLanguageFileProblem(string $message): void
+    /**
+     * @param bool $is_warning `false` logs a notice, which is dropped (not sent to error_log())
+     *        where no logger is available
+     */
+    private static function logMigratedLanguageFileProblem(string $message, bool $is_warning = true): void
     {
         global $DIC;
         try {
-            $DIC->logger()->forComponent('lang')->warning($message);
+            $logger = $DIC->logger()->forComponent('lang');
+            if ($is_warning) {
+                $logger->warning($message);
+            } else {
+                $logger->notice($message);
+            }
         } catch (\Throwable) {
-            error_log($message);
+            if ($is_warning) {
+                error_log($message);
+            }
         }
     }
 
@@ -439,42 +514,6 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         return null;
-    }
-
-    /**
-     * The overlay `.mo` txt() reads a migrated module from (see MigratedLanguageFilePaths), never the
-     * git-tracked shipped file - `null` if the module is not migrated for $lang_key (no contributed
-     * directory or no shipped `.po`). Deliberately only resolved via the CLIENT_DATA_DIR constant, not via
-     * MigratedLanguageFilePaths::resolveClientDataDir()'s ilias.ini fallback: reading translations is
-     * a runtime concern, and before ilInitialisation::initClientDataDir() has run (e.g. the ilLanguage
-     * instances plugin Setup Objectives create) lng_modules is the correct source.
-     */
-    private static function migratedOverlayMoFile(string $a_module, string $lang_key): ?string
-    {
-        if (!defined('CLIENT_DATA_DIR')) {
-            return null;
-        }
-
-        $directory = self::findLanguageFileDirectory($a_module);
-        if ($directory === null) {
-            return null;
-        }
-
-        // Without its shipped .po the module is no longer migrated for $lang_key (the module or the
-        // language was dropped from the shipped files): an overlay left behind is frozen and must not
-        // be served - lng_modules is the source then. One stat per module and request (cached by the caller).
-        $ilias_absolute_path = defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 4);
-        try {
-            if (!is_file(MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po')) {
-                return null;
-            }
-
-            return MigratedLanguageFilePaths::overlayBasePath((string) CLIENT_DATA_DIR, $directory, $lang_key) . '.mo';
-        } catch (\InvalidArgumentException) {
-            // not a language key (e.g. passed to the public _lookupEntry()): never a file path -
-            // the database lookup, which quotes it, answers instead
-            return null;
-        }
     }
 
     /**
@@ -510,10 +549,10 @@ class ilLanguage implements \ILIAS\Language\Language
 
     public static function _lookupEntry(string $a_lang_key, string $a_mod, string $a_id): string
     {
-        // PO/MO pilot: same migrated .mo lookup as loadLanguageModule(), extended to this static,
+        // PO/MO pilot: same migrated lookup as loadLanguageModule(), extended to this static,
         // DB-based (lng_data) sibling
         // used by txtlng() and txt()'s fallback-module branch. Falls through to lng_data unchanged
-        // when the module isn't migrated, has no .mo for $a_lang_key, or doesn't have this $a_id.
+        // when the module isn't migrated for $a_lang_key or doesn't have this $a_id.
         $migrated = self::loadFromMigratedLanguageFile($a_mod, $a_lang_key);
         if ($migrated !== null && isset($migrated[$a_id]) && $migrated[$a_id] !== '') {
             self::$used_topics[$a_id] = $a_id;
@@ -722,7 +761,14 @@ class ilLanguage implements \ILIAS\Language\Language
 
         foreach ($a_map as $k => $v) {
             if ($v != "") {
-                $a_tpl->addOnloadCode("il.Language.setLangVar('" . $k . "', " . json_encode($v, JSON_THROW_ON_ERROR) . ");");
+                // JSON_HEX_TAG/JSON_HEX_AMP: "<", ">" and "&" become \u003C etc., so a value can never
+                // end the surrounding <script> element ("</script>", "<!--") - independent of what
+                // TranslationMarkupPolicy lets through. The key is encoded the same way, so a quote in
+                // it cannot end the JS string either.
+                $flags = JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+                $a_tpl->addOnloadCode(
+                    "il.Language.setLangVar(" . json_encode((string) $k, $flags) . ", " . json_encode($v, $flags) . ");"
+                );
             }
         }
     }

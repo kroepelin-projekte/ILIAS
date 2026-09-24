@@ -89,6 +89,38 @@ abstract class LanguageActivity extends ActivityImpl
         );
     }
 
+    protected function invalidMarkupCustomizingOutputField(Description\Factory $f): Description\Description
+    {
+        return $f->list(
+            $this->markdown(
+                'Entries of the customizing/local language files that were not applied because their ' .
+                'value contains HTML that is not allowed in language texts - the languages were ' .
+                'installed regardless.'
+            ),
+            $f->string($this->markdown('Language key and entry ("<language>: <module>#:#<identifier>").'))
+        );
+    }
+
+    /**
+     * The value of invalidMarkupCustomizingOutputField() for $language_keys.
+     *
+     * @param array<string, array<string, list<string>>> $skipped see
+     *        \ILIAS\Language\Setup\LanguageInstallationManager::getSkippedInvalidMarkupEntries()
+     * @param list<string> $language_keys
+     * @return list<string>
+     */
+    protected function invalidMarkupCustomizingEntries(array $skipped, array $language_keys): array
+    {
+        $entries = [];
+        foreach ($language_keys as $language_key) {
+            foreach (array_keys($skipped[$language_key] ?? []) as $entry) {
+                $entries[] = $language_key . ': ' . $entry;
+            }
+        }
+
+        return $entries;
+    }
+
     public function isAllowedToPerform(int $usr_id, mixed $parameters): bool
     {
         return ($this->rbac_system)()->checkAccessOfUser(

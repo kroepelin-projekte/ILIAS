@@ -46,9 +46,28 @@ A component may ship a module as gettext files instead of `.lang` lines: it cont
 `LanguageFileDirectory` with the module as prefix and ships `<module>_<lang>.po` there (currently
 `TermsOfService`, module `tos`). For such a module the shipped `.po` is the only source of its
 shipped values - its lines in `lang/ilias_<lang>.lang` are ignored when installing/updating and are
-not the default the administration GUI compares with. Each installation keeps its own copy (the
-"overlay", `<client data dir>/lang/...po|.mo`), which `ilLanguage` reads at runtime and every write
-path maintains; the database tables are still written as a rollback-safe fallback.
+not the default the administration GUI compares with. Each installation keeps only its local
+changes in files (the "overlay", `<client data dir>/lang/...po|.mo`): the entries whose value
+differs from the shipped `.po` or whose key it does not ship (customizing values, "add new
+variable"), with their `original`/`local_change` bookkeeping. An entry set back to the shipped
+value (or to an empty value) leaves the overlay, an empty overlay is deleted; installing a language
+without local changes writes no file. An overlay of an earlier version holding every entry shrinks
+to this delta with the next update or reinstall. Every write path maintains the overlay; the
+database tables are still written as a rollback-safe fallback. At runtime `ilLanguage` serves the
+shipped state with the overlay applied on top (an overlay value wins).
+
+The shipped state is compiled by Setup's build (`php cli/setup.php build`, run by `composer install`
+and `composer dump-autoload`) to `artifacts/language/<lang>/<module>.mo`
+(`ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective`, incremental via
+`artifacts/language/index.json`). If an artifact is missing (logged once per request as a notice)
+or older than its `.po`, `ilLanguage` compiles the `.po` itself, with the same result
+(`ILIAS\Language\ComponentTranslation\ShippedTranslations`).
+
+**Deployment requirement: run `php cli/setup.php build` after every change of a shipped `.po`**
+(`composer install`/`composer dump-autoload` do so). Whether an artifact is current is decided by
+comparing modification times in seconds: a deployment that preserves them (`rsync -a`, `tar`,
+`cp -p`) can make a changed `.po` look older than the existing artifact, which is then served
+stale until the next build.
 
 The `.po`/`.mo` files are read and written with the library `gettext/gettext`, which MUST only be
 used through the adapter in `src/ComponentTranslation/Catalog/`
@@ -71,14 +90,18 @@ Further rules of the pilot:
 * Writes to a module's database row and its overlay are serialized per module and language by an
   exclusive lock on `<overlay>.lock` next to the overlay; partial writes (saving or deleting single
   entries, "add new variable") are applied to the current overlay content read under that lock.
-  The `.lock` files of installed languages are kept; uninstalling a language (or plugin) removes
-  them together with the overlay, while holding the lock (a process that was waiting for it
+  The `.lock` files are kept (also when an overlay is removed because no local change is left);
+  uninstalling a language (or plugin) removes them together with the overlay, while holding the
+  lock (a process that was waiting for it
   notices the removal and locks the new file instead; if the lock file keeps being removed or
   replaced, it gives up after a few attempts, logs a warning and writes without the lock).
-* Known limitation: Setup and "apply local changes" read a module's overlay for the reconciliation
-  without the lock (only the final overlay write is locked), and write `lng_data`/`lng_modules` in
-  one batch for all modules. An administrator's edit of the same module made during such a run can
-  therefore be overwritten by it (lost update).
+* Setup, "remove local changes" and "apply local changes" lock every migrated module that has an
+  overlay for the whole run, so its overlay is read, reconciled and written on one state. A module
+  without overlay is not locked (no file is created for it); if an administrator creates its overlay
+  during the run, that overlay is left untouched and the module is reported as not written.
+  Known limitation: `lng_data`/`lng_modules` are written in one batch for all modules, so the
+  database row of such a concurrent edit can still be overwritten by the run (the overlay, which is
+  served, keeps the edit).
 * Symbolic links below `<client data dir>/lang` are never followed: an overlay write, lock or
   removal through one is refused and reported like any other overlay write failure.
 * Known limitation (accepted residual risk): the symbolic link checks work on path names - PHP has
@@ -92,8 +115,9 @@ Further rules of the pilot:
 * A module counts as migrated for a language only while its shipped `<module>_<lang>.po` exists. If
   it is removed, the overlay is no longer read (the database is served instead) but is kept
   unchanged - no write, neither an update nor a GUI save, touches it. Once the `.po` is back, the
-  next update reconciles the overlay three-way with its preserved `original` values. An overlay is
-  only deleted when its language is uninstalled (also when Setup uninstalls a deselected language).
+  next update reconciles the overlay three-way with its preserved `original` values. Otherwise an
+  overlay is deleted when no local change is left or its language is uninstalled (also when Setup
+  uninstalls a deselected language).
 * Known limitation: a local change that only exists in the kept overlay - i.e. it was removed from
   the database (e.g. "remove local changes") while the shipped `.po` was missing - comes back with
   the next update after the `.po` has returned, because that reconciliation still finds it in the
@@ -182,19 +206,37 @@ description rather than a copy here, which would drift out of sync:
 
 ## Supported HTML Tags in Language Files
 Only a defined set of HTML tags are allowed to be used within the `text_content` of a language entry.
-The allow-list is passed explicitly to `ilUtil::stripSlashes()` at the only place this component
-applies it - the language file import in `ilObjLanguageExtGUI::importLangfile()`
-(`classes/class.ilObjLanguageExtGUI.php`) - and currently is:
 
-* `a`, `b`, `bdo`, `br`, `code`, `div`, `em`, `gap`, `i`, `img`, `li`, `ol`, `p`, `pre`, `span`,
-  `strike`, `strong`, `sup` and `ul`
+The rules are decided in one place, `ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy`
+(an HTML5 parser, no regular expressions), for every module - migrated or not:
 
-This is almost, but not exactly, the tag set returned by `ilUtil::getSecureTags()` plus `span` and
-`br`: `sub` is part of `getSecureTags()` but is missing from the allow-list actually passed here.
-Whether that omission is intentional is unclear; treat `sub` as unsupported in language files until
-this is resolved one way or the other.
+* Tags: `a`, `b`, `bdo`, `br`, `code`, `div`, `em`, `gap`, `h3`, `i`, `img`, `li`, `ol`, `p`, `pre`,
+  `s`, `small`, `span`, `strike`, `strong`, `sub`, `sup`, `u`, `ul`.
+* Attributes (names case-insensitive): `a[href|target|rel|title]`, `img[src|alt]`,
+  `span[class|style]`, `p[align]`, `div[align]`; all other tags without attributes. `href`/`src`
+  must be relative (including `#...`) or use `http`/`https` (`href` also `mailto`), checked on the
+  decoded value. An attribute value must not contain `<`. Comments, and a value that ends inside an
+  unfinished tag, are not allowed.
+* Text that is no tag to an HTML parser (`a <= b`, `<<`) is allowed; an allowed value stays
+  byte-identical.
 
-All other HTML tags are unsupported and will be removed by `ilUtil::stripSlashes`.
+Where the rules apply:
+* Build (shipped `.po`): a value that breaks them is compiled without the offending tags (their
+  text stays), attributes and comments, and a warning with file, module, key and what was removed
+  is printed; the build does not abort.
+* Local write paths reject such values instead of cleaning them:
+  * the administration's "edit" form (`ilObjLanguageExtGUI::saveObject()`; line breaks still become
+    `<br />` and `<<` becomes `«` before the check) and the import of an uploaded language file
+    (`ilObjLanguageExt::importLanguageFile()`): nothing is saved if any value is rejected, and all
+    affected keys are named;
+  * "add new variable" (`AddLanguageEntry`): the whole request is rejected, the affected languages
+    are named;
+  * the customizing file (`lang/customizing/ilias_<lang>.lang.local`) at installation, update,
+    "apply local changes" and "load local file": the affected entries are left out and named
+    (Setup output, administration message, PHP error log); the language is installed regardless.
+* Plugin language files are not checked yet.
+* The values of the shipped `lang/ilias_<lang>.lang` files are not checked ("clear local changes"
+  imports them as they are).
 
 ## Further Reading
 * [use-language-object.md](use-language-object.md) and [use-language-logging.md](use-language-logging.md)

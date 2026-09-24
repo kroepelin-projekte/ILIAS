@@ -78,6 +78,35 @@ class AtomicFileWriterTest extends TestCase
     }
 
     /**
+     * $flush_to_disk = false (used by ShippedLanguageFilesCompiledObjective for the build artifacts)
+     * skips fsync() but must still write the complete, correct content and leave no temporary file
+     * behind - only the durability-after-a-crash guarantee is dropped, nothing about the result.
+     */
+    public function testWritesCompleteContentWithFlushToDiskDisabled(): void
+    {
+        AtomicFileWriter::write($this->directory . '/target.mo', 'inhalt', null, false);
+
+        $this->assertSame('inhalt', file_get_contents($this->directory . '/target.mo'));
+        $this->assertSame(['target.mo'], $this->directoryListing());
+    }
+
+    /**
+     * $flush_to_disk = false must not disable the $confine_to_directory guard - both parameters are
+     * independent.
+     */
+    public function testFlushToDiskDisabledStillHonoursConfineToDirectory(): void
+    {
+        $outside = dirname($this->directory) . '/ilias_atomic_outside_' . bin2hex(random_bytes(4));
+        mkdir($outside, 0775);
+        try {
+            $this->expectException(RuntimeException::class);
+            AtomicFileWriter::write($outside . '/target.po', 'x', $this->directory, false);
+        } finally {
+            \MigratedPoFixture::removeDirectory($outside);
+        }
+    }
+
+    /**
      * tempnam() creates 0600 files; the result must have the permissions a plain
      * file_put_contents() would give (0666 & ~umask) so e.g. the web server can read what the CLI
      * Setup wrote.

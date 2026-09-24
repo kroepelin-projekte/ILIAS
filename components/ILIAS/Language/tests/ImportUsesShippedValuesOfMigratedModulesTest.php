@@ -235,7 +235,9 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
 
         $this->languageObject()->importLanguageFile($this->upload_file, 'replace');
 
-        $this->assertSame(['greeting' => 'Aus der lang-Datei'], $this->lng_modules['itest']);
+        // Adapted to the delta overlay: the import merges onto the module as it is served - its
+        // shipped state - so the not imported "farewell" keeps its shipped value
+        $this->assertSame(['greeting' => 'Aus der lang-Datei', 'farewell' => 'Tschüss aus der PO'], $this->lng_modules['itest']);
     }
 
     /**
@@ -253,6 +255,12 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
             ['module' => 'itest', 'identifier' => 'greeting', 'value' => 'Alt in der DB'],
             ['module' => 'common', 'identifier' => 'yes', 'value' => 'Alt in der DB'],
         ];
+        // Adapted to the delta overlay: the stored value of a migrated module is the served one
+        // (shipped .po plus overlay), not its lng_data row - so it differs only with an overlay
+        MigratedPoFixture::writePair(
+            $this->overlayDirectory() . '/itest_' . self::LANG,
+            MigratedPoFixture::catalog('itest', ['greeting' => 'Alt im Overlay'])
+        );
 
         ilObjLanguageExt::_saveValues(self::LANG, [
             'itest#:#greeting' => 'Aus der PO',
@@ -301,7 +309,12 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
 
     public static function importModes(): array
     {
-        return ['replace' => ['replace'], 'delete' => ['delete']];
+        return [
+            'keepall' => ['keepall'],
+            'keepnew' => ['keepnew'],
+            'replace' => ['replace'],
+            'delete' => ['delete'],
+        ];
     }
 
     /**
@@ -370,9 +383,11 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->stubLogger();
         $unblock = $this->blockOverlayDirectory();
 
+        // Adapted to the delta overlay: an import that keeps the file's values (no refresh) - the
+        // clear import takes the shipped values, which need no overlay and cannot fail to be written
         set_error_handler(static fn(): bool => true, E_WARNING);
         try {
-            $unwritten = $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
+            $unwritten = $this->languageObject()->importLanguageFile($this->upload_file, 'replace');
         } finally {
             restore_error_handler();
             $unblock();
@@ -381,7 +396,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->assertSame(['itest'], $unwritten);
         $this->assertSame(['yes' => 'Ja'], $this->lng_modules['common'], 'the database is written regardless');
         $this->assertSame(
-            ['farewell' => 'Tschüss aus der PO', 'greeting' => 'Aus der PO'],
+            ['farewell' => 'Tschüss aus der PO', 'greeting' => 'Aus der lang-Datei'],
             $this->sorted($this->lng_modules['itest'])
         );
     }
@@ -408,7 +423,12 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         }
 
         $this->assertSame(['itest'], $unwritten);
-        $this->assertSame(['greeting' => 'Servus'], $this->lng_modules['itest'], 'the database is written regardless');
+        // Adapted to the delta overlay: merged onto the served module (its shipped state)
+        $this->assertSame(
+            ['greeting' => 'Servus', 'farewell' => 'Tschüss aus der PO'],
+            $this->lng_modules['itest'],
+            'the database is written regardless'
+        );
         $this->assertSame(['yes' => 'Jawohl'], $this->lng_modules['common']);
     }
 
@@ -417,8 +437,10 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->seedGlobalLanguageFile([]);
 
         $this->assertSame([], ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Servus', 'common#:#yes' => 'Ja']));
-        $this->assertSame([], $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true));
         $this->assertFileExists($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
+        $this->assertSame([], $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true));
+        // Adapted to the delta overlay: the clear import leaves only shipped values - overlay removed
+        $this->assertFileDoesNotExist($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
     }
 
     /**
@@ -562,8 +584,11 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
             $unblock();
         }
 
-        $this->assertSame(['itest'], $unwritten);
-        $this->assertSame(['greeting' => 'Hallo'], $this->lng_modules['itest'], 'the database is written regardless');
+        // Adapted to the delta overlay: the remaining entries are read from the served module (its
+        // shipped state - the lng_modules row is only the fallback for an unreadable one), so only
+        // shipped values remain: there is no overlay to write, and nothing can fail
+        $this->assertSame([], $unwritten);
+        $this->assertSame(['greeting' => 'Aus der PO'], $this->lng_modules['itest'], 'the database is written regardless');
     }
 
     /**
@@ -574,5 +599,99 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
     {
         ksort($values);
         return $values;
+    }
+
+    // -------------------------------------------------------- invalid markup
+
+    /**
+     * Writes a file containing one plain, valid entry ("common#:#yes") and one entry with markup
+     * TranslationMarkupPolicy does not allow, both new keys (no current DB row, no shipped value) - so
+     * both count as "changed" and the invalid one is genuinely checked.
+     */
+    private function writeUploadFileWithOneInvalidEntry(): string
+    {
+        $file = $this->fixture_directory . '/ilias_invalid_' . self::LANG . '.lang';
+        file_put_contents(
+            $file,
+            "/* header */\n<!-- language file start -->\n"
+            . "common#:#yes#:#Ja\n"
+            . "common#:#bad#:#<script>alert(1)</script>\n"
+        );
+
+        return $file;
+    }
+
+    /**
+     * "delete" mode wipes lng_data/lng_modules for the WHOLE language up front (see
+     * importLanguageFile()) - independently of what the file contains. The markup check must run
+     * BEFORE that wipe: a value that is rejected must leave the database completely untouched, not
+     * merely "not overwritten".
+     */
+    #[DataProvider('importModes')]
+    public function testInvalidMarkupAbortsBeforeAnyChangeIncludingTheDeleteModeWipe(string $mode): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        $file = $this->writeUploadFileWithOneInvalidEntry();
+
+        try {
+            $this->languageObject()->importLanguageFile($file, $mode);
+            $this->fail('Expected an ilLanguageInvalidMarkupException');
+        } catch (ilLanguageInvalidMarkupException $e) {
+            $this->assertSame(['common#:#bad'], array_keys($e->getInvalidValues()));
+            // the message names only the key, never the value
+            $this->assertStringNotContainsString('alert(1)', $e->getMessage());
+            $this->assertStringNotContainsString('script', $e->getMessage());
+        }
+
+        $this->assertSame([], $this->writes, 'no database write at all - not even the "delete" mode wipe');
+        $this->assertSame([], $this->lng_modules);
+    }
+
+    /**
+     * $skipInvalidMarkup = true (the customizing-file/installation write path): the invalid entry is
+     * left out, every other entry is still imported, and the skipped one is reported via
+     * getSkippedInvalidMarkupValues() - no exception at all.
+     */
+    public function testSkipInvalidMarkupImportsOnlyTheValidEntriesAndReportsTheSkippedOne(): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        $file = $this->writeUploadFileWithOneInvalidEntry();
+
+        $object = $this->languageObject();
+        $object->importLanguageFile($file, 'replace', false, true);
+
+        $this->assertSame('Ja', $this->lng_modules['common']['yes']);
+        $this->assertArrayNotHasKey('bad', $this->lng_modules['common']);
+        $skipped = $object->getSkippedInvalidMarkupValues();
+        $this->assertArrayHasKey('common#:#bad', $skipped);
+        $this->assertNotEmpty($skipped['common#:#bad']);
+    }
+
+    /**
+     * Konzept-Schritt-4 follow-up: in "keepall"/"keepnew" mode, a key the mode decides to KEEP (its
+     * current database value survives, the uploaded file's value for it is discarded entirely, see
+     * importLanguageFile()'s `$to_keep` handling) must never block the import merely because the
+     * file happens to also carry a disallowed value for that same key - it is never actually applied.
+     */
+    public function testAnInvalidFileValueForAKeyThatModeKeepsDoesNotBlockTheImport(): void
+    {
+        $this->seedGlobalLanguageFile(['common#:#yes' => 'Ja']);
+        // "yes" already exists in the database - keepall/keepnew therefore KEEP it, discarding
+        // whatever the uploaded file says for that key
+        $this->db_rows = [['module' => 'common', 'identifier' => 'yes', 'value' => 'Aus der Datenbank']];
+        $file = $this->fixture_directory . '/ilias_kept_' . self::LANG . '.lang';
+        file_put_contents(
+            $file,
+            "/* header */\n<!-- language file start -->\n"
+            . "common#:#yes#:#<script>alert(1)</script>\n"
+        );
+
+        // must not throw - the file's disallowed value for "yes" is entirely discarded ($to_keep
+        // wins), never actually applied, so it must never even be checked
+        $this->languageObject()->importLanguageFile($file, 'keepall');
+
+        // "yes" is the module's only key and it is kept as-is - nothing needs to be (and nothing is)
+        // rewritten into lng_modules for it at all, so the database still holds its original value
+        $this->assertArrayNotHasKey('common', $this->lng_modules, 'the already-correct, kept value needs no rewrite');
     }
 }

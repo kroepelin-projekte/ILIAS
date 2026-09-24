@@ -261,4 +261,71 @@ class MigratedLanguageFilePathsTest extends TestCase
             MigratedLanguageFilePaths::shippedBasePath('/srv/ilias/', $directory, 'de')
         );
     }
+
+    // -------------------------------------------------- shipped artifact paths
+
+    public function testShippedArtifactDirectoryIsBelowArtifactsLanguageOfTheRoot(): void
+    {
+        $this->assertSame(
+            '/srv/ilias/artifacts/language',
+            MigratedLanguageFilePaths::shippedArtifactDirectory('/srv/ilias/')
+        );
+        $this->assertSame(
+            '/srv/ilias/artifacts/language',
+            MigratedLanguageFilePaths::shippedArtifactDirectory('/srv/ilias')
+        );
+    }
+
+    public function testShippedArtifactFileComposesLangAndModuleBelowTheArtifactDirectory(): void
+    {
+        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+
+        $this->assertSame(
+            '/srv/ilias/artifacts/language/de/tos.mo',
+            MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, 'de')
+        );
+    }
+
+    /**
+     * The module (the directory's prefix) becomes part of a file name below the artifact directory -
+     * a prefix that is not a plain file name (path traversal, a path separator) must be rejected
+     * rather than silently building a path outside the intended `<lang>/` subdirectory.
+     */
+    #[DataProvider('unsafeModuleNames')]
+    public function testShippedArtifactFileRejectsAModuleThatIsNotAPlainFileName(string $module): void
+    {
+        $directory = MigratedPoFixture::directory($module, 'somewhere/');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, 'de');
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function unsafeModuleNames(): array
+    {
+        return [
+            'path traversal' => ['../../etc/passwd'],
+            'slash' => ['tos/evil'],
+            'backslash' => ['tos\\evil'],
+            'nul byte' => ["tos\0evil"],
+            'empty' => [''],
+        ];
+    }
+
+    /**
+     * Regression coverage mirroring testShippedBasePathRejectsAMalformedLangKey(): the artifact path
+     * is just as much a path-traversal-relevant sink as the shipped base path.
+     */
+    #[DataProvider('invalidLangKeys')]
+    public function testShippedArtifactFileRejectsAMalformedLangKey(string $lang_key): void
+    {
+        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, $lang_key);
+    }
 }

@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\LanguageDataNotSavedException;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -168,6 +169,23 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     private function overlayPo(): TranslationCatalog
     {
         return MigratedPoFixture::readPo($this->overlayBase() . '.po');
+    }
+
+    /**
+     * Shipped `.po` plus overlay delta, as served (MigratedLanguageFileSync::loadModuleTranslations()) -
+     * the overlay itself only holds the entries that differ from the shipped `.po`.
+     *
+     * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>
+     */
+    private function effective(): array
+    {
+        return MigratedLanguageFileSync::loadModuleTranslations(
+            new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $this->directory),
+            'de',
+            self::MODULE,
+            $this->root . '/client-data',
+            $this->root
+        ) ?? [];
     }
 
     /**
@@ -361,18 +379,141 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->root . '/client-data/lang');
     }
 
-    public function testInstallCreatesTheOverlayWithShippedOriginals(): void
+    /**
+     * Adapted to the delta overlay (was: "install creates the overlay with shipped originals"): an
+     * installation without local changes writes no overlay file - the shipped state is served as is.
+     */
+    public function testInstallWithoutLocalChangesWritesNoOverlay(): void
     {
         $this->shipPo(['greeting' => ['value' => 'Hello', 'fuzzy' => true]]);
 
         $this->manager()->insertLanguageForInstallation('de');
 
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
-        $this->assertSame('Hello', $greeting->getTranslation());
-        $this->assertSame('Hello', LocalChangeComments::getOriginal($greeting));
-        $this->assertNull(LocalChangeComments::getLocalChange($greeting));
-        $this->assertTrue($greeting->hasFlag('fuzzy'));
-        $this->assertSame(['greeting' => 'Hello'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertDirectoryDoesNotExist($this->root . '/client-data/lang');
+        $this->assertSame(
+            ['greeting' => ['value' => 'Hello', 'local_change' => false, 'local_change_date' => null, 'original' => 'Hello']],
+            $this->effective()
+        );
+    }
+
+    // -------------------------------------------------- concurrent overlay writes during the run
+
+    /**
+     * A migrated module that already has an overlay when insertLanguage() decides what to lock is
+     * locked (MigratedLanguageFileSync::withOverlayLock()) for the WHOLE run, not merely for its own
+     * final sync() call - so a concurrent writer (another admin GUI edit, or another install for the
+     * same language) cannot interleave with the read-modify-write in between. Proven here by observing
+     * MigratedLanguageFileSync's own lock bookkeeping (the private static $held_locks - the only
+     * externally observable trace of "the lock is currently held") from inside the injected language
+     * cache invalidator, which the production code calls partway through the run (after the database
+     * write, before syncMigratedModules()) - i.e. strictly inside the locked section.
+     */
+    public function testAModuleWithAnExistingOverlayIsLockedForTheWholeRunNotJustItsOwnSync(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z']]);
+        $lock_file = $this->overlayBase() . '.lock';
+        $held_locks = new ReflectionProperty(MigratedLanguageFileSync::class, 'held_locks');
+
+        $observed = null;
+        $manager = $this->manager(null, function () use (&$observed, $held_locks, $lock_file): void {
+            $observed = array_key_exists($lock_file, $held_locks->getValue());
+        });
+
+        $manager->insertLanguageForInstallation('de');
+
+        $this->assertTrue($observed, 'the module\'s overlay lock must already be held at this point in the run');
+        // and released again once the whole run is done - no lock left dangling
+        $this->assertSame([], $held_locks->getValue());
+    }
+
+    /**
+     * Deadlock protection: two modules with an overlay must always be locked in the same global order
+     * (module name, byte-wise, see insertLanguage()'s own comment) - regardless of the order
+     * getDirectories() happens to hand them out in, which differs between entry points (Setup vs. the
+     * admin GUI). Proven here by contributing the two directories in REVERSE alphabetical order
+     * ("zmod" before "amod") and observing the ORDER locks ended up held in via the private static
+     * $held_locks (a PHP array preserves insertion order) - from inside the injected language cache
+     * invalidator, called strictly after every lock of this run was already acquired (see the test
+     * above).
+     */
+    public function testLocksAreAcquiredInSortedOrderRegardlessOfTheContributedDirectoryOrder(): void
+    {
+        $first_module = MigratedPoFixture::directory('zmod', 'components/pilot/lang/');
+        $second_module = MigratedPoFixture::directory('amod', 'components/pilot/lang/');
+        MigratedPoFixture::writePo(
+            $this->root . '/components/pilot/lang/zmod_de.po',
+            MigratedPoFixture::catalog('zmod', ['greeting' => 'Hallo'])
+        );
+        MigratedPoFixture::writePo(
+            $this->root . '/components/pilot/lang/amod_de.po',
+            MigratedPoFixture::catalog('amod', ['greeting' => 'Hallo'])
+        );
+        MigratedPoFixture::writePair(
+            $this->root . '/client-data/lang/components/pilot/lang/zmod_de',
+            MigratedPoFixture::catalog('zmod', ['greeting' => ['value' => 'Servus', 'original' => 'Hallo']])
+        );
+        MigratedPoFixture::writePair(
+            $this->root . '/client-data/lang/components/pilot/lang/amod_de',
+            MigratedPoFixture::catalog('amod', ['greeting' => ['value' => 'Servus', 'original' => 'Hallo']])
+        );
+        $held_locks = new ReflectionProperty(MigratedLanguageFileSync::class, 'held_locks');
+        $observed_order = null;
+
+        $manager = new LanguageInstallationManager(
+            $this->db(),
+            // "zmod" contributed BEFORE "amod" - the opposite of sorted order
+            new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $first_module, $second_module),
+            $this->root,
+            $this->repository(),
+            static fn(): \DateTimeImmutable => new \DateTimeImmutable(self::NOW, new \DateTimeZone('UTC')),
+            fn(): string => $this->root . '/client-data',
+            function () use (&$observed_order, $held_locks): void {
+                $observed_order = array_map(
+                    static fn(string $lock_file): string => basename($lock_file),
+                    array_keys($held_locks->getValue())
+                );
+            }
+        );
+
+        $manager->insertLanguageForInstallation('de');
+
+        $this->assertSame(['amod_de.lock', 'zmod_de.lock'], $observed_order);
+    }
+
+    /**
+     * The flip side: a module WITHOUT an overlay when insertLanguage() makes that locking decision is
+     * never locked (Konzept: no lock file is created for a module that has no overlay at all). If an
+     * overlay for it is created concurrently while the run is still in progress (e.g. an administrator
+     * edits that very module through the GUI in between), sync() must refuse to touch it instead of
+     * silently discarding it (see MigratedLanguageFileSync's own $expected_overlay_exists) - the
+     * module is reported as not-written, and the concurrently-written overlay survives byte for byte.
+     * The injected language cache invalidator - called by production code strictly after the database
+     * write but before syncMigratedModules() - is (ab)used here as the one available hook to write the
+     * "concurrent" overlay at exactly that point, since a single-threaded test cannot literally
+     * interleave two calls.
+     */
+    public function testAModuleWithoutAnOverlayThatGetsOneCreatedDuringTheRunIsReportedAndTheOverlaySurvives(): void
+    {
+        $this->expectErrorLog();
+        $this->shipPo(['greeting' => 'Hallo']);
+        // No seedOverlay() call at all - "pilot" starts this run with no overlay whatsoever.
+        $concurrent_edit = MigratedPoFixture::catalog(self::MODULE, [
+            'greeting' => ['value' => 'Von einem parallelen Admin-Edit', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+        ]);
+
+        $manager = $this->manager(null, function () use ($concurrent_edit): void {
+            MigratedPoFixture::writePair($this->overlayBase(), $concurrent_edit);
+        });
+
+        $unwritten = $manager->insertLanguageForInstallation('de');
+
+        $this->assertSame([self::MODULE], $unwritten);
+        $this->assertSame(
+            'Von einem parallelen Admin-Edit',
+            $this->overlayPo()->find(self::MODULE, 'greeting')->getTranslation(),
+            'the concurrently-written overlay must survive untouched'
+        );
     }
 
     // --------------------------------------------------- three-way decision
@@ -409,10 +550,17 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         } else {
             $this->assertArrayNotHasKey('pilot|greeting', $this->lngData(), 'the local lng_data row is kept as it is');
         }
+        // Adapted to the delta overlay: S is served from the shipped .po, only a winning L stays in
+        // the overlay (with "original" moved to S)
+        $this->assertSame($expected_value, $this->effective()['greeting']['value']);
+        if ($expected_value === $shipped) {
+            $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'no local change - no overlay');
+            return;
+        }
         $overlay_entry = $this->overlayPo()->find(self::MODULE, 'greeting');
         $this->assertSame($expected_value, $overlay_entry->getTranslation());
         $this->assertSame($shipped, LocalChangeComments::getOriginal($overlay_entry), 'original always moves to S');
-        $this->assertSame($expected_value !== $shipped, LocalChangeComments::getLocalChange($overlay_entry) !== null);
+        $this->assertNotNull(LocalChangeComments::getLocalChange($overlay_entry));
     }
 
     public static function threeWayCases(): array
@@ -443,6 +591,82 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame(['value' => 'Alt', 'local_change' => self::NOW], $this->lngData()['pilot|greeting']);
         $this->assertSame('Alt', $this->lngModules()[self::MODULE]['greeting']);
         $this->assertNotNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')));
+    }
+
+    /**
+     * The overlay ends up holding ONLY the identifiers the customizing/local file actually mentions -
+     * a second, untouched shipped entry of the same module must never end up in the delta merely
+     * because the module as a whole received a customizing file.
+     */
+    public function testACustomizingFileOnlyPutsItsOwnKeysIntoTheDelta(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['pilot#:#greeting#:#Aus Customizing']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $overlay_identifiers = array_map(
+            static fn($entry): string => $entry->getId(),
+            $this->overlayPo()->getEntries()
+        );
+        $this->assertSame(['greeting'], $overlay_identifiers);
+        $this->assertSame('Tschüss', $this->lngModules()[self::MODULE]['farewell']);
+    }
+
+    /**
+     * A customizing (.lang.local) entry whose value has markup TranslationMarkupPolicy does not allow
+     * - and that genuinely changes something (differs from both the shipped and the current value,
+     * Konzept-Schritt-4) - is left out, not applied; every OTHER entry of the same run is still
+     * installed, and the skipped one is reported via getSkippedInvalidMarkupEntries() instead of
+     * aborting the whole installation. Uses a non-migrated module ("common") - the customizing-markup
+     * check applies independently of the PO/MO pilot.
+     */
+    public function testACustomizingEntryWithDisallowedMarkupIsSkippedButTheRestIsInstalled(): void
+    {
+        $this->expectErrorLog();
+        $this->writeLang('lang/ilias_de.lang', ['common#:#yes#:#Ja', 'common#:#bad#:#Shipped harmless']);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', [
+            'common#:#yes#:#Jawohl',
+            'common#:#bad#:#<script>evil</script>',
+        ]);
+
+        $manager = $this->manager();
+        $unwritten = $manager->insertLanguageForInstallation('de');
+
+        $this->assertSame([], $unwritten, 'a skipped customizing entry must not itself count as an unwritten overlay');
+        $this->assertSame('Jawohl', $this->lngModules()['common']['yes'], 'the valid customizing entry is applied');
+        $this->assertSame(
+            'Shipped harmless',
+            $this->lngModules()['common']['bad'],
+            'the invalid customizing entry is left out - the shipped value stays in effect'
+        );
+        $skipped = $manager->getSkippedInvalidMarkupEntries();
+        $this->assertArrayHasKey('de', $skipped);
+        $this->assertArrayHasKey('common#:#bad', $skipped['de']);
+        $this->assertNotEmpty($skipped['de']['common#:#bad']);
+        $this->assertArrayNotHasKey('common#:#yes', $skipped['de']);
+    }
+
+    /**
+     * getSkippedInvalidMarkupEntries() reports only what the LAST insertLanguage...() call for a given
+     * language left out - a fixed (or removed) customizing file must make the report empty again on
+     * the next run, not keep accumulating a stale entry from an earlier run forever.
+     */
+    public function testGetSkippedInvalidMarkupEntriesIsResetOnEveryInsertLanguageCall(): void
+    {
+        $this->expectErrorLog();
+        $this->writeLang('lang/ilias_de.lang', ['common#:#bad#:#Shipped harmless']);
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['common#:#bad#:#<script>evil</script>']);
+        $manager = $this->manager();
+        $manager->insertLanguageForInstallation('de');
+        $this->assertNotEmpty($manager->getSkippedInvalidMarkupEntries()['de'] ?? []);
+
+        // the customizing file is fixed (no more invalid markup) and the language is installed again
+        $this->writeLang('lang/customizing/ilias_de.lang.local', ['common#:#bad#:#Jetzt gültig']);
+        $manager->insertLanguageForInstallation('de');
+
+        $this->assertArrayNotHasKey('de', $manager->getSkippedInvalidMarkupEntries());
+        $this->assertSame('Jetzt gültig', $this->lngModules()['common']['bad']);
     }
 
     /**
@@ -525,7 +749,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertArrayNotHasKey('greeting', $this->lngModules()[self::MODULE]);
         $this->assertSame(['greeting'], $this->droppedIdentifiers(self::MODULE));
-        $this->assertNull($this->overlayPo()->find(self::MODULE, 'greeting'), 'dropped from the overlay as well');
+        // Adapted to the delta overlay: nothing local is left, so the overlay is removed completely
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'dropped from the overlay as well');
     }
 
     /**
@@ -695,9 +920,12 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             $this->lngData()['pilot|C'],
             'the overlay-only local change is taken over again - the known limitation above'
         );
+        // Adapted to the delta overlay: A and B carry the shipped values and leave the (full, legacy)
+        // overlay, only the local change C stays
         $overlay = $this->overlayPo();
-        $this->assertSame('A2', LocalChangeComments::getOriginal($overlay->find(self::MODULE, 'A')));
-        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'B')));
+        $this->assertNull($overlay->find(self::MODULE, 'A'));
+        $this->assertNull($overlay->find(self::MODULE, 'B'));
+        $this->assertSame('A2', $this->effective()['A']['value']);
         $this->assertSame('C_custom', $overlay->find(self::MODULE, 'C')->getTranslation());
         $this->assertNotNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'C')));
     }
@@ -724,13 +952,14 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             $this->lngData()
         );
         $this->assertSame(['greeting' => 'Hallo', 'farewell' => 'Tschüss'], $this->lngModules()[self::MODULE]);
-        $overlay = $this->overlayPo();
-        $this->assertSame(['farewell', 'greeting'], array_map(static fn($e): string => $e->getId(), $overlay->getEntries()));
-        $this->assertNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'greeting')));
-        $this->assertSame(
-            ['farewell' => 'Tschüss', 'greeting' => 'Hallo'],
-            MigratedPoFixture::readMo($this->overlayBase() . '.mo')
-        );
+        // Adapted to the delta overlay: "remove local changes" leaves no local change - the overlay
+        // is removed (was: rebuilt from the shipped .po)
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $effective = $this->effective();
+        $this->assertSame(['greeting', 'farewell'], array_keys($effective), 'the locally added variable is gone');
+        $this->assertSame('Hallo', $effective['greeting']['value']);
+        $this->assertFalse($effective['greeting']['local_change']);
     }
 
     /**
@@ -900,13 +1129,16 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $this->expectErrorLog();
         $this->shipPo(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => ['value' => 'Hallo', 'original' => 'Hallo']]);
 
         $this->manager(null, static function (): void {
             throw new RuntimeException('cache is down');
         })->insertLanguageForInstallation('de');
 
         $this->assertSame(['greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
-        $this->assertFileExists($this->overlayBase() . '.mo', 'the overlay sync still runs');
+        // Adapted to the delta overlay: a shipped value writes no file - the sync still running is
+        // visible from the removal of an outdated overlay
+        $this->assertFileDoesNotExist($this->overlayBase() . '.mo', 'the overlay sync still ran: it removed the outdated overlay');
         $this->assertStringContainsString('cache is down', $this->errorLog());
     }
 
@@ -918,6 +1150,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $this->expectErrorLog();
         $this->shipPo(['greeting' => 'Hallo']);
+        // a local change: only then an overlay has to be written (delta)
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Servus']];
         rmdir($this->root . '/client-data');
         mkdir($this->root . '/client-data');
         file_put_contents($this->root . '/client-data/lang', 'not a directory');
@@ -929,7 +1163,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             restore_error_handler();
         }
 
-        $this->assertSame(['greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
+        $this->assertSame(['greeting' => 'Servus'], $this->lngModules()[self::MODULE]);
         $this->assertStringContainsString('Could not sync migrated language file for module "pilot"', $this->errorLog());
         $this->assertSame([self::MODULE], $unwritten, 'the failed module is returned so callers can report it');
     }
@@ -939,9 +1173,11 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
      * overlay failed is listed, never a non-migrated one written in the same run.
      */
     #[DataProvider('writePaths')]
-    public function testEveryWritePathReturnsOnlyTheModulesWhoseOverlayCouldNotBeWritten(string $method): void
+    public function testEveryWritePathReturnsOnlyTheModulesWhoseOverlayCouldNotBeWritten(string $method, bool $writes_overlay): void
     {
-        $this->expectErrorLog();
+        if ($writes_overlay) {
+            $this->expectErrorLog();
+        }
         $this->shipPo(['greeting' => 'Hallo']);
         $this->writeLang('lang/ilias_de.lang', ['common#:#yes#:#Ja']);
         $this->writeLang('lang/customizing/ilias_de.lang.local', ['pilot#:#greeting#:#Servus']);
@@ -955,11 +1191,13 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             restore_error_handler();
         }
 
-        $this->assertSame([self::MODULE], $unwritten);
+        // Adapted to the delta overlay: "remove local changes" leaves only shipped values, so it
+        // has no overlay to write (nor one to remove) and nothing can fail
+        $this->assertSame($writes_overlay ? [self::MODULE] : [], $unwritten);
     }
 
     #[DataProvider('writePaths')]
-    public function testEveryWritePathReturnsNothingWhenTheOverlayWasWritten(string $method): void
+    public function testEveryWritePathReturnsNothingWhenTheOverlayWasWritten(string $method, bool $writes_overlay): void
     {
         $this->shipPo(['greeting' => 'Hallo']);
         $this->writeLang('lang/ilias_de.lang', ['common#:#yes#:#Ja']);
@@ -967,15 +1205,16 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->db_entries = [self::MODULE => ['greeting' => 'Hallo'], 'common' => ['yes' => 'Ja']];
 
         $this->assertSame([], $this->manager()->$method('de'));
-        $this->assertFileExists($this->overlayBase() . '.mo');
+        // Adapted to the delta overlay: only a path that keeps the customizing value writes one
+        $this->assertSame($writes_overlay, is_file($this->overlayBase() . '.mo'));
     }
 
     public static function writePaths(): array
     {
         return [
-            'install/update' => ['insertLanguageForInstallation'],
-            'remove local changes' => ['insertLanguageForRemovingLocalChanges'],
-            'apply local changes' => ['insertLanguageForApplyingLocalChanges'],
+            'install/update' => ['insertLanguageForInstallation', true],
+            'remove local changes' => ['insertLanguageForRemovingLocalChanges', false],
+            'apply local changes' => ['insertLanguageForApplyingLocalChanges', true],
         ];
     }
 
@@ -1033,9 +1272,9 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame("Neu\nZeile 2", $this->lngModules()[self::MODULE]['greeting']);
         $this->assertSame(['value' => "Neu\nZeile 2", 'local_change' => null], $this->lngData()['pilot|greeting']);
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
-        $this->assertSame("Neu\nZeile 2", LocalChangeComments::getOriginal($greeting));
-        $this->assertNull(LocalChangeComments::getLocalChange($greeting));
+        // Adapted to the delta overlay: S wins, so the legacy overlay entry is removed
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertFalse($this->effective()['greeting']['local_change']);
     }
 
     /**
@@ -1047,13 +1286,13 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->shipPo(['greeting' => "Zeile 1\nZeile 2 mit C:\\pfad"]);
 
         $this->manager()->insertLanguageForInstallation('de');
-        $po_after_first_run = file_get_contents($this->overlayBase() . '.po');
         $this->queries = [];
         $this->manager()->insertLanguageForInstallation('de');
 
         $this->assertSame(['value' => "Zeile 1\nZeile 2 mit C:\\pfad", 'local_change' => null], $this->lngData()['pilot|greeting']);
-        $this->assertNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')));
-        $this->assertSame($po_after_first_run, file_get_contents($this->overlayBase() . '.po'));
+        // Adapted to the delta overlay: recognised as the shipped value - no overlay on either run
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertFalse($this->effective()['greeting']['local_change']);
     }
 
     /**
@@ -1074,10 +1313,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $overlay = $this->overlayPo();
         $this->assertSame('Pfiat di', $overlay->find(self::MODULE, 'farewell')->getTranslation());
         $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find(self::MODULE, 'farewell')));
-        $this->assertSame(
-            ['farewell' => 'Pfiat di', 'greeting' => 'Hallo'],
-            MigratedPoFixture::readMo($this->overlayBase() . '.mo')
-        );
+        // Adapted to the delta overlay: "greeting" carries the shipped value and is not written
+        $this->assertSame(['farewell' => 'Pfiat di'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
         $this->assertStringContainsString('Could not read the overlay of migrated module "pilot"', $this->errorLog());
     }
 
@@ -1092,6 +1329,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         });
 
         $target = $elsewhere;
+        // a local change, so there is an overlay to write (delta)
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Servus']];
         $manager->insertLanguageForInstallation('de');
 
         $this->assertFileExists($elsewhere . '/lang/components/pilot/lang/pilot_de.mo');

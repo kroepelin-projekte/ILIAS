@@ -23,7 +23,7 @@ use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
-use ILIAS\Setup\Objective\NullObjective;
+use ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective;
 
 /**
  * Class ilLanguageSetupAgentTest
@@ -100,6 +100,6 @@ class ilLanguageSetupAgentTest extends ilLanguageBaseTestCase
     {
         $result = $this->obj->getBuildObjective();
 
-        $this->assertInstanceOf(NullObjective::class, $result);
+        $this->assertInstanceOf(ShippedLanguageFilesCompiledObjective::class, $result);
     }
 }

@@ -364,6 +364,34 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * A prefix that cannot be a module name at all (here: a plugin id containing a hyphen, giving
+     * "comp_slot_p-test") is never looked up - removeMigratedMoFiles() logs a warning and returns
+     * instead of building/comparing overlay paths from it. Proven by seeding a DIFFERENT, validly
+     * prefixed module's overlay and asserting it survives untouched (the invalid-prefix plugin never
+     * reaches any overlay path at all, valid or not).
+     */
+    public function testUninstallLogsAndSkipsWhenThePrefixIsNotAValidModuleName(): void
+    {
+        $other_module = 'comp_slot_other';
+        $other_directory = $this->seedShippedModule($other_module, 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay($other_module, 'de', ['greeting' => 'Hallo']);
+        $this->registerDirectoryManager($other_directory);
+        $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
+        $logger = $this->createMock(ilLogger::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('comp_slot_p-test'));
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
+
+        // getPrefix() = "comp_slot_p-test" - the hyphen makes it invalid
+        $plugin_language = new ilPluginLanguage($this->createPluginInfo('p-test', ['de']));
+        $plugin_language->uninstall();
+
+        $this->assertFileExists($this->overlayPath($other_module, 'de', 'mo'));
+        $this->assertFileExists($this->overlayPath($other_module, 'de', 'po'));
+    }
+
+    /**
      * The central overlay-vs-shipped behavior change: when CLIENT_DATA_DIR cannot be resolved at all,
      * uninstall()'s overlay cleanup must no-op entirely - never fall back to touching the shipped `.po`.
      * Runs in a separate process because CLIENT_DATA_DIR, once defined, cannot be undefined again for
@@ -474,6 +502,10 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 
         // both languages failed to remove (same read-only overlay directory) and were each logged
         // individually - proving the loop attempted 'fr' too instead of aborting after 'de' failed.
+        // (Each is preceded by the warning that its lock file could not be created there.)
+        $lock_warnings = array_values(array_filter($warnings, static fn(string $w): bool => str_contains($w, 'lock file')));
+        $warnings = array_values(array_filter($warnings, static fn(string $w): bool => !str_contains($w, 'lock file')));
+        $this->assertCount(2, $lock_warnings);
         $this->assertCount(2, $warnings);
         $this->assertStringContainsString('de', $warnings[0] ?? '');
         $this->assertStringContainsString('fr', $warnings[1] ?? '');

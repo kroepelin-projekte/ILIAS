@@ -329,7 +329,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // it at all.
         $this->invoke(['dtest'], []);
 
-        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
+        // Adapted to the delta overlay: an empty map leaves no local change, so the overlay is
+        // removed instead of emptied (the module then serves its shipped state)
+        $this->assertFileDoesNotExist($this->overlayDirectory() . 'dtest_de.po');
         $this->assertNotNull(
             $this->loadFixturePo('dtest', 'de')->find('dtest', 'greeting'),
             'the shipped .po must never be touched by this sync path'
@@ -396,7 +398,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // had been empty.
         $this->invoke(['dtest'], ['not_a_valid_key' => 'value']);
 
-        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
+        // Adapted to the delta overlay: an empty map leaves no local change, so the overlay is
+        // removed instead of emptied (the module then serves its shipped state)
+        $this->assertFileDoesNotExist($this->overlayDirectory() . 'dtest_de.po');
     }
 
     /**
@@ -416,7 +420,9 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
         $this->invoke(['dtest', 'ktest'], ['ktest#:#greeting' => 'Hallo, neu']);
 
-        $this->assertNull($this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting'));
+        // Adapted to the delta overlay: an empty map leaves no local change, so the overlay is
+        // removed instead of emptied (the module then serves its shipped state)
+        $this->assertFileDoesNotExist($this->overlayDirectory() . 'dtest_de.po');
         $updated = $this->loadOverlayPo('ktest', 'de')->find('ktest', 'greeting');
         $this->assertNotNull($updated);
         $this->assertSame('Hallo, neu', $updated->getTranslation());

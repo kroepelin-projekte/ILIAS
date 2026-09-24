@@ -85,6 +85,7 @@ MARKDOWN
                     $f->string($this->markdown('Language key of a not-yet-installed language.'))
                 ),
                 'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
+                'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingOutputField($f),
             ]
         );
     }
@@ -141,6 +142,10 @@ MARKDOWN
             'updated_language_keys' => $to_update,
             'not_installed_language_keys' => $not_installed_no_op,
             'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
+            'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingEntries(
+                $this->setup_language->getSkippedInvalidMarkupEntries(),
+                $to_update
+            ),
         ];
     }
 }

@@ -35,9 +35,10 @@ use RuntimeException;
  * module:
  * - the shipped `.po` is the only source of the shipped values (the legacy `.lang` files are not
  *   consulted at all, see LanguageInstallationManager);
- * - the overlay (see MigratedLanguageFilePaths) is the per-installation copy ilLanguage reads at
- *   runtime. It exists for every installed language and carries, per entry, the value in use plus
- *   the LocalChangeComments bookkeeping ("original" = shipped value it is tracked against,
+ * - the overlay (see MigratedLanguageFilePaths) holds the per-installation delta to the shipped
+ *   state (see sync()), which ilLanguage applies on top of the shipped state at runtime. It only
+ *   exists where there are local changes, and carries, per entry, the value in use plus the
+ *   LocalChangeComments bookkeeping ("original" = shipped value it is tracked against,
  *   "local_change" = when it was changed locally).
  *
  * lng_data/lng_modules keep being written for migrated modules too (rollback-safe fallback); this
@@ -58,31 +59,57 @@ final class MigratedLanguageFileSync
      */
     private static array $held_locks = [];
 
+    private static ?TranslationMarkupPolicy $markup_policy = null;
+
     /**
-     * Writes the overlay of $module/$lang_key so it holds exactly $entries ("replace" semantics:
-     * entries not in $entries are removed). A no-op if $module is not a contributed directory or
-     * $client_data_dir is `null`; a missing overlay is created (the overlay reflects that the
-     * language is installed). Without a shipped `.po` for $lang_key (the module or the language was
-     * dropped from the shipped files, possibly only temporarily) this is a no-op as well: an existing
-     * overlay is left untouched - it is not read while the shipped `.po` is missing (see
-     * loadModuleTranslations(), getMigratedModules(), ilLanguage), and once the `.po` is back the
-     * next reconciling write compares against its preserved "original" values. An overlay is only
-     * ever removed when its language is uninstalled (removeOverlay()).
+     * Parsed shipped `.po` files of this request, keyed by path, see readShippedPo().
      *
-     * The whole read-modify-write runs under the overlay lock (see withOverlayLock()), and the
-     * existing overlay is read only after it was acquired.
+     * @var array<string, array{0: string, 1: TranslationCatalog}>
+     */
+    private static array $shipped_catalogs = [];
+
+    /**
+     * The language the files in $shipped_catalogs belong to.
+     */
+    private static string $shipped_catalogs_lang_key = '';
+
+    /**
+     * How many parsed shipped `.po` files of one language readShippedPo() keeps - more than the
+     * modules of a language, so installing it parses each of its `.po` files once, not once per step.
+     */
+    private const int SHIPPED_CATALOG_CACHE_SIZE = 512;
+
+    /**
+     * Brings the overlay of $module/$lang_key in line with $entries, the complete, final content of
+     * the module - but the overlay only holds the delta to the shipped `.po` (see belongsInDelta()):
+     * the entries whose value differs from the value the shipped `.po` carries (unprocessed, as in
+     * the file) or whose key it does not carry at all. Everything else is served from the shipped
+     * state (see ShippedTranslations) and therefore not written. An entry of the overlay not in the
+     * delta any more is removed; an overlay whose delta is empty is removed (`.po` and `.mo`; the
+     * `.lock` stays, see withOverlayLock()). With an empty delta and no overlay,
+     * nothing is written or locked at all - installing a language without local changes creates no
+     * file. An existing full overlay of an earlier version shrinks to the delta the same way with
+     * the next write (Setup update, reinstall).
      *
-     * Per entry:
-     * - "original" is taken from the shipped `.po` when the overlay is created, and - only with
+     * A no-op if $module is not a contributed directory or $client_data_dir is `null`. Without a
+     * shipped `.po` for $lang_key (the module or the language was dropped from the shipped files,
+     * possibly only temporarily) this is a no-op as well: an existing overlay is left untouched - it
+     * is not read while the shipped `.po` is missing (see loadModuleTranslations(),
+     * getMigratedModules(), ilLanguage), and once the `.po` is back the next reconciling write
+     * compares against its preserved "original" values.
+     *
+     * The read-modify-write runs under the overlay lock (see withOverlayLock()), and the existing
+     * overlay is read only after it was acquired.
+     *
+     * Per delta entry:
+     * - "original" is taken from the shipped `.po` when the entry enters the overlay, and - only with
      *   $refresh_original_from_shipped - re-taken from it on every later call. An entry the shipped
      *   `.po` no longer contains keeps the "original" it had, so a later update can still tell an
      *   unchanged entry (dropped there) from a real local change (kept). Pass `true` only for
-     *   reconciling writes whose $entries already went through the shipped/local decision (install, update, "remove local
-     *   changes", "apply local changes" - see LanguageInstallationManager); an ordinary admin edit
-     *   passes `false` so its baseline is never moved.
-     * - "fuzzy" is kept exactly while the value is the shipped one: it is copied from the shipped
-     *   entry on creation/refresh when the value equals the shipped value, and removed as soon as a
-     *   different value is written.
+     *   reconciling writes whose $entries already went through the shipped/local decision (install,
+     *   update, "remove local changes", "apply local changes" - see LanguageInstallationManager); an
+     *   ordinary admin edit passes `false` so its baseline is never moved.
+     * - "fuzzy" never applies: a delta value is by definition not the shipped one.
      * - "local_change" is recomputed via LocalChangeComments::refresh().
      *
      * Both files are written atomically (temporary file + rename). The `.po` only when its content
@@ -91,8 +118,18 @@ final class MigratedLanguageFileSync
      * unchanged `.po` is rebuilt as well (that output is deterministic, so a byte comparison suffices
      * and no read-back of the `.mo` is needed).
      *
+     * An overlay `.mo` without its `.po` (the `.po` carries the bookkeeping), or an overlay path that
+     * is no regular file, is never replaced or removed: sync() throws instead, so a local change it
+     * may hold is not lost silently.
+     *
      * @param array<string, string> $entries identifier => value, the complete, final set for this
      *        module/language - exactly what the caller just wrote to lng_modules.
+     * @param bool|null $expected_overlay_exists whether the caller decided on $entries knowing an
+     *        overlay exists (see LanguageInstallationManager): with `false`, an overlay that exists
+     *        once the lock is held was created concurrently after that decision (e.g. an admin edit
+     *        during an installation) and is left untouched - sync() throws. `null`: no expectation.
+     * @throws RuntimeException if the shipped `.po` or the overlay cannot be read or written, see
+     *         also above
      */
     public static function sync(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -101,76 +138,245 @@ final class MigratedLanguageFileSync
         string $module,
         array $entries,
         ?string $client_data_dir,
-        bool $refresh_original_from_shipped = false
+        bool $refresh_original_from_shipped = false,
+        ?bool $expected_overlay_exists = null
     ): void {
         $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null || $client_data_dir === null) {
             return;
         }
-
-        self::withOverlayLock(
-            $language_file_directory_manager,
-            $lang_key,
-            $module,
-            $client_data_dir,
-            static fn() => self::syncLocked(
-                $language_file_directory_manager,
-                $ilias_absolute_path,
-                $directory,
-                $lang_key,
-                $module,
-                $entries,
-                $client_data_dir,
-                $refresh_original_from_shipped
-            ),
-            $ilias_absolute_path
-        );
-    }
-
-    /**
-     * sync() once the overlay lock is held.
-     *
-     * @param array<string, string> $entries
-     */
-    private static function syncLocked(
-        LanguageFileDirectoryManager $language_file_directory_manager,
-        string $ilias_absolute_path,
-        LanguageFileDirectory $directory,
-        string $lang_key,
-        string $module,
-        array $entries,
-        string $client_data_dir,
-        bool $refresh_original_from_shipped
-    ): void {
         $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
         if (!is_file($shipped_po)) {
             // not migrated (any more) for this language: leave an existing overlay alone, see above
             return;
         }
 
+        // A copy: the catalog of readShippedPo() is shared with the readers of this request
+        $shipped = clone self::readShippedPo($shipped_po);
+        $delta = self::deltaOf($shipped, $module, $entries);
         $overlay_base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
+        if ($delta === [] && !self::hasOverlayFiles($overlay_base)) {
+            return;
+        }
+
+        self::lockAndRun(
+            $directory,
+            $lang_key,
+            $client_data_dir,
+            static fn() => self::syncLocked(
+                $shipped,
+                $overlay_base,
+                $lang_key,
+                $module,
+                $delta,
+                $client_data_dir,
+                $refresh_original_from_shipped,
+                $expected_overlay_exists
+            ),
+            $ilias_absolute_path,
+            false
+        );
+    }
+
+    /**
+     * The one place that decides what a locally written $value means for a key whose shipped value is
+     * $shipped_value (`null`: the key is not shipped): the value that is actually kept. Used by the
+     * overlay (belongsInDelta()) and by the database write of the admin GUI
+     * (ilObjLanguageExt::_saveValues()), so both treat it the same way.
+     *
+     * An empty value resets the entry to its shipped value (provisional decision, to be confirmed;
+     * change it here only). An empty value of a key that is not shipped stays empty.
+     */
+    public static function resolveLocalValue(?string $shipped_value, string $value): string
+    {
+        return $value === '' && $shipped_value !== null ? $shipped_value : $value;
+    }
+
+    /**
+     * The values of $entries as they are written to lng_data/lng_modules (the database fallback of a
+     * migrated module): an entry whose value is its unprocessed shipped value ($shipped_entries, as in
+     * the shipped `.po`) gets the value the build compiles for it (TranslationMarkupPolicy::sanitize()),
+     * so the fallback never serves markup the shipped state does not. Every other value (a local
+     * change, already checked when it was written) is kept. Only for the database - the overlay
+     * (sync()) keeps comparing with the unprocessed value, so this creates no delta.
+     *
+     * @param array<string|int, string> $entries identifier => value
+     * @param array<string|int, string> $shipped_entries identifier => unprocessed shipped value
+     * @return array<string|int, string>
+     */
+    public static function databaseValues(array $entries, array $shipped_entries): array
+    {
+        $policy = self::$markup_policy ??= new TranslationMarkupPolicy();
+        foreach ($entries as $identifier => $value) {
+            if (array_key_exists($identifier, $shipped_entries) && (string) $shipped_entries[$identifier] === (string) $value) {
+                $entries[$identifier] = $policy->sanitize((string) $value);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * databaseValues() for $module/$lang_key, reading its shipped `.po` - $entries unchanged if the
+     * module is not migrated for $lang_key or its shipped `.po` cannot be read (that is reported by
+     * the overlay write).
+     *
+     * @param array<string|int, string> $entries identifier => value
+     * @return array<string|int, string>
+     */
+    public static function databaseValuesOf(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $ilias_absolute_path,
+        string $lang_key,
+        string $module,
+        array $entries
+    ): array {
+        $shipped_po = self::findShippedModuleFiles($language_file_directory_manager, $ilias_absolute_path, $lang_key)[$module] ?? null;
+        if ($shipped_po === null) {
+            return $entries;
+        }
+        try {
+            $shipped = array_map(
+                static fn(array $entry): string => $entry['value'],
+                self::loadShippedModuleEntries($shipped_po, $module)
+            );
+        } catch (RuntimeException) {
+            return $entries;
+        }
+
+        return self::databaseValues($entries, $shipped);
+    }
+
+    /**
+     * Whether $value belongs into the overlay (the delta) given the $shipped_value the shipped `.po`
+     * carries for its key (`null`: the key is not shipped) - see resolveLocalValue(). An empty value
+     * never does.
+     */
+    public static function belongsInDelta(?string $shipped_value, string $value): bool
+    {
+        $value = self::resolveLocalValue($shipped_value, $value);
+
+        return $value !== '' && $value !== $shipped_value;
+    }
+
+    /**
+     * @param array<string, string> $entries
+     * @return array<string, string> identifier => value, sorted by identifier
+     */
+    private static function deltaOf(TranslationCatalog $shipped, string $module, array $entries): array
+    {
+        $delta = [];
+        foreach ($entries as $identifier => $value) {
+            $identifier = (string) $identifier;
+            $value = (string) $value;
+            if (self::belongsInDelta($shipped->find($module, $identifier)?->getTranslation(), $value)) {
+                $delta[$identifier] = $value;
+            }
+        }
+        ksort($delta, SORT_STRING);
+
+        return $delta;
+    }
+
+    /**
+     * Whether $module/$lang_key has an overlay (anything at the place of its `.po` or `.mo`), i.e.
+     * local changes. `false` if $module is not a contributed directory or $client_data_dir is `null`.
+     */
+    public static function hasOverlay(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir
+    ): bool {
+        $directory = self::findDirectory($language_file_directory_manager, $module);
+        if ($directory === null || $client_data_dir === null) {
+            return false;
+        }
+
+        return self::hasOverlayFiles(MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key));
+    }
+
+    /**
+     * Whether anything exists at the place of the overlay `.po` or `.mo` - also something that is no
+     * regular file.
+     */
+    private static function hasOverlayFiles(string $overlay_base): bool
+    {
+        foreach (['.po', '.mo'] as $extension) {
+            if (file_exists($overlay_base . $extension) || is_link($overlay_base . $extension)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @throws RuntimeException if the overlay at $overlay_base cannot be read as a whole: a `.po` or
+     *         `.mo` that is no regular file, or a `.mo` without its `.po` (which carries the
+     *         bookkeeping) - treating that as "no overlay" would let the next write remove it
+     */
+    private static function assertReadableOverlay(string $overlay_base): void
+    {
+        foreach (['.po', '.mo'] as $extension) {
+            $file = $overlay_base . $extension;
+            if ((file_exists($file) || is_link($file)) && (!is_file($file) || is_link($file))) {
+                throw new RuntimeException(sprintf('The overlay file "%s" is no regular file.', $file));
+            }
+        }
+        if (is_file($overlay_base . '.mo') && !is_file($overlay_base . '.po')) {
+            throw new RuntimeException(sprintf(
+                'The overlay "%s.mo" has no "%s.po" - it is left untouched.',
+                $overlay_base,
+                $overlay_base
+            ));
+        }
+    }
+
+    /**
+     * sync() once the overlay lock is held.
+     *
+     * @param array<string, string> $delta see deltaOf()
+     */
+    private static function syncLocked(
+        TranslationCatalog $shipped,
+        string $overlay_base,
+        string $lang_key,
+        string $module,
+        array $delta,
+        string $client_data_dir,
+        bool $refresh_original_from_shipped,
+        ?bool $expected_overlay_exists
+    ): void {
         $overlay_po = $overlay_base . '.po';
         $overlay_mo = $overlay_base . '.mo';
         self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $overlay_po);
         self::assertNoSymbolicLinkBelowOverlayRoot($client_data_dir, $overlay_mo);
+        self::assertReadableOverlay($overlay_base);
+        if ($expected_overlay_exists === false && self::hasOverlayFiles($overlay_base)) {
+            throw new RuntimeException(sprintf(
+                'The overlay "%s" was created after the values to write were determined - it is left untouched.',
+                $overlay_po
+            ));
+        }
 
-        $shipped = TranslationCatalog::fromPoFile($shipped_po);
+        if ($delta === []) {
+            self::removeOverlayFiles($overlay_base, $module, $lang_key, $client_data_dir);
+            return;
+        }
+
         $overlay_exists = is_file($overlay_po);
         $existing = null;
         if ($overlay_exists) {
             try {
                 $existing = TranslationCatalog::fromPoFile($overlay_po);
             } catch (RuntimeException) {
-                // A corrupt overlay is rebuilt like a missing one: $entries carries every value, and
+                // A corrupt overlay is rebuilt like a missing one: $delta carries every value, and
                 // "original"/"local_change" are recomputed against the shipped file - only the
                 // previous local_change timestamps are lost.
                 $overlay_exists = false;
             }
         }
-        // A separate instance even when seeding from the shipped file: the entries taken from it
-        // are modified below, while $shipped must keep the shipped values for comparison. Cloning
-        // instead of parsing the file a second time saves about a quarter of the catalog work.
-        $existing ??= clone $shipped;
 
         $catalog = new TranslationCatalog();
         foreach ($shipped->getHeaders() as $name => $value) {
@@ -178,35 +384,23 @@ final class MigratedLanguageFileSync
         }
 
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-        ksort($entries, SORT_STRING);
-        foreach ($entries as $identifier => $value) {
+        foreach ($delta as $identifier => $value) {
             $identifier = (string) $identifier;
-            $value = (string) $value;
             $shipped_entry = $shipped->find($module, $identifier);
-            $entry = $existing->find($module, $identifier) ?? new TranslationEntry($module, $identifier);
-            $previous_value = $entry->getTranslation();
-            $reconcile = !$overlay_exists || $refresh_original_from_shipped;
+            $existing_entry = $existing?->find($module, $identifier);
+            $entry = $existing_entry ?? new TranslationEntry($module, $identifier);
+            // An entry not in the overlay so far had the shipped value (or did not exist)
+            $previous_value = $existing_entry?->getTranslation() ?? $shipped_entry?->getTranslation() ?? '';
 
-            if ($reconcile) {
-                // An entry the shipped .po no longer contains keeps its previous "original" - see
-                // above and LanguageInstallationManager::resolveMigratedModule()
-                if ($shipped_entry !== null) {
-                    LocalChangeComments::setOriginal($entry, $shipped_entry->getTranslation());
-                    $entry->setExtractedComments($shipped_entry->getExtractedComments());
-                }
+            // An entry the shipped .po no longer contains keeps its previous "original" - see
+            // above and LanguageInstallationManager::resolveMigratedModule()
+            if ($shipped_entry !== null && ($existing_entry === null || $refresh_original_from_shipped)) {
+                LocalChangeComments::setOriginal($entry, $shipped_entry->getTranslation());
+                $entry->setExtractedComments($shipped_entry->getExtractedComments());
             }
 
             $entry->translate($value);
-            if ($reconcile) {
-                $is_shipped_fuzzy = $shipped_entry !== null
-                    && $shipped_entry->hasFlag('fuzzy')
-                    && $shipped_entry->getTranslation() === $value;
-                $is_shipped_fuzzy ? $entry->addFlag('fuzzy') : $entry->removeFlag('fuzzy');
-            } elseif ($value !== $previous_value) {
-                // A value someone actually wrote is, by definition, no longer an unreviewed placeholder
-                $entry->removeFlag('fuzzy');
-            }
-
+            $entry->removeFlag('fuzzy');
             LocalChangeComments::refresh($entry, $previous_value, $value, $now);
             $catalog->add($entry);
         }
@@ -290,7 +484,7 @@ final class MigratedLanguageFileSync
     public static function loadShippedModuleEntries(string $shipped_po, string $module): array
     {
         $entries = [];
-        foreach (TranslationCatalog::fromPoFile($shipped_po)->getEntries() as $entry) {
+        foreach (self::readShippedPo($shipped_po)->getEntries() as $entry) {
             if ($entry->getContext() !== $module) {
                 continue;
             }
@@ -499,6 +693,12 @@ final class MigratedLanguageFileSync
             // (e.g. a Setup run as root) still serializes
             $handle = @fopen($lock_file, 'c') ?: @fopen($lock_file, 'r');
             if ($handle === false) {
+                // e.g. missing permission or too many open files - the callback runs unlocked
+                self::logWarning(sprintf(
+                    'Could not open the lock file "%s" (%s) - continuing without the lock.',
+                    $lock_file,
+                    error_get_last()['message'] ?? 'unknown error'
+                ));
                 return null;
             }
             if (!flock($handle, LOCK_EX)) {
@@ -572,14 +772,22 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * The overlay content of $module/$lang_key - what ilLanguage::txt() serves for it - or `null`
-     * if there is no complete overlay (both `.po` and `.mo`) for it, or the module is no longer
-     * migrated for $lang_key (no shipped `.po`, see sync()).
+     * The content of $module/$lang_key the way ilLanguage::txt() serves it - the shipped `.po` with
+     * the overlay delta (see sync()) on top - or `null` if the module is not migrated for $lang_key
+     * (no contributed directory, no shipped `.po`) or $client_data_dir is `null`. The shipped values
+     * are the unprocessed ones of the `.po` (as they are written to lng_data), not the markup-cleaned
+     * ones ilLanguage serves.
+     *
+     * An entry without overlay entry carries the shipped value, no local change, and the shipped
+     * value as "original". An overlay entry is returned as the overlay holds it, also one whose key
+     * is not shipped. The overlay's `.po` is read (it carries the bookkeeping); an overlay `.mo`
+     * without it, or an overlay path that is no regular file, throws (see loadLocalChanges()).
      *
      * @param string|null $ilias_absolute_path where the shipped `.po` is looked up, defaults to
      *        ILIAS_ABSOLUTE_PATH (or this installation's root if that constant is not defined)
      * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
      *         identifier => details; local_change_date in the database's "Y-m-d H:i:s" format
+     * @throws RuntimeException if the shipped `.po` or the overlay `.po` cannot be read
      */
     public static function loadModuleTranslations(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -592,26 +800,86 @@ final class MigratedLanguageFileSync
         if ($directory === null || $client_data_dir === null) {
             return null;
         }
+        $ilias_absolute_path ??= defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 5);
+        $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
+        if (!is_file($shipped_po)) {
+            return null;
+        }
 
-        $base_path = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
+        $result = [];
+        foreach (self::readShippedPo($shipped_po)->getEntries() as $entry) {
+            if ($entry->getContext() !== $module) {
+                continue;
+            }
+            $result[$entry->getId()] = [
+                'value' => $entry->getTranslation(),
+                'local_change' => false,
+                'local_change_date' => null,
+                'original' => $entry->getTranslation(),
+            ];
+        }
+
+        return array_replace(
+            $result,
+            self::readOverlayEntries(
+                MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key),
+                $module
+            )
+        );
+    }
+
+    /**
+     * Only the overlay delta of $module/$lang_key (see sync()) - the entries loadModuleTranslations()
+     * takes from the overlay, without reading the shipped `.po` -, `[]` without overlay, `null` in the
+     * cases loadModuleTranslations() returns `null` for.
+     *
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
+     * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
+     * @throws RuntimeException if the overlay cannot be read - also for an overlay `.mo` without its
+     *         `.po` or an overlay path that is no regular file, which must not count as "no overlay"
+     */
+    public static function loadLocalChanges(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
+    ): ?array {
+        $directory = self::findDirectory($language_file_directory_manager, $module);
         if (
-            !is_file($base_path . '.mo')
-            || !is_file($base_path . '.po')
+            $directory === null
+            || $client_data_dir === null
             || !self::isShipped($ilias_absolute_path, $directory, $lang_key)
         ) {
             return null;
         }
 
+        return self::readOverlayEntries(
+            MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key),
+            $module
+        );
+    }
+
+    /**
+     * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>
+     * @throws RuntimeException see loadLocalChanges()
+     */
+    private static function readOverlayEntries(string $overlay_base, string $module): array
+    {
+        self::assertReadableOverlay($overlay_base);
+        if (!is_file($overlay_base . '.po')) {
+            return [];
+        }
+
         $result = [];
-        foreach (TranslationCatalog::fromPoFile($base_path . '.po')->getEntries() as $entry) {
+        foreach (TranslationCatalog::fromPoFile($overlay_base . '.po')->getEntries() as $entry) {
             if ($entry->getContext() !== $module) {
                 continue;
             }
-            $local_change_date = LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry);
             $result[$entry->getId()] = [
                 'value' => $entry->getTranslation(),
                 'local_change' => LocalChangeComments::getLocalChange($entry) !== null,
-                'local_change_date' => $local_change_date,
+                'local_change_date' => LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry),
                 'original' => LocalChangeComments::getOriginal($entry),
             ];
         }
@@ -620,8 +888,9 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * Every module that has a complete overlay for $lang_key and is still migrated for it (its
-     * shipped `.po` exists, see sync()).
+     * Every module migrated for $lang_key (its shipped `.po` exists) - with or without an overlay,
+     * which only exists for local changes. Empty if $client_data_dir is `null` (no overlay is
+     * maintained, see loadModuleTranslations()).
      *
      * @param string|null $ilias_absolute_path see loadModuleTranslations()
      * @return list<string>
@@ -638,11 +907,8 @@ final class MigratedLanguageFileSync
 
         $modules = [];
         foreach ($language_file_directory_manager->getDirectories() as $directory) {
-            $base_path = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
             if (
                 $directory->getPrefix() !== ''
-                && is_file($base_path . '.mo')
-                && is_file($base_path . '.po')
                 && self::isShipped($ilias_absolute_path, $directory, $lang_key)
             ) {
                 $modules[] = $directory->getPrefix();
@@ -650,6 +916,41 @@ final class MigratedLanguageFileSync
         }
 
         return $modules;
+    }
+
+    /**
+     * TranslationCatalog::fromPoFile() for a shipped `.po`, parsed once per request as long as the
+     * file content stays unchanged - an installation reads each shipped `.po` several times (shipped
+     * values, overlay state, sync). Only the files of one language are kept: reading a file of
+     * another language (the next language of an update) empties the cache first, so an update over
+     * every language never holds more than the modules of one. The catalog is shared: callers only
+     * read it (loadShippedModuleEntries() and loadModuleTranslations() copy the values into arrays),
+     * sync() works on a clone.
+     *
+     * @throws RuntimeException see TranslationCatalog::fromPoFile()
+     */
+    private static function readShippedPo(string $shipped_po): TranslationCatalog
+    {
+        $lang_key = preg_match('/_([a-z]{2})\.po\z/', $shipped_po, $matches) === 1 ? $matches[1] : '';
+        if ($lang_key !== self::$shipped_catalogs_lang_key) {
+            self::$shipped_catalogs = [];
+            self::$shipped_catalogs_lang_key = $lang_key;
+        }
+        // The content hash, not the modification time: that only has a resolution of seconds
+        $version = is_file($shipped_po) ? (string) @hash_file('xxh128', $shipped_po) : '';
+        $cached = self::$shipped_catalogs[$shipped_po] ?? null;
+        if ($cached !== null && $cached[0] === $version && $version !== '') {
+            return $cached[1];
+        }
+
+        $catalog = TranslationCatalog::fromPoFile($shipped_po);
+        unset(self::$shipped_catalogs[$shipped_po]);
+        if (count(self::$shipped_catalogs) >= self::SHIPPED_CATALOG_CACHE_SIZE) {
+            array_shift(self::$shipped_catalogs);
+        }
+        self::$shipped_catalogs[$shipped_po] = [$version, $catalog];
+
+        return $catalog;
     }
 
     private static function isShipped(?string $ilias_absolute_path, LanguageFileDirectory $directory, string $lang_key): bool

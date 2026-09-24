@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\Language\Activities\InstallLanguage;
@@ -416,6 +417,9 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
             $failure_messages[] = $this->overlayWriteFailedMessage($overlay_write_failed);
         }
+        if (($invalid_markup = $value['invalid_markup_customizing_entries'] ?? []) !== []) {
+            $failure_messages[] = $this->invalidMarkupCustomizingMessage($invalid_markup);
+        }
         if ($failure_messages !== []) {
             $this->tpl->setOnScreenMessage(
                 'failure',
@@ -676,11 +680,35 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             );
         }
 
+        $failure_messages = [];
         if (($overlay_write_failed = $value['overlay_write_failed_language_keys'] ?? []) !== []) {
-            $this->tpl->setOnScreenMessage('failure', $this->overlayWriteFailedMessage($overlay_write_failed), true);
+            $failure_messages[] = $this->overlayWriteFailedMessage($overlay_write_failed);
+        }
+        if (($invalid_markup = $value['invalid_markup_customizing_entries'] ?? []) !== []) {
+            $failure_messages[] = $this->invalidMarkupCustomizingMessage($invalid_markup);
+        }
+        if ($failure_messages !== []) {
+            $this->tpl->setOnScreenMessage('failure', implode('<br />', $failure_messages), true);
         }
 
         $this->ctrl->redirect($this, 'view');
+    }
+
+    /**
+     * Customizing entries not applied because of markup that is not allowed (see
+     * LanguageInstallationManager). A dedicated text ("lng_invalid_markup") is proposed for
+     * lang/ilias_*.lang; until it exists the generic "invalid input" text is used. The entry names
+     * come from a file, so they are escaped.
+     *
+     * @param list<string> $entries
+     */
+    private function invalidMarkupCustomizingMessage(array $entries): string
+    {
+        // TODO: "form_input_not_valid" is a placeholder - replace it by the proposed key
+        // "lng_invalid_markup_customizing" (sprintf with the entry list) once it exists in
+        // lang/ilias_*.lang. The complete list is logged by LanguageInstallationManager.
+        return $this->lng->txt('form_input_not_valid') . ' '
+            . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::keyList($entries));
     }
 
     /**

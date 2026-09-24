@@ -26,7 +26,7 @@ use RuntimeException;
  * Writes a file so that concurrent readers only ever see the complete old or the complete new
  * content: the data goes into a temporary file in the SAME directory (rename() is only atomic
  * within one filesystem) which then replaces the target via rename(). The data is flushed to disk
- * (fsync()) before the rename, and an existing target keeps its file mode.
+ * (fsync()) before the rename unless the caller opts out, and an existing target keeps its file mode.
  *
  * Accepted residual risk (TOCTOU, CWE-367): PHP offers no openat()/O_NOFOLLOW/renameat(), so the
  * confinement check and the later tempnam()/fopen()/rename() operate on path names. Whoever can
@@ -46,11 +46,19 @@ final class AtomicFileWriter
      * @param string|null $confine_to_directory if given, $file must resolve (its directory via
      *        realpath()) to this directory or below it - so a symbolic link in between cannot
      *        redirect the write elsewhere (CWE-59); checked before and again after the write
+     * @param bool $flush_to_disk `false` skips the fsync() before the rename(): readers still only
+     *        see the complete old or new content, but after a crash the file may be empty or lost.
+     *        Only for files that can be reproduced any time (e.g. the build artifacts of
+     *        ShippedTranslations) - an fsync() per file makes writing thousands of them slow.
      * @throws RuntimeException if $file is a symbolic link, lies outside $confine_to_directory, or
      *         cannot be written
      */
-    public static function write(string $file, string $content, ?string $confine_to_directory = null): void
-    {
+    public static function write(
+        string $file,
+        string $content,
+        ?string $confine_to_directory = null,
+        bool $flush_to_disk = true
+    ): void {
         if (is_link($file)) {
             throw new RuntimeException(sprintf('Refusing to replace the symbolic link "%s".', $file));
         }
@@ -81,7 +89,7 @@ final class AtomicFileWriter
         }
 
         try {
-            $written_identity = self::writeDurably($temporary, $content);
+            $written_identity = self::writeContent($temporary, $content, $flush_to_disk);
             // tempnam() creates the file with mode 0600: an existing target keeps its mode, a new
             // one gets what a plain file_put_contents() would create
             clearstatcache(true, $file);
@@ -164,12 +172,13 @@ final class AtomicFileWriter
     }
 
     /**
-     * Writes $content to $file and flushes it to the storage device before returning, so the
-     * rename() that follows can never publish a file whose content is not persisted yet.
+     * Writes $content to $file and - with $flush_to_disk - flushes it to the storage device before
+     * returning, so the rename() that follows can never publish a file whose content is not
+     * persisted yet.
      *
      * @return array{ino: int, dev: int} identity of the written file (fstat() of the handle used)
      */
-    private static function writeDurably(string $file, string $content): array
+    private static function writeContent(string $file, string $content, bool $flush_to_disk): array
     {
         $handle = @fopen($file, 'wb');
         if ($handle === false) {
@@ -185,7 +194,7 @@ final class AtomicFileWriter
                 }
                 $written += $bytes;
             }
-            if (!fflush($handle) || !fsync($handle)) {
+            if (!fflush($handle) || ($flush_to_disk && !fsync($handle))) {
                 throw new RuntimeException(sprintf('Could not flush "%s" to disk.', $file));
             }
             $stat = fstat($handle);

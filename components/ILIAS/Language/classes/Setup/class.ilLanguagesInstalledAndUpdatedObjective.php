@@ -19,6 +19,9 @@
 declare(strict_types=1);
 
 use ILIAS\Setup;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PlainLogText;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\Activities\InstallLanguage;
 use ILIAS\Language\Activities\UpdateLanguage;
 
@@ -148,8 +151,85 @@ class ilLanguagesInstalledAndUpdatedObjective extends ilLanguageObjective
         $this->informAboutMissingClientDataDirectory($environment, $language_keys);
         $this->informAboutUnwritableOverlayDirectories($environment, $language_keys);
         $this->informAboutUnwrittenOverlays($environment, $this->installLanguages($language_keys));
+        $this->informAboutSkippedInvalidMarkupEntries($environment);
+        $this->informAboutInvalidMarkupInLocalChanges($environment, $language_keys);
 
         return $environment;
+    }
+
+    /**
+     * Customizing entries (lang/customizing/*.lang.local) whose value has markup that is not allowed
+     * are not applied (see LanguageInstallationManager) - named here, the languages are installed
+     * regardless.
+     */
+    protected function informAboutSkippedInvalidMarkupEntries(Setup\Environment $environment): void
+    {
+        foreach ($this->il_setup_language->getSkippedInvalidMarkupEntries() as $language_key => $entries) {
+            // the complete list is in the PHP error log (LanguageInstallationManager)
+            $this->inform(
+                $environment,
+                PlainLogText::of(
+                    'WARNING: Customizing entries of language ' . $language_key . ' were not applied, their '
+                    . 'value contains HTML that is not allowed in language texts: '
+                    . PlainLogText::keyList(array_map('strval', array_keys($entries)))
+                )
+            );
+        }
+    }
+
+    /**
+     * Local changes written before the markup check existed (lng_data rows with local_change, and
+     * the overlay delta of modules maintained in PO files) are checked once per run and reported -
+     * never changed or removed: that is the administrator's decision.
+     *
+     * @param list<string> $language_keys
+     */
+    protected function informAboutInvalidMarkupInLocalChanges(Setup\Environment $environment, array $language_keys): void
+    {
+        $policy = new TranslationMarkupPolicy();
+        $manager = $this->il_setup_language->getLanguageFileDirectoryManager();
+        $client_data_dir = $this->il_setup_language->getClientDataDir();
+        foreach ($language_keys as $language_key) {
+            $values = [];
+            try {
+                foreach ($this->il_setup_language->getLocalChanges($language_key) as $module => $entries) {
+                    foreach ($entries as $identifier => $value) {
+                        $values[$module . '#:#' . $identifier] = (string) $value;
+                    }
+                }
+                foreach ($manager->getDirectories() as $directory) {
+                    $module = $directory->getPrefix();
+                    foreach (MigratedLanguageFileSync::loadLocalChanges($manager, $language_key, $module, $client_data_dir) ?? [] as $identifier => $entry) {
+                        $values[$module . '#:#' . $identifier] = $entry['value'];
+                    }
+                }
+            } catch (\Throwable $t) {
+                error_log(PlainLogText::of(sprintf(
+                    'Could not check the local changes of language "%s" for markup: %s',
+                    $language_key,
+                    $t->getMessage()
+                )));
+                continue;
+            }
+
+            $keys = array_map('strval', array_keys($policy->findInvalidValues($values)));
+            if ($keys === []) {
+                continue;
+            }
+            error_log(PlainLogText::of(sprintf(
+                'Local changes of language "%s" contain markup that is not allowed: %s',
+                $language_key,
+                implode(', ', $keys)
+            )));
+            $this->inform(
+                $environment,
+                PlainLogText::of(
+                    'WARNING: Local changes of language ' . $language_key . ' contain HTML that is not allowed '
+                    . 'in language texts (left unchanged - please correct them in the administration): '
+                    . PlainLogText::keyList($keys)
+                )
+            );
+        }
     }
 
     /**

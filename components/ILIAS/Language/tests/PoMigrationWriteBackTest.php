@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\SkippedWithMessageException;
 
 /**
@@ -226,11 +227,23 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
      */
     private function stubDatabaseForReplaceLangModule(): void
     {
+        $this->stubDatabaseForReplaceLangModuleCapturingInsert();
+    }
+
+    /**
+     * Same as stubDatabaseForReplaceLangModule(), but returns the stub so a caller can additionally
+     * capture what replaceLangModule() actually inserted into lng_modules (see
+     * testAnUnmodifiedShippedValueWithDisallowedMarkupIsSanitisedInTheDatabaseButNotInTheOverlay()).
+     */
+    private function stubDatabaseForReplaceLangModuleCapturingInsert(): ilDBInterface&Stub
+    {
         $statement = $this->createStub(ilDBStatement::class);
         $db = $this->createStub(ilDBInterface::class);
         $db->method('queryF')->willReturn($statement);
         $db->method('fetchAssoc')->willReturn(['lang_array' => serialize([])]);
         $this->setGlobalVariable('ilDB', $db);
+
+        return $db;
     }
 
     private function loadFixturePo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
@@ -263,6 +276,48 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         $shipped = $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting');
         $this->assertSame('Hallo', $shipped->getTranslation());
         $this->assertTrue($shipped->hasFlag('fuzzy'));
+    }
+
+    /**
+     * Konzept-Schritt-4's "no fake delta through cleaned DB values" invariant: an admin edit that
+     * writes back a value UNCHANGED from the shipped one - even one with markup
+     * TranslationMarkupPolicy does not allow (e.g. a historical `<br \>` shipped that way) - must be
+     * sanitised only for the DATABASE mirror (lng_data/lng_modules, via
+     * MigratedLanguageFileSync::databaseValuesOf()); the overlay sync() itself must still see the RAW,
+     * unsanitised value and therefore find no delta at all against the equally raw shipped `.po` -
+     * writing no overlay file. Sanitising the value BEFORE sync() would make it differ from the raw
+     * shipped value and create a fake local change out of thin air.
+     */
+    public function testAnUnmodifiedShippedValueWithDisallowedMarkupIsSanitisedInTheDatabaseButNotInTheOverlay(): void
+    {
+        $bad = '<script>alert(1)</script>Hallo';
+        $db = $this->stubDatabaseForReplaceLangModuleCapturingInsert();
+        $captured_lang_array = null;
+        $db->method('insert')->willReturnCallback(
+            function (string $table, array $values) use (&$captured_lang_array): int {
+                if ($table === 'lng_modules') {
+                    $captured_lang_array = unserialize($values['lang_array'][1] ?? '', ['allowed_classes' => false]);
+                }
+                return 1;
+            }
+        );
+        $directory = $this->seedFixtureModule('wtest', 'de', ['greeting' => ['value' => $bad]]);
+        $this->ensureClientDataDir();
+        $this->registerDirectoryManager($directory);
+
+        // the value written back is byte-identical to the shipped one - no real change, and no
+        // pre-existing overlay either, so sync() must write nothing at all
+        ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => $bad]);
+
+        $this->assertStringNotContainsString('<script', $captured_lang_array['greeting'] ?? '');
+        $this->assertStringContainsString('Hallo', $captured_lang_array['greeting'] ?? '');
+        $this->assertFileDoesNotExist(
+            $this->overlayBase('wtest', 'de') . '.po',
+            'no fake local change may appear in the overlay merely because the DB mirror is sanitised'
+        );
+        $this->assertFileDoesNotExist($this->overlayBase('wtest', 'de') . '.mo');
+        // the shipped file, as always, is never touched
+        $this->assertSame($bad, $this->loadFixturePo('wtest', 'de')->find('wtest', 'greeting')->getTranslation());
     }
 
     public function testAddsANewEntryThatDidNotExistInTheFileBefore(): void
@@ -299,7 +354,9 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
         // "farewell" is deleted server-side before replaceLangModule() rebuilds the row from what
         // remains - exactly what _deleteValues() does (see class.ilObjLanguageExt.php)
-        ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo']);
+        // Adapted to the delta overlay: "greeting" is changed locally, otherwise nothing would be
+        // left in the overlay to look at
+        ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Servus']);
 
         $this->assertNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell'));
         $this->assertNotNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting'));
@@ -438,13 +495,15 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
     public function testWritingBackTheOriginalValueClearsAnExistingLocalChangeTimestamp(): void
     {
         $this->stubDatabaseForReplaceLangModule();
+        // Adapted to the delta overlay: the shipped value is "Hallo" (the local change has to differ
+        // from the shipped value to be kept in the overlay at all)
         $directory = $this->seedFixtureModule('wtest', 'de', [
-            'greeting' => ['value' => 'Hallo, geändert', 'original' => 'Hallo'],
+            'greeting' => ['value' => 'Hallo'],
         ]);
         $this->bootstrapOverlayFromShipped('wtest', 'de');
         $this->registerDirectoryManager($directory);
 
-        // sanity check: the fixture starts out already locally changed
+        // sanity check: locally changed first
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
         $this->assertNotNull(LocalChangeComments::getLocalChange(
             $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')
@@ -452,9 +511,11 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo']);
 
-        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
-        $this->assertSame('Hallo', $translation->getTranslation());
-        $this->assertNull(LocalChangeComments::getLocalChange($translation));
+        // the shipped value again: no local change is left, the overlay is removed
+        $this->assertFileDoesNotExist(
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/wtest_de.po'
+        );
     }
 
     /**

@@ -660,6 +660,179 @@ class ilObjLanguageExtGUITest extends TestCase
     }
 
     // -----------------------------------------------------------------
+    // saveObject()
+    // -----------------------------------------------------------------
+
+    /**
+     * Builds a partial mock of the GUI with viewObject() stubbed out (rendering the whole admin
+     * table/collecting remarks etc. is not what saveObject() itself is about) so its call arguments -
+     * the only externally observable trace of what saveObject() decided - can be captured.
+     *
+     * @param array<string, string> $parsed_body
+     * @return ilObjLanguageExtGUI&MockObject
+     */
+    private function createGuiForSaveObjectWithParsedBody(array $parsed_body): ilObjLanguageExtGUI
+    {
+        /** @var ilObjLanguageExtGUI&MockObject $gui */
+        $gui = $this->getMockBuilder(ilObjLanguageExtGUI::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['viewObject'])
+            ->getMock();
+
+        $this->setProperty($gui, 'http', $this->mockHttpWithParsedBody($parsed_body));
+        $this->setProperty($gui, 'lng', $this->createLanguageMockReturningTopicAsIs());
+        $this->setProperty($gui, 'object', $this->createFakeLanguageObject('de'));
+        $this->setProperty($gui, 'refinery', new \ILIAS\Refinery\Factory(
+            $this->createStub(\ILIAS\Data\Factory::class),
+            $this->createStub(\ILIAS\Language\Language::class)
+        ));
+
+        return $gui;
+    }
+
+    /**
+     * Seeds ilLanguageFile::_getGlobalLanguageFile()'s static per-lang_key cache with an empty,
+     * constructor-bypassed fake, exactly like SaveValuesRecreatesLngModulesAfterDeleteModeImportTest -
+     * ilObjLanguageExt::findInvalidMarkupOfChangedValues() (only reached for a value that already
+     * fails the plain markup check, see its own docblock) reads it to determine the shipped value a
+     * changed value is compared against.
+     */
+    private function seedEmptyGlobalLanguageFile(string $lang_key): void
+    {
+        $fake_global_file = (new ReflectionClass(ilLanguageFile::class))->newInstanceWithoutConstructor();
+        $fake_global_file->setAllValues([]);
+        $fake_global_file->setAllComments([]);
+        $cache = (new ReflectionClass(ilLanguageFile::class))->getProperty('global_file_objects');
+        $cache->setValue(null, ($cache->isInitialized() ? $cache->getValue() : []) + [$lang_key => $fake_global_file]);
+    }
+
+    /**
+     * A DB stub that answers every SELECT (current lng_data values, and replaceLangModule()'s own
+     * queries) with "nothing" - and asserts that neither insert() nor manipulate() (the only calls
+     * that ever persist anything) is EVER invoked, proving that no value at all was written once
+     * saveObject() rejected the whole save.
+     */
+    private function databaseThatMustNeverBeWrittenTo(): ilDBInterface
+    {
+        $empty_statement = $this->createStub(ilDBStatement::class);
+        $empty_statement->method('fetchRow')->willReturn(null);
+        $empty_statement->method('fetchAssoc')->willReturn(null);
+
+        $db = $this->createMock(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(static fn($value, string $type): string => "'" . (string) $value . "'");
+        $db->method('query')->willReturn($empty_statement);
+        $db->method('fetchAssoc')->willReturn(null);
+        $db->expects($this->never())->method('insert');
+        $db->expects($this->never())->method('manipulate');
+
+        return $db;
+    }
+
+    /**
+     * A single value with markup TranslationMarkupPolicy does not allow - and that genuinely changes
+     * something (Konzept-Schritt-4: it differs from both the current and the shipped value, which are
+     * both empty/absent here) - must reject the WHOLE save, not just that one entry, and name every
+     * affected key (escaped), never any value. Proven via a DB double that asserts neither insert()
+     * nor manipulate() is ever called (see databaseThatMustNeverBeWrittenTo()) - the only way anything
+     * could actually be persisted.
+     */
+    public function testSaveObjectRejectsEverythingWhenAnyValueHasDisallowedMarkupAndNamesEveryAffectedKeyEscaped(): void
+    {
+        $this->seedEmptyGlobalLanguageFile('de');
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilDB'] = fn() => $this->databaseThatMustNeverBeWrittenTo();
+        $GLOBALS['DIC']['lng'] = static fn() => (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($this->createStub(ilLogger::class));
+        $GLOBALS['DIC']['ilLoggerFactory'] = static fn() => $logger_factory;
+
+        $gui = $this->createGuiForSaveObjectWithParsedBody([
+            'common#:#yes' => '<script>alert(1)</script>',
+            'common#:#yes#:#comment' => '',
+            // a second, independently invalid entry whose KEY itself contains HTML-significant
+            // characters (a client-supplied form field name) - it must show up escaped in the message
+            'other<b>#:#x' => '<script>alert(2)</script>',
+            'other<b>#:#x#:#comment' => '',
+        ]);
+        $this->setProperty($gui, 'object', $this->createFakeLanguageObject('de'));
+        $gui->expects($this->once())->method('viewObject')->with(
+            0,
+            [],
+            $this->callback(static function (array $messages): bool {
+                $message = $messages[0] ?? '';
+                return str_contains($message, 'common#:#yes')
+                    // "<b>" of the second key is HTML-escaped, never raw
+                    && str_contains($message, '&lt;b&gt;')
+                    && !str_contains($message, '<b>#:#x')
+                    && !str_contains($message, 'alert(1)')
+                    && !str_contains($message, 'alert(2)');
+            })
+        );
+
+        $gui->saveObject();
+    }
+
+    /**
+     * The exact transform pipeline saveObject() applies to every value before checking/saving it:
+     * a line break (any of \r\n, \r, \n) becomes "<br />", then "<<" becomes "«" - both BEFORE
+     * TranslationMarkupPolicy is consulted (an allowed value like "<b>x</b>" plus a line break must
+     * still pass, and must reach the database already transformed, not verbatim).
+     */
+    public function testSaveObjectTransformsLineBreaksAndDoubleLessThanBeforeCheckingThenSaves(): void
+    {
+        if (!defined('ILIAS_ABSOLUTE_PATH')) {
+            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
+        }
+        (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
+        $this->seedEmptyGlobalLanguageFile('zz_saveobject_test');
+
+        $empty_row_statement = $this->createStub(ilDBStatement::class);
+        $empty_row_statement->method('fetchRow')->willReturn(null);
+        $query_f_statement = $this->createStub(ilDBStatement::class);
+        $db = $this->createStub(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(static fn($value, string $type): string => "'" . (string) $value . "'");
+        $db->method('query')->willReturn($empty_row_statement);
+        $db->method('queryF')->willReturn($query_f_statement);
+        $db->method('fetchAssoc')->willReturnCallback(
+            static function (ilDBStatement $statement) use ($query_f_statement) {
+                return $statement === $query_f_statement ? ['lang_array' => serialize(['x' => 'irrelevant'])] : null;
+            }
+        );
+        $db->method('manipulate')->willReturnCallback(function (string $sql): int {
+            if (str_starts_with($sql, /** @lang text */ 'INSERT INTO lng_data')) {
+                $this->assertStringContainsString("'<b>x</b><br />'", $sql, 'the value must reach lng_data already transformed');
+            }
+            return 0;
+        });
+        $captured_lang_array = null;
+        $db->method('insert')->willReturnCallback(
+            function (string $table, array $values) use (&$captured_lang_array): int {
+                if ($table === 'lng_modules') {
+                    $captured_lang_array = unserialize($values['lang_array'][1] ?? '', ['allowed_classes' => false]);
+                }
+                return 1;
+            }
+        );
+
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilDB'] = static fn() => $db;
+        $GLOBALS['DIC']['lng'] = static fn() => (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
+        $GLOBALS['DIC']['ilErr'] = static fn() => null;
+
+        $lng = $GLOBALS['DIC']->language();
+        $gui = $this->createGuiForSaveObjectWithParsedBody([
+            'testmodule' . $lng->separator . 'greeting' => "<b>x</b>\r\n",
+            'testmodule' . $lng->separator . 'greeting' . $lng->separator . 'comment' => '',
+        ]);
+        $this->setProperty($gui, 'object', $this->createFakeLanguageObject('zz_saveobject_test'));
+        $gui->expects($this->once())->method('viewObject')->with(1, []);
+
+        $gui->saveObject();
+
+        $this->assertSame(['greeting' => '<b>x</b><br />'], $captured_lang_array);
+    }
+
+    // -----------------------------------------------------------------
     // maintainExecuteObject(): "clear", "load", "merge"
     // -----------------------------------------------------------------
 

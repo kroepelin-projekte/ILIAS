@@ -492,6 +492,99 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
     }
 
     /**
+     * Customizing entries left out because their value has markup TranslationMarkupPolicy does not
+     * allow (see LanguageInstallationManager::getSkippedInvalidMarkupEntries()) are reported as a
+     * WARNING per language - the install/update itself is not aborted for them.
+     */
+    public function testAchieveWarnsAboutSkippedInvalidMarkupEntriesPerLanguage(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de', 'fr'], [], $flushed);
+        $setup_language->method('getSkippedInvalidMarkupEntries')->willReturn([
+            'de' => ['common#:#greeting' => ['tag <script>']],
+            'fr' => ['common#:#farewell' => ['comment " i"']],
+        ]);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $warnings = array_values(array_filter($messages, static fn(string $m): bool => str_starts_with($m, 'WARNING:')));
+        $this->assertCount(2, $warnings);
+        $this->assertTrue(
+            (bool) array_filter($warnings, static fn(string $m): bool => str_contains($m, 'de') && str_contains($m, 'common#:#greeting'))
+        );
+        $this->assertTrue(
+            (bool) array_filter($warnings, static fn(string $m): bool => str_contains($m, 'fr') && str_contains($m, 'common#:#farewell'))
+        );
+    }
+
+    /**
+     * Local changes written before the markup check existed at all (a legacy lng_data row with a
+     * local_change) are never modified or removed - only reported, once per run, as a WARNING naming
+     * the affected entry.
+     */
+    public function testAchieveWarnsAboutInvalidMarkupInPreExistingLocalChanges(): void
+    {
+        $this->expectErrorLog();
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getSkippedInvalidMarkupEntries')->willReturn([]);
+        $setup_language->method('getClientDataDir')->willReturn(null);
+        $setup_language->method('getLocalChanges')->willReturn([
+            'common' => ['greeting' => '<script>alert(1)</script>'],
+        ]);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $warnings = array_values(array_filter(
+            $messages,
+            static fn(string $m): bool => str_contains($m, 'Local changes') && str_contains($m, 'contain HTML')
+        ));
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('common#:#greeting', $warnings[0]);
+        $this->assertStringContainsString('de', $warnings[0]);
+    }
+
+    /**
+     * A legacy local change that is still allowed must not be reported at all.
+     */
+    public function testAchieveDoesNotWarnAboutAnAllowedPreExistingLocalChange(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getSkippedInvalidMarkupEntries')->willReturn([]);
+        $setup_language->method('getClientDataDir')->willReturn(null);
+        $setup_language->method('getLocalChanges')->willReturn(['common' => ['greeting' => 'Hallo, geändert']]);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertSame(
+            [],
+            array_values(array_filter($messages, static fn(string $m): bool => str_contains($m, 'Local changes')))
+        );
+    }
+
+    /**
+     * No skipped entries at all -> no such warning.
+     */
+    public function testAchieveDoesNotWarnAboutInvalidMarkupWithoutAnySkippedEntry(): void
+    {
+        $flushed = [];
+        $setup_language = $this->createAchievableSetupLanguage(['de'], [], $flushed);
+        $setup_language->method('getSkippedInvalidMarkupEntries')->willReturn([]);
+        $messages = [];
+
+        (new ilLanguagesInstalledAndUpdatedObjective($setup_language))->achieve($this->informCollectingEnvironment($messages));
+
+        $this->assertSame(
+            [],
+            array_values(array_filter($messages, static fn(string $m): bool => str_contains($m, 'markup that is not allowed')))
+        );
+    }
+
+    /**
      * installLanguages() returns the languages with an unwritten overlay: a missing result key (an
      * Activity without the field) counts as none, duplicates are removed.
      */

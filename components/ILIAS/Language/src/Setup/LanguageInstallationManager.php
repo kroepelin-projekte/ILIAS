@@ -23,6 +23,8 @@ namespace ILIAS\Language\Setup;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
+use ILIAS\Language\ComponentTranslation\PlainLogText;
 
 /**
  * Write access to the language installation domain: installing, flushing
@@ -40,6 +42,12 @@ class LanguageInstallationManager
 
     private const string SEPARATOR = "#:#";
     private const string COMMENT_SEPARATOR = "###";
+
+    /**
+     * @var array<string, array<string, list<string>>> see getSkippedInvalidMarkupEntries()
+     */
+    private array $skipped_invalid_markup_entries = [];
+    private ?TranslationMarkupPolicy $markup_policy = null;
 
     /**
      * @param \ilDBInterface|\Closure():\ilDBInterface $db see
@@ -65,6 +73,39 @@ class LanguageInstallationManager
         private readonly ?\Closure $client_data_dir_resolver = null,
         private readonly ?\Closure $language_cache_invalidator = null,
     ) {
+    }
+
+    /**
+     * The entries of the customizing/local files not applied by the insertLanguageFor...() calls of
+     * this instance so far, because their value contains markup TranslationMarkupPolicy does not
+     * allow - for the caller to report.
+     *
+     * @return array<string, array<string, list<string>>> language key => module#:#identifier => violations
+     */
+    public function getSkippedInvalidMarkupEntries(): array
+    {
+        return $this->skipped_invalid_markup_entries;
+    }
+
+    private function markupPolicy(): TranslationMarkupPolicy
+    {
+        return $this->markup_policy ??= new TranslationMarkupPolicy();
+    }
+
+    /**
+     * The violations of a customizing $value - only if it changes something, i.e. differs from the
+     * value before this run ($current) and from the shipped one ($shipped), see
+     * TranslationMarkupPolicy::findInvalidChangedValues().
+     *
+     * @return list<string>
+     */
+    private function invalidMarkupOfCustomizingValue(string $value, ?string $current, ?string $shipped): array
+    {
+        return $this->markupPolicy()->findInvalidChangedValues(
+            ['value' => $value],
+            $current === null ? [] : ['value' => $current],
+            $shipped === null ? [] : ['value' => $shipped]
+        )['value'] ?? [];
     }
 
     private function db(): \ilDBInterface
@@ -283,9 +324,10 @@ class LanguageInstallationManager
      * every local change - the write path behind "remove local changes". Going through
      * insertLanguageForInstallation() instead would immediately re-apply the customizing file.
      *
-     * This also rebuilds the overlay of every migrated module from the shipped `.po` ("replace"
-     * semantics): locally changed values are reset, entries added locally ("add new variable") are
-     * removed - the overlay equivalent of the flush the caller performs on lng_data/lng_modules.
+     * This also removes the overlay of every migrated module (the overlay only holds the delta to the
+     * shipped `.po`, see MigratedLanguageFileSync::sync(), and none is left): locally changed values
+     * are reset, entries added locally ("add new variable") are removed - the overlay equivalent of
+     * the flush the caller performs on lng_data/lng_modules.
      *
      * @return list<string> see insertLanguageForInstallation()
      */
@@ -382,8 +424,8 @@ class LanguageInstallationManager
     }
 
     /**
-     * Whether any module is migrated to PO/MO for any of $lang_keys, i.e. an overlay has to be
-     * maintained for it.
+     * Whether any module is migrated to PO/MO for any of $lang_keys, i.e. an overlay may have to be
+     * maintained for it (for its local changes).
      *
      * @param list<string> $lang_keys
      */
@@ -414,7 +456,17 @@ class LanguageInstallationManager
      *
      * After lng_data/lng_modules are written, the stored module arrays are verified (collation
      * problems, see mantis #20046/#19140), the language cache is invalidated and every migrated
-     * module's overlay is brought in line with the final content.
+     * module's overlay is brought in line with the final content - which writes only the delta to the
+     * shipped `.po` (customizing values and real local changes): a module without local changes gets
+     * no overlay file, and an overlay of an earlier version holding every entry shrinks to the delta
+     * (see MigratedLanguageFileSync::sync()).
+     *
+     * Concurrent writes (an admin edit during the run): every migrated module that has an overlay is
+     * locked (MigratedLanguageFileSync::withOverlayLock()) for the whole run, so its overlay is read,
+     * reconciled and written back on one consistent state. A module without overlay is not locked (no
+     * lock file is created for it); if an overlay appears for it meanwhile, its sync() is refused and
+     * the module reported instead of discarding that overlay (see sync()'s
+     * $expected_overlay_exists).
      *
      * @param iterable<LanguageFileDirectory> $directories
      * @param array<string, array<string, string>> $lang_array module => identifier => value
@@ -434,8 +486,8 @@ class LanguageInstallationManager
         bool $keep_local_changes,
         bool $delete_unchanged_migrated_rows = false
     ): array {
-        $ilDB = $this->db();
-        $working_dir = getcwd();
+        // Reported per call (see getSkippedInvalidMarkupEntries()): only what this run left out
+        unset($this->skipped_invalid_markup_entries[$lang_key]);
         $client_data_dir = $this->clientDataDir();
         $shipped_migrated_modules = $merge_shipped_migrated_modules
             ? MigratedLanguageFileSync::loadShippedModules(
@@ -444,6 +496,71 @@ class LanguageInstallationManager
                 $lang_key
             )
             : [];
+
+        $locked_modules = [];
+        foreach (array_keys($shipped_migrated_modules) as $module) {
+            if (MigratedLanguageFileSync::hasOverlay(
+                $this->language_file_directory_manager,
+                $lang_key,
+                (string) $module,
+                $client_data_dir
+            )) {
+                $locked_modules[] = (string) $module;
+            }
+        }
+        // Invariant for every caller that holds more than one overlay lock at a time: the locks are
+        // always acquired in this one global order (module names, byte-wise) - never in the order of
+        // getDirectories(), which differs between entry points (Setup, GUI). Two runs locking the same
+        // modules in different orders would deadlock (flock() has no timeout).
+        sort($locked_modules, SORT_STRING);
+
+        $write = fn(): array => $this->writeLanguage(
+            $lang_key,
+            $directories,
+            $lang_array,
+            $shipped_migrated_modules,
+            $locked_modules,
+            $keep_local_changes,
+            $delete_unchanged_migrated_rows,
+            $client_data_dir
+        );
+        // Built inside out, so the outermost closure acquires the first lock of $locked_modules
+        foreach (array_reverse($locked_modules) as $module) {
+            $locked = $write;
+            $write = fn(): array => MigratedLanguageFileSync::withOverlayLock(
+                $this->language_file_directory_manager,
+                $lang_key,
+                $module,
+                $client_data_dir,
+                $locked,
+                $this->absolute_path
+            );
+        }
+
+        return $write();
+    }
+
+    /**
+     * insertLanguage() once the overlays of $locked_modules are locked.
+     *
+     * @param iterable<LanguageFileDirectory> $directories
+     * @param array<string, array<string, string>> $lang_array
+     * @param array<string, array<string, string>> $shipped_migrated_modules
+     * @param list<string> $locked_modules
+     * @return list<string> see insertLanguage()
+     */
+    private function writeLanguage(
+        string $lang_key,
+        iterable $directories,
+        array $lang_array,
+        array $shipped_migrated_modules,
+        array $locked_modules,
+        bool $keep_local_changes,
+        bool $delete_unchanged_migrated_rows,
+        ?string $client_data_dir
+    ): array {
+        $ilDB = $this->db();
+        $working_dir = getcwd();
 
         $values_sql = [];
         $add_row = static function (
@@ -475,6 +592,10 @@ class LanguageInstallationManager
         try {
             $customized = [];
             $duplicates = [];
+            // For the markup check of the customizing file: the values before this run (the seed)
+            // and the shipped values read from the global/component files
+            $current_values = $lang_array;
+            $shipped_line_values = [];
 
             foreach ($directories as $directory) {
                 $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
@@ -542,6 +663,7 @@ class LanguageInstallationManager
                     $seen_in_file[$module][$identifier] = true;
 
                     if (!$is_local) {
+                        $shipped_line_values[$module][$identifier] ??= $value;
                         if (isset($shipped_migrated_modules[$module])) {
                             // Migrated: the shipped .po is the only source, see resolveMigratedModule()
                             continue;
@@ -554,6 +676,18 @@ class LanguageInstallationManager
                     } elseif (isset($newer_db_changes[$module][$identifier])) {
                         $lang_array[$module][$identifier] = $newer_db_changes[$module][$identifier];
                         continue;
+                    } elseif (($violations = $this->invalidMarkupOfCustomizingValue(
+                        $value,
+                        $current_values[$module][$identifier] ?? null,
+                        isset($shipped_migrated_modules[$module])
+                            ? ($shipped_migrated_modules[$module][$identifier] ?? null)
+                            : ($shipped_line_values[$module][$identifier] ?? null)
+                    )) !== []) {
+                        // A customizing value with markup that is not allowed is left out (and
+                        // reported), not the whole installation aborted: the language is still
+                        // installed, only this local override is not applied
+                        $this->skipped_invalid_markup_entries[$lang_key][$module . self::SEPARATOR . $identifier] = $violations;
+                        continue;
                     }
 
                     $add_row($module, $identifier, $value, $change_date, $separated[3] ?? null);
@@ -562,6 +696,15 @@ class LanguageInstallationManager
                         $customized[$module][$identifier] = true;
                     }
                 }
+            }
+
+            $skipped_for_language = $this->skipped_invalid_markup_entries[$lang_key] ?? [];
+            if ($skipped_for_language !== []) {
+                error_log(PlainLogText::of(sprintf(
+                    'Customizing entries of language "%s" not applied - they contain markup that is not allowed: %s',
+                    $lang_key,
+                    implode(', ', array_keys($skipped_for_language))
+                )));
             }
 
             if ($duplicates !== []) {
@@ -585,8 +728,16 @@ class LanguageInstallationManager
                     $customized[$module] ?? [],
                     $shipped_entries,
                     $overlay ?? [],
+                    // the database gets the shipped values as the build serves them, see
+                    // MigratedLanguageFileSync::databaseValues()
                     static fn(string $identifier, string $value, ?string $local_change) =>
-                        $add_row($module, $identifier, $value, $local_change, null),
+                        $add_row(
+                            $module,
+                            $identifier,
+                            MigratedLanguageFileSync::databaseValues([$identifier => $value], $shipped_entries)[$identifier],
+                            $local_change,
+                            null
+                        ),
                     static function (string $identifier) use (&$dropped_identifiers, $module): void {
                         $dropped_identifiers[$module][] = $identifier;
                     }
@@ -633,6 +784,10 @@ class LanguageInstallationManager
 
             $modulesValuesSql = [];
             foreach ($lang_array as $module => $lang_arr) {
+                // $lang_array itself stays unprocessed: sync() below compares with the raw .po
+                if (isset($shipped_migrated_modules[$module])) {
+                    $lang_arr = MigratedLanguageFileSync::databaseValues($lang_arr, $shipped_migrated_modules[$module]);
+                }
                 $modulesValuesSql[] = sprintf(
                     "(%s,%s,%s)",
                     $ilDB->quote((string) $module, "text"),
@@ -649,7 +804,14 @@ class LanguageInstallationManager
             $this->assertModulesCorrectlySaved($lang_key, $modules);
             $this->invalidateLanguageCache($lang_key);
 
-            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir);
+            // A migrated module that was not locked had no overlay when this run decided on its
+            // values - see insertLanguage()
+            $expected_overlays = [];
+            foreach (array_keys($shipped_migrated_modules) as $module) {
+                $expected_overlays[(string) $module] = in_array((string) $module, $locked_modules, true) ? null : false;
+            }
+
+            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir, $expected_overlays);
         } finally {
             chdir($working_dir);
         }
@@ -740,13 +902,17 @@ class LanguageInstallationManager
      * The overlay state of a migrated module, or null. An unreadable overlay must not abort a
      * reinstall whose data the caller has already flushed: it is reported and treated as absent - the
      * local changes recorded in lng_data still apply, and sync() rewrites the overlay afterwards.
+     * Returns only the overlay delta (MigratedLanguageFileSync::loadLocalChanges()): the entries not in
+     * it carry the shipped value, which resolveMigratedModule() takes from the shipped `.po` anyway.
+     * An overlay `.mo` without its `.po` is reported here as unreadable, and its sync() fails
+     * instead of removing it.
      *
      * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
      */
     private function loadOverlay(string $lang_key, string $module, ?string $client_data_dir): ?array
     {
         try {
-            return MigratedLanguageFileSync::loadModuleTranslations(
+            return MigratedLanguageFileSync::loadLocalChanges(
                 $this->language_file_directory_manager,
                 $lang_key,
                 $module,
@@ -802,10 +968,16 @@ class LanguageInstallationManager
 
     /**
      * @param array<string, array<string, string>> $lang_array
+     * @param array<string, bool|null> $expected_overlays module => $expected_overlay_exists of
+     *        MigratedLanguageFileSync::sync()
      * @return list<string> the modules whose overlay could not be written
      */
-    private function syncMigratedModules(string $lang_key, array $lang_array, ?string $client_data_dir): array
-    {
+    private function syncMigratedModules(
+        string $lang_key,
+        array $lang_array,
+        ?string $client_data_dir,
+        array $expected_overlays = []
+    ): array {
         $failed_modules = [];
         foreach ($lang_array as $module => $entries) {
             try {
@@ -818,7 +990,8 @@ class LanguageInstallationManager
                     $client_data_dir,
                     // every caller of insertLanguage() reconciles the language with the shipped
                     // files, see MigratedLanguageFileSync::sync()
-                    true
+                    true,
+                    $expected_overlays[(string) $module] ?? null
                 );
             } catch (\Throwable $t) {
                 // No injected logger here - this class also runs in Setup contexts before a

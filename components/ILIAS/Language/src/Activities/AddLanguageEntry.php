@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\Activities;
 
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
@@ -108,10 +109,11 @@ class AddLanguageEntry extends LanguageActivity
 
     /**
      * The content of $module/$lang_key the new entry is added to: for a module maintained in PO files
-     * its overlay (what ilLanguage serves, and what the sync replaces completely), otherwise - or
-     * without a readable overlay - the lng_modules row. Without a readable row, only the module array
-     * of a module maintained in PO files is rebuilt from lng_data (which already holds the new
-     * entry), so the entry never stays invisible behind its overlay; for any other module `null` is
+     * its shipped state with the overlay delta on top (what ilLanguage serves, see
+     * MigratedLanguageFileSync::loadModuleTranslations()), otherwise - or if that cannot be read -
+     * the lng_modules row. Without a readable row, only the module array of a module maintained in
+     * PO files is rebuilt from lng_data (which already holds the new entry), so the entry never
+     * stays invisible behind its overlay; for any other module `null` is
      * returned and nothing is written, as before - the module name is free input, and no
      * lng_modules row must be created for an arbitrary one.
      *
@@ -325,6 +327,21 @@ MARKDOWN
         if ($missing_mandatory_language_keys !== []) {
             throw new InvalidInputException(
                 'A value is required for: ' . implode(', ', $missing_mandatory_language_keys) . '.'
+            );
+        }
+
+        // Checked for every language before anything is written: one value with markup that is not
+        // allowed (TranslationMarkupPolicy) rejects the whole request. Only the language keys are
+        // named, never the submitted values.
+        $values = [];
+        foreach ($installed_language_keys as $lang_key) {
+            $value = $translations[$lang_key] ?? '';
+            $values[$lang_key] = is_string($value) ? trim($value) : '';
+        }
+        $invalid_values = (new TranslationMarkupPolicy())->findInvalidValues($values);
+        if ($invalid_values !== []) {
+            throw new InvalidInputException(
+                'The value contains markup that is not allowed for: ' . implode(', ', array_keys($invalid_values)) . '.'
             );
         }
 

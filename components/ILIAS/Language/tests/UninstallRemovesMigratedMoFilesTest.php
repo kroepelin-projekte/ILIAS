@@ -409,17 +409,18 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
     public function testInvalidatesIlLanguagesCacheSoTheRemovalIsVisibleImmediately(): void
     {
         $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
-        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Servus']);
         $this->registerDirectoryManager($directory);
 
         // populates loadFromMigratedLanguageFile()'s static cache for 'utest'|'de'
         $before = $this->callLoadFromMigratedLanguageFile('utest', 'de');
-        $this->assertSame(['greeting' => 'Hallo'], $before);
+        $this->assertSame(['greeting' => 'Servus'], $before);
 
         $this->callRemoveMigratedMoFiles('de');
 
-        // the overlay is gone - a stale cached hit from before the removal must not leak through
-        $this->assertNull($this->callLoadFromMigratedLanguageFile('utest', 'de'));
+        // the overlay is gone - a stale cached hit from before the removal must not leak through:
+        // only the shipped state is left (the module stays migrated while its shipped .po exists)
+        $this->assertSame(['greeting' => 'Hallo'], $this->callLoadFromMigratedLanguageFile('utest', 'de'));
     }
 
     /**
@@ -493,10 +494,15 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
         chmod($overlay_readonly_dir, 0555);
 
-        $logger = $this->createMock(ilLogger::class);
-        $logger->expects($this->once())->method('warning')->with($this->stringContains('uone'));
-        $logger_factory = $this->createMock(ilLoggerFactory::class);
-        $logger_factory->expects($this->once())->method('getComponentLogger')->with('lang')->willReturn($logger);
+        // Two warnings for the failing module: its lock file cannot be created in the read-only
+        // directory (logged by MigratedLanguageFileSync::acquireLock()), then the removal itself fails
+        $warnings = [];
+        $logger = $this->createStub(ilLogger::class);
+        $logger->method('warning')->willReturnCallback(function (string $message) use (&$warnings): void {
+            $warnings[] = $message;
+        });
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
         $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
 
         set_error_handler(static fn(): bool => true, E_WARNING);
@@ -506,6 +512,10 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             restore_error_handler();
             chmod($overlay_readonly_dir, 0775);
         }
+
+        $this->assertCount(2, $warnings);
+        $this->assertStringContainsString('uone_de.lock', $warnings[0]);
+        $this->assertStringContainsString('uone', $warnings[1]);
 
         // the failing module's overlay was never actually removed
         $this->assertFileExists($overlay_readonly_dir . 'uone_de.mo');

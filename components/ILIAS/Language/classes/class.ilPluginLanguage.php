@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PlainLogText;
 
 /**
  * @author   Richard Klees <richard.klees@concepts-and-training.de>
@@ -137,9 +138,10 @@ class ilPluginLanguage
             // This re-applies the plugin's OWN shipped `.lang` file (merged with locally-changed
             // entries, kept as-is above) - the plugin-language analog of a core-component update, so
             // "original" may be refreshed the same way (see MigratedLanguageFileSync::sync()'s
-            // docblock). Currently always a no-op in practice: no plugin module contributes a
-            // LanguageFileDirectory yet, so sync() never gets far enough to act on it - wired
-            // correctly regardless, for whenever one does.
+            // docblock); like for a core module, only the delta to a shipped .po is written. Currently
+            // always a no-op for the files: a plugin cannot contribute a LanguageFileDirectory (the
+            // component graph is built from components/ only, cli/build_bootstrap.php) and this class
+            // reads plugin .lang files only, so no plugin module is ever migrated.
             ilObjLanguage::replaceLangModule($lang["key"], $prefix, $lang_array, true);
         }
     }
@@ -193,6 +195,16 @@ class ilPluginLanguage
         global $DIC;
 
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return;
+        }
+        // The prefix is composed of plugin metadata (component, slot and plugin id). Overlay paths are
+        // only ever built from a contributed LanguageFileDirectory matching it, never from the prefix
+        // itself - still, a prefix that cannot be a module name is not looked up at all.
+        if (preg_match('/^[A-Za-z0-9_]+\z/', $prefix) !== 1) {
+            $DIC->logger()->forComponent('lang')->warning(PlainLogText::of(sprintf(
+                'Not removing any overlay for the plugin language module "%s": not a valid module name.',
+                $prefix
+            )));
             return;
         }
 

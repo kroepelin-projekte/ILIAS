@@ -562,7 +562,8 @@ class ilObjLanguage extends ilObject
         $last_change = null;
         foreach (MigratedLanguageFileSync::getMigratedModules($manager, $a_key, $client_data_dir) as $module) {
             try {
-                $translations = MigratedLanguageFileSync::loadModuleTranslations(
+                // only the overlay carries local changes - the shipped .po need not be parsed
+                $translations = MigratedLanguageFileSync::loadLocalChanges(
                     $manager,
                     $a_key,
                     $module,
@@ -756,10 +757,21 @@ class ilObjLanguage extends ilObject
             "(%s,%s,%s)", $ilDB->quote($a_key, "text"),
             $ilDB->quote($a_module, "text"),
             $ilDB->quote(serialize($a_array), "clob")));*/
+        // a migrated module's shipped values as the build serves them (the database is its fallback),
+        // $a_array itself stays unprocessed for the overlay sync below
+        $db_array = $DIC->offsetExists(LanguageFileDirectoryManager::class)
+            ? MigratedLanguageFileSync::databaseValuesOf(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $a_key,
+                $a_module,
+                $a_array
+            )
+            : $a_array;
         $ilDB->insert("lng_modules", array(
             "lang_key" => array("text", $a_key),
             "module" => array("text", $a_module),
-            "lang_array" => array("clob", serialize($a_array))
+            "lang_array" => array("clob", serialize($db_array))
             ));
 
         // check if the module is correctly saved

@@ -32,8 +32,9 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  *
  * The global language file is a real file in a throwaway directory (seeded into
  * ilLanguageFile's per-request cache), the shipped .po lives in a throwaway directory below the
- * ILIAS root, and the database is a stub returning canned lng_data rows (no overlay exists, so
- * _getValues() reads every module from lng_data).
+ * ILIAS root, and the database is a stub returning canned lng_data rows. A migrated module is read
+ * from its shipped .po plus overlay (delta, seeded where a test needs a local change), every other
+ * module from lng_data.
  *
  * Runs every test method in its own separate process: a full-suite run can have CLIENT_DATA_DIR
  * already defined by an earlier, unrelated test class sharing the same process (e.g.
@@ -151,6 +152,21 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
     private function shippedPo(): string
     {
         return $this->fixture_directory . '/itest_' . self::LANG . '.po';
+    }
+
+    /**
+     * A local change of the migrated module: with the delta overlay, local changes are read from the
+     * overlay (lng_data is only the dual-written fallback), so they have to be seeded there.
+     *
+     * @param array<string, string> $entries
+     */
+    private function seedOverlay(array $entries): void
+    {
+        MigratedPoFixture::writePair(
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/itest_' . self::LANG,
+            MigratedPoFixture::catalog('itest', $entries)
+        );
     }
 
     private function registerDirectoryManager(): void
@@ -341,6 +357,8 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
             ['module' => 'itest', 'identifier' => 'greeting', 'value' => 'Servus'],
             ['module' => 'itest', 'identifier' => 'stale', 'value' => 'Nur noch in lang/'],
         ];
+        // Adapted to the delta overlay: the local change lives in the overlay
+        $this->seedOverlay(['greeting' => 'Servus']);
 
         $this->assertSame(
             ['common#:#yes' => 'Ja', 'itest#:#greeting' => 'Servus'],
@@ -354,6 +372,8 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
             ['module' => 'common', 'identifier' => 'custom', 'value' => 'Eigene'],
             ['module' => 'itest', 'identifier' => 'greeting', 'value' => 'Servus'],
         ];
+        // Adapted to the delta overlay: the local change lives in the overlay
+        $this->seedOverlay(['greeting' => 'Servus']);
 
         $this->assertSame(
             [

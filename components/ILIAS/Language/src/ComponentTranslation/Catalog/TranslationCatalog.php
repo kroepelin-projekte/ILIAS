@@ -167,7 +167,20 @@ final class TranslationCatalog
         if ($data === false) {
             throw new RuntimeException(sprintf('Could not read MO file "%s".', $file));
         }
-        self::assertStructurallySoundMo($data, $file);
+
+        return self::readMoTranslationsFromString($data, $file);
+    }
+
+    /**
+     * readMoTranslations() for `.mo` data already in memory, e.g. what toMoString() just compiled.
+     *
+     * @param string $name how the data is referred to in an exception message
+     * @return array<string, string>
+     * @throws RuntimeException if $data is not valid `.mo` data
+     */
+    public static function readMoTranslationsFromString(string $data, string $name = 'MO data'): array
+    {
+        self::assertStructurallySoundMo($data, $name);
 
         $translations = self::withLibraryErrorsAsExceptions(
             static fn(): Translations => (new MoLoader())->loadString($data)

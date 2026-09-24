@@ -39,6 +39,13 @@ final class MigratedLanguageFilePaths
     private const string LANGUAGE_KEY_FORMAT = '/^[a-z]{2}\z/';
 
     /**
+     * A module name as it may become a file name of the compiled shipped state.
+     */
+    private const string MODULE_FORMAT = '/^[A-Za-z0-9_-]+\z/';
+
+    private const string SHIPPED_ARTIFACT_DIRECTORY = 'artifacts/language';
+
+    /**
      * The client data directory (CLIENT_DATA_DIR) of this installation, or `null` if it cannot be
      * determined or does not exist (yet).
      *
@@ -110,6 +117,38 @@ final class MigratedLanguageFilePaths
         string $lang_key
     ): string {
         return rtrim($ilias_absolute_path, '/') . '/' . self::relativeBasePath($directory, $lang_key);
+    }
+
+    /**
+     * The directory Setup's build compiles every shipped `.po` into (see ShippedTranslations),
+     * below the `artifacts/` directory of the installation (not tracked by git).
+     */
+    public static function shippedArtifactDirectory(string $ilias_absolute_path): string
+    {
+        return rtrim($ilias_absolute_path, '/') . '/' . self::SHIPPED_ARTIFACT_DIRECTORY;
+    }
+
+    /**
+     * The compiled shipped state of $directory's module for $lang_key:
+     * `artifacts/language/<lang_key>/<module>.mo`.
+     *
+     * @throws \InvalidArgumentException for a $lang_key that is not an ILIAS language key, or a
+     *         module (the directory's prefix) that is not a plain file name
+     */
+    public static function shippedArtifactFile(
+        string $ilias_absolute_path,
+        LanguageFileDirectory $directory,
+        string $lang_key
+    ): string {
+        if (preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) !== 1) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid language key.', $lang_key));
+        }
+        $module = $directory->getPrefix();
+        if (preg_match(self::MODULE_FORMAT, $module) !== 1) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
+        }
+
+        return self::shippedArtifactDirectory($ilias_absolute_path) . '/' . $lang_key . '/' . $module . '.mo';
     }
 
     /**

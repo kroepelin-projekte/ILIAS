@@ -138,6 +138,7 @@ MARKDOWN
                     $f->string($this->markdown('File name of an invalid local language file.'))
                 ),
                 'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
+                'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingOutputField($f),
             ]
         );
     }
@@ -236,6 +237,10 @@ MARKDOWN
             'not_installed_language_keys' => $not_installed_no_op,
             'invalid_local_language_files' => $invalid_local_language_files,
             'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
+            'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingEntries(
+                $this->setup_language->getSkippedInvalidMarkupEntries(),
+                $affected_language_keys
+            ),
         ];
     }
 

@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 
 /**
 * Class ilObjLanguageExt
@@ -36,6 +37,11 @@ class ilObjLanguageExt extends ilObjLanguage
      * @var array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>}|null
      */
     private ?array $shipped_migrated_modules = null;
+
+    /**
+     * @var array<string, list<string>> see getSkippedInvalidMarkupValues()
+     */
+    private array $skipped_invalid_markup_values = [];
 
     /**
     * Read and get the global language file as an object
@@ -124,7 +130,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get all values from the database - and, for a module migrated to the PO/MO pilot, from its
-    * overlay instead (see _getValues()'s docblock below); "the database" is only accurate for a
+    * shipped .po with the overlay delta on top instead (see _getValues()'s docblock below); "the database" is only accurate for a
     * module that hasn't migrated yet.
     *
     * $a_modules       list of modules
@@ -140,7 +146,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get only the changed values from the database - and, for a module migrated to the PO/MO pilot,
-    * from its overlay instead (see _getValues()'s docblock) - which differ from the original
+    * from its shipped .po with the overlay delta on top instead (see _getValues()'s docblock) - which differ from the original
     * language file.
     *
     * $a_modules       list of modules
@@ -156,7 +162,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get only the unchanged values from the database - and, for a module migrated to the PO/MO
-    * pilot, from its overlay instead (see _getValues()'s docblock) - which are equal to the
+    * pilot, from its shipped .po with the overlay delta on top instead (see _getValues()'s docblock) - which are equal to the
     * original language file.
     *
     * Return array    module.separator.topic => value
@@ -168,7 +174,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get only the entries which don't exist in the shipped language files (see getShippedValues()) -
-    * read the same way as getAllValues() (DB, or a migrated module's overlay - see _getValues()'s
+    * read the same way as getAllValues() (DB, or a migrated module's shipped .po plus overlay delta - see _getValues()'s
     * docblock)
     *
     * $a_modules       list of modules
@@ -186,7 +192,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get all values for which the shipped language files have a comment (see getShippedComments()) -
-    * read the same way as getAllValues() (DB, or a migrated module's overlay - see _getValues()'s
+    * read the same way as getAllValues() (DB, or a migrated module's shipped .po plus overlay delta - see _getValues()'s
     * docblock)
     *
     * Note: This function checks the comments in the shipped language files,
@@ -207,7 +213,7 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
     * Get the local values merged into the shipped values (see getShippedValues()) - read the same way
-    * as getAllValues() (DB, or a migrated module's overlay - see _getValues()'s docblock)
+    * as getAllValues() (DB, or a migrated module's shipped .po plus overlay delta - see _getValues()'s docblock)
     *
     * The returned array contains:
     * 1. all entries that exist in the shipped language files, with their local values,
@@ -327,6 +333,42 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
+     * The values of $values (module.separator.identifier => value) a save into $a_lang_key would
+     * change and that contain markup TranslationMarkupPolicy does not allow - see
+     * TranslationMarkupPolicy::findInvalidChangedValues(): compared with the current values (database,
+     * or shipped .po plus overlay of a migrated module) and the shipped values.
+     *
+     * @param array<string, string> $values
+     * @return array<string, list<string>> key => violations
+     */
+    public static function findInvalidMarkupOfChangedValues(string $a_lang_key, array $values): array
+    {
+        // The current and shipped values are only read if a value breaks the rules at all
+        $policy = new TranslationMarkupPolicy();
+        $candidates = array_intersect_key($values, $policy->findInvalidValues($values));
+        if ($candidates === []) {
+            return [];
+        }
+        [$shipped_values] = self::shippedValuesAndComments(
+            ilLanguageFile::_getGlobalLanguageFile($a_lang_key),
+            self::readShippedMigratedModules($a_lang_key)
+        );
+
+        return $policy->findInvalidChangedValues($candidates, self::_getValues($a_lang_key), $shipped_values);
+    }
+
+    /**
+     * The values the last importLanguageFile() with $skipInvalidMarkup left out because of markup
+     * that is not allowed.
+     *
+     * @return array<string, list<string>> module.separator.identifier => violations
+     */
+    public function getSkippedInvalidMarkupValues(): array
+    {
+        return $this->skipped_invalid_markup_values;
+    }
+
+    /**
      * @return array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>}
      */
     private function shippedMigratedModules(): array
@@ -349,16 +391,27 @@ class ilObjLanguageExt extends ilObjLanguage
     *                       of every module migrated to PO/MO are taken from its shipped .po instead
     *                       of $a_file (see getShippedValues()) - and nothing at all is imported if
     *                       one of these shipped .po files cannot be read.
+    * $skipInvalidMarkup    Every value of an uploaded or customizing/local file ($refreshOriginalFromShipped
+    *                       `false`) the import changes (see findInvalidMarkupOfChangedValues()) is
+    *                       checked by TranslationMarkupPolicy before anything is changed.
+    *                       `false` (an upload): one value with markup that is not allowed rejects the
+    *                       whole import (ilLanguageInvalidMarkupException). `true` (the customizing
+    *                       file, applied like at installation): such values are left out, the others
+    *                       imported - see getSkippedInvalidMarkupValues(). The shipped file is not
+    *                       checked (its values are shipped, not local ones).
     *
     * @return list<string> the modules maintained in PO files whose PO/MO overlay could not be
     *         written - the database was written regardless; empty if every overlay is in sync
     * @throws ilLanguageException with $refreshOriginalFromShipped, if the shipped .po of a module
     *         maintained in PO files cannot be read - thrown before anything is changed
+    * @throws ilLanguageInvalidMarkupException see $skipInvalidMarkup - thrown before anything is
+    *         changed
     */
     public function importLanguageFile(
         string $a_file,
         string $a_mode_existing = "keepnew",
-        bool $refreshOriginalFromShipped = false
+        bool $refreshOriginalFromShipped = false,
+        bool $skipInvalidMarkup = false
     ): array {
         global $DIC;
         $ilDB = $DIC->database();
@@ -370,6 +423,29 @@ class ilObjLanguageExt extends ilObjLanguage
         if (!$import_file_obj->read()) {
             $ilErr->raiseError($import_file_obj->getErrorMessage(), $ilErr->MESSAGE);
         }
+
+        $this->skipped_invalid_markup_values = [];
+        // Only values the import actually changes (neither the current nor the shipped value) are
+        // checked - an exported file imported again must not be rejected for shipped texts
+        // - and no value the mode keeps (the existing value stays, the imported one is not written)
+        $invalid_values = [];
+        if (!$refreshOriginalFromShipped) {
+            $policy = new TranslationMarkupPolicy();
+            $kept_by_mode = match ($a_mode_existing) {
+                "keepall" => $this->getAllValues(),
+                "keepnew" => $this->getChangedValues(),
+                default => [],
+            };
+            $written = array_diff_key($import_file_obj->getAllValues(), $kept_by_mode);
+            $candidates = array_intersect_key($written, $policy->findInvalidValues($written));
+            if ($candidates !== []) {
+                $invalid_values = $policy->findInvalidChangedValues($candidates, $this->getAllValues(), $this->getShippedValues());
+            }
+        }
+        if ($invalid_values !== [] && !$skipInvalidMarkup) {
+            throw new ilLanguageInvalidMarkupException($invalid_values);
+        }
+        $this->skipped_invalid_markup_values = $invalid_values;
 
         $shipped = null;
         if ($refreshOriginalFromShipped) {
@@ -421,7 +497,7 @@ class ilObjLanguageExt extends ilObjLanguage
                 return [];
         }
 
-        $import_values = $import_file_obj->getAllValues();
+        $import_values = array_diff_key($import_file_obj->getAllValues(), $invalid_values);
         if ($shipped !== null) {
             // $a_file is the shipped .lang file - for a migrated module the shipped .po is the only
             // source of its shipped values, not the module's (possibly outdated) .lang lines
@@ -896,9 +972,10 @@ class ilObjLanguageExt extends ilObjLanguage
 
         // Read and get the shipped values - for a module maintained in PO files from its shipped .po
         // (an unreadable one keeps its .lang lines for this comparison, see getShippedValues())
+        $shipped_migrated = self::readShippedMigratedModules($a_lang_key);
         [$file_values, $file_comments] = self::shippedValuesAndComments(
             ilLanguageFile::_getGlobalLanguageFile($a_lang_key),
-            self::readShippedMigratedModules($a_lang_key)
+            $shipped_migrated
         );
         $db_values = self::_getValues($a_lang_key);
         $db_comments = self::_getRemarks($a_lang_key);
@@ -914,6 +991,12 @@ class ilObjLanguageExt extends ilObjLanguage
             }
 
             list($module, $topic) = $keys;
+            if (in_array($module, $shipped_migrated['modules'], true)) {
+                // A module maintained in PO files: the value is what its overlay keeps, e.g. an
+                // empty value resets to the shipped one (see resolveLocalValue()) - written the same
+                // way here, so lng_data does not diverge from what is served
+                $value = MigratedLanguageFileSync::resolveLocalValue($shipped_migrated['values'][$key] ?? null, (string) $value);
+            }
             $save_array[$module][$topic] = $value;
 
             $are_comments_set = array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
@@ -924,7 +1007,11 @@ class ilObjLanguageExt extends ilObjLanguage
                     $module,
                     $topic,
                     $a_lang_key,
-                    $value,
+                    // a migrated module's shipped value as the build serves it (database fallback),
+                    // see MigratedLanguageFileSync::databaseValues()
+                    in_array($module, $shipped_migrated['modules'], true)
+                        ? MigratedLanguageFileSync::databaseValues([$key => $value], $shipped_migrated['values'])[$key]
+                        : $value,
                     $local_change,
                     $a_remarks[$key] ?? null
                 );
@@ -964,10 +1051,11 @@ class ilObjLanguageExt extends ilObjLanguage
 
     /**
      * The current content of $module/$lang_key a partial save/delete is applied to:
-     * - for a module maintained in PO files its overlay - what ilLanguage serves and what sync()
-     *   replaces completely -, falling back to the lng_modules row if there is no (readable) overlay
-     *   and to the module's lng_data rows if there is neither: applying the partial change to
-     *   nothing would collapse the overlay to the saved entries;
+     * - for a module maintained in PO files its shipped state with the overlay delta on top - what
+     *   ilLanguage serves, see MigratedLanguageFileSync::loadModuleTranslations() -, falling back to
+     *   the lng_modules row if that cannot be read and to the module's lng_data rows if there is
+     *   neither: applying the partial change to nothing would turn every not saved entry into
+     *   "reset to shipped";
      * - for every other module the lng_modules row, `[]` if there is no (readable) row.
      *
      * Must be called under the module's overlay lock (see withModuleLock()).
@@ -1021,9 +1109,9 @@ class ilObjLanguageExt extends ilObjLanguage
             return is_array($content) ? $content : [];
         }
 
-        // A module maintained in PO files without overlay and lng_modules row: rebuilt from
-        // lng_data (always dual-written), so the overlay the sync creates holds the module's entries
-        // and not just the ones saved now
+        // A module maintained in PO files whose state cannot be read and without lng_modules row:
+        // rebuilt from lng_data (always dual-written), so the sync gets the module's entries and not
+        // just the ones saved now
         $content = [];
         $set = $ilDB->query(sprintf(
             "SELECT identifier, value FROM lng_data WHERE lang_key = %s AND module = %s",

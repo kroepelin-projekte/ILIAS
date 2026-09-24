@@ -136,7 +136,8 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
         symlink($this->decoy_directory, dirname($this->overlayBase()));
 
         try {
-            $this->sync();
+            // a local change: a shipped value alone writes nothing (delta overlay)
+            $this->sync(['greeting' => 'Servus']);
             $this->fail('Expected a RuntimeException');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('symbolic link', $e->getMessage());

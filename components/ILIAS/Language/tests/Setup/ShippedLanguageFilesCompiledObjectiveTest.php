@@ -1,0 +1,523 @@
+<?php
+
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
+declare(strict_types=1);
+
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective;
+use ILIAS\Setup\AdminInteraction;
+use ILIAS\Setup\Environment;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * ShippedLanguageFilesCompiledObjective: Setup's build step compiling every shipped `.po` into
+ * `artifacts/language/<lang>/<module>.mo` (Konzept Entscheidung 1) - incremental via a hash index,
+ * removing orphaned artifacts, warning (without aborting) about markup that had to be cleaned or a
+ * `.po` that could not be compiled, and never writing outside the artifact directory.
+ */
+class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
+{
+    private string $root;
+
+    protected function setUp(): void
+    {
+        $this->root = sys_get_temp_dir() . '/ilias_shipped_build_' . bin2hex(random_bytes(6));
+        mkdir($this->root, 0775, true);
+    }
+
+    protected function tearDown(): void
+    {
+        MigratedPoFixture::removeDirectory($this->root);
+    }
+
+    /**
+     * @param array<string, string> $entries identifier => value
+     */
+    private function writeShippedPo(string $relative_path, string $module, string $lang_key, array $entries): void
+    {
+        $directory = $this->root . '/' . trim($relative_path, '/');
+        MigratedPoFixture::writePo($directory . '/' . $module . '_' . $lang_key . '.po', MigratedPoFixture::catalog($module, $entries));
+    }
+
+    private function directoryManager(\ILIAS\Language\ComponentTranslation\LanguageFileDirectory ...$directories): LanguageFileDirectoryManager
+    {
+        return new LanguageFileDirectoryManager(new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(), ...$directories);
+    }
+
+    /**
+     * @param list<string> $messages filled with every message inform() receives, in order
+     */
+    private function informer(array &$messages): AdminInteraction
+    {
+        $messages = [];
+        $io = $this->createStub(AdminInteraction::class);
+        $io->method('inform')->willReturnCallback(function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        return $io;
+    }
+
+    private function achieve(LanguageFileDirectoryManager $manager, ?AdminInteraction $io = null): void
+    {
+        $objective = new ShippedLanguageFilesCompiledObjective($manager, $this->root);
+        $environment = $this->createStub(Environment::class);
+        $environment->method('getResource')->willReturn($io);
+        $objective->achieve($environment);
+    }
+
+    private function artifactPath(string $lang_key, string $module): string
+    {
+        return MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/' . $lang_key . '/' . $module . '.mo';
+    }
+
+    public function testCompilesAShippedPoIntoAnArtifact(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+
+        $this->achieve($this->directoryManager($directory));
+
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+        $this->assertSame(
+            ['greeting' => 'Hallo'],
+            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+        );
+    }
+
+    /**
+     * The main `lang/` directory (empty prefix) holds no `.po` at all and must simply be skipped, not
+     * cause an error.
+     */
+    public function testSkipsADirectoryWithoutAPrefix(): void
+    {
+        $directory = new \ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory();
+        mkdir($this->root . '/lang', 0775, true);
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($directory), $io);
+
+        $this->assertStringContainsString('0 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+    }
+
+    /**
+     * Second run with nothing changed: the artifact is not recompiled (same hash, same source, and
+     * the artifact still exists) - reported as "unchanged", not "compiled".
+     */
+    public function testASecondRunWithNoChangesReportsTheArtifactAsUnchanged(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+        $first_mtime = filemtime($this->artifactPath('de', 'itest'));
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('0 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertSame($first_mtime, filemtime($this->artifactPath('de', 'itest')));
+    }
+
+    /**
+     * Only the changed `.po` is recompiled - a second, untouched module's artifact is left as is
+     * (still reported unchanged) - the essence of "incremental".
+     */
+    public function testOnlyRecompilesTheChangedPoNotAnUntouchedOne(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $this->writeShippedPo('utest/', 'utest', 'de', ['greeting' => 'Servus']);
+        $manager = $this->directoryManager(
+            MigratedPoFixture::directory('itest', 'itest/'),
+            MigratedPoFixture::directory('utest', 'utest/')
+        );
+        $this->achieve($manager);
+        $unchanged_mtime = filemtime($this->artifactPath('de', 'utest'));
+
+        // change only "itest"'s shipped .po - the incremental decision is by content hash, not mtime
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo geändert']);
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('1 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertSame($unchanged_mtime, filemtime($this->artifactPath('de', 'utest')));
+        $this->assertSame(
+            ['greeting' => 'Hallo geändert'],
+            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+        );
+    }
+
+    /**
+     * A `.po` that no longer exists must have its artifact removed on the next build.
+     */
+    public function testRemovesAnArtifactWhoseShippedPoNoLongerExists(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+
+        unlink($this->root . '/itest/itest_de.po');
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertFileDoesNotExist($this->artifactPath('de', 'itest'));
+        $this->assertStringContainsString('0 compiled, 0 unchanged, 1 removed.', $messages[array_key_last($messages)]);
+    }
+
+    /**
+     * Markup TranslationMarkupPolicy does not allow is compiled cleaned and warned about - the build
+     * must not abort, and the artifact must still be produced (with the cleaned value).
+     */
+    public function testWarnsAboutDisallowedMarkupButStillCompilesTheCleanedArtifact(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => '<script>alert(1)</script>Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($directory), $io);
+
+        $warning = implode("\n", $messages);
+        $this->assertStringContainsString('WARNING: Markup not allowed in a language value', $warning);
+        $this->assertStringContainsString('itest', $warning);
+        $this->assertStringContainsString('greeting', $warning);
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+        $translations = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'));
+        $this->assertStringNotContainsString('<script', $translations['greeting']);
+    }
+
+    /**
+     * A markup warning is repeated on every run, not just the one that compiled it - until the `.po`
+     * is fixed (see the class docblock).
+     */
+    public function testRepeatsTheMarkupWarningOnASubsequentUnchangedRun(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => '<script>x</script>Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('WARNING: Markup not allowed', implode("\n", $messages));
+    }
+
+    /**
+     * A `.po` that cannot be compiled (syntactically broken) is reported and its artifact removed -
+     * the build itself does not abort, and other, valid modules are still compiled.
+     */
+    public function testABrokenPoIsReportedAndDoesNotAbortTheBuild(): void
+    {
+        mkdir($this->root . '/broken', 0775, true);
+        file_put_contents($this->root . '/broken/broken_de.po', "msgid \"kaputt\n");
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $manager = $this->directoryManager(
+            MigratedPoFixture::directory('broken', 'broken/'),
+            MigratedPoFixture::directory('itest', 'itest/')
+        );
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $warning = implode("\n", $messages);
+        $this->assertStringContainsString('WARNING: Could not compile', $warning);
+        $this->assertStringContainsString('broken', $warning);
+        $this->assertFileDoesNotExist($this->artifactPath('de', 'broken'));
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+    }
+
+    /**
+     * Every write must stay confined to the artifact directory below the ILIAS root passed to the
+     * constructor - AtomicFileWriter::write() is given that directory as $confine_to_directory, so a
+     * symbolic link swapped into the artifact tree cannot redirect a write elsewhere. Proven here by
+     * making the language-specific subdirectory a symlink pointing outside the artifact tree.
+     */
+    public function testNeverWritesOutsideTheArtifactDirectoryEvenViaASymlinkedLanguageDirectory(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $outside = $this->root . '/outside-de';
+        mkdir($outside, 0775, true);
+        mkdir(MigratedLanguageFilePaths::shippedArtifactDirectory($this->root), 0775, true);
+        symlink($outside, MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/de');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($directory), $io);
+
+        $this->assertSame([], array_values(array_diff(scandir($outside) ?: [], ['.', '..'])));
+    }
+
+    public function testGetHashChangesWhenAContributedDirectoryChanges(): void
+    {
+        $manager_one = $this->directoryManager(MigratedPoFixture::directory('itest', 'itest/'));
+        $manager_two = $this->directoryManager(MigratedPoFixture::directory('other', 'other/'));
+
+        $objective_one = new ShippedLanguageFilesCompiledObjective($manager_one, $this->root);
+        $objective_two = new ShippedLanguageFilesCompiledObjective($manager_two, $this->root);
+
+        $this->assertNotSame($objective_one->getHash(), $objective_two->getHash());
+    }
+
+    // ------------------------------------------------------------ Round 2: index integrity (artifact_size/artifact_hash)
+
+    /**
+     * The index also records the SIZE and HASH of the artifact itself (not only the source .po's
+     * hash): a truncated/corrupted artifact (e.g. by a crash without fsync(), see the class docblock)
+     * must be rebuilt, not kept as "unchanged" merely because its .po did not change.
+     */
+    public function testATruncatedArtifactIsRebuiltEvenThoughItsShippedPoDidNotChange(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+
+        // simulate a crash that left a truncated artifact behind - same source .po, damaged artifact
+        $full = (string) file_get_contents($this->artifactPath('de', 'itest'));
+        file_put_contents($this->artifactPath('de', 'itest'), substr($full, 0, 10));
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertSame(
+            ['greeting' => 'Hallo'],
+            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+        );
+    }
+
+    /**
+     * An artifact whose bytes were silently changed (same size, different content - e.g. a bit flip)
+     * is caught by the hash check the size check alone would miss, and rebuilt.
+     */
+    public function testAnArtifactWithTheSameSizeButDifferentContentIsRebuilt(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+
+        $original = (string) file_get_contents($this->artifactPath('de', 'itest'));
+        $tampered = substr($original, 0, -1) . ($original[-1] === "\x00" ? "\x01" : "\x00");
+        file_put_contents($this->artifactPath('de', 'itest'), $tampered);
+        $this->assertSame(strlen($original), strlen($tampered), 'precondition: same size, different content');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+    }
+
+    /**
+     * The index also carries a fingerprint over the code that determines the compiled output (see
+     * FORMAT_VERSION/fingerprint()) - an index written under a DIFFERENT fingerprint (e.g. an older
+     * ILIAS version's build, or code that changed) must never be trusted: everything is rebuilt.
+     */
+    public function testAnIndexWithADifferentFingerprintCausesAFullRebuild(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+
+        $index_file = MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/index.json';
+        $index = json_decode((string) file_get_contents($index_file), true);
+        $index['fingerprint'] = 'not-the-real-fingerprint';
+        file_put_contents($index_file, json_encode($index));
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+    }
+
+    /**
+     * A syntactically broken index.json (e.g. a build interrupted while writing it, before
+     * AtomicFileWriter existed, or manual corruption) must not abort the build either - it is simply
+     * treated as "no previous index", so everything is rebuilt from scratch.
+     */
+    public function testABrokenIndexJsonCausesAFullRebuildWithoutAborting(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        mkdir(MigratedLanguageFilePaths::shippedArtifactDirectory($this->root), 0775, true);
+        file_put_contents(MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/index.json', '{not valid json');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($directory), $io);
+
+        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+    }
+
+    /**
+     * The "touch" branch: identical content (same source, same hash, intact artifact) but the .po's
+     * mtime is newer than the artifact's (e.g. a checkout that reset only the .po's mtime) - the
+     * artifact is not rewritten, only its mtime is bumped, so ilLanguage/ShippedTranslations::read()
+     * does not needlessly re-compile the .po on every request. Still reported as "unchanged".
+     */
+    public function testATouchedButOtherwiseIdenticalPoOnlyBumpsTheArtifactsMtimeInsteadOfRewritingIt(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $manager = $this->directoryManager($directory);
+        $this->achieve($manager);
+        $artifact_inode_before = fileinode($this->artifactPath('de', 'itest'));
+
+        // the .po's mtime is newer than the artifact's (e.g. a checkout reset it) - achieved by
+        // moving the ARTIFACT into the past, never the .po into the future (clock skew territory the
+        // touch()-then-check logic does not have to cope with)
+        touch($this->artifactPath('de', 'itest'), time() - 1000);
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($manager, $io);
+
+        $this->assertStringContainsString('0 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        clearstatcache(true, $this->artifactPath('de', 'itest'));
+        $this->assertSame($artifact_inode_before, fileinode($this->artifactPath('de', 'itest')), 'the artifact must be touched, not rewritten (same inode)');
+        $this->assertGreaterThanOrEqual(
+            filemtime($this->root . '/itest/itest_de.po'),
+            filemtime($this->artifactPath('de', 'itest'))
+        );
+    }
+
+    // ------------------------------------------------------------ Round 2: robustness
+
+    /**
+     * A .po that cannot even be hashed (unreadable) is a generic \Throwable, not one of the two
+     * specific failure branches above - it, too, must not abort the whole build.
+     */
+    public function testAnUnreadablePoIsReportedAndDoesNotAbortTheBuild(): void
+    {
+        if (posix_getuid() === 0) {
+            $this->markTestSkipped('Cannot make a file unreadable while running as root; skipping.');
+        }
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $this->writeShippedPo('unreadable/', 'unreadable', 'de', ['greeting' => 'Hallo']);
+        chmod($this->root . '/unreadable/unreadable_de.po', 0000);
+        $manager = $this->directoryManager(
+            MigratedPoFixture::directory('itest', 'itest/'),
+            MigratedPoFixture::directory('unreadable', 'unreadable/')
+        );
+
+        try {
+            $messages = [];
+            $io = $this->informer($messages);
+            $this->achieve($manager, $io);
+        } finally {
+            chmod($this->root . '/unreadable/unreadable_de.po', 0664);
+        }
+
+        $warning = implode("\n", $messages);
+        $this->assertStringContainsString('WARNING: Could not compile', $warning);
+        $this->assertStringContainsString('unreadable', $warning);
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+    }
+
+    /**
+     * Leftover temporary files of AtomicFileWriter (".<name>.<random>") from a build that crashed
+     * between writing and renaming them must be cleaned up on the next build - they must not
+     * accumulate indefinitely, and must not be mistaken for real artifacts anywhere.
+     */
+    public function testRemovesLeftoverTemporaryFilesFromAnAbortedPreviousBuild(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $target_directory = MigratedLanguageFilePaths::shippedArtifactDirectory($this->root);
+        mkdir($target_directory . '/de', 0775, true);
+        file_put_contents($target_directory . '/.index.json.ab12cd', 'leftover');
+        file_put_contents($target_directory . '/de/.itest.mo.ab12cd', 'leftover');
+
+        $this->achieve($this->directoryManager($directory));
+
+        $this->assertFileDoesNotExist($target_directory . '/.index.json.ab12cd');
+        $this->assertFileDoesNotExist($target_directory . '/de/.itest.mo.ab12cd');
+    }
+
+    /**
+     * removeObsoleteArtifacts() must not delete through a symlinked LANGUAGE directory: a `.mo` no
+     * longer in the index but reached only via a symlink pointing outside the artifact tree must be
+     * left alone - isBelow()'s realpath() check applies to deletions exactly as it does to writes
+     * (see testNeverWritesOutsideTheArtifactDirectoryEvenViaASymlinkedLanguageDirectory()).
+     */
+    public function testDoesNotDeleteAnObsoleteArtifactReachedOnlyThroughASymlinkedLanguageDirectory(): void
+    {
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+        $target_directory = MigratedLanguageFilePaths::shippedArtifactDirectory($this->root);
+        mkdir($target_directory, 0775, true);
+        $outside = $this->root . '/outside-language-dir';
+        mkdir($outside, 0775, true);
+        file_put_contents($outside . '/obsolete.mo', 'not tracked by the index at all');
+        symlink($outside, $target_directory . '/xx');
+
+        $this->achieve($this->directoryManager($directory));
+
+        $this->assertFileExists($outside . '/obsolete.mo');
+    }
+
+    /**
+     * The build log must never carry raw control characters (e.g. an ANSI escape sequence or a
+     * bidirectional override smuggled in via a translation identifier) through to the terminal -
+     * withoutControlCharacters() replaces them with "?".
+     */
+    public function testControlCharactersInABuildLogMessageAreReplaced(): void
+    {
+        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
+        $entry = \MigratedPoFixture::entry('itest', "bad\x1bkey", '<script>x</script>Hallo');
+        $catalog->add($entry);
+        MigratedPoFixture::writePo($this->root . '/itest/itest_de.po', $catalog);
+        $directory = MigratedPoFixture::directory('itest', 'itest/');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($directory), $io);
+
+        $warning = implode("\n", $messages);
+        $this->assertStringNotContainsString("\x1b", $warning);
+        $this->assertStringContainsString('bad?key', $warning);
+    }
+
+    public function testIsNotableAndHasNoPreconditions(): void
+    {
+        $objective = new ShippedLanguageFilesCompiledObjective(
+            $this->directoryManager(),
+            $this->root
+        );
+
+        $this->assertTrue($objective->isNotable());
+        $this->assertSame([], $objective->getPreconditions($this->createStub(Environment::class)));
+        $this->assertTrue($objective->isApplicable($this->createStub(Environment::class)));
+    }
+}

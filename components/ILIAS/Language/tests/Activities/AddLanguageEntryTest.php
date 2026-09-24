@@ -324,6 +324,70 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         }
     }
 
+    /**
+     * Markup that is not allowed (TranslationMarkupPolicy) in even a single language's value rejects
+     * the WHOLE request before anything is written - no partial save for the other, perfectly valid
+     * languages. The message names only the affected language key, never the submitted value.
+     */
+    public function testDisallowedMarkupInOneLanguageRejectsTheWholeRequestAndWritesNothingForAnyLanguage(): void
+    {
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de', 'en', 'fr'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        try {
+            $activity->perform([
+                'module' => 'common',
+                'identifier' => 'new_topic',
+                'translations' => [
+                    'de' => 'Hallo',
+                    'en' => 'Hello',
+                    'fr' => '<script>alert(1)</script>',
+                ],
+                'usr_id' => 6,
+            ]);
+            $this->fail('Expected an InvalidInputException to be thrown.');
+        } catch (InvalidInputException $e) {
+            $this->assertStringContainsString('fr', $e->getMessage());
+            $this->assertStringNotContainsString('alert(1)', $e->getMessage());
+            $this->assertStringNotContainsString('script', $e->getMessage());
+            // Nothing written for ANY language - not even the valid "de"/"en".
+            $this->assertArrayNotHasKey('replace', $calls);
+            $this->assertArrayNotHasKey('cache', $calls);
+        }
+    }
+
+    /**
+     * The flip side: markup TranslationMarkupPolicy allows (a plain tag, a link with an allowed
+     * scheme) never blocks the request - every language with such a value is written.
+     */
+    public function testAllowedMarkupInEveryLanguageIsWritten(): void
+    {
+        $calls = [];
+        $activity = $this->createActivity(
+            ['de', 'en'],
+            replace_lang_entry: $this->spyReplaceLangEntry($calls),
+            update_module_cache: $this->spyUpdateModuleCache($calls)
+        );
+
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => [
+                'de' => '<b>Hallo</b>',
+                'en' => '<a href="https://ilias.de">Hello</a>',
+            ],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de', 'en'], $result['added_language_keys']);
+        $this->assertSame('<b>Hallo</b>', $calls['replace'][0][3]);
+        $this->assertSame('<a href="https://ilias.de">Hello</a>', $calls['replace'][1][3]);
+    }
+
     // Same de/en rule as the perform() test above, exercised via maybePerformAs() with a real UI
     // Factory.
     public function testMaybePerformAsRejectsWholeRequestAndWritesNothingWhenEnIsBlankWhileDeIsValid(): void
@@ -1376,6 +1440,11 @@ class AddLanguageEntryTest extends ActivityContractTestCase
                 $directory
             )
         );
+        // Adapted to the delta overlay: without overlay the shipped state is a readable base (no
+        // local changes); only an unreadable overlay leads to the lng_modules/lng_data fallback
+        $overlay_dir = CLIENT_DATA_DIR . '/lang/components/ILIAS/Language/tests/Activities/' . basename($fixture_dir);
+        mkdir($overlay_dir, 0775, true);
+        file_put_contents($overlay_dir . '/common_de.po', "msgid \"kaputt\n");
 
         try {
             $lng_data_rows = [
@@ -1390,6 +1459,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             $this->assertSame(['existing' => 'Bestehend', 'new_topic' => 'Hallo'], $entries);
         } finally {
             \MigratedPoFixture::removeDirectory($fixture_dir);
+            \MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
         }
     }
 

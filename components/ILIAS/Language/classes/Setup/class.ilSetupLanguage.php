@@ -252,6 +252,15 @@ class ilSetupLanguage extends ilLanguage
     }
 
     /**
+     * @return array<string, array<string, list<string>>> see
+     *         LanguageInstallationManager::getSkippedInvalidMarkupEntries()
+     */
+    public function getSkippedInvalidMarkupEntries(): array
+    {
+        return $this->manager->getSkippedInvalidMarkupEntries();
+    }
+
+    /**
      * @return list<string> the migrated modules whose overlay could not be written, see
      *         LanguageInstallationManager::insertLanguageForInstallation()
      */
