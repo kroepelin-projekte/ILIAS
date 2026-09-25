@@ -615,8 +615,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             implode(', ', $keys)
         )));
 
-        // TODO: "form_input_not_valid" is a placeholder - replace it by the proposed key
-        // "lng_invalid_markup" (sprintf with the key list) once it exists in lang/ilias_*.lang
+        // The generic "invalid input" text followed by the keys - decided against a dedicated text
         return $this->lng->txt("form_input_not_valid") . ' '
             . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::keyList($keys));
     }

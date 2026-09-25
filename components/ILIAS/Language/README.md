@@ -54,7 +54,9 @@ value (or to an empty value) leaves the overlay, an empty overlay is deleted; in
 without local changes writes no file. An overlay of an earlier version holding every entry shrinks
 to this delta with the next update or reinstall. Every write path maintains the overlay; the
 database tables are still written as a rollback-safe fallback. At runtime `ilLanguage` serves the
-shipped state with the overlay applied on top (an overlay value wins).
+shipped state with the overlay applied on top (an overlay value wins) - for installed languages
+only; for a language that is not installed it falls back to `lng_modules` like for a module that
+is not migrated.
 
 The shipped state is compiled by Setup's build (`php cli/setup.php build`, run by `composer install`
 and `composer dump-autoload`) to `artifacts/language/<lang>/<module>.mo`
@@ -131,11 +133,28 @@ Further rules of the pilot:
   change of such a key - or one whose `original` is unknown - is kept as a local change. (The legacy
   `.lang` update behaves the same way for locally changed keys; unchanged ones disappear with the
   flush.)
-* Shipped `.po` files are generated with `tools/po-migration/convert_module_to_po.php <module>
-  [referenceLanguage] [outputDir]` (never by hand; it fails if a language has keys the reference
-  language lacks, and verifies every written entry). `msgid` is the language key, `msgctxt` the
-  module; a dated "new variable" comment becomes `#, fuzzy`, other comments `#.` comments.
+* Shipped `.po` files are generated with `tools/po-migration/convert_module_to_po.php
+  [--pattern=<pattern>] <module> [referenceLanguage] [outputDir]` (never by hand; it fails if a
+  language has keys the reference language lacks, and verifies every written entry). `msgid` is the
+  language key, there is no `msgctxt` (the module is the one of the directory; files with the module
+  as `msgctxt` are still read); a dated "new variable" comment becomes `#, fuzzy`, other comments
+  `#.` comments. The overlay is written without `msgctxt` as well; an older overlay entry with the
+  module as `msgctxt` loses it with its next write.
 * Only UTF-8 `.po` files are accepted.
+* A module's shipped files are named `<module>_<lang>.po` by default. A `ComponentLanguageFileDirectory`
+  may name them differently (4th constructor argument, e.g. `'ilias_%s'` for `ilias_<lang>.po`;
+  exactly one `%s` for the language key, no `/` or `..`), so the file name need not contain the
+  module name. The overlay and the build artifact are always named by the module.
+* An entry without `msgctxt` belongs to the module of its directory (as if it had the module as
+  context); an entry with another `msgctxt` - also an explicit empty one, `msgctxt ""` - is ignored.
+  If an identifier occurs both with the module as context and without context, the former wins.
+* Plugins (until they become components): a plugin may ship `lang/ilias_<lang>.po` instead of
+  `lang/ilias_<lang>.lang`; if both exist, the `.po` is used. `msgid` is the key without the plugin
+  prefix (as in the `.lang` file), there is no `msgctxt` (entries with one are ignored and logged) -
+  so the file stays valid when the plugin later becomes a component with another module name.
+  The values go into the database as before (markup that is not allowed is removed and logged,
+  comments are not stored); no overlay or artifact is written for plugins. A `.po` that cannot be
+  read skips that language of the plugin (logged).
 
 ## User Settings Contribution
 This component contributes a personal "language" setting to the user settings framework

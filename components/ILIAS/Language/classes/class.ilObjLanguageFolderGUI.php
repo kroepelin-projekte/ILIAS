@@ -696,17 +696,14 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
 
     /**
      * Customizing entries not applied because of markup that is not allowed (see
-     * LanguageInstallationManager). A dedicated text ("lng_invalid_markup") is proposed for
-     * lang/ilias_*.lang; until it exists the generic "invalid input" text is used. The entry names
-     * come from a file, so they are escaped.
+     * LanguageInstallationManager), reported with the generic "invalid input" text followed by the
+     * entries (the complete list is logged by LanguageInstallationManager). The entry names come
+     * from a file, so they are escaped.
      *
      * @param list<string> $entries
      */
     private function invalidMarkupCustomizingMessage(array $entries): string
     {
-        // TODO: "form_input_not_valid" is a placeholder - replace it by the proposed key
-        // "lng_invalid_markup_customizing" (sprintf with the entry list) once it exists in
-        // lang/ilias_*.lang. The complete list is logged by LanguageInstallationManager.
         return $this->lng->txt('form_input_not_valid') . ' '
             . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::keyList($entries));
     }
