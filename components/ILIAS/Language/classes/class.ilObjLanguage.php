@@ -324,6 +324,10 @@ class ilObjLanguage extends ilObject
     {
         global $DIC;
 
+        // The language is no longer installed: its migrated state is not served any more in this
+        // request either (a language that is not installed falls back to lng_modules)
+        ilLanguage::forgetInstalledLanguage($a_key);
+
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             return [];
         }

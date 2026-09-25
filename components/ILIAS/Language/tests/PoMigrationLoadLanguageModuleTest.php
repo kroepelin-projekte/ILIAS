@@ -668,6 +668,143 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         };
     }
 
+    // ------------------------------------------------- installed-languages restriction
+
+    /**
+     * Mirrors what ilLanguage's constructor stores (see its own docblock) - the reflection-based
+     * shortcut every test below uses instead of actually constructing an ilLanguage (which pulls in
+     * $DIC->clientIni()/settings()/user() etc. unrelated to this concern).
+     *
+     * @param list<string> $lang_keys
+     */
+    private function setInstalledLanguages(array $lang_keys): void
+    {
+        $cache = (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache');
+        $constant = (new ReflectionClassConstant(ilLanguage::class, 'INSTALLED_LANGUAGES_CACHE_KEY'))->getValue();
+        $cache->setValue(null, $cache->getValue() + [$constant => $lang_keys]);
+    }
+
+    /**
+     * The default/normal case: the language being read is in the installed-languages list the
+     * (real) constructor determined - the migrated state (shipped + overlay) is served exactly as
+     * for every other test in this file that never touches this mechanism at all (see the "without
+     * any known list" test below for why those still pass).
+     */
+    public function testMigratedStateIsServedForAnInstalledLanguage(): void
+    {
+        $this->ensureRealTosDeMoFileExists();
+        $this->registerDirectoryManager(new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos'));
+        $this->setInstalledLanguages(['de', 'en']);
+
+        $this->assertSame(
+            'Nutzungsvereinbarung',
+            $this->callLoadFromMigratedLanguageFile('tos', 'de')['tos_agreement']
+        );
+    }
+
+    /**
+     * A language that is NOT in the installed-languages list falls back to lng_modules exactly like a
+     * module that isn't migrated at all - even though its shipped `.po` and a compiled overlay both
+     * exist and are perfectly readable.
+     */
+    public function testMigratedStateFallsBackToNullForALanguageNotInTheInstalledLanguagesList(): void
+    {
+        $this->ensureRealTosDeMoFileExists();
+        $this->registerDirectoryManager(new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos'));
+        $this->setInstalledLanguages(['en', 'fr']);
+
+        $this->assertNull($this->callLoadFromMigratedLanguageFile('tos', 'de'));
+    }
+
+    /**
+     * The restriction applies through _lookupEntry() (txtlng()'s and txt()'s fallback-module branch's
+     * underlying static) too - not only the directly-invoked loadFromMigratedLanguageFile(): a
+     * not-installed language falls through to the database lookup exactly like an invalid lang_key
+     * does (see testLookupEntryFallsBackToTheDatabaseForAnInvalidLangKey()).
+     */
+    public function testTxtlngFallsBackToTheDatabaseForALanguageNotInTheInstalledLanguagesList(): void
+    {
+        $this->ensureRealTosDeMoFileExists();
+        $this->registerDirectoryManager(new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos'));
+        $this->setInstalledLanguages(['en']);
+        $this->stubUsageLogDependencies();
+        $statement = $this->createStub(ilDBStatement::class);
+        $db = $this->createStub(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(static fn(mixed $value): string => "'" . (string) $value . "'");
+        $db->method('query')->willReturn($statement);
+        $db->method('fetchAssoc')->willReturn(['value' => 'from the database']);
+        $this->setGlobalVariable('ilDB', $db);
+
+        $language = $this->buildLanguageWithoutRunningConstructor('en');
+
+        $this->assertSame('from the database', $language->txtlng('tos', 'tos_agreement', 'de'));
+    }
+
+    /**
+     * forgetInstalledLanguage() takes effect for the REST OF THE SAME REQUEST: it both removes the
+     * language from the list (so a not-yet-cached read now falls back too) and drops whatever was
+     * already cached for it, so a stale cached hit from before the uninstall cannot leak through.
+     */
+    public function testForgetInstalledLanguageStopsServingTheMigratedStateWithinTheSameRequest(): void
+    {
+        $this->ensureRealTosDeMoFileExists();
+        $this->registerDirectoryManager(new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos'));
+        $this->setInstalledLanguages(['de']);
+        // populates the per-module cache while "de" is still installed
+        $before = $this->callLoadFromMigratedLanguageFile('tos', 'de');
+        $this->assertSame('Nutzungsvereinbarung', $before['tos_agreement']);
+
+        ilLanguage::forgetInstalledLanguage('de');
+
+        $this->assertNull(
+            $this->callLoadFromMigratedLanguageFile('tos', 'de'),
+            'both the stale cache entry and the list membership must be gone'
+        );
+    }
+
+    /**
+     * Without any known list at all (no ilLanguage was constructed in this request - the default
+     * starting point of every other test in this file) nothing is restricted; this is what makes
+     * every other, unrelated test in this file keep passing without ever calling
+     * setInstalledLanguages() itself.
+     */
+    public function testWithoutAnyKnownInstalledLanguagesListNoRestrictionApplies(): void
+    {
+        $this->ensureRealTosDeMoFileExists();
+        $this->registerDirectoryManager(new ComponentLanguageFileDirectory(new \ILIAS\TermsOfService(), 'tos'));
+
+        $this->assertSame(
+            'Nutzungsvereinbarung',
+            $this->callLoadFromMigratedLanguageFile('tos', 'de')['tos_agreement']
+        );
+    }
+
+    /**
+     * The special cache key ("\0installed_languages", a leading NUL byte and no "|") cannot collide
+     * with a "<module>|<lang_key>" entry, whatever the module/lang_key are: every such entry's key
+     * always contains a literal "|" the constant itself never contains. Proven for the most
+     * adversarial-looking case - a module named "" together with the literal lang_key
+     * "installed_languages" (i.e. an attacker deliberately trying to spell out the constant's
+     * payload around the concatenation).
+     */
+    public function testTheInstalledLanguagesCacheKeyNeverCollidesWithAModuleCacheKey(): void
+    {
+        $constant = (new ReflectionClassConstant(ilLanguage::class, 'INSTALLED_LANGUAGES_CACHE_KEY'))->getValue();
+        $module_style_key = '' . '|' . 'installed_languages';
+
+        $this->assertNotSame($constant, $module_style_key);
+        $this->assertStringNotContainsString('|', $constant);
+
+        // end-to-end: setting the installed-languages list and separately caching a (contrived)
+        // "<module>|<lang_key>" miss for the very same suffix must not disturb each other
+        $this->setInstalledLanguages(['de']);
+        $cache = (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache');
+        $cache->setValue(null, $cache->getValue() + [$module_style_key => ['unrelated' => 'value']]);
+
+        $this->assertSame(['de'], $cache->getValue()[$constant]);
+        $this->assertSame(['unrelated' => 'value'], $cache->getValue()[$module_style_key]);
+    }
+
     /**
      * Cross-module identifier collisions (FR "PO-Files for improving language handling", 2.4): two
      * modules independently defining the same identifier used to overwrite each other silently in

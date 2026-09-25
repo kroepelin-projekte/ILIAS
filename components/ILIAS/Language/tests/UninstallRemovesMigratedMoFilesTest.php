@@ -409,18 +409,26 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
     public function testInvalidatesIlLanguagesCacheSoTheRemovalIsVisibleImmediately(): void
     {
         $directory = $this->seedShippedModule('utest', 'de', ['greeting' => 'Hallo']);
-        $this->seedOverlay('utest', 'de', ['greeting' => 'Servus']);
+        $this->seedOverlay('utest', 'de', ['greeting' => 'Hallo']);
         $this->registerDirectoryManager($directory);
+        // "de" is installed (the list ilLanguage's constructor provides in a real request - the
+        // migrated state is only served for installed languages)
+        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $cache->setValue(null, ["\0installed_languages" => ['de']]);
 
-        // populates loadFromMigratedLanguageFile()'s static cache for 'utest'|'de'
-        $before = $this->callLoadFromMigratedLanguageFile('utest', 'de');
-        $this->assertSame(['greeting' => 'Servus'], $before);
+        try {
+            // populates loadFromMigratedLanguageFile()'s static cache for 'utest'|'de'
+            $before = $this->callLoadFromMigratedLanguageFile('utest', 'de');
+            $this->assertSame(['greeting' => 'Hallo'], $before);
 
-        $this->callRemoveMigratedMoFiles('de');
+            $this->callRemoveMigratedMoFiles('de');
 
-        // the overlay is gone - a stale cached hit from before the removal must not leak through:
-        // only the shipped state is left (the module stays migrated while its shipped .po exists)
-        $this->assertSame(['greeting' => 'Hallo'], $this->callLoadFromMigratedLanguageFile('utest', 'de'));
+            // the language is uninstalled - a stale cached hit from before the removal must not leak
+            // through, and no shipped value is served for a language that is not installed
+            $this->assertNull($this->callLoadFromMigratedLanguageFile('utest', 'de'));
+        } finally {
+            $cache->setValue(null, []);
+        }
     }
 
     /**

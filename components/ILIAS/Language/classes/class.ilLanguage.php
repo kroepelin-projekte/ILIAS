@@ -77,6 +77,15 @@ class ilLanguage implements \ILIAS\Language\Language
     private static bool $missing_shipped_artifact_logged = false;
 
     /**
+     * The entry of $migrated_language_file_cache holding the installed languages of this request -
+     * the migrated state (shipped + overlay) is only served for them, see isInstalledLanguage().
+     * Kept in that cache (not in a property of its own) so it is reset together with it. Taken from
+     * the list the constructor reads anyway (no query of its own); missing until known. Cannot
+     * collide with a "<module>|<lang_key>" entry.
+     */
+    private const string INSTALLED_LANGUAGES_CACHE_KEY = "\0installed_languages";
+
+    /**
      * Tracks, for topics loaded via the migrated .mo path (not the legacy lng_modules path), which
      * module last supplied a given topic - independent of $map_modules_txt, which is only populated
      * when usage logging is enabled and serves a different purpose. Used solely to detect and log
@@ -131,6 +140,7 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         $langs = $this->getInstalledLanguages();
+        self::$migrated_language_file_cache[self::INSTALLED_LANGUAGES_CACHE_KEY] = array_values(array_map('strval', $langs));
 
         if (!in_array($this->lang_key, $langs, true)) {
             $this->lang_key = $this->lang_default;
@@ -369,6 +379,37 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
+     * Whether $lang_key is installed - the migrated state is served for installed languages only; a
+     * language that is not installed falls back to lng_modules like a module that is not migrated
+     * (usually "-key-"). The list is the one the constructor of the request's ilLanguage (built
+     * during initialisation, before any text is read) determined - no query of its own. Without it
+     * (no ilLanguage constructed in this request) nothing is restricted.
+     */
+    private static function isInstalledLanguage(string $lang_key): bool
+    {
+        $installed = self::$migrated_language_file_cache[self::INSTALLED_LANGUAGES_CACHE_KEY] ?? null;
+
+        return !is_array($installed) || in_array($lang_key, $installed, true);
+    }
+
+    /**
+     * $lang_key was uninstalled in this request: from now on its migrated state is not served any
+     * more (see isInstalledLanguage()), and what was already read for it is dropped.
+     */
+    public static function forgetInstalledLanguage(string $lang_key): void
+    {
+        $installed = self::$migrated_language_file_cache[self::INSTALLED_LANGUAGES_CACHE_KEY] ?? null;
+        if (is_array($installed)) {
+            self::$migrated_language_file_cache[self::INSTALLED_LANGUAGES_CACHE_KEY] = array_values(array_diff($installed, [$lang_key]));
+        }
+        foreach (array_keys(self::$migrated_language_file_cache) as $cache_key) {
+            if (str_ends_with((string) $cache_key, '|' . $lang_key)) {
+                unset(self::$migrated_language_file_cache[$cache_key]);
+            }
+        }
+    }
+
+    /**
      * Invalidates the per-request cache below for one module+language, so a write that just happened
      * (see MigratedLanguageFileSync) is visible to the rest of the same request.
      */
@@ -409,7 +450,7 @@ class ilLanguage implements \ILIAS\Language\Language
 
     private static function readMigratedLanguageFile(string $a_module, string $lang_key): ?array
     {
-        if (!defined('CLIENT_DATA_DIR')) {
+        if (!defined('CLIENT_DATA_DIR') || !self::isInstalledLanguage($lang_key)) {
             return null;
         }
         $directory = self::findLanguageFileDirectory($a_module);
