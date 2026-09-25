@@ -217,4 +217,53 @@ class TranslationEntryTest extends TestCase
 
         $this->assertSame('shipped', $baseline->find('mod', 'a')?->getTranslation());
     }
+
+    // ------------------------------------------------------------ withContext()
+
+    /**
+     * withContext() returns an independent COPY with the new context - the original entry itself
+     * (context, id) is left completely unchanged.
+     */
+    public function testWithContextReturnsACopyLeavingTheOriginalEntryUnchanged(): void
+    {
+        $original = self::entry('mod', 'greeting', 'Hallo');
+
+        $copy = $original->withContext(null);
+
+        $this->assertSame('mod', $original->getContext());
+        $this->assertSame('greeting', $original->getId());
+        $this->assertNull($copy->getContext());
+        $this->assertSame('greeting', $copy->getId());
+    }
+
+    /**
+     * Everything besides the context - the translation, comments, extracted comments and flags -
+     * survives withContext() untouched (see MigratedLanguageFileSync::syncLocked(), which relies on
+     * this to migrate a legacy overlay entry that carried the module as msgctxt onto the new,
+     * msgctxt-less shape without losing its bookkeeping).
+     */
+    public function testWithContextPreservesTranslationCommentsAndFlags(): void
+    {
+        $original = self::entry('mod', 'greeting', 'Hallo');
+        $original->addTranslatorComment('original: Hello');
+        $original->addExtractedComment('shown on the login page');
+        $original->addFlag('fuzzy');
+
+        $copy = $original->withContext(null);
+
+        $this->assertSame('Hallo', $copy->getTranslation());
+        $this->assertSame(['original: Hello'], $copy->getTranslatorComments());
+        $this->assertSame(['shown on the login page'], $copy->getExtractedComments());
+        $this->assertTrue($copy->hasFlag('fuzzy'));
+    }
+
+    public function testWithContextCanSetAContextOnAContextlessEntry(): void
+    {
+        $original = self::entry(null, 'greeting', 'Hallo');
+
+        $copy = $original->withContext('mod');
+
+        $this->assertNull($original->getContext());
+        $this->assertSame('mod', $copy->getContext());
+    }
 }

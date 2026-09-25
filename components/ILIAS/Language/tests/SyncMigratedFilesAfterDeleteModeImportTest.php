@@ -353,7 +353,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
         $this->invoke(['dtest'], ['dtest#:#greeting' => 'Hallo, neu']);
 
-        $translation = $this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting');
+        $translation = $this->loadOverlayPo('dtest', 'de')->find(null, 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo, neu', $translation->getTranslation());
 
@@ -423,7 +423,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // Adapted to the delta overlay: an empty map leaves no local change, so the overlay is
         // removed instead of emptied (the module then serves its shipped state)
         $this->assertFileDoesNotExist($this->overlayDirectory() . 'dtest_de.po');
-        $updated = $this->loadOverlayPo('ktest', 'de')->find('ktest', 'greeting');
+        $updated = $this->loadOverlayPo('ktest', 'de')->find(null, 'greeting');
         $this->assertNotNull($updated);
         $this->assertSame('Hallo, neu', $updated->getTranslation());
     }
@@ -441,7 +441,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         $this->invoke(['dtest'], ['dtest#:#greeting' => 'Hallo, neu']);
 
         $this->assertTrue($this->overlayMoExists('dtest', 'de'));
-        $greeting = $this->loadOverlayPo('dtest', 'de')->find('dtest', 'greeting');
+        $greeting = $this->loadOverlayPo('dtest', 'de')->find(null, 'greeting');
         $this->assertSame('Hallo, neu', $greeting->getTranslation());
         $this->assertSame('Hallo', \ILIAS\Language\ComponentTranslation\LocalChangeComments::getOriginal($greeting));
     }

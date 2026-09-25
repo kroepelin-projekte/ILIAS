@@ -25,8 +25,12 @@ declare(strict_types=1);
  * gettext/gettext library (through the language component's adapter
  * ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog, so the tool writes exactly what the
  * runtime reads and writes, including the adapter's safeguards around the library):
- *   - A POT template (<module>.pot)
- *   - One PO file per shipped language (<module>_<lang>.po)
+ *   - A POT template (<module>.pot, or the file name pattern without "%s", see --pattern)
+ *   - One PO file per shipped language (<module>_<lang>.po, or named by --pattern)
+ *
+ * The entries have no msgctxt: a file belongs to exactly one module (the directory's prefix), and
+ * without the module name in the file it stays valid when the module is renamed (e.g. a plugin that
+ * becomes a component). The runtime still reads files with the module as msgctxt.
  *
  * No `.mo` file is written here - like the legacy `.lang` files before them, the `.po` files are the
  * shipped, version-controlled source of truth. The compiled `.mo` (the runtime format `ilLanguage`
@@ -41,7 +45,9 @@ declare(strict_types=1);
  * components/ tree, and anything named here would end up in Composer's autoload classmap (and be
  * included by Setup's class discovery). Everything is a local closure instead.
  *
- * Usage: php convert_module_to_po.php <module> [referenceLangKey] [outputDir]
+ * Usage: php convert_module_to_po.php [--pattern=<pattern>] <module> [referenceLangKey] [outputDir]
+ *   --pattern  file name of a language without ".po", "%s" = language key (default "<module>_%s");
+ *              must match the pattern of the module's ComponentLanguageFileDirectory
  * Example: php convert_module_to_po.php tos de ../../../TermsOfService/lang
  */
 
@@ -54,6 +60,7 @@ require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 
 /**
  * @return list<array{0: string, 1: string, 2: string}> [module, key, raw value] of every entry line
@@ -171,9 +178,10 @@ $build_catalog = static function (
     }
 
     foreach ($reference_entries as $key => $ref) {
-        // msgctxt = owning module (FR "PO-Files for improving language handling", 2.4, Variant A):
-        // structurally excludes collisions between modules that happen to pick the same identifier.
-        $entry = new TranslationEntry($module, (string) $key);
+        // No msgctxt: the file belongs to one module (see the file docblock) - collisions between
+        // modules stay excluded, since every module has its own file and the runtime assigns an
+        // entry without msgctxt to the module of its directory
+        $entry = new TranslationEntry(null, (string) $key);
         $comment = $ref['comment'];
 
         if (!$is_template) {
@@ -221,11 +229,27 @@ $write = static function (string $file, string $content): void {
 // explicitly instead - e.g., for "tos":
 //   php convert_module_to_po.php tos de ../../../TermsOfService/lang
 
-$module = $argv[1] ?? 'tos';
-$reference_lang_key = $argv[2] ?? 'de';
+$arguments = [];
+$pattern = null;
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--pattern=')) {
+        $pattern = substr($argument, strlen('--pattern='));
+        continue;
+    }
+    $arguments[] = $argument;
+}
+$module = $arguments[0] ?? 'tos';
+$reference_lang_key = $arguments[1] ?? 'de';
+$pattern ??= $module . '_%s';
+try {
+    MigratedLanguageFilePaths::assertValidShippedFileNamePattern($pattern);
+} catch (InvalidArgumentException $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
 
 $repo_root = dirname(__DIR__, 5);
-$output_dir = isset($argv[3]) ? rtrim($argv[3], '/') : (__DIR__ . '/output/' . $module);
+$output_dir = isset($arguments[2]) ? rtrim($arguments[2], '/') : (__DIR__ . '/output/' . $module);
 if (!is_dir($output_dir) && !mkdir($output_dir, 0775, true) && !is_dir($output_dir)) {
     throw new RuntimeException("Cannot create $output_dir");
 }
@@ -290,12 +314,13 @@ if ($keys_missing_in_reference !== []) {
 }
 
 // POT
-$pot_path = "$output_dir/$module.pot";
+$pot_name = trim(str_replace('%s', '', $pattern), '_-.');
+$pot_path = $output_dir . '/' . ($pot_name === '' ? $module : $pot_name) . '.pot';
 $write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path))->toPoString());
 
 $report = [];
 foreach ($per_language as $lang_key => $entries) {
-    $po_path = $output_dir . '/' . $module . '_' . $lang_key . '.po';
+    $po_path = $output_dir . '/' . sprintf($pattern, $lang_key) . '.po';
     $write(
         $po_path,
         $build_catalog($module, $lang_key, $reference_entries, $entries, $existing_headers($po_path))->toPoString()
@@ -311,12 +336,14 @@ foreach ($per_language as $lang_key => $entries) {
     ));
     foreach ($expected_keys as $key) {
         $expected = $entries[$key]['value'] ?? '';
-        if ($parsed->find($module, $key)?->getTranslation() !== $expected) {
+        $parsed_entry = $parsed->find(null, $key);
+        // find(null, ...) also finds msgctxt "" (same library id) - only an entry without msgctxt counts
+        if ($parsed_entry?->getContext() !== null || $parsed_entry?->getTranslation() !== $expected) {
             $po_mismatches[] = $key;
         }
     }
     foreach ($parsed->getEntries() as $parsed_entry) {
-        if ($parsed_entry->getContext() !== $module || !in_array($parsed_entry->getId(), $expected_keys, true)) {
+        if ($parsed_entry->getContext() !== null || !in_array($parsed_entry->getId(), $expected_keys, true)) {
             $po_mismatches[] = '(unexpected) ' . $parsed_entry->getId();
         }
     }

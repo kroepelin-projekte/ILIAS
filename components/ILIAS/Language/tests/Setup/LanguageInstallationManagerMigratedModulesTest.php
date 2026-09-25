@@ -511,6 +511,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame([self::MODULE], $unwritten);
         $this->assertSame(
             'Von einem parallelen Admin-Edit',
+            // untouched, so still as the fixture wrote it: with the module as msgctxt
             $this->overlayPo()->find(self::MODULE, 'greeting')->getTranslation(),
             'the concurrently-written overlay must survive untouched'
         );
@@ -557,7 +558,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'no local change - no overlay');
             return;
         }
-        $overlay_entry = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $overlay_entry = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame($expected_value, $overlay_entry->getTranslation());
         $this->assertSame($shipped, LocalChangeComments::getOriginal($overlay_entry), 'original always moves to S');
         $this->assertNotNull(LocalChangeComments::getLocalChange($overlay_entry));
@@ -590,7 +591,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame(['value' => 'Alt', 'local_change' => self::NOW], $this->lngData()['pilot|greeting']);
         $this->assertSame('Alt', $this->lngModules()[self::MODULE]['greeting']);
-        $this->assertNotNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'greeting')));
     }
 
     /**
@@ -693,10 +694,10 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             ['greeting' => 'Servus', 'added_locally' => 'Eigene Variable'],
             $this->lngModules()[self::MODULE]
         );
-        $this->assertNull($this->overlayPo()->find(self::MODULE, 'orphan'), 'neither shipped nor local: dropped');
+        $this->assertNull($this->overlayPo()->find(null, 'orphan'), 'neither shipped nor local: dropped');
         $this->assertSame(
             '2025-05-05T05:05:05Z',
-            LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'greeting')),
+            LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'greeting')),
             'the original timestamp of the local change survives'
         );
     }
@@ -725,7 +726,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->manager()->insertLanguageForInstallation('de');
 
         $this->assertSame(['custom' => 'Eigene Variable', 'greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
-        $custom = $this->overlayPo()->find(self::MODULE, 'custom');
+        $custom = $this->overlayPo()->find(null, 'custom');
         $this->assertNull(LocalChangeComments::getOriginal($custom));
         $this->assertNotNull(LocalChangeComments::getLocalChange($custom));
     }
@@ -772,7 +773,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame('Servus', $this->lngModules()[self::MODULE]['greeting']);
         $this->assertSame([], $this->droppedIdentifiers(self::MODULE), 'a real local change is never dropped');
-        $this->assertSame('Servus', $this->overlayPo()->find(self::MODULE, 'greeting')->getTranslation());
+        $this->assertSame('Servus', $this->overlayPo()->find(null, 'greeting')->getTranslation());
     }
 
     /**
@@ -923,11 +924,11 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         // Adapted to the delta overlay: A and B carry the shipped values and leave the (full, legacy)
         // overlay, only the local change C stays
         $overlay = $this->overlayPo();
-        $this->assertNull($overlay->find(self::MODULE, 'A'));
-        $this->assertNull($overlay->find(self::MODULE, 'B'));
+        $this->assertNull($overlay->find(null, 'A'));
+        $this->assertNull($overlay->find(null, 'B'));
         $this->assertSame('A2', $this->effective()['A']['value']);
-        $this->assertSame('C_custom', $overlay->find(self::MODULE, 'C')->getTranslation());
-        $this->assertNotNull(LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'C')));
+        $this->assertSame('C_custom', $overlay->find(null, 'C')->getTranslation());
+        $this->assertNotNull(LocalChangeComments::getLocalChange($overlay->find(null, 'C')));
     }
 
     // ----------------------------------------------- remove / apply local
@@ -990,7 +991,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             [self::MODULE => ['greeting' => 'Grüß Gott', 'farewell' => 'Tschüss'], 'common' => ['yes' => 'Ja']],
             $this->lngModules()
         );
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $greeting = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame('Grüß Gott', $greeting->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
@@ -1311,8 +1312,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame(['farewell' => 'Pfiat di', 'greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
         $overlay = $this->overlayPo();
-        $this->assertSame('Pfiat di', $overlay->find(self::MODULE, 'farewell')->getTranslation());
-        $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find(self::MODULE, 'farewell')));
+        $this->assertSame('Pfiat di', $overlay->find(null, 'farewell')->getTranslation());
+        $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find(null, 'farewell')));
         // Adapted to the delta overlay: "greeting" carries the shipped value and is not written
         $this->assertSame(['farewell' => 'Pfiat di'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
         $this->assertStringContainsString('Could not read the overlay of migrated module "pilot"', $this->errorLog());

@@ -108,15 +108,87 @@ final class MigratedLanguageFilePaths
 
     /**
      * Without extension - append ".po" (the shipped file never has a compiled ".mo" next to it).
+     * Named by shippedFileNamePattern().
      *
-     * @throws \InvalidArgumentException see relativeBasePath()
+     * @throws \InvalidArgumentException for a $lang_key that is not an ILIAS language key or an
+     *         invalid file name pattern
      */
     public static function shippedBasePath(
         string $ilias_absolute_path,
         LanguageFileDirectory $directory,
         string $lang_key
     ): string {
-        return rtrim($ilias_absolute_path, '/') . '/' . self::relativeBasePath($directory, $lang_key);
+        self::assertValidLanguageKey($lang_key);
+
+        return self::shippedDirectoryPath($ilias_absolute_path, $directory)
+            . sprintf(self::shippedFileNamePattern($directory), $lang_key);
+    }
+
+    /**
+     * The shipped `.po` files of $directory, found by its file name pattern (see
+     * shippedFileNamePattern()), keyed by language key. A file whose name does not yield a language
+     * key (e.g. "tos_pt_BR.po") is not listed.
+     *
+     * @return array<string, string> language key => absolute path, sorted by language key
+     * @throws \InvalidArgumentException for a directory with an invalid file name pattern
+     */
+    public static function findShippedPoFiles(string $ilias_absolute_path, LanguageFileDirectory $directory): array
+    {
+        $pattern = self::shippedFileNamePattern($directory);
+        $base = self::shippedDirectoryPath($ilias_absolute_path, $directory);
+        [$before, $after] = explode('%s', $pattern, 2);
+        $name_format = '/\A' . preg_quote($before, '/') . '([a-z]{2})' . preg_quote($after, '/') . '\.po\z/';
+
+        $files = [];
+        foreach (glob($base . sprintf($pattern, '*') . '.po') ?: [] as $file) {
+            if (is_file($file) && preg_match($name_format, basename($file), $matches) === 1) {
+                $files[$matches[1]] = $file;
+            }
+        }
+        ksort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    /**
+     * $directory's path below $ilias_absolute_path, where its shipped `.po` files live.
+     */
+    private static function shippedDirectoryPath(string $ilias_absolute_path, LanguageFileDirectory $directory): string
+    {
+        return rtrim($ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/');
+    }
+
+    /**
+     * The name of $directory's shipped `.po` of a language, without ".po" and with "%s" for the
+     * language key: the directory's own pattern (NamesShippedLanguageFiles), otherwise
+     * "<prefix>_%s". Only the shipped file is named by it - the overlay and the build artifact are
+     * named by the module (the prefix).
+     *
+     * @throws \InvalidArgumentException see assertValidShippedFileNamePattern()
+     */
+    public static function shippedFileNamePattern(LanguageFileDirectory $directory): string
+    {
+        $pattern = $directory instanceof NamesShippedLanguageFiles
+            ? $directory->getShippedFileNamePattern()
+            : $directory->getPrefix() . '_%s';
+        self::assertValidShippedFileNamePattern($pattern);
+
+        return $pattern;
+    }
+
+    /**
+     * @throws \InvalidArgumentException unless $pattern contains exactly one "%s" and otherwise only
+     *         letters, digits, "_", "-" and "." - no "/", no "..", no other "%"
+     */
+    public static function assertValidShippedFileNamePattern(string $pattern): void
+    {
+        if (
+            substr_count($pattern, '%s') !== 1
+            || str_contains($pattern, '..')
+            || preg_match('/\A[A-Za-z0-9_.\-]*%s[A-Za-z0-9_.\-]*\z/', $pattern) !== 1
+        ) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid file name pattern for shipped language files.', $pattern));
+        }
     }
 
     /**
@@ -140,9 +212,7 @@ final class MigratedLanguageFilePaths
         LanguageFileDirectory $directory,
         string $lang_key
     ): string {
-        if (preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) !== 1) {
-            throw new \InvalidArgumentException(sprintf('"%s" is not a valid language key.', $lang_key));
-        }
+        self::assertValidLanguageKey($lang_key);
         $module = $directory->getPrefix();
         if (preg_match(self::MODULE_FORMAT, $module) !== 1) {
             throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
@@ -171,10 +241,15 @@ final class MigratedLanguageFilePaths
      */
     private static function relativeBasePath(LanguageFileDirectory $directory, string $lang_key): string
     {
+        self::assertValidLanguageKey($lang_key);
+
+        return ltrim($directory->getPath(), '/') . $directory->getPrefix() . '_' . $lang_key;
+    }
+
+    private static function assertValidLanguageKey(string $lang_key): void
+    {
         if (preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) !== 1) {
             throw new \InvalidArgumentException(sprintf('"%s" is not a valid language key.', $lang_key));
         }
-
-        return ltrim($directory->getPath(), '/') . $directory->getPrefix() . '_' . $lang_key;
     }
 }

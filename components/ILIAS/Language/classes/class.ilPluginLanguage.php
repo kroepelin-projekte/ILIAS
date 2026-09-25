@@ -18,7 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
@@ -43,6 +45,9 @@ class ilPluginLanguage
     /**
      * Get array of all language files in the plugin
      *
+     * A plugin may ship a language as `ilias_<lang>.po` instead of `ilias_<lang>.lang` (see
+     * readPoFile()); if it ships both, the `.po` is used.
+     *
      * @return array of [key => "en" (e.g.), file => ...]
      */
     public function getAvailableLangFiles(): array
@@ -52,7 +57,8 @@ class ilPluginLanguage
             return [];
         }
 
-        $langs = [];
+        $lang_files = [];
+        $po_files = [];
 
         $dir = opendir($directory);
         while ($file = readdir($dir)) {
@@ -61,17 +67,25 @@ class ilPluginLanguage
             }
 
             // directories
-            if (@is_file($directory . "/" . $file) &&
-                strpos($file, "ilias_") === 0 &&
-                substr($file, strlen($file) - 5) === ".lang") {
-                $langs[] = [
+            if (!@is_file($directory . "/" . $file)) {
+                continue;
+            }
+            if (strpos($file, "ilias_") === 0 && substr($file, strlen($file) - 5) === ".lang") {
+                $lang_files[substr($file, 6, 2)] = [
                     "key" => substr($file, 6, 2),
+                    "file" => $file
+                ];
+            } elseif (preg_match('/\Ailias_([a-z]{2})\.po\z/', $file, $matches) === 1) {
+                $po_files[$matches[1]] = [
+                    "key" => $matches[1],
                     "file" => $file
                 ];
             }
         }
+        closedir($dir);
 
-        return $langs;
+        // A language shipped as .po and as .lang is read from the .po
+        return array_values(array_replace($lang_files, $po_files));
     }
 
     public function hasAvailableLangFiles(): bool
@@ -110,28 +124,25 @@ class ilPluginLanguage
                 continue;
             }
 
-            $txt = file($this->getLanguageDirectory() . "/" . $lang["file"]);
+            $file = $this->getLanguageDirectory() . "/" . $lang["file"];
+            $values = str_ends_with($lang["file"], ".po") ? $this->readPoFile($file) : $this->readLangFile($file);
+            if ($values === null) {
+                // a broken .po: this language of the plugin is left as it is (logged)
+                continue;
+            }
             $lang_array = [];
 
             // get locally changed variables of the module (these should be kept)
             $local_changes = ilObjLanguage::_getLocalChangesByModule($lang['key'], $prefix);
 
-            // get language data
-            if (is_array($txt)) {
-                foreach ($txt as $row) {
-                    if ($row[0] !== "#" && strpos($row, "#:#") > 0) {
-                        $a = explode("#:#", trim($row));
-                        $identifier = $prefix . "_" . trim($a[0]);
-                        $value = trim($a[1]);
+            foreach ($values as $key => $value) {
+                $identifier = $prefix . "_" . $key;
 
-                        if (isset($local_changes[$identifier])) {
-                            $lang_array[$identifier] = $local_changes[$identifier];
-                        } else {
-                            $lang_array[$identifier] = $value;
-                            ilObjLanguage::replaceLangEntry($prefix, $identifier, $lang["key"], $value);
-                        }
-                        //echo "<br>-$prefix-".$prefix."_".trim($a[0])."-".$lang["key"]."-";
-                    }
+                if (isset($local_changes[$identifier])) {
+                    $lang_array[$identifier] = $local_changes[$identifier];
+                } else {
+                    $lang_array[$identifier] = $value;
+                    ilObjLanguage::replaceLangEntry($prefix, $identifier, $lang["key"], $value);
                 }
             }
 
@@ -139,10 +150,123 @@ class ilPluginLanguage
             // entries, kept as-is above) - the plugin-language analog of a core-component update, so
             // "original" may be refreshed the same way (see MigratedLanguageFileSync::sync()'s
             // docblock); like for a core module, only the delta to a shipped .po is written. Currently
-            // always a no-op for the files: a plugin cannot contribute a LanguageFileDirectory (the
-            // component graph is built from components/ only, cli/build_bootstrap.php) and this class
-            // reads plugin .lang files only, so no plugin module is ever migrated.
+            // always a no-op for the files: a plugin cannot contribute a LanguageFileDirectory yet (the
+            // component graph is built from components/ only, cli/build_bootstrap.php) - a plugin .po
+            // is read into the database only (readPoFile()), no overlay or artifact is written.
             ilObjLanguage::replaceLangModule($lang["key"], $prefix, $lang_array, true);
+        }
+    }
+
+    /**
+     * The entries of a plugin `.lang` file, key (without the plugin prefix) => value. Like for a
+     * plugin `.po` (see readPoFile()), markup TranslationMarkupPolicy does not allow is cleaned and
+     * logged, not rejected - the values are shipped ones.
+     *
+     * @return array<string, string>
+     */
+    private function readLangFile(string $file): array
+    {
+        $values = [];
+        $txt = file($file);
+        if (is_array($txt)) {
+            foreach ($txt as $row) {
+                if ($row[0] !== "#" && strpos($row, "#:#") > 0) {
+                    $a = explode("#:#", trim($row));
+                    $values[trim($a[0])] = trim($a[1]);
+                }
+            }
+        }
+
+        return $this->cleanShippedValues($file, $values);
+    }
+
+    /**
+     * $values with markup TranslationMarkupPolicy does not allow removed - every cleaned value is
+     * logged with what was removed.
+     *
+     * @param array<string, string> $values key => value
+     * @return array<string, string>
+     */
+    private function cleanShippedValues(string $file, array $values): array
+    {
+        $policy = new TranslationMarkupPolicy();
+        foreach ($policy->findInvalidValues($values) as $key => $violations) {
+            $values[$key] = $policy->sanitize($values[$key]);
+            self::logWarning(sprintf(
+                'Markup not allowed in a language value, %s (key "%s"): removed %s',
+                $file,
+                $key,
+                implode(', ', $violations)
+            ));
+        }
+
+        return $values;
+    }
+
+    /**
+     * The entries of a plugin `.po` file, key (msgid, without the plugin prefix, like in the `.lang`
+     * file) => value, or `null` if the file cannot be read or parsed (logged - the plugin update goes
+     * on with its other languages).
+     *
+     * Only entries without msgctxt are read: the file belongs to exactly one module, the plugin's,
+     * whose name (the prefix) must not appear in the file, since it changes when the plugin becomes a
+     * component. An entry with a msgctxt - also an empty one - is ignored and logged instead of being
+     * guessed into this module. The values are shipped ones: markup TranslationMarkupPolicy does not
+     * allow is cleaned (and logged), like the build does for the shipped `.po` of a component, not
+     * rejected. Extracted comments ("#.") are not stored, like the "###" comments of a `.lang` file
+     * on this path. Fuzzy entries are read too, entries without translation are not.
+     *
+     * @return array<string, string>|null
+     */
+    private function readPoFile(string $file): ?array
+    {
+        try {
+            $catalog = TranslationCatalog::fromPoFile($file);
+        } catch (\RuntimeException $e) {
+            self::logWarning(sprintf(
+                'The plugin language file "%s" cannot be read - this language of the plugin is not updated: %s',
+                $file,
+                $e->getMessage()
+            ));
+            return null;
+        }
+
+        $values = [];
+        $ignored = [];
+        foreach ($catalog->getEntries() as $entry) {
+            if ($entry->getContext() !== null) {
+                $ignored[] = $entry->getId();
+                continue;
+            }
+            if ($entry->getTranslation() !== '') {
+                $values[$entry->getId()] = $entry->getTranslation();
+            }
+        }
+        $values = $this->cleanShippedValues($file, $values);
+        if ($ignored !== []) {
+            self::logWarning(sprintf(
+                'Entries with a msgctxt in the plugin language file "%s" are ignored (a plugin .po has none): %s',
+                $file,
+                implode(', ', $ignored)
+            ));
+        }
+
+        return $values;
+    }
+
+    /**
+     * Logs to the `lang` component logger where it is available, to the PHP error log otherwise (e.g.
+     * in a Setup context, see ilPluginLanguageUpdatedObjective) - a plugin language update must never
+     * fail just because it cannot log.
+     */
+    private static function logWarning(string $message): void
+    {
+        global $DIC;
+        $message = PlainLogText::of($message);
+        try {
+            $DIC->logger()->forComponent('lang')->warning($message);
+        } catch (\Throwable) {
+            error_log($message);
         }
     }
 

@@ -26,6 +26,7 @@ use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\Language\ComponentTranslation\ShippedTranslations;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
@@ -62,7 +63,7 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
      * of the involved classes (see fingerprint()) does not capture, e.g. an update of the gettext
      * library.
      */
-    private const int FORMAT_VERSION = 1;
+    private const int FORMAT_VERSION = 2;
 
     public function __construct(
         private readonly LanguageFileDirectoryManager $language_file_directory_manager,
@@ -264,20 +265,26 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
     {
         $files = [];
         foreach ($this->language_file_directory_manager->getDirectories() as $directory) {
-            $module = $directory->getPrefix();
-            if ($module === '') {
+            if ($directory->getPrefix() === '') {
                 continue;
             }
-            $pattern = rtrim($this->ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/') . $module . '_*.po';
-            foreach (glob($pattern) ?: [] as $shipped_po) {
-                $lang_key = substr(basename($shipped_po, '.po'), strlen($module) + 1);
+            try {
+                $pattern = MigratedLanguageFilePaths::shippedFileNamePattern($directory);
+                $shipped_files = MigratedLanguageFilePaths::findShippedPoFiles($this->ilias_absolute_path, $directory);
+            } catch (\InvalidArgumentException $e) {
+                $inform(sprintf('WARNING: The language files of module "%s" are not compiled: %s', $directory->getPrefix(), $e->getMessage()));
+                continue;
+            }
+            // files matching the pattern that yield no language key, e.g. "tos_pt_BR.po"
+            $base = rtrim($this->ilias_absolute_path, '/') . '/' . ltrim($directory->getPath(), '/');
+            foreach (array_diff(glob($base . sprintf($pattern, '*') . '.po') ?: [], $shipped_files) as $unknown) {
+                $inform(sprintf('WARNING: "%s" is not compiled: its name contains no valid language key.', $this->relativePath($unknown)));
+            }
+            foreach ($shipped_files as $lang_key => $shipped_po) {
                 try {
-                    if (MigratedLanguageFilePaths::shippedBasePath($this->ilias_absolute_path, $directory, $lang_key) . '.po' !== $shipped_po) {
-                        continue;
-                    }
                     $artifact = MigratedLanguageFilePaths::shippedArtifactFile($this->ilias_absolute_path, $directory, $lang_key);
                 } catch (\InvalidArgumentException $e) {
-                    // e.g. "tos_pt_BR.po" or a module name that cannot be a file name
+                    // a module name that cannot be a file name
                     $inform(sprintf('WARNING: "%s" is not compiled: %s', $this->relativePath($shipped_po), $e->getMessage()));
                     continue;
                 }
@@ -400,7 +407,8 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
     private function fingerprint(): string
     {
         $parts = [(string) self::FORMAT_VERSION];
-        foreach ([ShippedTranslations::class, TranslationMarkupPolicy::class, TranslationCatalog::class, TranslationEntry::class] as $class) {
+        // MigratedLanguageFileSync: compile() takes the module's entries from its moduleEntries()
+        foreach ([ShippedTranslations::class, TranslationMarkupPolicy::class, TranslationCatalog::class, TranslationEntry::class, MigratedLanguageFileSync::class] as $class) {
             $file = (new \ReflectionClass($class))->getFileName();
             $parts[] = is_string($file) ? (string) @hash_file('sha256', $file) : '';
         }

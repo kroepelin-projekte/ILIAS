@@ -267,7 +267,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find(null, 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo, geändert', $translation->getTranslation());
         $this->assertFalse($translation->hasFlag('fuzzy'));
@@ -334,7 +334,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             'farewell' => 'Tschüss',
         ]);
 
-        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find(null, 'farewell');
         $this->assertNotNull($translation);
         $this->assertSame('Tschüss', $translation->getTranslation());
 
@@ -358,8 +358,8 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         // left in the overlay to look at
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Servus']);
 
-        $this->assertNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell'));
-        $this->assertNotNull($this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting'));
+        $this->assertNull($this->loadOverlayPo('wtest', 'de')->find(null, 'farewell'));
+        $this->assertNotNull($this->loadOverlayPo('wtest', 'de')->find(null, 'greeting'));
 
         // the shipped file keeps both entries - it is never touched
         $this->assertNotNull($this->loadFixturePo('wtest', 'de')->find('wtest', 'farewell'));
@@ -387,7 +387,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         );
         $this->assertSame(
             'Hallo, geändert',
-            $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')->getTranslation()
+            $this->loadOverlayPo('wtest', 'de')->find(null, 'greeting')->getTranslation()
         );
         // shipped pair untouched throughout
         $this->assertFileExists($this->fixture_directory . '/wtest_de.mo');
@@ -475,7 +475,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
 
-        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find(null, 'greeting');
         $this->assertNotNull($translation);
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($translation));
         $this->assertNotNull(LocalChangeComments::getLocalChange($translation));
@@ -506,7 +506,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
         // sanity check: locally changed first
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo, geändert']);
         $this->assertNotNull(LocalChangeComments::getLocalChange(
-            $this->loadOverlayPo('wtest', 'de')->find('wtest', 'greeting')
+            $this->loadOverlayPo('wtest', 'de')->find(null, 'greeting')
         ));
 
         ilObjLanguage::replaceLangModule('de', 'wtest', ['greeting' => 'Hallo']);
@@ -537,7 +537,7 @@ class PoMigrationWriteBackTest extends ilLanguageBaseTestCase
             'farewell' => 'Tschüss',
         ]);
 
-        $translation = $this->loadOverlayPo('wtest', 'de')->find('wtest', 'farewell');
+        $translation = $this->loadOverlayPo('wtest', 'de')->find(null, 'farewell');
         $this->assertNotNull($translation);
         $this->assertNull(LocalChangeComments::getOriginal($translation));
         $this->assertNotNull(LocalChangeComments::getLocalChange($translation));

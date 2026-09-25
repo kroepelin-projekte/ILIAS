@@ -18,7 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\NamesShippedLanguageFiles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
@@ -327,5 +329,171 @@ class MigratedLanguageFilePathsTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, $lang_key);
+    }
+
+    // -------------------------------------------------- shipped file name pattern
+
+    /**
+     * A directory implementing NamesShippedLanguageFiles with a given pattern.
+     */
+    private function directoryWithPattern(string $prefix, string $path, string $pattern): LanguageFileDirectory
+    {
+        return new class ($prefix, $path, $pattern) implements LanguageFileDirectory, NamesShippedLanguageFiles {
+            public function __construct(
+                private string $prefix,
+                private string $path,
+                private string $pattern
+            ) {
+            }
+
+            public function getPrefix(): string
+            {
+                return $this->prefix;
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '';
+            }
+
+            public function isLocal(): bool
+            {
+                return false;
+            }
+
+            public function getShippedFileNamePattern(): string
+            {
+                return $this->pattern;
+            }
+        };
+    }
+
+    #[DataProvider('invalidShippedFileNamePatterns')]
+    public function testAssertValidShippedFileNamePatternRejectsInvalidPatterns(string $pattern): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        MigratedLanguageFilePaths::assertValidShippedFileNamePattern($pattern);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidShippedFileNamePatterns(): array
+    {
+        return [
+            'no %s at all' => ['x'],
+            'slash' => ['a/%s'],
+            'path traversal' => ['..%s'],
+            'two placeholders' => ['%s%s'],
+            'another "%" besides the placeholder' => ['ilias_%d%s'],
+        ];
+    }
+
+    #[DataProvider('validShippedFileNamePatterns')]
+    public function testAssertValidShippedFileNamePatternAcceptsValidPatterns(string $pattern): void
+    {
+        MigratedLanguageFilePaths::assertValidShippedFileNamePattern($pattern);
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function validShippedFileNamePatterns(): array
+    {
+        return [
+            'prefix-based default shape' => ['tos_%s'],
+            'stable, module-independent shape' => ['ilias_%s'],
+            'dot and dash are allowed' => ['ilias-plugin.v2_%s'],
+            'placeholder at the very start' => ['%s_suffix'],
+        ];
+    }
+
+    public function testShippedFileNamePatternFallsBackToPrefixUnderscoreForAPlainDirectory(): void
+    {
+        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+
+        $this->assertSame('tos_%s', MigratedLanguageFilePaths::shippedFileNamePattern($directory));
+    }
+
+    public function testShippedFileNamePatternUsesTheDirectorysOwnPatternWhenItImplementsTheInterface(): void
+    {
+        $directory = $this->directoryWithPattern('tos', 'components/ILIAS/TermsOfService/lang/', 'ilias_%s');
+
+        $this->assertSame('ilias_%s', MigratedLanguageFilePaths::shippedFileNamePattern($directory));
+    }
+
+    public function testShippedBasePathUsesTheDirectorysOwnShippedFileNamePattern(): void
+    {
+        $directory = $this->directoryWithPattern('tos', 'components/ILIAS/TermsOfService/lang/', 'ilias_%s');
+
+        $this->assertSame(
+            '/srv/ilias/components/ILIAS/TermsOfService/lang/ilias_de',
+            MigratedLanguageFilePaths::shippedBasePath('/srv/ilias/', $directory, 'de')
+        );
+    }
+
+    /**
+     * Overlay and build-artifact paths stay purely module-based (the prefix) even for a directory
+     * with the "ilias_%s" shipped pattern - only the shipped `.po` itself moves.
+     */
+    public function testOverlayAndArtifactPathsStayModuleBasedEvenWithTheIliasSchema(): void
+    {
+        $directory = $this->directoryWithPattern('tos', 'components/ILIAS/TermsOfService/lang/', 'ilias_%s');
+
+        $this->assertSame(
+            '/data/client/lang/components/ILIAS/TermsOfService/lang/tos_de',
+            MigratedLanguageFilePaths::overlayBasePath('/data/client', $directory, 'de')
+        );
+        $this->assertSame(
+            '/srv/ilias/artifacts/language/de/tos.mo',
+            MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias', $directory, 'de')
+        );
+    }
+
+    public function testFindShippedPoFilesListsOnlyFilesMatchingThePatternKeyedByLangKeySorted(): void
+    {
+        mkdir($this->root . '/lang', 0775, true);
+        touch($this->root . '/lang/ilias_de.po');
+        touch($this->root . '/lang/ilias_en.po');
+        touch($this->root . '/lang/ilias_fr.po');
+        // does not yield a plain two-letter language key - must not be listed
+        touch($this->root . '/lang/ilias_pt_BR.po');
+        // wrong extension / wrong prefix - must not be listed either
+        touch($this->root . '/lang/ilias_de.lang');
+        touch($this->root . '/lang/other_de.po');
+        $directory = $this->directoryWithPattern('tos', 'lang/', 'ilias_%s');
+
+        $files = MigratedLanguageFilePaths::findShippedPoFiles($this->root, $directory);
+
+        $this->assertSame(['de', 'en', 'fr'], array_keys($files));
+        $this->assertSame($this->root . '/lang/ilias_de.po', $files['de']);
+    }
+
+    public function testFindShippedPoFilesWithThePlainPrefixPattern(): void
+    {
+        mkdir($this->root . '/lang', 0775, true);
+        touch($this->root . '/lang/tos_de.po');
+        touch($this->root . '/lang/tos_pt_BR.po');
+        $directory = MigratedPoFixture::directory('tos', 'lang/');
+
+        $files = MigratedLanguageFilePaths::findShippedPoFiles($this->root, $directory);
+
+        $this->assertSame(['de'], array_keys($files));
+    }
+
+    public function testFindShippedPoFilesThrowsForAnInvalidPattern(): void
+    {
+        $directory = $this->directoryWithPattern('tos', 'lang/', 'x');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        MigratedLanguageFilePaths::findShippedPoFiles($this->root, $directory);
     }
 }

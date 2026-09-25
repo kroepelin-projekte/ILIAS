@@ -33,7 +33,8 @@ use RuntimeException;
  * changed since the last build), read() compiles the `.po` itself - with exactly the result the
  * build would have written, since both go through compile().
  *
- * compile() is TranslationCatalog::toMoString() of the module's messages (context = module), with
+ * compile() is TranslationCatalog::toMoString() of the module's messages (context = module, or no
+ * context at all - see MigratedLanguageFileSync::moduleEntries()), with
  * every value cleaned by TranslationMarkupPolicy::sanitize(): fuzzy messages are compiled too,
  * messages without a translation are left out.
  */
@@ -59,10 +60,9 @@ final class ShippedTranslations
         foreach ($shipped->getHeaders() as $name => $value) {
             $catalog->setHeader($name, $value);
         }
-        foreach ($shipped->getEntries() as $entry) {
-            if ($entry->getContext() !== $module) {
-                continue;
-            }
+        // the module's entries - with the module as context or without one (see
+        // MigratedLanguageFileSync::moduleEntries())
+        foreach (MigratedLanguageFileSync::moduleEntries($shipped, $module) as $entry) {
             $value = $entry->getTranslation();
             $violations = $this->markup_policy->findViolations($value);
             if ($violations !== []) {

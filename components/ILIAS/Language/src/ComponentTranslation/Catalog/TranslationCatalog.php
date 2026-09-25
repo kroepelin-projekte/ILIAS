@@ -50,6 +50,8 @@ use Throwable;
  *   Content that is not valid UTF-8, or that declares another charset in its "Content-Type" header,
  *   is rejected (values are never converted).
  *   Obsolete messages (`#~ ...`) are dropped on load - nothing in ILIAS writes or reads them.
+ *   The same msgid once without msgctxt and once with `msgctxt ""` is rejected as a duplicate as
+ *   well: the library stores both under the same id (StrictPoLoader: "Duplicated entry").
  * - The value "0": PoGenerator and MoGenerator treat a translation as absent when it is falsy, so
  *   "0" would be written as an empty `msgstr` and left out of the `.mo`. Both generators are fed
  *   "0\0" instead: PoGenerator strips the NUL while encoding (the `.po` holds exactly `"0"`), the

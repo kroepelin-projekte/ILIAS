@@ -65,6 +65,15 @@ final class TranslationEntry
         return $this->translation;
     }
 
+    /**
+     * A copy of this entry with $context (translation, comments, flags unchanged) - not added to any
+     * catalog.
+     */
+    public function withContext(?string $context): self
+    {
+        return self::fromGettext($this->translation->withContext($context));
+    }
+
     public function getContext(): ?string
     {
         return $this->translation->getContext();

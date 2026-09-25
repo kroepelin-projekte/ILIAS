@@ -184,8 +184,8 @@ final class MigratedLanguageFileSync
      * overlay (belongsInDelta()) and by the database write of the admin GUI
      * (ilObjLanguageExt::_saveValues()), so both treat it the same way.
      *
-     * An empty value resets the entry to its shipped value (provisional decision, to be confirmed;
-     * change it here only). An empty value of a key that is not shipped stays empty.
+     * An empty value resets the entry to its shipped value (the one place that decides it). An
+     * empty value of a key that is not shipped stays empty.
      */
     public static function resolveLocalValue(?string $shipped_value, string $value): string
     {
@@ -269,7 +269,7 @@ final class MigratedLanguageFileSync
         foreach ($entries as $identifier => $value) {
             $identifier = (string) $identifier;
             $value = (string) $value;
-            if (self::belongsInDelta($shipped->find($module, $identifier)?->getTranslation(), $value)) {
+            if (self::belongsInDelta(self::findModuleEntry($shipped, $module, $identifier)?->getTranslation(), $value)) {
                 $delta[$identifier] = $value;
             }
         }
@@ -294,6 +294,45 @@ final class MigratedLanguageFileSync
         }
 
         return self::hasOverlayFiles(MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key));
+    }
+
+    /**
+     * The entries of $catalog that belong to $module: those with the module as context (msgctxt)
+     * and those without any context - a file of a single module need not repeat its name in every
+     * entry (e.g. the `.po` of a plugin, which must survive the plugin's later move to a component
+     * with another module name unchanged). An explicit empty context (`msgctxt ""`) is a context of
+     * its own and, like every other context, does not belong to $module. For an identifier present
+     * both with the module as context and without context, the entry with the context wins.
+     *
+     * @return array<string, TranslationEntry> identifier => entry, in catalog order
+     */
+    public static function moduleEntries(TranslationCatalog $catalog, string $module): array
+    {
+        $entries = [];
+        foreach ($catalog->getEntries() as $entry) {
+            $context = $entry->getContext();
+            if ($context === $module || ($context === null && !isset($entries[$entry->getId()]))) {
+                $entries[$entry->getId()] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The entry of $identifier that belongs to $module, see moduleEntries().
+     */
+    public static function findModuleEntry(TranslationCatalog $catalog, string $module, string $identifier): ?TranslationEntry
+    {
+        $entry = $catalog->find($module, $identifier);
+        if ($entry !== null) {
+            return $entry;
+        }
+        // gettext/gettext looks up "no context" and the empty context under the same id - only an
+        // entry that really has no context belongs to the module
+        $entry = $catalog->find(null, $identifier);
+
+        return $entry !== null && $entry->getContext() === null ? $entry : null;
     }
 
     /**
@@ -386,9 +425,11 @@ final class MigratedLanguageFileSync
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         foreach ($delta as $identifier => $value) {
             $identifier = (string) $identifier;
-            $shipped_entry = $shipped->find($module, $identifier);
-            $existing_entry = $existing?->find($module, $identifier);
-            $entry = $existing_entry ?? new TranslationEntry($module, $identifier);
+            $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
+            $existing_entry = $existing === null ? null : self::findModuleEntry($existing, $module, $identifier);
+            // Written without msgctxt, like the shipped files: the overlay belongs to one module. An
+            // entry of an older overlay with the module as msgctxt loses it with this write.
+            $entry = $existing_entry?->withContext(null) ?? new TranslationEntry(null, $identifier);
             // An entry not in the overlay so far had the shipped value (or did not exist)
             $previous_value = $existing_entry?->getTranslation() ?? $shipped_entry?->getTranslation() ?? '';
 
@@ -484,10 +525,7 @@ final class MigratedLanguageFileSync
     public static function loadShippedModuleEntries(string $shipped_po, string $module): array
     {
         $entries = [];
-        foreach (self::readShippedPo($shipped_po)->getEntries() as $entry) {
-            if ($entry->getContext() !== $module) {
-                continue;
-            }
+        foreach (self::moduleEntries(self::readShippedPo($shipped_po), $module) as $entry) {
             $comment = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', implode(' ', $entry->getExtractedComments())) ?? '');
             $entries[$entry->getId()] = [
                 'value' => $entry->getTranslation(),
@@ -807,10 +845,7 @@ final class MigratedLanguageFileSync
         }
 
         $result = [];
-        foreach (self::readShippedPo($shipped_po)->getEntries() as $entry) {
-            if ($entry->getContext() !== $module) {
-                continue;
-            }
+        foreach (self::moduleEntries(self::readShippedPo($shipped_po), $module) as $entry) {
             $result[$entry->getId()] = [
                 'value' => $entry->getTranslation(),
                 'local_change' => false,
@@ -872,10 +907,7 @@ final class MigratedLanguageFileSync
         }
 
         $result = [];
-        foreach (TranslationCatalog::fromPoFile($overlay_base . '.po')->getEntries() as $entry) {
-            if ($entry->getContext() !== $module) {
-                continue;
-            }
+        foreach (self::moduleEntries(TranslationCatalog::fromPoFile($overlay_base . '.po'), $module) as $entry) {
             $result[$entry->getId()] = [
                 'value' => $entry->getTranslation(),
                 'local_change' => LocalChangeComments::getLocalChange($entry) !== null,

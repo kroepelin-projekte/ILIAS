@@ -318,6 +318,154 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->assertTrue(MigratedLanguageFileSync::hasOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir));
     }
 
+    // ---------------------------------------------------- moduleEntries / findModuleEntry
+
+    /**
+     * An entry with NO msgctxt at all (`null`) belongs to whichever module reads the catalog - a
+     * plain `.po` that names no context targets exactly one module.
+     */
+    public function testModuleEntriesIncludesAnEntryWithoutAnyContext(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Hallo'));
+
+        $entries = MigratedLanguageFileSync::moduleEntries($catalog, 'itest');
+
+        $this->assertArrayHasKey('greeting', $entries);
+        $this->assertSame('Hallo', $entries['greeting']->getTranslation());
+    }
+
+    /**
+     * An entry with an EMPTY msgctxt ("") is a foreign context, not "no context" - it must not be
+     * mistaken for one and must not surface for a module that isn't literally context "".
+     */
+    public function testModuleEntriesIgnoresAnEntryWithAnEmptyStringContext(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry('', 'greeting', 'Fremd'));
+
+        $entries = MigratedLanguageFileSync::moduleEntries($catalog, 'itest');
+
+        $this->assertArrayNotHasKey('greeting', $entries);
+    }
+
+    public function testModuleEntriesIgnoresAnEntryOfAnotherModulesContext(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry('other_module', 'greeting', 'Fremd'));
+
+        $entries = MigratedLanguageFileSync::moduleEntries($catalog, 'itest');
+
+        $this->assertArrayNotHasKey('greeting', $entries);
+    }
+
+    /**
+     * When a key exists BOTH without any context and with this module's own context, the
+     * module-context entry always wins - regardless of which one the catalog lists first.
+     */
+    public function testModuleEntriesPrefersTheModuleContextEntryOverTheContextlessOneModuleFirst(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry('itest', 'greeting', 'Mit Modulkontext'));
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Ohne Kontext'));
+
+        $entries = MigratedLanguageFileSync::moduleEntries($catalog, 'itest');
+
+        $this->assertSame('Mit Modulkontext', $entries['greeting']->getTranslation());
+    }
+
+    public function testModuleEntriesPrefersTheModuleContextEntryOverTheContextlessOneContextlessFirst(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Ohne Kontext'));
+        $catalog->add(MigratedPoFixture::entry('itest', 'greeting', 'Mit Modulkontext'));
+
+        $entries = MigratedLanguageFileSync::moduleEntries($catalog, 'itest');
+
+        $this->assertSame('Mit Modulkontext', $entries['greeting']->getTranslation());
+    }
+
+    public function testFindModuleEntryFallsBackToTheContextlessEntry(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Hallo'));
+
+        $entry = MigratedLanguageFileSync::findModuleEntry($catalog, 'itest', 'greeting');
+
+        $this->assertNotNull($entry);
+        $this->assertSame('Hallo', $entry->getTranslation());
+    }
+
+    public function testFindModuleEntryPrefersTheModuleContextEntry(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Ohne Kontext'));
+        $catalog->add(MigratedPoFixture::entry('itest', 'greeting', 'Mit Modulkontext'));
+
+        $entry = MigratedLanguageFileSync::findModuleEntry($catalog, 'itest', 'greeting');
+
+        $this->assertSame('Mit Modulkontext', $entry?->getTranslation());
+    }
+
+    public function testFindModuleEntryReturnsNullForAForeignContext(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry('other_module', 'greeting', 'Fremd'));
+
+        $this->assertNull(MigratedLanguageFileSync::findModuleEntry($catalog, 'itest', 'greeting'));
+    }
+
+    /**
+     * BUG (documented, not fixed - see BEFUNDE): unlike moduleEntries() (which explicitly checks
+     * `$entry->getContext() === null` and correctly excludes an empty-string msgctxt, see
+     * testModuleEntriesIgnoresAnEntryWithAnEmptyStringContext() above), findModuleEntry()'s fallback
+     * `$catalog->find(null, $identifier)` collides with an empty-string context at the gettext/gettext
+     * library level: Translation::generateId() builds the lookup key as "{$context}\004{$original}",
+     * and PHP string interpolation turns both `null` and `''` into the same "" - so `find(null, ...)`
+     * silently retrieves an entry whose msgctxt is actually `""`, treating a foreign/empty context as
+     * if it were "no context at all". Reachable via a real shipped `.po` carrying a bare `msgctxt ""`
+     * line. This assertion pins down the correct behaviour (`null`).
+     */
+    public function testFindModuleEntryIgnoresAnEmptyStringContextInsteadOfTreatingItAsContextless(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry('', 'farewell', 'Leer'));
+
+        $this->assertNull(MigratedLanguageFileSync::findModuleEntry($catalog, 'itest', 'farewell'));
+    }
+
+    /**
+     * End-to-end: a contextless entry in the shipped `.po` is served for the module through
+     * loadShippedModuleEntries() (used by loadShippedModules(), ShippedTranslations::compile() and
+     * the build).
+     */
+    public function testLoadShippedModuleEntriesIncludesAContextlessEntry(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Hallo'));
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+
+        $entries = MigratedLanguageFileSync::loadShippedModuleEntries($this->shippedPo(), self::MODULE);
+
+        $this->assertSame('Hallo', $entries['greeting']['value']);
+    }
+
+    /**
+     * End-to-end: sync()'s delta computation (deltaOf()/belongsInDelta() via findModuleEntry()) reads
+     * a contextless shipped entry as this module's shipped value - resyncing the unchanged value
+     * creates no overlay at all.
+     */
+    public function testSyncTreatsAContextlessShippedEntryAsThisModulesShippedValue(): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->add(MigratedPoFixture::entry(null, 'greeting', 'Hallo'));
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+
+        $this->sync(['greeting' => 'Hallo']);
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'unchanged from the contextless shipped value - no delta at all');
+    }
+
     // -------------------------------------------------------- loadLocalChanges
 
     /**
@@ -463,7 +611,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Servus']);
 
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $greeting = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame('Servus', $greeting->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertMatchesRegularExpression(
@@ -478,7 +626,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Hallo', 'custom' => 'Eigener Wert']);
 
-        $custom = $this->overlayPo()->find(self::MODULE, 'custom');
+        $custom = $this->overlayPo()->find(null, 'custom');
         $this->assertSame('Eigener Wert', $custom->getTranslation());
         $this->assertNull(LocalChangeComments::getOriginal($custom));
         $this->assertNotNull(LocalChangeComments::getLocalChange($custom));
@@ -502,9 +650,9 @@ class MigratedLanguageFileSyncTest extends TestCase
         // Adapted to the delta overlay: the shipped values (and their fuzzy flag) stay in the
         // shipped .po, only the changed value enters the overlay - never fuzzy
         $overlay = $this->overlayPo();
-        $this->assertNull($overlay->find(self::MODULE, 'unchanged'));
-        $this->assertFalse($overlay->find(self::MODULE, 'changed')->hasFlag('fuzzy'));
-        $this->assertNull($overlay->find(self::MODULE, 'reviewed'));
+        $this->assertNull($overlay->find(null, 'unchanged'));
+        $this->assertFalse($overlay->find(null, 'changed')->hasFlag('fuzzy'));
+        $this->assertNull($overlay->find(null, 'reviewed'));
     }
 
     /**
@@ -535,7 +683,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Servus']);
 
-        $this->assertSame(['shown on the login page'], $this->overlayPo()->find(self::MODULE, 'greeting')->getExtractedComments());
+        $this->assertSame(['shown on the login page'], $this->overlayPo()->find(null, 'greeting')->getExtractedComments());
     }
 
     public function testTheOverlayTakesTheHeadersOfTheShippedPo(): void
@@ -565,7 +713,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Servus']);
 
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $greeting = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame('Servus', $greeting->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
@@ -587,8 +735,8 @@ class MigratedLanguageFileSyncTest extends TestCase
         // Adapted to the delta overlay: the kept shipped value (fuzzy in the shipped .po) leaves the
         // overlay of an earlier version, the edited one is no longer fuzzy
         $overlay = $this->overlayPo();
-        $this->assertNull($overlay->find(self::MODULE, 'kept'));
-        $this->assertFalse($overlay->find(self::MODULE, 'edited')->hasFlag('fuzzy'));
+        $this->assertNull($overlay->find(null, 'kept'));
+        $this->assertFalse($overlay->find(null, 'edited')->hasFlag('fuzzy'));
     }
 
     public function testWritingTheOriginalValueBackClearsTheLocalChange(): void
@@ -627,13 +775,46 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync(['greeting' => 'Servus', 'farewell' => 'Pfiat di']);
 
         $overlay = $this->overlayPo();
-        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'greeting')));
-        $farewell_change = LocalChangeComments::getLocalChange($overlay->find(self::MODULE, 'farewell'));
+        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($overlay->find(null, 'greeting')));
+        $farewell_change = LocalChangeComments::getLocalChange($overlay->find(null, 'farewell'));
         $this->assertNotNull($farewell_change);
         $this->assertNotSame('2020-01-01T00:00:00Z', $farewell_change);
     }
 
     // ------------------------------------------------------ reconciling write
+
+    /**
+     * An overlay written by an earlier version carried the module as msgctxt on every entry (see
+     * seedOverlay()); the next write (admin edit or reconciling write) must migrate it to the current,
+     * msgctxt-less shape (TranslationEntry::withContext(null)) - preserving its translation, comments,
+     * flags, "local_change" and "original" bookkeeping, none of which withContext() may drop.
+     */
+    #[DataProvider('refreshFlags')]
+    public function testALegacyEntryWithTheModuleAsMsgctxtIsMigratedToNoContextPreservingItsBookkeeping(bool $refresh): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $legacy_overlay = MigratedPoFixture::catalog(self::MODULE, [
+            'greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z'],
+        ]);
+        $legacy_overlay->find(self::MODULE, 'greeting')->addExtractedComment('shown on the login page');
+        MigratedPoFixture::writePair($this->overlayBase(), $legacy_overlay);
+        $this->assertNotNull($this->overlayPo()->find(self::MODULE, 'greeting'), 'precondition: seeded with the module as msgctxt');
+
+        // a genuine local change is kept alive by re-sending the exact same value
+        $this->sync(['greeting' => 'Servus'], $refresh);
+
+        $this->assertNull($this->overlayPo()->find(self::MODULE, 'greeting'), 'no longer stored under the module context');
+        $migrated = $this->overlayPo()->find(null, 'greeting');
+        $this->assertNotNull($migrated);
+        $this->assertSame('Servus', $migrated->getTranslation());
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($migrated));
+        $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($migrated));
+        if (!$refresh) {
+            // refresh=true re-baselines extracted comments from the shipped entry (which has none
+            // here) - only an ordinary admin edit (refresh=false) keeps the overlay's own comment
+            $this->assertSame(['shown on the login page'], $migrated->getExtractedComments());
+        }
+    }
 
     /**
      * Konzept Entscheidung 4 ("Altbestand"): an overlay written by the pre-delta design carried EVERY
@@ -659,7 +840,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->assertSame(['changed'], $this->overlayIdentifiers());
         $this->assertSame(
             '2020-01-01T00:00:00Z',
-            LocalChangeComments::getLocalChange($this->overlayPo()->find(self::MODULE, 'changed'))
+            LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'changed'))
         );
     }
 
@@ -688,7 +869,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Servus'], true);
 
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $greeting = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame('Servus', $greeting->getTranslation());
         $this->assertSame('Hallo, überarbeitet', LocalChangeComments::getOriginal($greeting));
         $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($greeting));
@@ -709,7 +890,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Hallo', 'dropped' => 'Neu'], true);
 
-        $dropped = $this->overlayPo()->find(self::MODULE, 'dropped');
+        $dropped = $this->overlayPo()->find(null, 'dropped');
         $this->assertSame('Alt', LocalChangeComments::getOriginal($dropped));
         $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($dropped));
     }
@@ -739,7 +920,7 @@ class MigratedLanguageFileSyncTest extends TestCase
             $this->assertFileDoesNotExist($this->overlayBase() . '.po');
             return;
         }
-        $this->assertSame($expected_fuzzy, $this->overlayPo()->find(self::MODULE, 'greeting')->hasFlag('fuzzy'));
+        $this->assertSame($expected_fuzzy, $this->overlayPo()->find(null, 'greeting')->hasFlag('fuzzy'));
     }
 
     public static function refreshFuzzyCases(): array
@@ -970,7 +1151,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $po = file_get_contents($this->overlayBase() . '.po');
         $this->assertStringContainsString("msgid \"zero\"\nmsgstr \"0\"\n", $po);
         $this->assertSame(['zero' => '0'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
-        $zero = $this->overlayPo()->find(self::MODULE, 'zero');
+        $zero = $this->overlayPo()->find(null, 'zero');
         $this->assertSame('1', LocalChangeComments::getOriginal($zero));
         $this->assertNotNull(LocalChangeComments::getLocalChange($zero));
 
@@ -991,7 +1172,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['count' => '0']);
 
-        $count = $this->overlayPo()->find(self::MODULE, 'count');
+        $count = $this->overlayPo()->find(null, 'count');
         $this->assertSame('0', $count?->getTranslation());
         $this->assertSame('1', LocalChangeComments::getOriginal($count));
         $this->assertNotNull(LocalChangeComments::getLocalChange($count));
@@ -1031,7 +1212,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['lf' => "Zeile 1\r\nZeile 2"]);
 
-        $entry = $this->overlayPo()->find(self::MODULE, 'lf');
+        $entry = $this->overlayPo()->find(null, 'lf');
         $this->assertSame("Zeile 1\nZeile 2", LocalChangeComments::getOriginal($entry));
         $this->assertNotNull(LocalChangeComments::getLocalChange($entry));
     }
@@ -1076,7 +1257,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['path' => 'C:\\pfad', 'greeting' => 'Servus']);
 
-        $path = $this->overlayPo()->find(self::MODULE, 'path');
+        $path = $this->overlayPo()->find(null, 'path');
         $this->assertSame('C:\\pfad', LocalChangeComments::getOriginal($path));
         $this->assertNull(LocalChangeComments::getLocalChange($path));
         $this->assertContains('original: C:\\pfad', $path->getTranslatorComments(), 'an admin edit never moves the original');
@@ -1103,7 +1284,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Hallo', 'dropped' => "Neu\nZeile"], true);
 
-        $dropped = $this->overlayPo()->find(self::MODULE, 'dropped');
+        $dropped = $this->overlayPo()->find(null, 'dropped');
         $this->assertSame("Alt\nZeile", LocalChangeComments::getOriginal($dropped));
         $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($dropped));
     }
@@ -1214,6 +1395,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         // once the `.po` is back (by which point $refresh_original_from_shipped would overwrite it
         // anyway and mask the loss, see below)
         $this->sync(['greeting' => 'Hallo']);
+        // untouched, so still as seeded: with the module as msgctxt
         $preserved_during_the_gap = $this->overlayPo()->find(self::MODULE, 'greeting');
         $this->assertSame('Hello', LocalChangeComments::getOriginal($preserved_during_the_gap), 'original survives the gap');
         $this->assertSame('2020-01-01T00:00:00Z', LocalChangeComments::getLocalChange($preserved_during_the_gap));
@@ -1263,7 +1445,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         // Adapted to the delta overlay: "greeting" carries the shipped value and is not written
         $overlay = $this->overlayPo();
         $this->assertSame(['farewell'], $this->overlayIdentifiers());
-        $farewell = $overlay->find(self::MODULE, 'farewell');
+        $farewell = $overlay->find(null, 'farewell');
         $this->assertSame('Tschüss', LocalChangeComments::getOriginal($farewell));
         $this->assertNotNull(LocalChangeComments::getLocalChange($farewell));
         $this->assertSame(['farewell' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
@@ -1282,7 +1464,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->sync(['greeting' => 'Servus']);
 
-        $greeting = $this->overlayPo()->find(self::MODULE, 'greeting');
+        $greeting = $this->overlayPo()->find(null, 'greeting');
         $this->assertSame('Servus', $greeting?->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));

@@ -509,6 +509,89 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->assertStringContainsString('bad?key', $warning);
     }
 
+    // ------------------------------------------------------------ shipped file name pattern
+
+    private function directoryWithPattern(string $prefix, string $path, string $pattern): \ILIAS\Language\ComponentTranslation\LanguageFileDirectory
+    {
+        return new class ($prefix, $path, $pattern) implements
+            \ILIAS\Language\ComponentTranslation\LanguageFileDirectory,
+            \ILIAS\Language\ComponentTranslation\NamesShippedLanguageFiles {
+            public function __construct(
+                private string $prefix,
+                private string $path,
+                private string $pattern
+            ) {
+            }
+
+            public function getPrefix(): string
+            {
+                return $this->prefix;
+            }
+
+            public function getPath(): string
+            {
+                return $this->path;
+            }
+
+            public function getSuffix(): string
+            {
+                return '';
+            }
+
+            public function isLocal(): bool
+            {
+                return false;
+            }
+
+            public function getShippedFileNamePattern(): string
+            {
+                return $this->pattern;
+            }
+        };
+    }
+
+    /**
+     * A module using the "ilias_%s" schema: its shipped `.po` is found and compiled into the same
+     * module-based artifact path as any other module.
+     */
+    public function testFindsAndCompilesAShippedPoNamedByTheIliasSchema(): void
+    {
+        mkdir($this->root . '/itest', 0775, true);
+        MigratedPoFixture::writePo(
+            $this->root . '/itest/ilias_de.po',
+            MigratedPoFixture::catalog('itest', ['greeting' => 'Hallo'])
+        );
+        $directory = $this->directoryWithPattern('itest', 'itest/', 'ilias_%s');
+
+        $this->achieve($this->directoryManager($directory));
+
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+        $this->assertSame(
+            ['greeting' => 'Hallo'],
+            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+        );
+    }
+
+    /**
+     * An invalid shipped file name pattern is reported as a warning and skips only that module - the
+     * build does not abort, and other, validly-patterned modules are still compiled.
+     */
+    public function testAnInvalidShippedFileNamePatternWarnsAndDoesNotAbortTheBuild(): void
+    {
+        $invalid = $this->directoryWithPattern('badmod', 'badmod/', 'no-placeholder-at-all');
+        $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
+        $valid = MigratedPoFixture::directory('itest', 'itest/');
+
+        $messages = [];
+        $io = $this->informer($messages);
+        $this->achieve($this->directoryManager($invalid, $valid), $io);
+
+        $warning = implode("\n", $messages);
+        $this->assertStringContainsString('WARNING', $warning);
+        $this->assertStringContainsString('badmod', $warning);
+        $this->assertFileExists($this->artifactPath('de', 'itest'));
+    }
+
     public function testIsNotableAndHasNoPreconditions(): void
     {
         $objective = new ShippedLanguageFilesCompiledObjective(

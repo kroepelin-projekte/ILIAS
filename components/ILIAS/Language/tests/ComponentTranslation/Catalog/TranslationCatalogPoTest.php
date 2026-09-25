@@ -519,7 +519,8 @@ class TranslationCatalogPoTest extends TestCase
 
             $expected = [];
             foreach ($catalog->getEntries() as $entry) {
-                $this->assertSame('tos', $entry->getContext(), basename($file));
+                // written without msgctxt by convert_module_to_po.php (the module is the directory's)
+                $this->assertNull($entry->getContext(), basename($file));
                 if ($entry->getTranslation() !== '') {
                     $expected[$entry->getId()] = $entry->getTranslation();
                 }

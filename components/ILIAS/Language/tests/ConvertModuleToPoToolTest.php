@@ -211,7 +211,7 @@ class ConvertModuleToPoToolTest extends TestCase
             $stderr
         );
         $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
-        $entry = $catalog->find('tst', 'greeting');
+        $entry = $catalog->find(null, 'greeting');
         $this->assertNotNull($entry);
         $this->assertSame('Hallo', $entry->getTranslation());
     }
@@ -234,7 +234,7 @@ class ConvertModuleToPoToolTest extends TestCase
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
-        $entry = $catalog->find('tst', 'greeting');
+        $entry = $catalog->find(null, 'greeting');
         $this->assertNotNull($entry);
         $this->assertFalse($entry->hasFlag('fuzzy'));
         $this->assertSame([$note], $entry->getExtractedComments());
@@ -255,7 +255,7 @@ class ConvertModuleToPoToolTest extends TestCase
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po');
-        $entry = $catalog->find('tst', 'greeting');
+        $entry = $catalog->find(null, 'greeting');
         $this->assertNotNull($entry);
         $this->assertTrue($entry->hasFlag('fuzzy'));
         $this->assertSame([], $entry->getExtractedComments());
@@ -281,7 +281,57 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertStringContainsString('ilias_ABC.lang', $stderr);
         $this->assertStringContainsString('no language key in its name', $stderr);
         $this->assertFileDoesNotExist($root . '/out/tst_ABC.po');
-        $catalog = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
-        $this->assertSame('Hallo', $catalog->find('tst', 'greeting')?->getTranslation());
+    }
+
+    // ------------------------------------------------------------ --pattern
+
+    /**
+     * A custom --pattern names both the per-language `.po` files and the `.pot` template (the
+     * pattern without its "%s" placeholder, trimmed of "_-." at either end) - never the module name.
+     */
+    public function testCustomPatternNamesThePoFilesAndThePotTemplate(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#greeting#:#Hallo\n");
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt(
+            $this->toolPathOf($root),
+            '--pattern=ilias_%s',
+            'tst',
+            'de',
+            $root . '/out'
+        );
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $this->assertFileExists($root . '/out/ilias_de.po');
+        $this->assertFileExists($root . '/out/ilias.pot');
+        $this->assertFileDoesNotExist($root . '/out/tst_de.po');
+        $this->assertFileDoesNotExist($root . '/out/tst.pot');
+        $entry = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/ilias_de.po')->find(null, 'greeting');
+        $this->assertNotNull($entry);
+        $this->assertSame('Hallo', $entry->getTranslation());
+    }
+
+    /**
+     * An invalid --pattern (validated the same way MigratedLanguageFilePaths::assertValidShippedFileNamePattern()
+     * checks a directory's own pattern) fails loudly with exit code 1 and writes nothing at all -
+     * before the source `.lang` files are even read.
+     */
+    public function testAnInvalidPatternFailsWithExitOneAndWritesNothing(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#greeting#:#Hallo\n");
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt(
+            $this->toolPathOf($root),
+            '--pattern=no-placeholder-at-all',
+            'tst',
+            'de',
+            $root . '/out'
+        );
+
+        $this->assertSame(1, $exit_code, $stdout . $stderr);
+        $this->assertStringContainsString('not a valid file name pattern', $stderr);
+        $this->assertSame([], glob($root . '/out/*') ?: [], 'nothing must be written for an invalid pattern');
     }
 }
