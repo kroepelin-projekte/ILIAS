@@ -33,6 +33,7 @@ class ConvertModuleToPoToolTest extends TestCase
 {
     private const string TOOL = __DIR__ . '/../tools/po-migration/convert_module_to_po.php';
     private const string SHIPPED_DIRECTORY = __DIR__ . '/../../TermsOfService/lang';
+    private const string POLL_SHIPPED_DIRECTORY = __DIR__ . '/../../Poll/lang';
 
     private string $directory;
 
@@ -128,6 +129,22 @@ class ConvertModuleToPoToolTest extends TestCase
         return $fixture_root . '/components/ILIAS/Language/tools/po-migration/convert_module_to_po.php';
     }
 
+    /**
+     * Writes plurals.json (see its own docblock) next to the fixture repo's copy of the tool -
+     * without this, the tool writes no "Plural-Forms" header and no plural message at all.
+     *
+     * @param array<string, string> $plural_forms lang_key => "Plural-Forms" header
+     * @param array<string, array<string, array{singular?: string, plural_id?: string}>> $modules
+     *        module => msgid => definition, see plurals.json's own docblock
+     */
+    private function writePluralsConfig(string $fixture_root, array $plural_forms, array $modules): void
+    {
+        file_put_contents(
+            $fixture_root . '/components/ILIAS/Language/tools/po-migration/plurals.json',
+            (string) json_encode(['plural_forms' => $plural_forms, 'modules' => $modules], JSON_THROW_ON_ERROR)
+        );
+    }
+
     private function writeLangFile(string $fixture_root, string $lang_key, string $content): void
     {
         file_put_contents($fixture_root . '/lang/ilias_' . $lang_key . '.lang', $content);
@@ -164,6 +181,34 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $this->assertSame('', $stderr, 'no warnings, notices or deprecations');
         $this->assertStringContainsString('round-trip identically through PO', $stdout);
+        $this->assertSame(array_keys($shipped), array_keys(self::files($this->directory . '/out')), 'no file added or lost');
+        foreach (self::files($this->directory . '/out') as $name => $content) {
+            $this->assertSame($shipped[$name], $content, $name);
+        }
+    }
+
+    /**
+     * The plural pilot ("poll", see plurals.json next to the tool): re-running the tool over the
+     * shipped files reproduces them byte for byte, for every language including a single-form one
+     * ("ja") - locking in the distribution rule (see plurals.json's docblock): a "n==1 -> 0, else 1"
+     * language's plural message with a configured "singular" key gets msgstr[0] from that key's own
+     * value and msgstr[1] from the message's own value (poll_population); a message with no singular
+     * key, or a language whose rule isn't that shape, gets its own value in every form
+     * (poll_vote_error_multi, and poll_population itself in "ja", which has only one form).
+     */
+    public function testReconvertingPollReproducesTheShippedFilesByteForByteIncludingPluralForms(): void
+    {
+        $shipped = self::files(self::POLL_SHIPPED_DIRECTORY);
+        $this->assertNotSame([], $shipped, 'the shipped poll files were not found');
+        $this->assertStringContainsString('msgid_plural "poll_population_plural"', $shipped['poll_de.po'] ?? '', 'precondition: poll_de.po has the expected plural message');
+        foreach ($shipped as $name => $content) {
+            file_put_contents($this->directory . '/out/' . $name, $content);
+        }
+
+        [$exit_code, $stdout, $stderr] = $this->runTool('poll', 'de', $this->directory . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $this->assertSame('', $stderr, 'no warnings, notices or deprecations');
         $this->assertSame(array_keys($shipped), array_keys(self::files($this->directory . '/out')), 'no file added or lost');
         foreach (self::files($this->directory . '/out') as $name => $content) {
             $this->assertSame($shipped[$name], $content, $name);
@@ -259,6 +304,54 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertNotNull($entry);
         $this->assertTrue($entry->hasFlag('fuzzy'));
         $this->assertSame([], $entry->getExtractedComments());
+    }
+
+    /**
+     * A plural message whose configured singular key carries the dated "new variable" placeholder
+     * (is_fuzzy_marker(), see the test above) is itself marked "fuzzy" too - but only in a language
+     * whose rule actually uses the singular key's value as msgstr[0] (isOneSingularOtherPlural(), see
+     * PluralForms). In a language that does not (here: a single-form one, "zh") every form is the
+     * plural message's own value regardless of the singular key, so its own fuzziness must not leak
+     * in merely because the singular key happens to be marked fuzzy.
+     */
+    public function testAPluralMessageIsMarkedFuzzyWhenItsSingularKeyIsButOnlyWhereTheSingularValueIsActuallyUsed(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#item#:#Eintraege\ntst#:#item_singular#:#Ein Eintrag\n");
+        $this->writeLangFile(
+            $root,
+            'fr',
+            "tst#:#item#:#Des entrees\ntst#:#item_singular#:#Une entree###13 3 2019 new variable\n"
+        );
+        $this->writeLangFile(
+            $root,
+            'zh',
+            "tst#:#item#:#Eintraege ZH\ntst#:#item_singular#:#Ein Eintrag ZH###13 3 2019 new variable\n"
+        );
+        $this->writePluralsConfig(
+            $root,
+            [
+                'de' => 'nplurals=2; plural=(n != 1);',
+                'fr' => 'nplurals=2; plural=(n != 1);', // isOneSingularOtherPlural() - singular is used
+                'zh' => 'nplurals=1; plural=0;', // not isOneSingularOtherPlural() - never used
+            ],
+            ['tst' => ['item' => ['singular' => 'item_singular']]]
+        );
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $fr_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')
+            ->find(null, 'item');
+        $this->assertNotNull($fr_item);
+        $this->assertSame(['Une entree', 'Des entrees'], $fr_item->getPluralTranslations(), 'precondition: the singular value is msgstr[0]');
+        $this->assertTrue($fr_item->hasFlag('fuzzy'), 'fr: the singular key used as msgstr[0] is fuzzy');
+
+        $zh_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_zh.po')
+            ->find(null, 'item');
+        $this->assertNotNull($zh_item);
+        $this->assertSame(['Eintraege ZH'], $zh_item->getPluralTranslations(), 'precondition: single form, own value - not the singular key');
+        $this->assertFalse($zh_item->hasFlag('fuzzy'), 'zh: the singular key is never used here, so its fuzziness must not leak in');
     }
 
     /**

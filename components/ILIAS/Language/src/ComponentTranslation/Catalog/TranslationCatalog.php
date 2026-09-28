@@ -23,10 +23,10 @@ namespace ILIAS\Language\ComponentTranslation\Catalog;
 use ErrorException;
 use Gettext\Generator\MoGenerator;
 use Gettext\Generator\PoGenerator;
-use Gettext\Loader\MoLoader;
 use Gettext\Loader\StrictPoLoader;
 use Gettext\Translation;
 use Gettext\Translations;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -36,7 +36,7 @@ use Throwable;
  * only place of the language component that reads or writes the gettext file formats.
  *
  * Narrow adapter around the gettext/gettext library (Gettext\Translations, Loader\StrictPoLoader,
- * Loader\MoLoader, Generator\PoGenerator, Generator\MoGenerator): no other class of the component
+ * Generator\PoGenerator, Generator\MoGenerator): no other class of the component
  * imports anything from the Gettext namespace, so a change of the library version stays local to
  * this class and TranslationEntry. The library's Scanner part (extracting messages from source
  * code) is deliberately not used.
@@ -61,13 +61,20 @@ use Throwable;
  *   dropping it.
  * - Header values are escaped for the `.po` (PoGenerator writes them verbatim, so a quote or
  *   backslash would corrupt the file).
- * - A `.mo` is checked for being structurally sound (magic number, every index table and every
- *   string within the file) before MoLoader reads it, since MoLoader silently clamps out-of-range
- *   reads of a truncated file into shortened or missing messages.
+ * - A `.mo` is read by this class itself (the format is a table of string offsets), after checking
+ *   it is structurally sound (magic number, every index table and every string within the file).
+ *   The library's MoLoader is not used: it silently clamps out-of-range reads of a truncated file
+ *   into shortened or missing messages, and it drops empty plural forms, which shifts every later
+ *   form to the wrong index.
+ * - Plural messages: in a `.mo`, a plural message gets exactly as many forms as the "Plural-Forms"
+ *   header declares (missing ones empty, surplus ones dropped; with a single form it is compiled as
+ *   a singular message). A plural message whose msgstr[0] is empty while another form is not cannot
+ *   be compiled by MoGenerator (it would silently drop the whole message) - generating the `.mo`
+ *   throws instead.
  *
  * Remaining, documented differences to the GNU gettext tools: plural forms are written for exactly
  * as many forms as the "Plural-Forms" header declares (missing ones empty, surplus ones dropped),
- * and a missing plural form cannot be told apart from an empty one - ILIAS itself uses no plurals.
+ * and a missing plural form cannot be told apart from an empty one.
  */
 final class TranslationCatalog
 {
@@ -156,21 +163,17 @@ final class TranslationCatalog
     }
 
     /**
-     * The (singular) translations of a `.mo` file, keyed by message id. The context is dropped: a
-     * migrated module's `.mo` only ever holds messages of that one module, and ILIAS' txt() looks
-     * messages up by identifier alone.
+     * The translations of a `.mo` file, keyed by message id - for a plural message the value of its
+     * default form (see PluralForms::defaultValueOf(), with the rule of the file's "Plural-Forms"
+     * header). The context is dropped: a migrated module's `.mo` only ever holds messages of that one
+     * module, and ILIAS' txt() looks messages up by identifier alone.
      *
      * @return array<string, string>
      * @throws RuntimeException if $file cannot be read or is not a valid `.mo` file
      */
     public static function readMoTranslations(string $file): array
     {
-        $data = is_file($file) && is_readable($file) ? @file_get_contents($file) : false;
-        if ($data === false) {
-            throw new RuntimeException(sprintf('Could not read MO file "%s".', $file));
-        }
-
-        return self::readMoTranslationsFromString($data, $file);
+        return self::readMoMessages($file)->getTranslations();
     }
 
     /**
@@ -182,18 +185,69 @@ final class TranslationCatalog
      */
     public static function readMoTranslationsFromString(string $data, string $name = 'MO data'): array
     {
-        self::assertStructurallySoundMo($data, $name);
+        return self::readMoMessagesFromString($data, $name)->getTranslations();
+    }
 
-        $translations = self::withLibraryErrorsAsExceptions(
-            static fn(): Translations => (new MoLoader())->loadString($data)
-        );
-
-        $result = [];
-        foreach ($translations as $translation) {
-            $result[$translation->getOriginal()] = explode("\0", $translation->getTranslation() ?? '', 2)[0];
+    /**
+     * readMoTranslations() plus every form of the plural messages and the "Plural-Forms" header.
+     *
+     * @throws RuntimeException if $file cannot be read or is not a valid `.mo` file
+     */
+    public static function readMoMessages(string $file): CompiledTranslations
+    {
+        $data = is_file($file) && is_readable($file) ? @file_get_contents($file) : false;
+        if ($data === false) {
+            throw new RuntimeException(sprintf('Could not read MO file "%s".', $file));
         }
 
-        return $result;
+        return self::readMoMessagesFromString($data, $file);
+    }
+
+    /**
+     * readMoMessages() for `.mo` data already in memory.
+     *
+     * @param string $name how the data is referred to in an exception message
+     * @throws RuntimeException if $data is not valid `.mo` data
+     */
+    public static function readMoMessagesFromString(string $data, string $name = 'MO data'): CompiledTranslations
+    {
+        $messages = self::readMoStrings($data, $name);
+
+        $plural_forms_header = null;
+        foreach ($messages as [$original, $translated]) {
+            if ($original !== '') {
+                continue;
+            }
+            foreach (explode("\n", $translated) as $line) {
+                if (preg_match('/\APlural-Forms:\s*(.*)\z/i', $line, $matches) === 1) {
+                    $plural_forms_header = trim($matches[1]);
+                }
+            }
+        }
+        $plural_forms = PluralForms::fromHeaderOrGermanic($plural_forms_header);
+
+        $translations = [];
+        $plural_translations = [];
+        foreach ($messages as [$original, $translated]) {
+            if ($original === '') {
+                continue;
+            }
+            // "<context>\x04<msgid>" and "<msgid>\0<msgid_plural>"
+            $id = explode("\x04", $original, 2)[1] ?? $original;
+            $id_and_plural_id = explode("\0", $id, 2);
+            $id = $id_and_plural_id[0];
+            if (!isset($id_and_plural_id[1])) {
+                // cut at the NUL - see the value "0" in the class docblock
+                $translations[$id] = explode("\0", $translated, 2)[0];
+                unset($plural_translations[$id]);
+                continue;
+            }
+            $forms = explode("\0", $translated);
+            $translations[$id] = $plural_forms->defaultValueOf($forms);
+            $plural_translations[$id] = $forms;
+        }
+
+        return new CompiledTranslations($translations, $plural_translations, $plural_forms_header);
     }
 
     /**
@@ -295,6 +349,9 @@ final class TranslationCatalog
                     $translation->getOriginal()
                 ));
             }
+            if ($for_mo && $translation->getPlural() !== null) {
+                self::prepareMoPluralForms($translations, $translation);
+            }
             if ($translation->getTranslation() !== '0') {
                 continue;
             }
@@ -312,9 +369,50 @@ final class TranslationCatalog
     }
 
     /**
-     * See https://www.gnu.org/software/gettext/manual/html_node/MO-Files.html
+     * A plural message as MoGenerator must be given it: exactly as many forms as the language has
+     * according to PluralForms (the same rule the runtime applies; the Germanic one for a missing or
+     * invalid header, at most PluralForms' maximum). A message with no form after msgstr[0] - a
+     * language with a single form - is compiled as a singular one. MoGenerator cuts or pads the forms
+     * after msgstr[0] by the header it parses itself: where that differs from PluralForms (an invalid
+     * header, e.g. a huge nplurals), the header of this copy is replaced by the rule actually used.
+     *
+     * @throws RuntimeException for a msgstr[0] that is empty while another form is not: MoGenerator
+     *         would drop the whole message
      */
-    private static function assertStructurallySoundMo(string $data, string $file): void
+    private static function prepareMoPluralForms(Translations $translations, Translation $translation): void
+    {
+        $headers = $translations->getHeaders();
+        $plural_forms = PluralForms::fromHeaderOrGermanic($headers->get('Plural-Forms'));
+        $library_plural_form = $headers->getPluralForm();
+        if (
+            $headers->get('Plural-Forms') !== null
+            && (!is_array($library_plural_form) || (int) $library_plural_form[0] !== $plural_forms->getCount())
+        ) {
+            $headers->set('Plural-Forms', $plural_forms->getHeader());
+        }
+        $surplus = $plural_forms->getCount() - 1;
+        $translation->translatePlural(...array_pad(
+            array_slice(array_values($translation->getPluralTranslations()), 0, $surplus),
+            $surplus,
+            ''
+        ));
+        if (($translation->getTranslation() ?? '') === '' && implode('', $translation->getPluralTranslations()) !== '') {
+            throw new RuntimeException(sprintf(
+                'The plural message "%s" has an empty msgstr[0] but other forms, which gettext/gettext cannot compile.',
+                $translation->getOriginal()
+            ));
+        }
+    }
+
+    /**
+     * The original and translated string of every message of the `.mo` $data (the header block is
+     * the message with the original ""), after checking the file is structurally sound - see
+     * https://www.gnu.org/software/gettext/manual/html_node/MO-Files.html
+     *
+     * @return list<array{0: string, 1: string}>
+     * @throws RuntimeException if $data is not valid `.mo` data
+     */
+    private static function readMoStrings(string $data, string $file): array
     {
         $size = strlen($data);
         $format = match (true) {
@@ -332,7 +430,11 @@ final class TranslationCatalog
             'originals' => $originals_offset,
             'translations' => $translations_offset
         ] = unpack($format . 'count/' . $format . 'originals/' . $format . 'translations', $data, 8);
-        foreach ([$originals_offset, $translations_offset] as $table_offset) {
+        $strings = [];
+        // Strings may overlap: without a limit, a small file could make this read many times its size
+        $total_length = 0;
+        $max_total_length = 4 * $size;
+        foreach ([$originals_offset, $translations_offset] as $table => $table_offset) {
             if ($table_offset + $count * 8 > $size) {
                 throw new RuntimeException(sprintf('"%s" is not a valid MO file (index out of bounds).', $file));
             }
@@ -345,8 +447,15 @@ final class TranslationCatalog
                 if ($offset + $length > $size) {
                     throw new RuntimeException(sprintf('"%s" is not a valid MO file (string out of bounds).', $file));
                 }
+                $total_length += $length;
+                if ($total_length > $max_total_length) {
+                    throw new RuntimeException(sprintf('"%s" is not a valid MO file (strings exceed the file size).', $file));
+                }
+                $strings[$i][$table] = substr($data, $offset, $length);
             }
         }
+
+        return $strings;
     }
 
     /**

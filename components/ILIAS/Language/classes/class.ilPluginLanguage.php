@@ -24,6 +24,7 @@ use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 
 /**
  * @author   Richard Klees <richard.klees@concepts-and-training.de>
@@ -214,7 +215,10 @@ class ilPluginLanguage
      * guessed into this module. The values are shipped ones: markup TranslationMarkupPolicy does not
      * allow is cleaned (and logged), like the build does for the shipped `.po` of a component, not
      * rejected. Extracted comments ("#.") are not stored, like the "###" comments of a `.lang` file
-     * on this path. Fuzzy entries are read too, entries without translation are not.
+     * on this path. Fuzzy entries are read too, entries without translation are not. A plural message
+     * is read with the value of its default form (msgstr[1] with at least two forms, see
+     * PluralForms) and logged: plugins are still served from the database, which holds one value per
+     * key, so ntxt() falls back to that value for them.
      *
      * @return array<string, string>|null
      */
@@ -233,14 +237,33 @@ class ilPluginLanguage
 
         $values = [];
         $ignored = [];
+        $plurals = [];
+        $plural_forms = null;
         foreach ($catalog->getEntries() as $entry) {
             if ($entry->getContext() !== null) {
                 $ignored[] = $entry->getId();
                 continue;
             }
-            if ($entry->getTranslation() !== '') {
-                $values[$entry->getId()] = $entry->getTranslation();
+            $value = $entry->getTranslation();
+            if ($entry->isPlural()) {
+                // The database holds one value per key: the default form (see PluralForms)
+                $plural_forms ??= PluralForms::fromHeaderOrGermanic(
+                    $catalog->getHeader('Plural-Forms'),
+                    static fn(string $message) => self::logWarning(sprintf('Plugin language file "%s": %s', $file, $message))
+                );
+                $value = $plural_forms->defaultValueOf($entry->getPluralTranslations());
+                $plurals[] = $entry->getId();
             }
+            if ($value !== '') {
+                $values[$entry->getId()] = $value;
+            }
+        }
+        if ($plurals !== []) {
+            self::logWarning(sprintf(
+                'Plural messages in the plugin language file "%s" are stored with their default form only (plugins are served from the database): %s',
+                $file,
+                implode(', ', $plurals)
+            ));
         }
         $values = $this->cleanShippedValues($file, $values);
         if ($ignored !== []) {

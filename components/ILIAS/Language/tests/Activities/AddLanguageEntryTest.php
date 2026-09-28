@@ -361,6 +361,68 @@ class AddLanguageEntryTest extends ActivityContractTestCase
     }
 
     /**
+     * A form key (see PluralFormKey) whose form the shipped message of a language does not have (here:
+     * "item [2]" while "de"'s shipped message only has forms 0/1) rejects the whole request - before
+     * any write - instead of silently being dropped from the module's content on the next save. The
+     * message names the affected language, never the submitted value.
+     */
+    #[RunInSeparateProcess]
+    public function testAFormKeyWithNoSuchFormInAShippedMessageRejectsTheRequestBeforeAnyWrite(): void
+    {
+        if (!defined('ILIAS_ABSOLUTE_PATH')) {
+            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../../'));
+        }
+        define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_add_entry_plural_test_' . bin2hex(random_bytes(4)));
+
+        $fixture_dir = __DIR__ . '/tmp-add-entry-plural-fixtures-' . bin2hex(random_bytes(4));
+        mkdir($fixture_dir, 0775, true);
+        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
+        $catalog->setHeader('Plural-Forms', 'nplurals=2; plural=(n != 1);');
+        $entry = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry('poll', 'item');
+        $entry->setPlural('items', ['Eintrag', 'Einträge']);
+        $catalog->add($entry);
+        \MigratedPoFixture::writePo($fixture_dir . '/poll_de.po', $catalog);
+        $directory = \MigratedPoFixture::directory(
+            'poll',
+            'components/ILIAS/Language/tests/Activities/' . basename($fixture_dir) . '/'
+        );
+        $this->setGlobalVariable(
+            \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class,
+            new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
+                new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+                $directory
+            )
+        );
+
+        try {
+            $calls = [];
+            $activity = $this->createActivity(
+                ['de'],
+                replace_lang_entry: $this->spyReplaceLangEntry($calls),
+                update_module_cache: $this->spyUpdateModuleCache($calls)
+            );
+
+            try {
+                $activity->perform([
+                    'module' => 'poll',
+                    'identifier' => 'item [2]',
+                    'translations' => ['de' => 'Ein geheimer Wert'],
+                    'usr_id' => 6,
+                ]);
+                $this->fail('Expected an InvalidInputException to be thrown.');
+            } catch (InvalidInputException $e) {
+                $this->assertStringContainsString('de', $e->getMessage());
+                $this->assertStringNotContainsString('Ein geheimer Wert', $e->getMessage());
+                $this->assertArrayNotHasKey('replace', $calls);
+                $this->assertArrayNotHasKey('cache', $calls);
+            }
+        } finally {
+            \MigratedPoFixture::removeDirectory($fixture_dir);
+            \MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
+        }
+    }
+
+    /**
      * The flip side: markup TranslationMarkupPolicy allows (a plain tag, a link with an allowed
      * scheme) never blocks the request - every language with such a value is written.
      */

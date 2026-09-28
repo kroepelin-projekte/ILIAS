@@ -27,10 +27,13 @@ use Gettext\Translation;
  *
  * Together with TranslationCatalog the only place of the language component that knows the
  * gettext/gettext library: this is a narrow adapter around Gettext\Translation exposing just the
- * parts ILIAS needs - context, id, singular translation, translator comments (`# ...`), extracted
- * comments (`#. ...`) and flags (`#, ...`). Everything else the library keeps for a loaded message
- * (plural forms, references, previous-message lines) is carried along untouched and written back
- * as loaded.
+ * parts ILIAS needs - context, id, singular translation, plural id and forms (`msgid_plural`,
+ * `msgstr[n]`), translator comments (`# ...`), extracted comments (`#. ...`) and flags (`#, ...`).
+ * Everything else the library keeps for a loaded message (references, previous-message lines) is
+ * carried along untouched and written back as loaded.
+ *
+ * For a plural message getTranslation() is msgstr[0], exactly as in the file; which form serves a
+ * quantity or stands in for the whole message is decided by ILIAS\Language\ComponentTranslation\PluralForms.
  *
  * Library behaviour callers should be aware of: comments are stored as a set, so adding a comment
  * that equals (in PHP's loose comparison) an existing one of the same kind is a no-op, and flags are
@@ -92,6 +95,49 @@ final class TranslationEntry
     public function translate(string $translation): void
     {
         $this->translation->translate($translation);
+    }
+
+    /**
+     * The `msgid_plural` of a plural message, `null` for a singular one.
+     */
+    public function getPluralId(): ?string
+    {
+        return $this->translation->getPlural();
+    }
+
+    public function isPlural(): bool
+    {
+        return $this->translation->getPlural() !== null;
+    }
+
+    /**
+     * Every form of a plural message as stored: msgstr[0] (= getTranslation()), msgstr[1], ... -
+     * `[getTranslation()]` for a singular message. A `.po` loaded with fewer forms than its
+     * "Plural-Forms" header declares has fewer here; callers pad with '' where they need all.
+     *
+     * @return list<string>
+     */
+    public function getPluralTranslations(): array
+    {
+        return [$this->getTranslation(), ...array_values($this->translation->getPluralTranslations())];
+    }
+
+    /**
+     * Makes this a plural message with the `msgid_plural` $plural_id and the forms $translations
+     * (msgstr[0], msgstr[1], ...).
+     *
+     * @param array<int, string> $translations at least one form, in the order msgstr[0], msgstr[1], ...
+     * @throws \InvalidArgumentException for an empty $plural_id or no form at all
+     */
+    public function setPlural(string $plural_id, array $translations): void
+    {
+        if ($plural_id === '' || $translations === []) {
+            throw new \InvalidArgumentException(sprintf('The plural message "%s" needs a plural id and at least one form.', $this->getId()));
+        }
+        $translations = array_values($translations);
+        $this->translation->setPlural($plural_id);
+        $this->translation->translate(array_shift($translations));
+        $this->translation->translatePlural(...$translations);
     }
 
     /**

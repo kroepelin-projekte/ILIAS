@@ -1,0 +1,379 @@
+<?php
+
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
+declare(strict_types=1);
+
+namespace ILIAS\Language\Tests\ComponentTranslation;
+
+use ILIAS\Language\ComponentTranslation\PluralForms;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * PluralForms: the parser/evaluator for "Plural-Forms" headers, the "one value" rule
+ * (defaultFormIndex()/defaultValueOf()) and the fallback to the Germanic rule.
+ */
+class PluralFormsTest extends TestCase
+{
+    // ------------------------------------------------------------- well-known rules
+
+    /**
+     * Real "Plural-Forms" headers of gettext/CLDR, checked for a handful of representative n's each -
+     * every value is what msgfmt/gettext itself would select.
+     *
+     * @param array<int, int> $expected n => form index
+     */
+    #[DataProvider('wellKnownHeaders')]
+    public function testFormIndexForMatchesTheKnownRuleOfTheLanguage(string $header, int $count, array $expected): void
+    {
+        $forms = PluralForms::fromHeader($header);
+
+        $this->assertSame($count, $forms->getCount());
+        foreach ($expected as $n => $index) {
+            $this->assertSame($index, $forms->formIndexFor($n), sprintf('n = %d', $n));
+        }
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: int, 2: array<int, int>}>
+     */
+    public static function wellKnownHeaders(): array
+    {
+        return [
+            'Germanic (en/de)' => [
+                'nplurals=2; plural=(n != 1);',
+                2,
+                [0 => 1, 1 => 0, 2 => 1, 100 => 1],
+            ],
+            'French' => [
+                'nplurals=2; plural=(n > 1);',
+                2,
+                [0 => 0, 1 => 0, 2 => 1, 100 => 1],
+            ],
+            'single form (ja)' => [
+                'nplurals=1; plural=0;',
+                1,
+                [0 => 0, 1 => 0, 2 => 0, 100 => 0],
+            ],
+            'Russian' => [
+                'nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);',
+                3,
+                [1 => 0, 21 => 0, 2 => 1, 3 => 1, 4 => 1, 22 => 1, 5 => 2, 11 => 2, 100 => 2],
+            ],
+            'Polish' => [
+                'nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);',
+                3,
+                [1 => 0, 2 => 1, 5 => 2, 12 => 2, 22 => 1],
+            ],
+            'Czech' => [
+                'nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);',
+                3,
+                [1 => 0, 2 => 1, 4 => 1, 5 => 2, 0 => 2],
+            ],
+            'Arabic' => [
+                'nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5);',
+                6,
+                [0 => 0, 1 => 1, 2 => 2, 3 => 3, 10 => 3, 11 => 4, 99 => 4, 100 => 5, 101 => 5],
+            ],
+        ];
+    }
+
+    // ------------------------------------------------------------- precedence / associativity
+
+    /**
+     * "==" binds tighter than "?:", and "?:" is right-associative: "a ? b : c ? d : e" reads as
+     * "a ? b : (c ? d : e)" - a left-associative (or wrong-precedence) parser would reject the header
+     * outright (the sampled range includes n's failing for the wrong tree) or select the wrong form.
+     */
+    public function testTernaryIsRightAssociativeAndBindsLooserThanComparisons(): void
+    {
+        // n==1 -> 0 ; n==2 -> 1 ; else -> 2 - only correct if grouped as n==1 ? 0 : (n==2 ? 1 : 2)
+        $forms = PluralForms::fromHeader('nplurals=3; plural=n==1 ? 0 : n==2 ? 1 : 2;');
+
+        $this->assertSame(0, $forms->formIndexFor(1));
+        $this->assertSame(1, $forms->formIndexFor(2));
+        $this->assertSame(2, $forms->formIndexFor(3));
+    }
+
+    /**
+     * "%" binds tighter than the comparisons, which bind tighter than "&&"/"||": "n%10==1 && n%100!=11"
+     * must be "((n%10)==1) && ((n%100)!=11)".
+     */
+    public function testModuloBindsTighterThanComparisonsAndComparisonsTighterThanLogicalAnd(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n%10==1 && n%100!=11) ? 0 : 1;');
+
+        $this->assertSame(0, $forms->formIndexFor(21));
+        $this->assertSame(1, $forms->formIndexFor(11));
+    }
+
+    public function testBinaryOperatorsAreLeftAssociative(): void
+    {
+        // (1-... not available: "-" is not part of the grammar) use "%" chained: (n % 5) % 2
+        $forms = PluralForms::fromHeader('nplurals=2; plural=n%5%2;');
+
+        // n=7 -> 7%5=2, 2%2=0 ; if evaluated right-associatively (5%2=1, n%1=0) it would differ for n=6
+        $this->assertSame(0, $forms->formIndexFor(7));
+        $forms2 = PluralForms::fromHeader('nplurals=2; plural=n%6%2;');
+        $this->assertSame(0, $forms2->formIndexFor(6), '6%6=0, 0%2=0');
+    }
+
+    // ------------------------------------------------------------- default form
+
+    #[DataProvider('countsAndDefaultIndex')]
+    public function testDefaultFormIndexForCountIsOneFromTwoFormsOnwardsElseZero(int $count, int $expected): void
+    {
+        $this->assertSame($expected, PluralForms::defaultFormIndexForCount($count));
+    }
+
+    /**
+     * @return array<string, array{0: int, 1: int}>
+     */
+    public static function countsAndDefaultIndex(): array
+    {
+        return [
+            'single form' => [1, 0],
+            'two forms' => [2, 1],
+            'three forms' => [3, 1],
+            'six forms (Arabic)' => [6, 1],
+        ];
+    }
+
+    public function testDefaultValueOfFallsBackToFormZeroWhenTheDefaultFormIsEmpty(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame('Eintrag', $forms->defaultValueOf(['Eintrag', '']));
+    }
+
+    public function testDefaultValueOfFallsBackToFormZeroWhenTheDefaultFormIsMissingEntirely(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame('Eintrag', $forms->defaultValueOf([0 => 'Eintrag']));
+    }
+
+    public function testDefaultValueOfPrefersFormOneOverFormZeroWhenBothArePresent(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame('Einträge', $forms->defaultValueOf(['Eintrag', 'Einträge']));
+    }
+
+    public function testDefaultValueOfUsesFormZeroForASingleFormLanguage(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=1; plural=0;');
+
+        $this->assertSame('Eintrag', $forms->defaultValueOf(['Eintrag']));
+    }
+
+    public function testDefaultValueOfWithNoFormsAtAllIsEmpty(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame('', $forms->defaultValueOf([]));
+    }
+
+    // ------------------------------------------------------------- isOneSingularOtherPlural
+
+    public function testIsOneSingularOtherPluralIsTrueForTheGermanicRule(): void
+    {
+        $this->assertTrue(PluralForms::germanic()->isOneSingularOtherPlural());
+    }
+
+    public function testIsOneSingularOtherPluralIsFalseForFrenchWhichTreatsZeroAsSingular(): void
+    {
+        $this->assertFalse(PluralForms::fromHeader('nplurals=2; plural=(n > 1);')->isOneSingularOtherPlural());
+    }
+
+    public function testIsOneSingularOtherPluralIsFalseForAnyNonTwoFormCount(): void
+    {
+        $this->assertFalse(PluralForms::fromHeader('nplurals=1; plural=0;')->isOneSingularOtherPlural());
+        $this->assertFalse(PluralForms::fromHeader('nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);')->isOneSingularOtherPlural());
+    }
+
+    // ------------------------------------------------------------- formIndexFor() boundaries
+
+    public function testFormIndexForTreatsANegativeNAsItsAbsoluteValueLikeGettext(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame($forms->formIndexFor(1), $forms->formIndexFor(-1));
+        $this->assertSame($forms->formIndexFor(5), $forms->formIndexFor(-5));
+    }
+
+    /**
+     * abs(PHP_INT_MIN) overflows a native int - must not throw or produce a bogus result.
+     */
+    public function testFormIndexForHandlesPhpIntMinWithoutOverflowing(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
+
+        $this->assertSame(1, $forms->formIndexFor(\PHP_INT_MIN));
+    }
+
+    /**
+     * A division by zero (here: modulo) only reached for a particular n (not one of the n's
+     * fromHeader() itself samples while validating the header, or construction would already have
+     * thrown) falls back to the default form for that n instead of throwing out of formIndexFor().
+     */
+    public function testFormIndexForFallsBackToTheDefaultFormWhenTheFormulaDividesByZeroForThisN(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=2; plural=(n % (n==300 ? 0 : 1));');
+
+        $this->assertSame($forms->defaultFormIndex(), $forms->formIndexFor(300));
+    }
+
+    // ------------------------------------------------------------- header parsing failures
+
+    #[DataProvider('invalidHeaders')]
+    public function testFromHeaderThrowsForAnInvalidHeader(string $header): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        PluralForms::fromHeader($header);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidHeaders(): array
+    {
+        return [
+            'empty' => [''],
+            'missing plural=' => ['nplurals=2;'],
+            'missing nplurals=' => ['plural=(n != 1);'],
+            'nplurals zero' => ['nplurals=0; plural=0;'],
+            'nplurals negative' => ['nplurals=-1; plural=0;'],
+            'nplurals too large (11)' => ['nplurals=11; plural=n%11;'],
+            'not a number nplurals' => ['nplurals=x; plural=0;'],
+            'identifier other than n' => ['nplurals=2; plural=(m != 1);'],
+            'function call' => ['nplurals=2; plural=intdiv(n,2);'],
+            'variable' => ['nplurals=2; plural=$n;'],
+            'semicolon injection' => ['nplurals=2; plural=(n != 1); system("x");'],
+            'assignment' => ['nplurals=2; plural=(n = 1);'],
+            'unary minus' => ['nplurals=2; plural=(-n != 1);'],
+            'unsupported operator +' => ['nplurals=2; plural=(n + 1) % 2;'],
+            'unbalanced parenthesis' => ['nplurals=2; plural=(n != 1;'],
+            'trailing garbage' => ['nplurals=2; plural=(n != 1) x;'],
+            'empty ternary branch' => ['nplurals=2; plural=n ? : 1;'],
+            'dangling operator' => ['nplurals=2; plural=n ==;'],
+            'formula too long' => ['nplurals=2; plural=' . str_repeat('(n!=1)&&', 100) . '(n!=1);'],
+            'integer with too many digits' => ['nplurals=2; plural=n==1000000000 ? 0 : 1;'],
+            'index equal to count (out of range)' => ['nplurals=2; plural=2;'],
+            'deeply nested parentheses beyond the depth limit' => [
+                'nplurals=2; plural=' . str_repeat('(', 100) . 'n!=1' . str_repeat(')', 100) . ';',
+            ],
+        ];
+    }
+
+    public function testFromHeaderAcceptsMaximumNplurals(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=10; plural=n%10;');
+
+        $this->assertSame(10, $forms->getCount());
+    }
+
+    /**
+     * ReDoS guard: an overlong header (e.g. a long run of whitespace, the classic backtracking
+     * trigger for a naive `\s*` before a literal that never matches) is rejected by a plain strlen()
+     * check before the regular expression ever runs on it - proven here by an execution time bound
+     * far below what catastrophic backtracking on ~10k characters would take (seconds to hours), not
+     * merely by the exception type (a slow-but-eventually-throwing regex would pass a type-only
+     * assertion too).
+     */
+    public function testAnOverlongHeaderIsRejectedBeforeTheRegularExpressionRunsOnIt(): void
+    {
+        $header = str_repeat(' ', 10000) . 'x'; // never matches "nplurals..." - would force backtracking
+        $started = microtime(true);
+
+        try {
+            PluralForms::fromHeader($header);
+            $this->fail('Expected an InvalidArgumentException');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('too long', $e->getMessage());
+        }
+
+        $this->assertLessThan(1.0, microtime(true) - $started, 'rejected in well under a second - no backtracking took place');
+    }
+
+    public function testGetHeaderRoundTripsTheParsedHeader(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);');
+
+        $this->assertSame(3, PluralForms::fromHeader($forms->getHeader())->getCount());
+        $this->assertSame($forms->formIndexFor(5), PluralForms::fromHeader($forms->getHeader())->formIndexFor(5));
+    }
+
+    // ------------------------------------------------------------- fromHeaderOrGermanic()
+
+    public function testFromHeaderOrGermanicReturnsTheParsedRuleForAValidHeader(): void
+    {
+        $forms = PluralForms::fromHeaderOrGermanic('nplurals=1; plural=0;');
+
+        $this->assertSame(1, $forms->getCount());
+    }
+
+    public function testFromHeaderOrGermanicFallsBackAndReportsForANullHeader(): void
+    {
+        $messages = [];
+        $forms = PluralForms::fromHeaderOrGermanic(null, function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        $this->assertSame(2, $forms->getCount());
+        $this->assertTrue($forms->isOneSingularOtherPlural());
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('Missing Plural-Forms', $messages[0]);
+    }
+
+    public function testFromHeaderOrGermanicFallsBackAndReportsForABlankHeader(): void
+    {
+        $messages = [];
+        PluralForms::fromHeaderOrGermanic('   ', function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        $this->assertCount(1, $messages);
+    }
+
+    public function testFromHeaderOrGermanicFallsBackAndReportsForAnInvalidHeader(): void
+    {
+        $messages = [];
+        $forms = PluralForms::fromHeaderOrGermanic('garbage', function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+
+        $this->assertSame(2, $forms->getCount());
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('Invalid Plural-Forms header "garbage"', $messages[0]);
+    }
+
+    public function testFromHeaderOrGermanicWorksWithoutACallback(): void
+    {
+        $forms = PluralForms::fromHeaderOrGermanic('garbage');
+
+        $this->assertSame(2, $forms->getCount());
+    }
+
+    public function testGermanicIsTheDocumentedFallbackHeader(): void
+    {
+        $this->assertSame('nplurals=2; plural=(n != 1);', PluralForms::GERMANIC_HEADER);
+        $this->assertSame(2, PluralForms::germanic()->getCount());
+    }
+}

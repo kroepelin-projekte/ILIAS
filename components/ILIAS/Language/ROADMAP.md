@@ -14,6 +14,9 @@
 * Extracted language-installation state access into `InstalledLanguageRepository` and
   `LanguageInstallationManager` (repository pattern), and language-file-directory resolution into
   `ILIAS\Language\ComponentTranslation\*` - see the README
+* Plural forms for modules maintained in PO files: `ilLanguage::ntxt()`, `Plural-Forms` evaluated by
+  `ILIAS\Language\ComponentTranslation\PluralForms` (pilot modules `tos` and `poll`, see
+  `tools/po-migration/README.md`)
 
 ## Short Term
 
@@ -21,6 +24,8 @@
 * Analysing use of language variables on test9
 * GitHook for preventing duplicate use of same variable_ID in language files
 * Migrate the remaining `addCommandButton()` form buttons in `ilObjLanguageExtGUI` to KS Button
+* Replace hand-made singular/plural key pairs by plural messages and `ilLanguage::ntxt()` together
+  with the owning components (first proposal: `Poll`)
 
 ## Mid Term
 

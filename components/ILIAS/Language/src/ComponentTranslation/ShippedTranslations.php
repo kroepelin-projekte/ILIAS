@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Language\ComponentTranslation;
 
+use ILIAS\Language\ComponentTranslation\Catalog\CompiledTranslations;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use RuntimeException;
 
@@ -35,8 +36,8 @@ use RuntimeException;
  *
  * compile() is TranslationCatalog::toMoString() of the module's messages (context = module, or no
  * context at all - see MigratedLanguageFileSync::moduleEntries()), with
- * every value cleaned by TranslationMarkupPolicy::sanitize(): fuzzy messages are compiled too,
- * messages without a translation are left out.
+ * every value - every form of a plural message - cleaned by TranslationMarkupPolicy::sanitize():
+ * fuzzy messages are compiled too, messages without a translation are left out.
  */
 final class ShippedTranslations
 {
@@ -49,12 +50,21 @@ final class ShippedTranslations
      * The compiled `.mo` of the messages of $module in $shipped_po.
      *
      * @param (callable(string $identifier, list<string> $violations): void)|null $on_markup_violation
-     *        called for every value that had to be cleaned, with what was removed from it
+     *        called for every value that had to be cleaned, with what was removed from it (for a form
+     *        of a plural message with its form key, see PluralFormKey)
+     * @param (callable(string $message): void)|null $on_invalid_plural_forms called if the module has
+     *        plural messages, but the "Plural-Forms" header is missing or invalid (the Germanic rule
+     *        is used for them then, see PluralForms)
      * @throws RuntimeException if $shipped_po cannot be read, parsed or compiled
      */
-    public function compile(string $shipped_po, string $module, ?callable $on_markup_violation = null): string
-    {
+    public function compile(
+        string $shipped_po,
+        string $module,
+        ?callable $on_markup_violation = null,
+        ?callable $on_invalid_plural_forms = null
+    ): string {
         $shipped = TranslationCatalog::fromPoFile($shipped_po);
+        $has_plurals = false;
 
         $catalog = new TranslationCatalog();
         foreach ($shipped->getHeaders() as $name => $value) {
@@ -63,23 +73,47 @@ final class ShippedTranslations
         // the module's entries - with the module as context or without one (see
         // MigratedLanguageFileSync::moduleEntries())
         foreach (MigratedLanguageFileSync::moduleEntries($shipped, $module) as $entry) {
-            $value = $entry->getTranslation();
-            $violations = $this->markup_policy->findViolations($value);
-            if ($violations !== []) {
-                $entry->translate($this->markup_policy->sanitize($value));
-                if ($on_markup_violation !== null) {
-                    $on_markup_violation($entry->getId(), $violations);
+            if ($entry->isPlural()) {
+                $has_plurals = true;
+                $forms = $entry->getPluralTranslations();
+                foreach ($forms as $form => $value) {
+                    $forms[$form] = $this->sanitized($value, PluralFormKey::of($entry->getId(), $form), $on_markup_violation);
                 }
+                $entry->setPlural((string) $entry->getPluralId(), $forms);
+            } else {
+                $entry->translate($this->sanitized($entry->getTranslation(), $entry->getId(), $on_markup_violation));
             }
             $catalog->add($entry);
+        }
+        if ($has_plurals) {
+            PluralForms::fromHeaderOrGermanic($shipped->getHeader('Plural-Forms'), $on_invalid_plural_forms);
         }
 
         return $catalog->toMoString();
     }
 
     /**
-     * The shipped state of $directory's module for $lang_key as identifier => value, or `null` if
-     * the module is not migrated for $lang_key (no shipped `.po`).
+     * $value cleaned by the markup policy, $on_markup_violation called for $key if anything was removed.
+     *
+     * @param (callable(string $identifier, list<string> $violations): void)|null $on_markup_violation
+     */
+    private function sanitized(string $value, string $key, ?callable $on_markup_violation): string
+    {
+        $violations = $this->markup_policy->findViolations($value);
+        if ($violations === []) {
+            return $value;
+        }
+        if ($on_markup_violation !== null) {
+            $on_markup_violation($key, $violations);
+        }
+
+        return $this->markup_policy->sanitize($value);
+    }
+
+    /**
+     * The shipped state of $directory's module for $lang_key as identifier => value (for a plural
+     * message the value of its default form, see PluralForms), or `null` if the module is not
+     * migrated for $lang_key (no shipped `.po`).
      *
      * @param (callable(string $message, bool $is_missing): void)|null $on_artifact_unusable called
      *        when the artifact is missing ($is_missing) or cannot be read and the `.po` is compiled
@@ -95,6 +129,22 @@ final class ShippedTranslations
         string $lang_key,
         ?callable $on_artifact_unusable = null
     ): ?array {
+        return $this->readCompiled($ilias_absolute_path, $directory, $lang_key, $on_artifact_unusable)?->getTranslations();
+    }
+
+    /**
+     * read(), plus every form of the plural messages and the "Plural-Forms" header of the module.
+     *
+     * @param (callable(string $message, bool $is_missing): void)|null $on_artifact_unusable see read()
+     * @throws \InvalidArgumentException see read()
+     * @throws RuntimeException see read()
+     */
+    public function readCompiled(
+        string $ilias_absolute_path,
+        LanguageFileDirectory $directory,
+        string $lang_key,
+        ?callable $on_artifact_unusable = null
+    ): ?CompiledTranslations {
         $shipped_po = MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po';
         $po_modified = @filemtime($shipped_po);
         if ($po_modified === false || !is_file($shipped_po)) {
@@ -111,7 +161,7 @@ final class ShippedTranslations
             ));
         } elseif ($artifact_modified >= $po_modified) {
             try {
-                return TranslationCatalog::readMoTranslations($artifact);
+                return TranslationCatalog::readMoMessages($artifact);
             } catch (RuntimeException $e) {
                 $this->report($on_artifact_unusable, false, sprintf(
                     'The compiled language file "%s" cannot be read (%s) - compiling "%s" instead.',
@@ -122,7 +172,7 @@ final class ShippedTranslations
             }
         }
 
-        return TranslationCatalog::readMoTranslationsFromString(
+        return TranslationCatalog::readMoMessagesFromString(
             $this->compile($shipped_po, $directory->getPrefix()),
             $shipped_po
         );

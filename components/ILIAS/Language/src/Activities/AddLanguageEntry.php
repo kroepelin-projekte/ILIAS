@@ -26,6 +26,8 @@ use ILIAS\Data\Text;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -86,7 +88,7 @@ class AddLanguageEntry extends LanguageActivity
                         // nothing to update (lng_data holds the entry)
                         return true;
                     }
-                    $entries[$identifier] = $value;
+                    $entries[self::entryKeyOf($entries, $identifier)] = $value;
                     return \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
                 };
                 $manager = isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)
@@ -105,6 +107,67 @@ class AddLanguageEntry extends LanguageActivity
             };
         $this->user_login = $user_login
             ?? static fn(int $usr_id): string => \ilObjUser::_lookupLogin($usr_id);
+    }
+
+    /**
+     * The key $identifier takes in $entries (a module's content, see currentModuleEntries()): for a
+     * plural message of a module maintained in PO files (listed as its forms, see PluralFormKey) the
+     * key of its default form - the one the database row of the identifier stands for (see
+     * PluralForms) -, otherwise $identifier itself.
+     *
+     * @param array<string|int, string> $entries
+     */
+    private static function entryKeyOf(array $entries, string $identifier): string
+    {
+        if (MigratedLanguageFileSync::pluralMessageOf($identifier, $entries) !== $identifier) {
+            return $identifier;
+        }
+        $count = 0;
+        while (array_key_exists(PluralFormKey::of($identifier, $count), $entries)) {
+            $count++;
+        }
+
+        return PluralFormKey::of($identifier, PluralForms::defaultFormIndexForCount($count));
+    }
+
+    /**
+     * The languages of $lang_keys for which $identifier is a form key (see PluralFormKey) of a plural
+     * message of $module's shipped `.po` that this message does not have (e.g. `poll_population [2]`
+     * in a language with two forms). Empty for every other identifier, and where the shipped `.po`
+     * cannot be read (the entry is then written as before).
+     *
+     * @param list<string|int> $lang_keys
+     * @return list<string>
+     */
+    private static function languagesWithoutPluralForm(string $module, string $identifier, array $lang_keys): array
+    {
+        global $DIC;
+
+        if (PluralFormKey::parse($identifier) === null || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return [];
+        }
+        $languages = [];
+        foreach ($lang_keys as $lang_key) {
+            $lang_key = (string) $lang_key;
+            $shipped_po = MigratedLanguageFileSync::findShippedModuleFiles(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $lang_key
+            )[$module] ?? null;
+            if ($shipped_po === null) {
+                continue;
+            }
+            try {
+                $shipped = MigratedLanguageFileSync::loadShippedModuleEntries($shipped_po, $module);
+            } catch (\Throwable) {
+                continue;
+            }
+            if (MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped) !== null && !array_key_exists($identifier, $shipped)) {
+                $languages[] = $lang_key;
+            }
+        }
+
+        return $languages;
     }
 
     /**
@@ -342,6 +405,15 @@ MARKDOWN
         if ($invalid_values !== []) {
             throw new InvalidInputException(
                 'The value contains markup that is not allowed for: ' . implode(', ', array_keys($invalid_values)) . '.'
+            );
+        }
+
+        // A form of a plural message (see PluralFormKey) the shipped message of a language does not
+        // have would be dropped from the module's content - rejected instead of reporting success
+        $languages_without_form = self::languagesWithoutPluralForm($module, $identifier, array_keys(array_filter($values)));
+        if ($languages_without_form !== []) {
+            throw new InvalidInputException(
+                'The plural message has no such form for: ' . implode(', ', $languages_without_form) . '.'
             );
         }
 

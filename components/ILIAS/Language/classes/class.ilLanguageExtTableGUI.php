@@ -71,6 +71,9 @@ class ilLanguageExtTableGUI extends ilTable2GUI
         // @see https://php.net/manual/en/language.variables.external.php
         $a_set["name"] = str_replace(".", "_POSTDOT_", $a_set["name"]);
         $a_set["name"] = str_replace(" ", "_POSTSPACE_", $a_set["name"]);
+        // the form of a plural message, e.g. "poll#:#poll_population [0]" (see PluralFormKey): PHP
+        // would parse "[0]" in a field name as an array index
+        $a_set["name"] = str_replace(["[", "]"], ["_POSTLBRACKET_", "_POSTRBRACKET_"], $a_set["name"]);
 
         if ($this->params["langmode"]) {
             $this->tpl->setCurrentBlock("comment");

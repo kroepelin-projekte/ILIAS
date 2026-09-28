@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 use ILIAS\Language\ComponentTranslation\ShippedTranslations;
 
 /**
@@ -84,6 +85,14 @@ class ilLanguage implements \ILIAS\Language\Language
      * collide with a "<module>|<lang_key>" entry.
      */
     private const string INSTALLED_LANGUAGES_CACHE_KEY = "\0installed_languages";
+
+    /**
+     * Prefix of the entries of $migrated_language_file_cache holding the plural messages of a
+     * migrated module, see loadPluralsFromMigratedLanguageFile() - "<prefix><module>|<lang_key>", so
+     * they are reset together with the module's text (forgetInstalledLanguage(),
+     * invalidateMigratedLanguageFileCache()).
+     */
+    private const string PLURALS_CACHE_KEY_PREFIX = "\0plurals|";
 
     /**
      * Tracks, for topics loaded via the migrated .mo path (not the legacy lng_modules path), which
@@ -255,6 +264,37 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
+     * The text of $a_topic for the quantity $a_n: for a plural message of a migrated module (see
+     * loadLanguageModule()) the form the "Plural-Forms" rule of the language selects for $a_n (see
+     * PluralForms; a missing or invalid header counts as the Germanic rule and is logged). In every
+     * other case - a module that is not migrated, a plugin, an identifier without plural forms, a
+     * form that is empty - exactly what txt($a_topic, $a_default_lang_fallback_mod) returns. The
+     * quantity is not inserted into the text; callers do that, e.g. with sprintf().
+     */
+    public function ntxt(string $a_topic, int $a_n, string $a_default_lang_fallback_mod = ""): string
+    {
+        $module = $a_topic === '' ? null : ($this->migrated_topic_modules[$a_topic] ?? null);
+        $plurals = $module === null
+            ? null
+            : self::loadPluralsFromMigratedLanguageFile($module, $this->lang_key !== '' ? $this->lang_key : $this->lang_user);
+        $forms = $plurals['forms'][$a_topic] ?? null;
+        // Only while txt() serves this very message: a later module (not migrated, e.g.) may have
+        // replaced the topic
+        if ($forms !== null && ($this->text[$a_topic] ?? null) === $plurals['plural_forms']->defaultValueOf($forms)) {
+            $value = $forms[$plurals['plural_forms']->formIndexFor($a_n)] ?? '';
+            if ($value !== '') {
+                self::$used_topics[$a_topic] = $a_topic;
+                if ($this->usage_log_enabled) {
+                    self::logUsage($this->map_modules_txt[$a_topic] ?? "", $a_topic);
+                }
+                return $value;
+            }
+        }
+
+        return $this->txt($a_topic, $a_default_lang_fallback_mod);
+    }
+
+    /**
      * Check if language entry exists
      */
     public function exists(string $a_topic): bool
@@ -415,7 +455,10 @@ class ilLanguage implements \ILIAS\Language\Language
      */
     public static function invalidateMigratedLanguageFileCache(string $a_module, string $lang_key): void
     {
-        unset(self::$migrated_language_file_cache[$a_module . '|' . $lang_key]);
+        unset(
+            self::$migrated_language_file_cache[$a_module . '|' . $lang_key],
+            self::$migrated_language_file_cache[self::PLURALS_CACHE_KEY_PREFIX . $a_module . '|' . $lang_key]
+        );
     }
 
     /**
@@ -445,9 +488,53 @@ class ilLanguage implements \ILIAS\Language\Language
             return self::$migrated_language_file_cache[$cache_key];
         }
 
-        return self::$migrated_language_file_cache[$cache_key] = self::readMigratedLanguageFile($a_module, $lang_key);
+        $read = self::readMigratedLanguageFile($a_module, $lang_key);
+        self::$migrated_language_file_cache[self::PLURALS_CACHE_KEY_PREFIX . $cache_key] = $read === null
+            ? null
+            : ['plural_forms_header' => $read['plural_forms_header'], 'forms' => $read['plurals']];
+
+        return self::$migrated_language_file_cache[$cache_key] = $read === null ? null : $read['text'];
     }
 
+    /**
+     * The plural messages of $a_module/$lang_key as loadFromMigratedLanguageFile() read them (every
+     * form of each, shipped state with the overlay on top) with the language's plural rule, `null`
+     * if the module is not served from its migrated state.
+     *
+     * @return array{plural_forms: PluralForms, forms: array<string, list<string>>}|null
+     */
+    private static function loadPluralsFromMigratedLanguageFile(string $a_module, string $lang_key): ?array
+    {
+        $cache_key = self::PLURALS_CACHE_KEY_PREFIX . $a_module . '|' . $lang_key;
+        if (!array_key_exists($cache_key, self::$migrated_language_file_cache)) {
+            self::loadFromMigratedLanguageFile($a_module, $lang_key);
+        }
+        $plurals = self::$migrated_language_file_cache[$cache_key] ?? null;
+        if (!is_array($plurals) || !isset($plurals['forms'])) {
+            return null;
+        }
+        if (!isset($plurals['plural_forms'])) {
+            // resolved (and a bad header reported) once per module and language
+            $plurals['plural_forms'] = $plurals['forms'] === []
+                ? PluralForms::germanic()
+                : PluralForms::fromHeaderOrGermanic(
+                    $plurals['plural_forms_header'] ?? null,
+                    static fn(string $message) => self::logMigratedLanguageFileProblem(sprintf(
+                        'Module "%s", language "%s": %s',
+                        $a_module,
+                        $lang_key,
+                        $message
+                    ))
+                );
+            self::$migrated_language_file_cache[$cache_key] = $plurals;
+        }
+
+        return $plurals;
+    }
+
+    /**
+     * @return array{text: array<string, string>, plurals: array<string, list<string>>, plural_forms_header: ?string}|null
+     */
     private static function readMigratedLanguageFile(string $a_module, string $lang_key): ?array
     {
         if (!defined('CLIENT_DATA_DIR') || !self::isInstalledLanguage($lang_key)) {
@@ -460,7 +547,7 @@ class ilLanguage implements \ILIAS\Language\Language
 
         $ilias_absolute_path = defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 4);
         try {
-            $shipped = (new ShippedTranslations())->read(
+            $shipped = (new ShippedTranslations())->readCompiled(
                 $ilias_absolute_path,
                 $directory,
                 $lang_key,
@@ -495,12 +582,24 @@ class ilLanguage implements \ILIAS\Language\Language
             // and must not be served
             return null;
         }
+        $result = [
+            'text' => $shipped->getTranslations(),
+            'plurals' => $shipped->getPluralTranslations(),
+            'plural_forms_header' => $shipped->getPluralFormsHeader(),
+        ];
         if (!is_file($overlay_mo)) {
-            return $shipped;
+            return $result;
         }
 
         try {
-            return array_replace($shipped, TranslationCatalog::readMoTranslations($overlay_mo));
+            $overlay = TranslationCatalog::readMoMessages($overlay_mo);
+            $result['text'] = array_replace($result['text'], $overlay->getTranslations());
+            // an overlay entry replaces the whole message: a singular one also its shipped forms
+            $result['plurals'] = array_replace(
+                array_diff_key($result['plurals'], $overlay->getTranslations()),
+                $overlay->getPluralTranslations()
+            );
+            return $result;
         } catch (\Throwable $t) {
             self::logMigratedLanguageFileProblem(sprintf(
                 'Could not read migrated language file "%s", falling back to the database: %s',

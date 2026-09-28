@@ -167,9 +167,10 @@ class TranslationCatalogMoTest extends TestCase
     }
 
     /**
-     * Only the singular translation is served; a plural message's other forms are dropped.
+     * A plural message is served with its default form (msgstr[1] with at least two forms, decided
+     * 2026-09-28, see PluralForms); every form is available through readMoMessages().
      */
-    public function testReadMoTranslationsServesTheSingularOfAPluralMessage(): void
+    public function testReadMoTranslationsServesTheDefaultFormOfAPluralMessage(): void
     {
         $catalog = TranslationCatalog::fromPoString(
             "msgid \"\"\nmsgstr \"\"\n\"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n"
@@ -178,9 +179,76 @@ class TranslationCatalogMoTest extends TestCase
 
         $mo = $catalog->toMoString();
 
-        $this->assertSame(['item' => 'Eintrag'], $this->read($mo));
+        $this->assertSame(['item' => 'Einträge'], $this->read($mo));
+        $this->assertSame(['item' => ['Eintrag', 'Einträge']], TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations());
         $this->assertSame(['', "mod\x04item\x00items"], self::originals($mo));
         $this->assertStringContainsString("Eintrag\x00Einträge\x00", $mo);
+    }
+
+    /**
+     * A language with a single plural form (nplurals=1, e.g. Japanese) writes only msgstr[0] to the
+     * `.mo` (prepareMoPluralForms() pads/cuts to "as many forms as the header declares") - with no
+     * form left after it, the message is compiled as an ordinary singular one (see toMoString()'s
+     * docblock), so it is served as a plain translation, not through getPluralTranslations().
+     */
+    public function testAPluralMessageOfALanguageWithASingleFormIsCompiledAsSingular(): void
+    {
+        $catalog = TranslationCatalog::fromPoString(
+            "msgid \"\"\nmsgstr \"\"\n\"Plural-Forms: nplurals=1; plural=0;\\n\"\n\n"
+            . "msgctxt \"mod\"\nmsgid \"item\"\nmsgid_plural \"items\"\nmsgstr[0] \"Eintrag\"\nmsgstr[1] \"Einträge\"\n"
+        );
+
+        $mo = $catalog->toMoString();
+
+        $this->assertSame(['item' => 'Eintrag'], $this->read($mo));
+        $this->assertSame([], TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations());
+    }
+
+    /**
+     * An empty form between two non-empty ones (e.g. Russian's msgstr[1] left blank while msgstr[0]
+     * and msgstr[2] are set) must roundtrip as an empty string at that index, not shift the later
+     * forms or get treated as "message ends here".
+     */
+    public function testAnEmptyIntermediateFormOfAPluralMessageRoundTrips(): void
+    {
+        $catalog = TranslationCatalog::fromPoString(
+            "msgid \"\"\nmsgstr \"\"\n"
+            . "\"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4"
+            . " && (n%100<10 || n%100>=20) ? 1 : 2);\\n\"\n\n"
+            . "msgctxt \"mod\"\nmsgid \"item\"\nmsgid_plural \"items\"\n"
+            . "msgstr[0] \"eins\"\nmsgstr[1] \"\"\nmsgstr[2] \"viele\"\n"
+        );
+
+        $mo = $catalog->toMoString();
+
+        $this->assertSame(
+            ['item' => ['eins', '', 'viele']],
+            TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations()
+        );
+        // the default form (index 1, count >= 2) is empty - defaultValueOf() falls back to form 0
+        $this->assertSame(['item' => 'eins'], $this->read($mo));
+    }
+
+    /**
+     * An invalid "Plural-Forms" header (here: nplurals=999, far beyond PluralForms::MAX_COUNT of 10 -
+     * the gettext/gettext library itself does not enforce that bound) must not make toMoString()
+     * compile 999 forms: prepareMoPluralForms() falls back to the same Germanic rule PluralForms
+     * itself falls back to, both for how many forms are actually written (surplus ones dropped) and
+     * for the "Plural-Forms" header the `.mo` ends up with.
+     */
+    public function testAnInvalidNpluralsHeaderIsCappedToTheGermanicFallbackWhenCompiling(): void
+    {
+        $catalog = TranslationCatalog::fromPoString(
+            "msgid \"\"\nmsgstr \"\"\n\"Plural-Forms: nplurals=999; plural=n%999;\\n\"\n\n"
+            . "msgid \"item\"\nmsgid_plural \"items\"\nmsgstr[0] \"A\"\nmsgstr[1] \"B\"\nmsgstr[2] \"C\"\n"
+        );
+
+        $mo = $catalog->toMoString();
+        $messages = TranslationCatalog::readMoMessagesFromString($mo);
+
+        $this->assertSame('nplurals=2; plural=(n != 1);', $messages->getPluralFormsHeader());
+        $this->assertSame(['item' => ['A', 'B']], $messages->getPluralTranslations(), 'the surplus form C is dropped');
+        $this->assertSame(['item' => 'B'], $this->read($mo));
     }
 
     /**
@@ -312,6 +380,40 @@ class TranslationCatalogMoTest extends TestCase
         $mo = self::sampleCatalog()->toMoString();
 
         $this->assertSame($this->read($mo), $this->read(substr($mo, 0, -1)));
+    }
+
+    /**
+     * DoS guard: strings may overlap (several table entries pointing at the same bytes), so the
+     * per-entry "offset + length <= file size" check alone does not bound how much data a small file
+     * can make readMoStrings() copy out via substr() - the SUM of every entry's length is capped at
+     * 4x the file size instead. Crafted directly (not via sampleCatalog()): every one of 5 originals/
+     * 5 translations entries points at the same 90-byte region of a ~208 byte file, so each individual
+     * bound check passes but the sum (900) exceeds 4x the file size (832).
+     */
+    public function testRejectsAMoWhoseStringsSumToMoreThanFourTimesTheFileSize(): void
+    {
+        $count = 5;
+        $originals_offset = 28;
+        $translations_offset = $originals_offset + $count * 8;
+        $strings_offset = $translations_offset + $count * 8;
+        $size = $strings_offset + 100;
+
+        $mo = pack('V', 0x950412de) // magic
+            . pack('V', 0) // revision
+            . pack('V', $count)
+            . pack('V', $originals_offset)
+            . pack('V', $translations_offset)
+            . pack('V', 0) // hash size
+            . pack('V', 0); // hash offset
+        $entry = pack('V', 90) . pack('V', $strings_offset); // length, offset - same 90 bytes every time
+        $mo .= str_repeat($entry, $count); // originals table
+        $mo .= str_repeat($entry, $count); // translations table
+        $mo .= str_repeat('x', $size - strlen($mo));
+        $this->assertSame($size, strlen($mo), 'precondition: the crafted file has the intended size');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/strings exceed the file size/');
+        $this->read($mo);
     }
 
     public function testThrowsForAMissingFile(): void

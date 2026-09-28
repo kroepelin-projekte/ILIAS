@@ -38,8 +38,17 @@ declare(strict_types=1);
  * or updated - by `ILIAS\Language\Setup\LanguageInstallationManager` via
  * `MigratedLanguageFileSync::sync()`.
  *
- * Headers of an already existing target `.po` (e.g., "Plural-Forms") are kept, so re-running the tool
- * for a module only changes what the `.lang` files changed.
+ * Headers of an already existing target `.po` are kept, so re-running the tool for a module only
+ * changes what the `.lang` files changed. The "Plural-Forms" header of every language comes from
+ * plurals.json next to this tool (the canonical table, written into every generated `.po`).
+ *
+ * Plural messages (plurals.json, "modules"): the tool invents no text, it only distributes the
+ * existing values - in a language whose rule is "n == 1 -> form 0, otherwise form 1", msgstr[0] is
+ * the value of the configured singular key (if the language has it) and msgstr[1] the message's own
+ * value; in every other language, and for a message without singular key, every form is the
+ * message's own value. The msgid_plural is "<msgid>_plural" unless configured. The fuzzy flag
+ * follows the message's own value - and the singular key's, where its value became msgstr[0]. The
+ * singular key stays an entry of its own.
  *
  * Deliberately declares no named classes or functions: this file lives inside the classmap-scanned
  * components/ tree, and anything named here would end up in Composer's autoload classmap (and be
@@ -61,6 +70,7 @@ require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 
 /**
  * @return list<array{0: string, 1: string, 2: string}> [module, key, raw value] of every entry line
@@ -153,21 +163,45 @@ $is_fuzzy_marker = static function (string $comment): bool {
 };
 
 /**
+ * The forms of the plural message $key in a language with the rule $plural_forms ($entries: the
+ * language's entries of the module, see the file docblock).
+ *
+ * @param array<string, array{value: string, comment: ?string}> $entries
+ * @param array{singular?: string, plural_id?: string} $definition
+ * @return list<string>
+ */
+$plural_forms_of = static function (string $key, array $definition, array $entries, PluralForms $plural_forms): array {
+    $value = $entries[$key]['value'] ?? '';
+    $singular = isset($definition['singular']) ? ($entries[$definition['singular']]['value'] ?? null) : null;
+    if ($value !== '' && $singular !== null && $singular !== '' && $plural_forms->isOneSingularOtherPlural()) {
+        return [$singular, $value];
+    }
+
+    return array_fill(0, $plural_forms->getCount(), $value);
+};
+
+/**
  * @param array<array-key, array{value: string, comment: ?string}> $reference_entries msgid order + fallback extracted comments
  * @param array<string, array{value: string, comment: ?string}>|null $translation_entries null => POT (no msgstr, no fuzzy)
  * @param array<string, string> $existing_headers headers of an already existing target file
+ * @param array<string, array{singular?: string, plural_id?: string}> $plural_definitions msgid => definition
  */
 $build_catalog = static function (
     string $module,
     string $lang_key,
     array $reference_entries,
     ?array $translation_entries,
-    array $existing_headers
-) use ($is_fuzzy_marker): TranslationCatalog {
+    array $existing_headers,
+    ?PluralForms $plural_forms,
+    array $plural_definitions
+) use ($is_fuzzy_marker, $plural_forms_of): TranslationCatalog {
     $is_template = $translation_entries === null;
     $catalog = new TranslationCatalog();
     foreach ($existing_headers as $name => $value) {
         $catalog->setHeader($name, $value);
+    }
+    if (!$is_template && $plural_forms !== null) {
+        $catalog->setHeader('Plural-Forms', $plural_forms->getHeader());
     }
     $catalog->setHeader('MIME-Version', '1.0');
     $catalog->setHeader('Content-Type', 'text/plain; charset=UTF-8');
@@ -184,9 +218,19 @@ $build_catalog = static function (
         $entry = new TranslationEntry(null, (string) $key);
         $comment = $ref['comment'];
 
+        $plural_definition = $plural_definitions[(string) $key] ?? null;
+        if ($plural_definition !== null) {
+            $entry->setPlural(
+                $plural_definition['plural_id'] ?? $key . '_plural',
+                $is_template ? ['', ''] : $plural_forms_of((string) $key, $plural_definition, $translation_entries, $plural_forms)
+            );
+        }
+
         if (!$is_template) {
             $own = $translation_entries[$key] ?? null;
-            $entry->translate($own['value'] ?? '');
+            if ($plural_definition === null) {
+                $entry->translate($own['value'] ?? '');
+            }
             // Deliberately no LocalChangeComments "original" comment: the shipped .po stays plain
             // translation content; "original" only exists in the per-installation overlay.
             $own_comment = $own['comment'] ?? null;
@@ -194,6 +238,16 @@ $build_catalog = static function (
                 $entry->addFlag('fuzzy');
             } elseif ($own_comment !== null) {
                 $comment = $own_comment;
+            }
+            // msgstr[0] taken from a singular key that is not translated yet: the message is not either
+            $singular_key = $plural_definition['singular'] ?? null;
+            $singular_comment = $singular_key === null ? null : ($translation_entries[$singular_key]['comment'] ?? null);
+            if (
+                $singular_comment !== null
+                && $is_fuzzy_marker($singular_comment)
+                && $entry->getPluralTranslations()[0] !== ($own['value'] ?? '')
+            ) {
+                $entry->addFlag('fuzzy');
             }
         }
 
@@ -249,6 +303,34 @@ try {
 }
 
 $repo_root = dirname(__DIR__, 5);
+
+// plurals.json: the Plural-Forms header of every language and the plural messages of each module
+$plural_config_file = __DIR__ . '/plurals.json';
+$plural_config = ['plural_forms' => [], 'modules' => []];
+if (is_file($plural_config_file)) {
+    try {
+        $plural_config = json_decode((string) file_get_contents($plural_config_file), true, 16, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        fwrite(STDERR, "FAILURE: $plural_config_file is no valid JSON: {$e->getMessage()}\n");
+        exit(1);
+    }
+} else {
+    echo "NOTE: no plurals.json next to the tool - no Plural-Forms headers and no plural messages are written.\n";
+}
+$plural_rules = [];
+foreach ($plural_config['plural_forms'] ?? [] as $lang_key => $header) {
+    try {
+        $plural_rules[(string) $lang_key] = PluralForms::fromHeader((string) $header);
+    } catch (InvalidArgumentException $e) {
+        fwrite(STDERR, "FAILURE: invalid Plural-Forms of '$lang_key' in $plural_config_file: {$e->getMessage()}\n");
+        exit(1);
+    }
+}
+/** @var array<string, array{singular?: string, plural_id?: string}> $plural_definitions */
+$plural_definitions = array_map(
+    static fn(mixed $definition): array => is_array($definition) ? $definition : [],
+    $plural_config['modules'][$module] ?? []
+);
 $output_dir = isset($arguments[2]) ? rtrim($arguments[2], '/') : (__DIR__ . '/output/' . $module);
 if (!is_dir($output_dir) && !mkdir($output_dir, 0775, true) && !is_dir($output_dir)) {
     throw new RuntimeException("Cannot create $output_dir");
@@ -296,6 +378,28 @@ if ($reference_entries === []) {
     exit(1);
 }
 
+// A plural message and its singular key must exist, and every language needs its plural rule
+$plural_problems = [];
+foreach ($plural_definitions as $key => $definition) {
+    if (!isset($reference_entries[$key])) {
+        $plural_problems[] = "plural message '$key' is no key of the module";
+    }
+    if (isset($definition['singular']) && !isset($reference_entries[$definition['singular']])) {
+        $plural_problems[] = "singular key '{$definition['singular']}' of '$key' is no key of the module";
+    }
+}
+if ($plural_definitions !== []) {
+    foreach (array_keys($per_language) as $lang_key) {
+        if (!isset($plural_rules[$lang_key])) {
+            $plural_problems[] = "no Plural-Forms for language '$lang_key'";
+        }
+    }
+}
+if ($plural_problems !== []) {
+    fwrite(STDERR, "FAILURE: plurals.json does not fit module '$module' (nothing was written):\n  " . implode("\n  ", $plural_problems) . "\n");
+    exit(1);
+}
+
 // Every language's keys must be a subset of the reference language's: the catalogs are built from
 // the reference keys, so a key only another language has would otherwise be dropped silently
 $keys_missing_in_reference = [];
@@ -316,14 +420,22 @@ if ($keys_missing_in_reference !== []) {
 // POT
 $pot_name = trim(str_replace('%s', '', $pattern), '_-.');
 $pot_path = $output_dir . '/' . ($pot_name === '' ? $module : $pot_name) . '.pot';
-$write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path))->toPoString());
+$write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path), null, $plural_definitions)->toPoString());
 
 $report = [];
 foreach ($per_language as $lang_key => $entries) {
     $po_path = $output_dir . '/' . sprintf($pattern, $lang_key) . '.po';
     $write(
         $po_path,
-        $build_catalog($module, $lang_key, $reference_entries, $entries, $existing_headers($po_path))->toPoString()
+        $build_catalog(
+            $module,
+            $lang_key,
+            $reference_entries,
+            $entries,
+            $existing_headers($po_path),
+            $plural_rules[$lang_key] ?? null,
+            $plural_definitions
+        )->toPoString()
     );
 
     // self-check: read the written file back and compare every value - of every reference key and
@@ -338,8 +450,28 @@ foreach ($per_language as $lang_key => $entries) {
         $expected = $entries[$key]['value'] ?? '';
         $parsed_entry = $parsed->find(null, $key);
         // find(null, ...) also finds msgctxt "" (same library id) - only an entry without msgctxt counts
-        if ($parsed_entry?->getContext() !== null || $parsed_entry?->getTranslation() !== $expected) {
+        if ($parsed_entry?->getContext() !== null) {
             $po_mismatches[] = $key;
+            continue;
+        }
+        $plural_definition = $plural_definitions[$key] ?? null;
+        if ($plural_definition === null) {
+            if ($parsed_entry?->isPlural() !== false || $parsed_entry->getTranslation() !== $expected) {
+                $po_mismatches[] = $key;
+            }
+            continue;
+        }
+        // a plural message: its plural id and every form, each form one of the existing values
+        $rule = $plural_rules[$lang_key];
+        $expected_forms = $plural_forms_of($key, $plural_definition, $entries, $rule);
+        $parsed_forms = array_pad(array_slice($parsed_entry?->getPluralTranslations() ?? [], 0, $rule->getCount()), $rule->getCount(), '');
+        if (
+            $parsed_entry?->getPluralId() !== ($plural_definition['plural_id'] ?? $key . '_plural')
+            || count($expected_forms) !== $rule->getCount()
+            || $parsed_forms !== $expected_forms
+            || $rule->defaultValueOf($parsed_forms) !== $expected
+        ) {
+            $po_mismatches[] = $key . ' (plural)';
         }
     }
     foreach ($parsed->getEntries() as $parsed_entry) {

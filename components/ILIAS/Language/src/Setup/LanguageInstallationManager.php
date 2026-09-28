@@ -563,7 +563,11 @@ class LanguageInstallationManager
         $working_dir = getcwd();
 
         $values_sql = [];
-        $add_row = static function (
+        // The rows of the migrated modules are buffered and written once their final content is known:
+        // the database holds a plural message only under its identifier with its default value, not
+        // per form (see MigratedLanguageFileSync::collapsePluralForms() and writeMigratedRows())
+        $migrated_rows = [];
+        $sql_row = static function (
             string $module,
             string $identifier,
             string $value,
@@ -579,6 +583,21 @@ class LanguageInstallationManager
                 $ilDB->quote($local_change, "timestamp"),
                 $ilDB->quote($remarks, "text")
             );
+        };
+        $add_row = static function (
+            string $module,
+            string $identifier,
+            string $value,
+            ?string $local_change,
+            ?string $remarks
+        ) use (&$migrated_rows, $sql_row, $shipped_migrated_modules): void {
+            if (!isset($shipped_migrated_modules[$module])) {
+                $sql_row($module, $identifier, $value, $local_change, $remarks);
+                return;
+            }
+            // a later row of the same key replaces an earlier one, like the INSERT below does
+            unset($migrated_rows[$module][$identifier]);
+            $migrated_rows[$module][$identifier] = [$value, $local_change, $remarks];
         };
 
         // Every exit path below - including an exception thrown out of a DB
@@ -723,11 +742,13 @@ class LanguageInstallationManager
             foreach ($shipped_migrated_modules as $module => $shipped_entries) {
                 $overlay = $keep_local_changes ? $this->loadOverlay($lang_key, (string) $module, $client_data_dir) : null;
 
+                // A plain value of a plural message (recorded in lng_data, which holds plural messages
+                // only under their identifier, or a customizing line) is its default form
                 $lang_array[$module] = $this->resolveMigratedModule(
-                    $lang_array[$module] ?? [],
-                    $customized[$module] ?? [],
+                    MigratedLanguageFileSync::mapLegacyPluralValues($lang_array[$module] ?? [], $shipped_entries),
+                    MigratedLanguageFileSync::mapLegacyPluralValues($customized[$module] ?? [], $shipped_entries),
                     $shipped_entries,
-                    $overlay ?? [],
+                    MigratedLanguageFileSync::mapLegacyPluralValues($overlay ?? [], $shipped_entries),
                     // the database gets the shipped values as the build serves them, see
                     // MigratedLanguageFileSync::databaseValues()
                     static fn(string $identifier, string $value, ?string $local_change) =>
@@ -744,6 +765,11 @@ class LanguageInstallationManager
                 );
                 if ($lang_array[$module] === []) {
                     unset($lang_array[$module]);
+                }
+            }
+            foreach ($migrated_rows as $module => $rows) {
+                foreach (self::databaseRowsOfMigratedModule($rows, $lang_array[$module] ?? [], $shipped_migrated_modules[$module]) as $identifier => [$value, $local_change, $remarks]) {
+                    $sql_row((string) $module, (string) $identifier, $value, $local_change, $remarks);
                 }
             }
 
@@ -786,7 +812,10 @@ class LanguageInstallationManager
             foreach ($lang_array as $module => $lang_arr) {
                 // $lang_array itself stays unprocessed: sync() below compares with the raw .po
                 if (isset($shipped_migrated_modules[$module])) {
-                    $lang_arr = MigratedLanguageFileSync::databaseValues($lang_arr, $shipped_migrated_modules[$module]);
+                    $lang_arr = MigratedLanguageFileSync::databaseValues(
+                        MigratedLanguageFileSync::collapsePluralForms($lang_arr, $shipped_migrated_modules[$module]),
+                        MigratedLanguageFileSync::collapsePluralForms($shipped_migrated_modules[$module], $shipped_migrated_modules[$module])
+                    );
                 }
                 $modulesValuesSql[] = sprintf(
                     "(%s,%s,%s)",
@@ -815,6 +844,51 @@ class LanguageInstallationManager
         } finally {
             chdir($working_dir);
         }
+    }
+
+    /**
+     * The lng_data rows of a migrated module from the rows buffered for it while this run decided on
+     * its content: the rows of the forms of a plural message (and a plain row of its identifier)
+     * become one row of the identifier, with the default value of the final forms $final_entries
+     * (MigratedLanguageFileSync::collapsePluralForms(), cleaned like every shipped value, see
+     * MigratedLanguageFileSync::databaseValues()), the first remark of those rows, and - only if that
+     * default value differs from the shipped default form - the first local_change of those rows: the
+     * row stands for the default value alone (a local change of another form lives in the overlay
+     * only), so after a rollback it does not hold back updates of the legacy `.lang` files.
+     * Every other row is kept.
+     *
+     * @param array<string, array{0: string, 1: ?string, 2: ?string}> $rows identifier => value,
+     *        local_change, remarks
+     * @param array<string, string> $final_entries the module's final identifier => value map
+     * @param array<string, string> $shipped_entries
+     * @return array<string, array{0: string, 1: ?string, 2: ?string}>
+     */
+    private static function databaseRowsOfMigratedModule(array $rows, array $final_entries, array $shipped_entries): array
+    {
+        $values = MigratedLanguageFileSync::collapsePluralForms($final_entries, $shipped_entries);
+        $shipped_defaults = MigratedLanguageFileSync::collapsePluralForms($shipped_entries, $shipped_entries);
+        $database_values = MigratedLanguageFileSync::databaseValues($values, $shipped_defaults);
+        $result = [];
+        foreach ($rows as $identifier => [$value, $local_change, $remarks]) {
+            $identifier = (string) $identifier;
+            $plural_identifier = MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped_entries);
+            if ($plural_identifier === null) {
+                $result[$identifier] = [$value, $local_change, $remarks];
+                continue;
+            }
+            if (!isset($database_values[$plural_identifier])) {
+                continue;
+            }
+            $previous = $result[$plural_identifier] ?? null;
+            $is_local_change = (string) $values[$plural_identifier] !== (string) ($shipped_defaults[$plural_identifier] ?? '');
+            $result[$plural_identifier] = [
+                (string) $database_values[$plural_identifier],
+                $is_local_change ? ($previous[1] ?? $local_change) : null,
+                $previous[2] ?? $remarks,
+            ];
+        }
+
+        return $result;
     }
 
     /**

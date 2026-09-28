@@ -28,6 +28,8 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
+use ILIAS\Language\ComponentTranslation\PluralForms;
 use ILIAS\Language\ComponentTranslation\ShippedTranslations;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Setup;
@@ -61,9 +63,10 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
     /**
      * Raise to rebuild every artifact when the compiled output changes for a reason the fingerprint
      * of the involved classes (see fingerprint()) does not capture, e.g. an update of the gettext
-     * library.
+     * library. 3: plural messages (every form cleaned, exactly as many forms as "Plural-Forms"
+     * declares, see TranslationCatalog::toMoString()).
      */
-    private const int FORMAT_VERSION = 2;
+    private const int FORMAT_VERSION = 3;
 
     public function __construct(
         private readonly LanguageFileDirectoryManager $language_file_directory_manager,
@@ -206,6 +209,9 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
                     $identifier,
                     implode(', ', $violations)
                 );
+            },
+            static function (string $message) use (&$warnings, $source, $directory): void {
+                $warnings[] = sprintf('%s (module "%s"): %s', $source, $directory->getPrefix(), $message);
             }
         );
         $this->ensureDirectory(dirname($artifact));
@@ -408,7 +414,8 @@ final class ShippedLanguageFilesCompiledObjective implements Setup\Objective
     {
         $parts = [(string) self::FORMAT_VERSION];
         // MigratedLanguageFileSync: compile() takes the module's entries from its moduleEntries()
-        foreach ([ShippedTranslations::class, TranslationMarkupPolicy::class, TranslationCatalog::class, TranslationEntry::class, MigratedLanguageFileSync::class] as $class) {
+        // PluralForms/PluralFormKey: the plural rule and the keys of plural forms in warnings
+        foreach ([ShippedTranslations::class, TranslationMarkupPolicy::class, TranslationCatalog::class, TranslationEntry::class, MigratedLanguageFileSync::class, PluralForms::class, PluralFormKey::class] as $class) {
             $file = (new \ReflectionClass($class))->getFileName();
             $parts[] = is_string($file) ? (string) @hash_file('sha256', $file) : '';
         }

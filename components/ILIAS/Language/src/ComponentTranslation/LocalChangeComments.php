@@ -48,6 +48,9 @@ use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
  *   is no "original" at all - a key added after migration never had one to begin with); absent
  *   whenever it matches. Saving the original value again therefore clears it on its own, without a
  *   dedicated "reset" action - mirroring _deleteLangData()'s "local_change IS NULL means unmodified".
+ * - A plural message keeps one "original" per form, as `original[<form>]: ` (or
+ *   `original_escaped[<form>]: `), and one "local_change" for the whole message, present whenever
+ *   any form differs from its "original" (see refreshForms()).
  */
 final class LocalChangeComments
 {
@@ -64,11 +67,11 @@ final class LocalChangeComments
      * is stored verbatim under "original: " - byte-identical to what earlier versions wrote, so
      * existing overlays keep being read exactly as before.
      */
-    public static function setOriginal(TranslationEntry $entry, string $value): void
+    public static function setOriginal(TranslationEntry $entry, string $value, ?int $form = null): void
     {
         [$prefix, $other_prefix, $stored] = self::needsEscaping($value)
-            ? [self::ESCAPED_ORIGINAL_PREFIX, self::ORIGINAL_PREFIX, self::escape($value)]
-            : [self::ORIGINAL_PREFIX, self::ESCAPED_ORIGINAL_PREFIX, $value];
+            ? [self::originalPrefix(true, $form), self::originalPrefix(false, $form), self::escape($value)]
+            : [self::originalPrefix(false, $form), self::originalPrefix(true, $form), $value];
 
         // Unchanged: keep the comment where it is, so re-running a sync produces identical output
         if (self::find($entry, $prefix) === $stored && self::find($entry, $other_prefix) === null) {
@@ -78,10 +81,26 @@ final class LocalChangeComments
         self::replace($entry, $prefix, $stored);
     }
 
-    public static function removeOriginal(TranslationEntry $entry): void
+    /**
+     * With $form `null` the "original" of a singular message, otherwise the one of that plural form.
+     */
+    public static function removeOriginal(TranslationEntry $entry, ?int $form = null): void
     {
-        self::replace($entry, self::ORIGINAL_PREFIX, null);
-        self::replace($entry, self::ESCAPED_ORIGINAL_PREFIX, null);
+        self::replace($entry, self::originalPrefix(false, $form), null);
+        self::replace($entry, self::originalPrefix(true, $form), null);
+    }
+
+    /**
+     * Removes the "original" of every plural form (`original[<form>]: `) - e.g. when a plural
+     * message becomes a singular one.
+     */
+    public static function removeFormOriginals(TranslationEntry $entry): void
+    {
+        foreach ($entry->getTranslatorComments() as $comment) {
+            if (preg_match('/\Aoriginal(?:_escaped)?\[\d+\]: /', $comment, $matches) === 1) {
+                $entry->removeTranslatorCommentsStartingWith($matches[0]);
+            }
+        }
     }
 
     /**
@@ -90,14 +109,14 @@ final class LocalChangeComments
      * as stored - that loss cannot be undone; the next reconciling sync (Setup update, "remove
      * local changes") rewrites it from the shipped value.
      */
-    public static function getOriginal(TranslationEntry $entry): ?string
+    public static function getOriginal(TranslationEntry $entry, ?int $form = null): ?string
     {
-        $escaped = self::find($entry, self::ESCAPED_ORIGINAL_PREFIX);
+        $escaped = self::find($entry, self::originalPrefix(true, $form));
         if ($escaped !== null) {
             return self::unescape($escaped);
         }
 
-        return self::find($entry, self::ORIGINAL_PREFIX);
+        return self::find($entry, self::originalPrefix(false, $form));
     }
 
     /**
@@ -148,6 +167,51 @@ final class LocalChangeComments
         }
 
         self::replace($entry, self::LOCAL_CHANGE_PREFIX, $now->format('Y-m-d\TH:i:s\Z'));
+    }
+
+    /**
+     * refresh() for a plural message: $forms are its new forms, $previous_forms the ones before this
+     * write. "local_change" is present whenever any form differs from its "original" (or has none).
+     *
+     * @param list<string> $previous_forms
+     * @param list<string> $forms
+     */
+    public static function refreshForms(
+        TranslationEntry $entry,
+        array $previous_forms,
+        array $forms,
+        DateTimeImmutable $now
+    ): void {
+        $is_local_change = false;
+        foreach ($forms as $form => $value) {
+            $original = self::getOriginal($entry, $form);
+            if ($original === null || $original !== $value) {
+                $is_local_change = true;
+                break;
+            }
+        }
+
+        if (!$is_local_change) {
+            self::replace($entry, self::LOCAL_CHANGE_PREFIX, null);
+            return;
+        }
+
+        if ($previous_forms === $forms && self::getLocalChange($entry) !== null) {
+            return;
+        }
+
+        self::replace($entry, self::LOCAL_CHANGE_PREFIX, $now->format('Y-m-d\TH:i:s\Z'));
+    }
+
+    /**
+     * The comment prefix of an "original": "original: "/"original_escaped: " of a singular message,
+     * "original[<form>]: "/"original_escaped[<form>]: " of a plural form.
+     */
+    private static function originalPrefix(bool $escaped, ?int $form): string
+    {
+        $prefix = $escaped ? self::ESCAPED_ORIGINAL_PREFIX : self::ORIGINAL_PREFIX;
+
+        return $form === null ? $prefix : substr($prefix, 0, -2) . '[' . $form . ']: ';
     }
 
     private static function find(TranslationEntry $entry, string $prefix): ?string

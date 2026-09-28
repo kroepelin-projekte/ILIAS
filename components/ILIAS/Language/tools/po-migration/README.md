@@ -1,4 +1,4 @@
-# PO/MO-Übersetzungspilot: `TermsOfService` (`tos`)
+# PO/MO-Übersetzungspilot: `TermsOfService` (`tos`) und `Poll` (`poll`)
 
 Dieses Verzeichnis ist **Piloten-Tooling**, kein finales Werkzeug. Es zeigt am Beispiel der
 Komponente `TermsOfService` (Modul-Präfix `tos`), wie die ILIAS-Sprachverwaltung von den
@@ -10,8 +10,9 @@ Der Ansatz orientiert sich am ILIAS-Feature-Request ["PO-Files for improving lan
 handling"](https://docu.ilias.de/go/wiki/wpage_8951_1357) — mit bewussten Abweichungen, die im
 nächsten Abschnitt begründet sind.
 
-Einziger Konsument ist derzeit `TermsOfService` (`TermsOfService.php` kontribuiert
-`$contribute[LanguageFileDirectory::class]` mit einer `ComponentLanguageFileDirectory` für `tos`).
+Konsumenten sind derzeit `TermsOfService` (`TermsOfService.php` kontribuiert
+`$contribute[LanguageFileDirectory::class]` mit einer `ComponentLanguageFileDirectory` für `tos`) und
+seit 2026-09-28 `Poll` (`Poll.php`, Modul `poll`, zweiter Pilot mit Pluralformen).
 
 ## Abweichungen vom Feature Request
 
@@ -26,7 +27,7 @@ rationale").
 | `.mo` als Build-Artefakt statt versioniert | Binärdateien sind nicht reviewbar und veralten gegenüber der `.po`; `setup build` erzeugt sie reproduzierbar. Details: "Build-Artefakt". |
 | DB-Tabellen werden im Übergang mitgeschrieben (Dual-Write) | Rollback-Pfad nach FR 2.3; nicht migrierte Module, Plugins und zwei externe `lng_data`-Zugriffe hängen noch daran. Abschaltung erst nach vollständiger Migration. Details: "Rollback", "Bekannte Grenzen". |
 | Zentrale Markup-Allowlist | Umsetzung von FR 4.4 (keine Skripte über die GUI). Details: "Markup-Prüfung". |
-| Pluralformen noch nicht unterstützt | Für `tos` nicht nötig; werden in diesem Branch ergänzt, zweiter Pilot ist `poll`. Details: "Pluralformen". |
+| Pluralformen mit eigener Auswertung der `Plural-Forms`-Formel, neue Methode `ntxt()` statt `ngettext()` | Kein `eval`, keine Abhängigkeit auf `Gettext\Translator`; `txt()` bleibt für jeden bestehenden Aufrufer unverändert (Plural-Eintrag → Standardform). Die Datenbank hält pro Key weiter genau einen Wert. Details: "Pluralformen". |
 
 ## Überblick: Datenstände pro migriertem Modul
 
@@ -58,13 +59,17 @@ mit `gettext/gettext` (siehe "Gettext-Bibliothek"):
 
 - ein POT-Template (`<modul>.pot`) — Keys ohne Übersetzung,
 - je Sprache eine PO-Datei (`<modul>_<sprache>.po`) mit Standard-Headern (`Content-Type`,
-  `Language`, `X-Domain` usw.). Header einer bereits vorhandenen Zieldatei (z. B. `Plural-Forms`)
-  werden übernommen.
+  `Language`, `X-Domain` usw.). Header einer bereits vorhandenen Zieldatei werden übernommen;
+  `Plural-Forms` kommt immer aus der kanonischen Tabelle in `plurals.json` (siehe "Pluralformen").
 
 Es schreibt **keine `.mo`** und nichts in die Datenbank. Anschließend liest es jede geschriebene
 `.po` mit `TranslationCatalog::fromPoFile()` (`StrictPoLoader`) wieder ein und vergleicht jeden Wert
-mit der Quelle (Exit-Code 1 bei Abweichung). Doppelte Identifier eines Moduls in einer `.lang`-Datei
-führen zum Abbruch, bevor irgendetwas geschrieben wird.
+mit der Quelle (Exit-Code 1 bei Abweichung); bei Plural-Einträgen zusätzlich `msgid_plural`, jede Form
+und dass die Standardform (siehe "Pluralformen") dem bisherigen Wert entspricht. Doppelte Identifier
+eines Moduls in einer `.lang`-Datei, eine Plural-Definition, deren Key oder Singular-Key im Modul
+fehlt, und eine Sprache ohne `Plural-Forms` in der Tabelle (nur bei Modulen mit Plural-Einträgen)
+führen zum Abbruch, bevor irgendetwas geschrieben wird. Fehlt `plurals.json` neben dem Tool, schreibt
+es weder `Plural-Forms` noch Plural-Einträge (Hinweis auf stdout).
 
 Das Skript definiert keine benannten Klassen oder Funktionen (nur Closures), damit es nicht in
 Composers Autoload-Classmap landet und von der Setup-Klassensuche eingebunden wird. Es nutzt die
@@ -133,8 +138,8 @@ Delta-Vergleich:
 PO/MO werden mit der Bibliothek [`gettext/gettext`](https://github.com/php-gettext/Gettext) gelesen
 und geschrieben (direkte Abhängigkeit in der Root-`composer.json`, `^5.7.3`; bis dahin nur transitiv
 über `simplesamlphp/simplesamlphp` installiert). Verwendet werden ausschließlich
-`Gettext\Translations`, `Gettext\Translation`, `Loader\StrictPoLoader`, `Loader\MoLoader`,
-`Generator\PoGenerator` und `Generator\MoGenerator`. **Der `Scanner`-Teil der Bibliothek (Extraktion
+`Gettext\Translations`, `Gettext\Translation`, `Loader\StrictPoLoader`, `Generator\PoGenerator` und
+`Generator\MoGenerator` (seit 2026-09-28 nicht mehr `Loader\MoLoader`, siehe unten). **Der `Scanner`-Teil der Bibliothek (Extraktion
 aus Quellcode) wird nicht verwendet und darf nicht verwendet werden** — nur dort betrifft der noch
 unveröffentlichte PHP-8.5-Fix der Bibliothek Code. Mit v5.7.3 bestehen unter PHP 8.4.25 und 8.5.4 die
 eigene Testsuite der Bibliothek und ein PO/MO-Roundtrip (Kontext, Plural, Flags, Kommentare,
@@ -145,9 +150,13 @@ importiert etwas aus `Gettext\`, ein Versionswechsel bleibt also lokal:
 
 - `TranslationCatalog` — Katalog (Header + Einträge) und einziger Ort, der die Dateiformate liest
   und schreibt (`fromPoFile()`/`fromPoString()`, `toPoString()`, `toMoString()`,
-  `readMoTranslations()`, `readMoTranslationsFromString()`). `clone` erzeugt eine unabhängige Kopie
+  `readMoTranslations()`, `readMoTranslationsFromString()`, `readMoMessages()`,
+  `readMoMessagesFromString()`). `clone` erzeugt eine unabhängige Kopie
   (`__clone()` klont die gettext-Einträge und Header mit),
-- `TranslationEntry` — ein Eintrag (Kontext, ID, Übersetzung, `#`-/`#.`-Kommentare, Flags),
+- `TranslationEntry` — ein Eintrag (Kontext, ID, Übersetzung, `msgid_plural` und alle Formen:
+  `getPluralId()`, `isPlural()`, `getPluralTranslations()`, `setPlural()`, `#`-/`#.`-Kommentare, Flags),
+- `CompiledTranslations` — Ergebnis von `readMoMessages()`: ID → Wert (Plural: Standardform), ID →
+  alle Formen, `Plural-Forms`-Header der `.mo`,
 - `AtomicFileWriter` — keine gettext-Funktionalität: Tempdatei im selben Verzeichnis + `rename()`;
   mit `$flush_to_disk = true` (Standard) vorher `fsync()`, für Build-Artefakte `false`.
 
@@ -174,10 +183,20 @@ Was die Bibliothek selbst leistet und was der Adapter absichert:
   Zeilenumbruch lehnt `setHeader()` ab (`InvalidArgumentException`), eine geladene Datei mit einem
   solchen Wert (escaptes `\r`) gilt als kaputt (`RuntimeException`). Ein escaptes `\n` im Header-Block
   behandelt die Bibliothek als Fortsetzungszeile und zieht den Wert zusammen (`a\nb` → `ab`).
-- **Kaputte `.mo` wird erkannt.** `MoLoader` wirft nur bei falscher Magic Number; eine
-  abgeschnittene Datei liefert je nach Stelle still gekürzte/fehlende Einträge, PHP-Warnings oder
-  einen `TypeError`. Der Adapter prüft deshalb vorab Magic Number, Index-Tabellen und alle
-  String-Bereiche gegen die Dateigröße und wirft eine `RuntimeException`.
+- **`.mo` liest der Adapter selbst** (das Format ist eine Offset-Tabelle), nach der Prüfung von Magic
+  Number, Index-Tabellen und allen String-Bereichen gegen die Dateigröße (`RuntimeException`); die
+  Summe aller String-Längen darf das Vierfache der Dateigröße nicht überschreiten (überlappende
+  Strings würden sonst ein Vielfaches der Datei in den Speicher holen).
+  `MoLoader` wird nicht mehr verwendet: Er wirft nur bei falscher Magic Number (eine abgeschnittene
+  Datei liefert still gekürzte/fehlende Einträge, Warnings oder einen `TypeError`) und verwirft
+  leere Pluralformen (`array_filter`), wodurch alle folgenden Formen auf den falschen Index rutschen.
+- **Plural in der `.mo`:** Vor dem Kompilieren bekommt jeder Plural-Eintrag genau so viele Formen,
+  wie `PluralForms` für den Header ergibt — dieselbe Regel wie zur Laufzeit, also höchstens 10 und
+  germanisch bei fehlendem/ungültigem Header (fehlende leer, überzählige entfallen; bei `nplurals=1`
+  wird er als Singular-Eintrag kompiliert). Weicht die Formenzahl, die `MoGenerator` selbst aus dem
+  Header liest, davon ab (ungültiger Header), wird der Header der kompilierten Kopie durch die
+  verwendete Regel ersetzt. Ein Plural-Eintrag mit leerem `msgstr[0]`, aber nicht leeren
+  weiteren Formen würde `MoGenerator` komplett verwerfen — der Adapter wirft stattdessen.
 - **Deterministische `.mo`** (`MoGenerator` mit `includeHeaders(true)`), Fuzzy-Einträge werden
   mitkompiliert, leere weggelassen — Voraussetzung für die `.mo`-Selbstheilung per Byte-Vergleich
   und für den Artefakt-Index.
@@ -187,7 +206,8 @@ Was die Bibliothek selbst leistet und was der Adapter absichert:
 - **Einschränkungen:** Kommentare eines Eintrags sind eine Menge (ein gleicher — nach PHPs losem
   Vergleich — zweiter Kommentar wird nicht doppelt gespeichert), Flags werden sortiert. Pluralformen
   werden genau in der Anzahl geschrieben, die der `Plural-Forms`-Header angibt (fehlende leer,
-  überzählige entfallen); eine fehlende und eine leere Pluralform sind nicht unterscheidbar.
+  überzählige entfallen); eine fehlende und eine leere Pluralform sind nicht unterscheidbar. Ein
+  Plural-Eintrag mit `msgstr[0]` = `"0"` lässt sich nicht als `.mo` kompilieren (Adapter wirft).
 
 ## Build-Artefakt: kompilierter Shipped-Stand
 
@@ -196,8 +216,11 @@ Was die Bibliothek selbst leistet und was der Adapter absichert:
 `artifacts/language/<lang>/<modul>.mo`. `ShippedTranslations::compile()` ist dabei derselbe
 Kompilierweg wie der Laufzeit-Fallback.
 
-- Der Fingerprint umfasst auch `MigratedLanguageFileSync` (dort liegt die Kontext-Regel), aktuell
-  `FORMAT_VERSION` 2.
+- Der Fingerprint umfasst auch `MigratedLanguageFileSync` (dort liegt die Kontext-Regel),
+  `PluralForms` und `PluralFormKey`, aktuell `FORMAT_VERSION` 3 (seit den Pluralformen).
+- Jede Form eines Plural-Eintrags wird einzeln bereinigt (Warnung mit dem Formschlüssel, z. B.
+  `poll_population [0]`). Hat ein Modul Plural-Einträge, aber einen fehlenden oder ungültigen
+  `Plural-Forms`-Header, meldet der Build das als Warnung (es gilt dann die germanische Regel).
 - **Inkrementell:** Index `artifacts/language/index.json` mit Hash der `.po` sowie Größe und Hash
   des Artefakts; ein Fingerprint des Kompiliercodes (`FORMAT_VERSION` plus Quelldateien von
   Policy/ShippedTranslations/Catalog/Entry) erzwingt bei Codeänderungen einen Vollbau. Ein
@@ -292,6 +315,8 @@ versionierte Datei als geändert.
   `resolveLocalValue()`): ein Eintrag steht im Overlay, wenn sein Wert vom **rohen** Shipped-Wert
   abweicht oder der Key shipped nicht existiert (`AddLanguageEntry`, Customizing).
   `sync()` bekommt weiterhin den vollständigen Stand eines Moduls und rechnet das Delta selbst.
+- **Plural-Einträge** stehen im Delta mit allen Formen, sobald eine Form abweicht; `original` gibt es
+  pro Form (siehe "Pluralformen").
 - **Leerer Wert = zurück auf shipped** (entschieden 2026-09-25): gilt in Overlay **und**
   DB (`ilObjLanguageExt::saveValues()` schreibt dann den Shipped-Wert mit `local_change` `NULL`).
   Umzustellen ist nur `resolveLocalValue()`. Ein leerer Wert für einen nicht mitgelieferten Key
@@ -444,19 +469,112 @@ Pro-Topic-Modulzuordnung).
 
 ## Pluralformen
 
-Werden **nicht unterstützt**. Die frühere Methode `ilLanguage::ntxt()` wurde entfernt (repo-weit
-ungenutzt), ebenso die Abhängigkeit auf `Gettext\Translator`. `convert_module_to_po.php` erzeugt nur
-`msgid`/`msgstr`-Paare. Über `gettext/gettext` werden `msgid_plural`/`msgstr[n]` gelesen und
-unverändert zurückgeschrieben (Einschränkungen siehe "Gettext-Bibliothek"), aber nicht ausgewertet;
-der Adapter bietet dafür keine API.
+Seit 2026-09-28 unterstützt. Zweiter Pilot ist `poll` (69 Keys, in `en` 68, nur von `Poll` genutzt, keine
+dynamisch zusammengesetzten Keys).
 
-Geplant (entschieden 2026-09-28): Plural-Unterstützung kommt in diesen Branch. Zweiter Pilot ist
-`poll`: 68 Keys, nur von `Poll` genutzt, keine dynamisch zusammengesetzten Keys. Er enthält eine
-handgebaute Singular/Plural-Unterscheidung (`poll_population_singular`/`poll_population` in
-`ilPollContentRenderer::renderTotalParticipantsInfo()`), eine reine Pluralform auch für eine Stimme
-(`ilPollAnswerTableGUI`, "1 votes cast") und `poll_vote_error_multi` ("%s answers"; Sprachen wie
-`pl`/`ru` brauchen mehrere Formen). Die Aufrufer in `Poll` stellt die Language-Komponente nicht
-selbst um, das kommt als Vorschlag an die Maintainer.
+### Laufzeit-API
+
+- **`ilLanguage::ntxt(string $a_topic, int $a_n, string $a_default_lang_fallback_mod = ""): string`**
+  (neu, nicht im Interface `ILIAS\Language\Language`, das bliebe sonst für Implementierer ein
+  Breaking Change). Liefert für einen Plural-Eintrag eines migrierten Moduls die Form, die die
+  `Plural-Forms`-Formel der Sprache für `$a_n` wählt. In jedem anderen Fall — nicht migriertes
+  Modul, Plugin, Key ohne Plural, leere Form, Key inzwischen von einem anderen Modul überschrieben —
+  genau `txt($a_topic, $a_default_lang_fallback_mod)`. Die Zahl setzt der Aufrufer selbst ein
+  (`sprintf()`); ein negatives `$a_n` zählt wie sein Betrag.
+- **`txt()` ändert sich für keinen bestehenden Aufrufer.** Ein Plural-Eintrag liefert seine
+  **Standardform**: `msgstr[1]`, wenn die Sprache mindestens zwei Formen hat, sonst `msgstr[0]`
+  (ist die Form leer: `msgstr[0]`). Die Regel steht an genau einer Stelle
+  (`PluralForms::defaultFormIndex()`/`defaultValueOf()`) und gilt ebenso für `txtlng()`, den
+  DB-Dual-Write und die Plugin-`.po`-Brücke. Für `poll_population` ist das der bisherige Wert von
+  `poll_population`.
+
+### Formel-Auswertung (`PluralForms`)
+
+Eigener kleiner Parser (rekursiver Abstieg) statt fester Tabelle: Die Formel steht in einer Datei
+(Shipped-`.po`, Overlay, Plugin) und wird daher wie eine Eingabe behandelt; eine feste Tabelle hätte
+jeden abweichenden, aber gültigen Header ignoriert und die Tabelle an zwei Stellen (Tool, Laufzeit)
+gepflegt verlangt. Erlaubt ist genau die Teilmenge der gettext/CLDR-Formeln: `n`, nicht-negative
+Ganzzahlen (max. 9 Stellen), `?:`, `||`, `&&`, `!`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `%`, Klammern.
+Der Header wird vor jedem regulären Ausdruck auf 576 Zeichen begrenzt, der Ausdruck selbst ist
+possessiv (kein Backtracking).
+Kein `eval`, kein `create_function`, kein `Gettext\Translator`. Validierung beim Parsen: Header-Form
+`nplurals=<1..10>; plural=<Ausdruck>;`, Länge ≤ 512, Schachtelung ≤ 64, und für n = 0…200 sowie
+einige große Werte (1000, 1000000, …) muss der Index in 0…nplurals−1 liegen. Ein fehlender oder
+ungültiger Header ergibt die germanische Regel `nplurals=2; plural=(n != 1);` plus Warnung
+(Laufzeit: Logger `lang`, einmal pro Modul/Sprache und Request; Build: Warnung im Index; Plugin:
+Logger). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform.
+
+### Kanonische Tabelle und Konverter (`plurals.json`)
+
+`tools/po-migration/plurals.json` enthält
+
+- `plural_forms`: den `Plural-Forms`-Header aller 31 Sprachen der Root-`lang/ilias_*.lang`
+  (gettext/CLDR-Formeln, identisch mit den seit dem Piloten in `tos_*.po` stehenden Headern, die
+  `tos`-Dateien bleiben daher byte-identisch). Der Konverter schreibt ihn in jede erzeugte `.po`;
+  die `.pot` bekommt keinen.
+- `modules.<modul>`: die Plural-Einträge pro Modul, `msgid => {"singular": <key>, "plural_id": <msgid_plural>}`
+  (beides optional, `msgid_plural` sonst `<key>_plural`, Label nach dem Beispiel des FR). Für `poll`:
+  `poll_population` (Singular `poll_population_singular`) und `poll_vote_error_multi`.
+
+Der Konverter erfindet keine Texte, er verteilt nur vorhandene Werte:
+
+- Sprachen mit der Regel „n == 1 → Form 0, sonst Form 1" (geprüft über die Auswertung, nicht über
+  den Formeltext; aktuell bg, da, de, el, en, et, hu, ka, nl, sq, sv, tr): `msgstr[0]` = Wert des
+  Singular-Keys (falls vorhanden und nicht leer), `msgstr[1]` = bisheriger Wert.
+- alle anderen Sprachen und Einträge ohne Singular-Key (`poll_vote_error_multi`, „%s answers"):
+  alle Formen = bisheriger Wert.
+- Der Fuzzy-Status folgt dem bisherigen Wert — und dem Singular-Key, wenn dessen Wert als
+  `msgstr[0]` übernommen wurde (z. B. `da`, `tr`: englischer Platzhalter); der Singular-Key bleibt
+  als eigener Eintrag erhalten;
+  in der `.pot` hat ein Plural-Eintrag `msgstr[0]`/`msgstr[1]` leer.
+
+### Datenmodell in den Schreib-/Lesepfaden (`PluralFormKey`)
+
+Überall, wo die Language-Komponente ein Modul als flache `identifier => wert`-Zuordnung behandelt
+(Admin-GUI, `loadModuleTranslations()`, `loadLocalChanges()`, `sync()`, Drei-Wege-Abgleich,
+Export/Import), steht ein Plural-Eintrag als eine Zeile pro Form: **`<key> [<form>]`**, z. B.
+`poll_population [0]`, `poll_population [1]` — nie unter dem Key selbst. Damit arbeiten Delta,
+„leer = zurück auf shipped", Markup-Prüfung (`findInvalidMarkupOfChangedValues()`) und der
+Drei-Wege-Abgleich unverändert **pro Form**. Ein Schlüssel dieser Form gilt nur als Form, wenn sein
+Key ein Plural-Eintrag ist (shipped oder im Overlay).
+
+- **Datenbank (Dual-Write):** `lng_data`/`lng_modules` halten nur den Key mit der Standardform
+  (`MigratedLanguageFileSync::collapsePluralForms()`, bereinigt wie jeder Shipped-Wert);
+  `local_change` des Keys ist nur gesetzt, wenn **die Standardform** von der geshippten abweicht
+  (die Zeile steht nur für diesen Wert; sonst würde `keep_local_changes` nach einem Rollback
+  `.lang`-Updates des Keys unterdrücken). Lokale Änderungen anderer Formen stehen nur im Overlay.
+  Alle Formen gibt es nur in Shipped-`.po`, Build-Artefakt und Overlay.
+- **Bemerkungen (`remarks`)** gehören zum Key: Die Formzeilen der Admin-GUI zeigen die Bemerkung
+  des Keys; beim Speichern gewinnt die erste Form, deren Bemerkung von der gespeicherten abweicht
+  (leer = Bemerkung löschen); weicht keine ab, bleibt die gespeicherte erhalten (ebenso beim
+  Löschen einer Form). Formzeilen mit einem Index ≥ der geshippten Formenzahl werden beim Speichern
+  verworfen; „Neue Variable hinzufügen" lehnt eine solche Form ab.
+- **Alte Einzelwerte:** Ein einfacher Wert für den Key eines Plural-Eintrags (lokale Änderung aus der
+  Zeit vor dem Plural, aus `lng_data` zurückgelesen, Customizing-Zeile, Import) steht für die
+  Standardform (`mapLegacyPluralValues()`); steht die Form bereits da, gewinnt sie.
+- **Overlay:** Ein Plural-Eintrag im Delta enthält immer alle Formen (nicht geänderte mit dem
+  Shipped-Wert), ein `# original[<form>]: …` (bzw. `original_escaped[<form>]`) pro Form und ein
+  `# local_change` für den ganzen Eintrag (`LocalChangeComments::refreshForms()`). `loadLocalChanges()`
+  meldet pro Form nur die tatsächlich geänderten als `local_change`.
+- **Admin-GUI:** Tabelle und Speichern verwenden die Formzeilen; `[`/`]` werden im Feldnamen wie `.`
+  und Leerzeichen kodiert (`_POSTLBRACKET_`/`_POSTRBRACKET_`), sonst würde PHP `[0]` als Array-Index
+  lesen. Der Identifier-Filter und die Seitenübersetzung finden die Formen über den Key.
+  „Neue Variable hinzufügen" mit dem Key eines Plural-Eintrags setzt dessen Standardform.
+- **Laufzeit:** `ShippedTranslations::readCompiled()` bzw. `TranslationCatalog::readMoMessages()`
+  liefern Standardwerte und Formen; das Overlay ersetzt einen Eintrag ganz (ein Singular-Eintrag im
+  Overlay verdrängt auch die geshippten Formen). Die Formen liegen im selben Request-Cache wie die
+  Texte (`"\0plurals|<modul>|<sprache>"`).
+- **Plugins:** Die Plugin-`.po`-Brücke schreibt für Plural-Einträge nur die Standardform in die
+  Datenbank und loggt das; `ntxt()` fällt für Plugins auf `txt()` zurück.
+
+### Aufrufer in `Poll`
+
+Werden von der Language-Komponente nicht umgestellt (Nutzerentscheidung); die Vorschläge für
+`ilPollContentRenderer::renderTotalParticipantsInfo()`, `ilPollAnswerTableGUI` (zeigt heute „1 votes
+cast") und `ilPollAnswersRenderer` (`poll_vote_error_multi`) gehen an die Maintainer. Nach einer
+Umstellung sehen Sprachen ohne „n == 1"-Regel (z. B. `ja`, `fr`, `es`, `pl`) für n = 1 die
+Pluralform, bis ihre `.po` übersetzt ist — heute zeigt der Renderer dort für n = 1 den (meist
+englischen, fuzzy) Singular-Key.
 
 ## Schreibpfad
 
@@ -464,8 +582,9 @@ Admin-Edits ("Sprachvariablen anpassen", "Neue Variable hinzufügen", Löschen e
 Imports über die GUI) und `ilPluginLanguage::updateLanguages()` enden in
 `ilObjLanguage::replaceLangModule($sprache, $modul, $eintraege, $refresh_original_from_shipped = false)`.
 Das schreibt wie bisher die `lng_modules`-Zeile (Dual-Write; für migrierte Module mit bereinigten
-Shipped-Werten, `databaseValuesOf()`) und übergibt anschließend dieselbe `identifier => wert`-
-Zuordnung (roh) an `MigratedLanguageFileSync::sync()`, das daraus das Delta schreibt:
+Shipped-Werten und Plural-Einträgen nur mit ihrer Standardform, `databaseValuesOf()`) und übergibt
+anschließend dieselbe `identifier => wert`-Zuordnung (roh, Plural-Einträge als Formzeilen, siehe
+"Pluralformen") an `MigratedLanguageFileSync::sync()`, das daraus das Delta schreibt:
 
 - nicht mehr übergebene oder auf shipped zurückgesetzte Einträge verschwinden aus dem Overlay, echte
   lokale Änderungen kommen hinzu;
@@ -517,6 +636,13 @@ Zeilen für das Modul in der Customizing-Datei (`ilias_<sprache>.lang.local`) ge
 Änderungen und landen im Delta (unzulässiges Markup wird übersprungen, siehe oben).
 `InstalledLanguageDatabaseRepository::checkLanguage()` erklärt eine Sprache für ungültig, wenn die
 Shipped-`.po` eines migrierten Moduls nicht parsebar ist.
+
+**Leere Übersetzungen gelten als nicht geshippt** (seit 2026-09-28): Ein Eintrag mit leerem `msgstr`
+(bzw. ein Plural-Eintrag, dessen Formen alle leer sind, z. B. `poll_import` in `poll_en.po`, weil
+`lang/ilias_en.lang` den Key nicht hat) fehlt in der `.mo`, und ebenso in den Shipped-Werten
+(`loadShippedModuleEntries()`, `loadShippedModules()`, `loadModuleTranslations()`): keine
+`lng_data`-Zeile mit `''`, keine Admin-GUI-Zeile, `txt()` liefert wie vor der Migration `-key-`.
+Eine lokale Änderung eines solchen Keys wird wie die eines nicht geshippten Keys behandelt.
 
 **Für unveränderte migrierte Module schreibt die Installation keine Datei.** Gemessen über den
 Code-Pfad der GUI, alle 31 Sprachen, ohne DB-Anteil:
@@ -616,6 +742,8 @@ mitliefern.
 - Unterschied beim Leerraum: `.lang`-Werte werden wie bisher getrimmt, `.po`-Werte nicht. Wer ein
   Plugin von `.lang` auf `.po` umstellt, sollte Werte mit führendem/abschließendem Leerraum prüfen.
 - `removeMigratedMoFiles()` validiert das Präfix (`^[A-Za-z0-9_]+$`), sonst Warnung und nichts tun.
+- Plural-Einträge einer Plugin-`.po` landen mit ihrer Standardform in der Datenbank (Warnung im Log),
+  siehe "Pluralformen".
 
 **Ziel (Component Revision):** Plugins werden Komponenten unter `components/<Vendor>/<plugin>` und
 tragen ein `LanguageFileDirectory` bei (z. B. mit Namensschema `'ilias_%s'`). Dann gilt automatisch
@@ -648,8 +776,10 @@ zurückschreiben".
 
 1. **Pro Modul:** die `$contribute[LanguageFileDirectory::class]`-Contribution der Komponente
    entfernen. Ohne Directory lesen alle Pfade aus der DB, und der Sync ist ein No-op; beim nächsten
-   Update werden wieder die `.lang`-Zeilen des Moduls verwendet (für `tos` sind sie in
-   `lang/ilias_*.lang` weiterhin vorhanden).
+   Update werden wieder die `.lang`-Zeilen des Moduls verwendet (für `tos` und `poll` sind sie in
+   `lang/ilias_*.lang` weiterhin vorhanden, auch `poll_population_singular`). Für `poll` hält die DB
+   die Standardform der Plural-Einträge, also den bisherigen Wert; lokale Änderungen einzelner
+   Formen außer der Standardform gehen beim Rollback verloren (sie stehen nur im Overlay).
 2. **Pro Sprache:** die Shipped-`.po` der Sprache entfernen; dann liest `ilLanguage` `lng_modules`.
    (Nur die Overlay-Dateien zu löschen, genügt nicht: dann wird der Shipped-Stand ohne lokale
    Änderungen geliefert.)
@@ -679,6 +809,7 @@ Ist der Stand unlesbar (auch `.mo` ohne `.po`), fällt die GUI auf die `lng_data
 das Delta (`loadLocalChanges()`), ohne jede Shipped-`.po` zu parsen. Die Sortierung von
 `_getValues()` entspricht dem `ORDER BY module, identifier` der Abfrage
 (`ksort(..., SORT_STRING | SORT_FLAG_CASE)`); die LIKE-Suche fasst aufeinanderfolgende `%` zusammen.
+Plural-Einträge erscheinen als eine Zeile pro Form (`poll_population [0]`, …), siehe "Pluralformen".
 
 ### Geshippte Werte in der Admin-GUI
 
@@ -717,7 +848,13 @@ genannt.
 - `LanguageInstallationManager` hat keinen injizierten Logger (`error_log()`-Fallback).
 - Plugin-Sprachupdates und die Deinstallation melden ein nicht geschriebenes bzw. nicht entferntes
   Overlay nur im Log, nicht in der GUI.
-- Pluralformen werden nicht unterstützt.
+- Pluralformen: Bemerkungen (`remarks`) gibt es nur für den Key, nicht pro Form (siehe
+  "Pluralformen"). Ein Plural-Eintrag,
+  der nicht (mehr) geshippt wird (nur im Overlay), wird in der DB unter seinen Formschlüsseln
+  geführt. Ein exportierter `.lang`-Stand enthält Formzeilen (`poll_population [0]`), die ein
+  System ohne migriertes `poll` als gewöhnliche Keys importieren würde. Wird die Formel einer
+  Sprache später geändert (andere Formenzahl), passen bestehende Overlays erst nach dem nächsten
+  abgleichenden Schreiben.
 
 ## Tests
 
@@ -730,7 +867,10 @@ Relevante Tests liegen unter `components/ILIAS/Language/tests/`, u. a.
 `PoMigrationWriteBackTest.php`, `ShippedArtifactProblemLoggingTest.php`, `ToJSMapTest.php`,
 `ImportUsesShippedValuesOfMigratedModulesTest.php`, `Activities/AddLanguageEntryTest.php`,
 `AdminGuiReadsValuesFromMigratedFileTest.php`, `UninstallRemovesMigratedMoFilesTest.php`,
-`UninstallRemovesPluginMigratedMoFilesTest.php`.
+`UninstallRemovesPluginMigratedMoFilesTest.php`, `ComponentTranslation/Catalog/TranslationCatalogPoTest.php`,
+`ComponentTranslation/Catalog/TranslationCatalogMoTest.php` (Standardform eines Plural-Eintrags),
+`ConvertModuleToPoToolTest.php`. Eigene Tests für `PluralForms`, `PluralFormKey`, `ntxt()` und die
+Plural-Pfade von Sync/Installation/Admin-GUI folgen (Stand 2026-09-28 noch offen).
 
 ## Änderungshistorie
 
@@ -793,3 +933,34 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
   "Pluralformen"), Umstellung der `Poll`-Aufrufer nur als Vorschlag. Module ohne eigene Komponente
   (sicher: `common`, `cptch`, `bkm`, `pdesk`) sollen in die Language-Komponente; offen sind
   `assessment`, `content`, `pd`, `scormtrac`/`scov`. Der Branch wird nicht in mehrere PRs geteilt.
+
+### 2026-09-28: Pluralformen und zweiter Pilot `poll`
+
+1. **`PluralForms`** (Parser/Auswerter der `Plural-Forms`-Formel, Standardform-Regel, germanischer
+   Fallback mit Warnung) und **`PluralFormKey`** (`<key> [<form>]`).
+2. **Adapter:** `TranslationEntry::getPluralId()/isPlural()/getPluralTranslations()/setPlural()`,
+   `TranslationCatalog::readMoMessages()/readMoMessagesFromString()` mit `CompiledTranslations`;
+   `.mo` wird selbst gelesen (kein `MoLoader`); `readMoTranslations*()` liefert für Plural-Einträge
+   die Standardform; Formenzahl in der `.mo` = `nplurals`. Build: `FORMAT_VERSION` 3, jede Form
+   bereinigt, Warnung bei fehlendem/ungültigem Header.
+3. **`ilLanguage::ntxt()`**; `txt()` unverändert (Standardform).
+4. **Formzeilen** in Sync, Overlay (`original[<form>]`), Drei-Wege-Abgleich, Installation,
+   Admin-GUI (`_saveValues()`/`_deleteValues()`/Filter/Feldnamen), „Neue Variable";
+   DB-Dual-Write nur mit Standardform; Plugin-`.po`-Brücke schreibt die Standardform und loggt.
+5. **Konverter:** `plurals.json` (Tabelle für 31 Sprachen, Plural-Definitionen pro Modul),
+   Roundtrip-Prüfung für Plural; `tos` bleibt byte-identisch.
+6. **`poll` migriert:** `Poll.php` kontribuiert `ComponentLanguageFileDirectory` für `poll`,
+   `components/ILIAS/Poll/lang/poll.pot` und 31 `poll_*.po` per Konverter (Referenz `de`, weil `en`
+   `poll_import` fehlt). Root-`lang/ilias_*.lang` unverändert. Plural-Einträge: `poll_population`
+   (Singular `poll_population_singular`), `poll_vote_error_multi`.
+7. Nach Code-/Security-Review: Bemerkungen des Keys bleiben bei Formzeilen erhalten;
+   `local_change` der DB-Zeile nur bei abweichender Standardform (`changedPluralMessages()`
+   entfernt); Bemerkung: erste abweichende Form gewinnt; Fuzzy auch vom Singular-Key
+   (`poll_*.po` neu erzeugt); Header-Regex begrenzt und possessiv; Formenzahl der `.mo` aus
+   `PluralForms`; Längensumme der `.mo`-Strings gedeckelt; überzählige Formzeilen werden verworfen;
+   leere Shipped-Übersetzungen werden nicht mehr als `''` in `lng_data` geschrieben (Runtime-Check:
+   `poll/poll_import/en`).
+8. Nebenbefunde der Platzhalterprüfung (nicht geändert, Pflege der `.lang`): `fr`
+   `poll_vote_error_multi` („de% réponses"), `sv` `poll_voting_period_info` ohne `%s`, `tr`
+   `poll_population`/`poll_block_results_available_on` („% s"), `pt` `poll_population` (falscher Text
+   ohne `%s`); `en`, `ja`, `pt` fehlt `poll_import`.

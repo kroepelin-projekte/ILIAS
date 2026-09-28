@@ -44,6 +44,16 @@ use RuntimeException;
  * lng_data/lng_modules keep being written for migrated modules too (rollback-safe fallback); this
  * class only takes care of the files. Every method throws instead of logging - callers decide how
  * to report a failure.
+ *
+ * Plural messages: every identifier => value map this class takes or returns (sync(), the shipped
+ * values, loadModuleTranslations(), loadLocalChanges()) holds a plural message as one entry per form,
+ * keyed PluralFormKey::of() (`<identifier> [<form>]`), never under its identifier - so every
+ * comparison (delta, "original", local change, the three-way comparison of an update) works per form.
+ * The number of forms is the one of the file's "Plural-Forms" header (PluralForms, Germanic if missing
+ * or invalid). A plain value for the identifier of a shipped plural message (a local change recorded
+ * before the module had plurals, or read back from the database) stands for its default form, see
+ * mapLegacyPluralValues(). The database only gets the identifier with its default value, see
+ * collapsePluralForms().
  */
 final class MigratedLanguageFileSync
 {
@@ -217,9 +227,10 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * databaseValues() for $module/$lang_key, reading its shipped `.po` - $entries unchanged if the
-     * module is not migrated for $lang_key or its shipped `.po` cannot be read (that is reported by
-     * the overlay write).
+     * databaseValues() for $module/$lang_key, reading its shipped `.po`, with every plural message
+     * collapsed to its identifier and default value (see collapsePluralForms()) - $entries unchanged
+     * if the module is not migrated for $lang_key or its shipped `.po` cannot be read (that is
+     * reported by the overlay write).
      *
      * @param array<string|int, string> $entries identifier => value
      * @return array<string|int, string>
@@ -244,7 +255,207 @@ final class MigratedLanguageFileSync
             return $entries;
         }
 
-        return self::databaseValues($entries, $shipped);
+        return self::databaseValues(
+            self::collapsePluralForms(self::mapLegacyPluralValues($entries, $shipped), $shipped),
+            self::collapsePluralForms($shipped, $shipped)
+        );
+    }
+
+    /**
+     * The identifier of the plural message of $shipped_entries (shipped values, form keys included)
+     * $key belongs to - as one of its form keys or as the identifier itself -, `null` for every other
+     * key.
+     *
+     * @param array<string|int, mixed> $shipped_entries
+     */
+    public static function pluralMessageOf(string $key, array $shipped_entries): ?string
+    {
+        $identifier = PluralFormKey::parse($key)[0] ?? $key;
+
+        return !array_key_exists($identifier, $shipped_entries)
+            && array_key_exists(PluralFormKey::of($identifier, 0), $shipped_entries)
+            ? $identifier
+            : null;
+    }
+
+    /**
+     * $entries (identifier => value, see the class docblock) as the database holds them: the forms
+     * of every plural message of $shipped_entries (the shipped values, form keys included) replaced
+     * by the message's identifier with the value of its default form (PluralForms, a form missing in
+     * $entries counts with its shipped value), at the position of its first form. Everything else is
+     * kept as it is.
+     *
+     * @param array<string|int, string> $entries
+     * @param array<string|int, string> $shipped_entries
+     * @return array<string|int, string>
+     */
+    public static function collapsePluralForms(array $entries, array $shipped_entries): array
+    {
+        $form_counts = self::pluralFormCounts($shipped_entries);
+        if ($form_counts === []) {
+            return $entries;
+        }
+
+        $collapsed = [];
+        foreach ($entries as $key => $value) {
+            $parsed = PluralFormKey::parse((string) $key);
+            $identifier = $parsed[0] ?? (string) $key;
+            if (!isset($form_counts[$identifier])) {
+                $collapsed[$key] = $value;
+                continue;
+            }
+            if ($parsed === null && self::hasAnyForm($entries, $identifier, $form_counts[$identifier])) {
+                // a plain value next to the forms: the forms win
+                continue;
+            }
+            if ($parsed !== null && !array_key_exists($identifier, $collapsed)) {
+                $forms = [];
+                for ($form = 0; $form < $form_counts[$identifier]; $form++) {
+                    $form_key = PluralFormKey::of($identifier, $form);
+                    $forms[] = (string) ($entries[$form_key] ?? $shipped_entries[$form_key] ?? '');
+                }
+                $collapsed[$identifier] = PluralForms::defaultValueForCount($forms, $form_counts[$identifier]);
+            } elseif ($parsed === null) {
+                $collapsed[$key] = $value;
+            }
+        }
+
+        return $collapsed;
+    }
+
+    /**
+     * $entries with a plain value of the identifier of a plural message of $shipped_entries (shipped
+     * values, form keys included) moved to the key of its default form - unless that form is in
+     * $entries already, then the plain value is dropped. Such a plain value is a local change recorded
+     * before the module had plurals, or a value read back from the database (which only holds the
+     * identifier with its default value, see collapsePluralForms()).
+     *
+     * @template T
+     * @param array<string|int, T> $entries
+     * @param array<string|int, mixed> $shipped_entries
+     * @return array<string|int, T>
+     */
+    public static function mapLegacyPluralValues(array $entries, array $shipped_entries): array
+    {
+        $form_counts = self::pluralFormCounts($shipped_entries);
+        foreach ($form_counts as $identifier => $count) {
+            if (!array_key_exists($identifier, $entries)) {
+                continue;
+            }
+            $default_key = PluralFormKey::of($identifier, PluralForms::defaultFormIndexForCount($count));
+            if (!array_key_exists($default_key, $entries)) {
+                $entries[$default_key] = $entries[$identifier];
+            }
+            unset($entries[$identifier]);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The plural messages among $shipped_entries (keys as in the class docblock) with their number of
+     * forms: identifiers that only appear as form keys, never as a key of their own.
+     *
+     * @param array<string|int, mixed> $shipped_entries
+     * @return array<string, int>
+     */
+    private static function pluralFormCounts(array $shipped_entries): array
+    {
+        $counts = [];
+        foreach (array_keys($shipped_entries) as $key) {
+            $parsed = PluralFormKey::parse((string) $key);
+            if ($parsed !== null && !array_key_exists($parsed[0], $shipped_entries)) {
+                $counts[$parsed[0]] = max($counts[$parsed[0]] ?? 0, $parsed[1] + 1);
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param array<string|int, mixed> $entries
+     */
+    private static function hasAnyForm(array $entries, string $identifier, int $count): bool
+    {
+        for ($form = 0; $form < $count; $form++) {
+            if (array_key_exists(PluralFormKey::of($identifier, $form), $entries)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The "Plural-Forms" rule of $catalog - the Germanic one if its header is missing or invalid.
+     */
+    public static function pluralFormsOf(TranslationCatalog $catalog): PluralForms
+    {
+        return PluralForms::fromHeaderOrGermanic($catalog->getHeader('Plural-Forms'));
+    }
+
+    /**
+     * $entry as identifier => value (see the class docblock): a singular message under its
+     * identifier, a plural one as exactly $plural_forms->getCount() form keys (missing forms empty,
+     * surplus ones dropped).
+     *
+     * @return array<string, string>
+     */
+    public static function flatValuesOf(TranslationEntry $entry, PluralForms $plural_forms): array
+    {
+        if (!$entry->isPlural()) {
+            return [$entry->getId() => $entry->getTranslation()];
+        }
+        $values = [];
+        foreach (self::formsOf($entry, $plural_forms) as $form => $value) {
+            $values[PluralFormKey::of($entry->getId(), $form)] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * The forms of the plural message $entry, exactly $plural_forms->getCount() of them.
+     *
+     * @return list<string>
+     */
+    private static function formsOf(TranslationEntry $entry, PluralForms $plural_forms): array
+    {
+        $count = $plural_forms->getCount();
+
+        return array_pad(array_slice($entry->getPluralTranslations(), 0, $count), $count, '');
+    }
+
+    /**
+     * The values of the entries of $module in $catalog, see flatValuesOf().
+     *
+     * @return array<string, string>
+     */
+    private static function flatModuleValues(TranslationCatalog $catalog, string $module): array
+    {
+        $plural_forms = self::pluralFormsOf($catalog);
+        $values = [];
+        foreach (self::moduleEntries($catalog, $module) as $entry) {
+            $values += self::shippedValuesOf($entry, $plural_forms);
+        }
+
+        return $values;
+    }
+
+    /**
+     * flatValuesOf() for an entry of a shipped `.po` - nothing for an entry without translation
+     * (a singular one with an empty msgstr, a plural one whose forms are all empty): the build leaves
+     * it out of the compiled `.mo` (see TranslationCatalog::toMoString()), so it is not shipped at all
+     * - not served by ilLanguage, not written to lng_data/lng_modules, not listed by the admin GUI,
+     * exactly like a key the legacy `.lang` file of the language does not have.
+     *
+     * @return array<string, string>
+     */
+    private static function shippedValuesOf(TranslationEntry $entry, PluralForms $plural_forms): array
+    {
+        $values = self::flatValuesOf($entry, $plural_forms);
+
+        return implode('', $values) === '' ? [] : $values;
     }
 
     /**
@@ -265,11 +476,12 @@ final class MigratedLanguageFileSync
      */
     private static function deltaOf(TranslationCatalog $shipped, string $module, array $entries): array
     {
+        $shipped_values = self::flatModuleValues($shipped, $module);
         $delta = [];
-        foreach ($entries as $identifier => $value) {
+        foreach (self::mapLegacyPluralValues($entries, $shipped_values) as $identifier => $value) {
             $identifier = (string) $identifier;
             $value = (string) $value;
-            if (self::belongsInDelta(self::findModuleEntry($shipped, $module, $identifier)?->getTranslation(), $value)) {
+            if (self::belongsInDelta($shipped_values[$identifier] ?? null, $value)) {
                 $delta[$identifier] = $value;
             }
         }
@@ -423,10 +635,28 @@ final class MigratedLanguageFileSync
         }
 
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $plural_forms = self::pluralFormsOf($shipped);
+        [$delta, $plural_delta] = self::splitPluralDelta($shipped, $existing, $module, $delta);
+        foreach ($plural_delta as $identifier => $forms) {
+            $catalog->add(self::overlayPluralEntry(
+                $shipped,
+                $existing,
+                $module,
+                (string) $identifier,
+                $forms,
+                $plural_forms,
+                $refresh_original_from_shipped,
+                $now
+            ));
+        }
         foreach ($delta as $identifier => $value) {
             $identifier = (string) $identifier;
             $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
             $existing_entry = $existing === null ? null : self::findModuleEntry($existing, $module, $identifier);
+            if ($existing_entry?->isPlural()) {
+                // was a plural message in the overlay, is a singular one now: rebuilt from scratch
+                $existing_entry = null;
+            }
             // Written without msgctxt, like the shipped files: the overlay belongs to one module. An
             // entry of an older overlay with the module as msgctxt loses it with this write.
             $entry = $existing_entry?->withContext(null) ?? new TranslationEntry(null, $identifier);
@@ -465,6 +695,94 @@ final class MigratedLanguageFileSync
         AtomicFileWriter::write($overlay_mo, $mo_content, self::overlayRoot($client_data_dir));
 
         \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
+    }
+
+    /**
+     * $delta split into the singular entries and the forms of plural messages: a form key (see
+     * PluralFormKey) whose identifier is a plural message of the shipped `.po` or of the existing
+     * overlay belongs to that message, every other key is an ordinary identifier.
+     *
+     * @param array<string, string> $delta
+     * @return array{0: array<string, string>, 1: array<string, array<int, string>>}
+     */
+    private static function splitPluralDelta(
+        TranslationCatalog $shipped,
+        ?TranslationCatalog $existing,
+        string $module,
+        array $delta
+    ): array {
+        $singular = [];
+        $plural = [];
+        foreach ($delta as $key => $value) {
+            $parsed = PluralFormKey::parse((string) $key);
+            if (
+                $parsed !== null
+                && (
+                    self::findModuleEntry($shipped, $module, $parsed[0])?->isPlural()
+                    || ($existing !== null && self::findModuleEntry($existing, $module, $parsed[0])?->isPlural())
+                )
+            ) {
+                $plural[$parsed[0]][$parsed[1]] = $value;
+                continue;
+            }
+            $singular[(string) $key] = $value;
+        }
+
+        return [$singular, $plural];
+    }
+
+    /**
+     * The overlay entry of the plural message $identifier whose forms in the delta are $delta_forms:
+     * every form - a form not in the delta has its shipped value (empty if the message is not shipped)
+     * -, an "original" per form (see LocalChangeComments), with the same rules as a singular entry of
+     * syncLocked().
+     *
+     * @param array<int, string> $delta_forms form => value
+     */
+    private static function overlayPluralEntry(
+        TranslationCatalog $shipped,
+        ?TranslationCatalog $existing,
+        string $module,
+        string $identifier,
+        array $delta_forms,
+        PluralForms $plural_forms,
+        bool $refresh_original_from_shipped,
+        DateTimeImmutable $now
+    ): TranslationEntry {
+        $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
+        $shipped_forms = $shipped_entry?->isPlural() ? self::formsOf($shipped_entry, $plural_forms) : null;
+        $existing_entry = $existing === null ? null : self::findModuleEntry($existing, $module, $identifier);
+        if ($existing_entry !== null && !$existing_entry->isPlural()) {
+            // a singular message in the overlay, a plural one now: rebuilt from scratch
+            $existing_entry = null;
+        }
+
+        $forms = [];
+        for ($form = 0; $form < $plural_forms->getCount(); $form++) {
+            $forms[] = $delta_forms[$form] ?? $shipped_forms[$form] ?? '';
+        }
+        $previous_forms = $existing_entry !== null
+            ? self::formsOf($existing_entry, $plural_forms)
+            : ($shipped_forms ?? []);
+
+        $entry = $existing_entry?->withContext(null) ?? new TranslationEntry(null, $identifier);
+        if ($shipped_forms !== null && ($existing_entry === null || $refresh_original_from_shipped)) {
+            LocalChangeComments::removeOriginal($entry);
+            LocalChangeComments::removeFormOriginals($entry);
+            foreach ($shipped_forms as $form => $value) {
+                LocalChangeComments::setOriginal($entry, $value, $form);
+            }
+            $entry->setExtractedComments($shipped_entry->getExtractedComments());
+        }
+
+        $entry->setPlural(
+            $shipped_entry?->getPluralId() ?? $existing_entry?->getPluralId() ?? $identifier . '_plural',
+            $forms
+        );
+        $entry->removeFlag('fuzzy');
+        LocalChangeComments::refreshForms($entry, $previous_forms, $forms, $now);
+
+        return $entry;
     }
 
     /**
@@ -515,7 +833,8 @@ final class MigratedLanguageFileSync
     }
 
     /**
-     * The entries of $module in the shipped `.po` $shipped_po (see findShippedModuleFiles()), with
+     * The entries of $module in the shipped `.po` $shipped_po (see findShippedModuleFiles(); a plural
+     * message as its forms, see the class docblock), with
      * their extracted comments ("#.", the counterpart of a `.lang` file's "###" comment) joined into
      * one line - `null` if an entry has none.
      *
@@ -525,12 +844,16 @@ final class MigratedLanguageFileSync
     public static function loadShippedModuleEntries(string $shipped_po, string $module): array
     {
         $entries = [];
-        foreach (self::moduleEntries(self::readShippedPo($shipped_po), $module) as $entry) {
+        $catalog = self::readShippedPo($shipped_po);
+        $plural_forms = self::pluralFormsOf($catalog);
+        foreach (self::moduleEntries($catalog, $module) as $entry) {
             $comment = trim(preg_replace('/\s*[\r\n]+\s*/', ' ', implode(' ', $entry->getExtractedComments())) ?? '');
-            $entries[$entry->getId()] = [
-                'value' => $entry->getTranslation(),
-                'comment' => $comment === '' ? null : $comment,
-            ];
+            foreach (self::shippedValuesOf($entry, $plural_forms) as $identifier => $value) {
+                $entries[$identifier] = [
+                    'value' => $value,
+                    'comment' => $comment === '' ? null : $comment,
+                ];
+            }
         }
 
         return $entries;
@@ -845,20 +1168,24 @@ final class MigratedLanguageFileSync
         }
 
         $result = [];
-        foreach (self::moduleEntries(self::readShippedPo($shipped_po), $module) as $entry) {
-            $result[$entry->getId()] = [
-                'value' => $entry->getTranslation(),
+        foreach (self::flatModuleValues(self::readShippedPo($shipped_po), $module) as $identifier => $value) {
+            $result[$identifier] = [
+                'value' => $value,
                 'local_change' => false,
                 'local_change_date' => null,
-                'original' => $entry->getTranslation(),
+                'original' => $value,
             ];
         }
 
         return array_replace(
             $result,
-            self::readOverlayEntries(
-                MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key),
-                $module
+            // a singular overlay entry of a message shipped as a plural one stands for its default form
+            self::mapLegacyPluralValues(
+                self::readOverlayEntries(
+                    MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key),
+                    $module
+                ),
+                $result
             )
         );
     }
@@ -907,13 +1234,31 @@ final class MigratedLanguageFileSync
         }
 
         $result = [];
-        foreach (self::moduleEntries(TranslationCatalog::fromPoFile($overlay_base . '.po'), $module) as $entry) {
-            $result[$entry->getId()] = [
-                'value' => $entry->getTranslation(),
-                'local_change' => LocalChangeComments::getLocalChange($entry) !== null,
-                'local_change_date' => LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry),
-                'original' => LocalChangeComments::getOriginal($entry),
-            ];
+        $catalog = TranslationCatalog::fromPoFile($overlay_base . '.po');
+        $plural_forms = self::pluralFormsOf($catalog);
+        foreach (self::moduleEntries($catalog, $module) as $entry) {
+            $is_local_change = LocalChangeComments::getLocalChange($entry) !== null;
+            $local_change_date = LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry);
+            if (!$entry->isPlural()) {
+                $result[$entry->getId()] = [
+                    'value' => $entry->getTranslation(),
+                    'local_change' => $is_local_change,
+                    'local_change_date' => $local_change_date,
+                    'original' => LocalChangeComments::getOriginal($entry),
+                ];
+                continue;
+            }
+            // per form: only a form that differs from its "original" is a local change
+            foreach (self::formsOf($entry, $plural_forms) as $form => $value) {
+                $original = LocalChangeComments::getOriginal($entry, $form);
+                $is_form_changed = $is_local_change && ($original === null || $original !== $value);
+                $result[PluralFormKey::of($entry->getId(), $form)] = [
+                    'value' => $value,
+                    'local_change' => $is_form_changed,
+                    'local_change_date' => $is_form_changed ? $local_change_date : null,
+                    'original' => $original,
+                ];
+            }
         }
 
         return $result;

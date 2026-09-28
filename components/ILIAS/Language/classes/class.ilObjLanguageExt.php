@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 
 /**
@@ -745,7 +746,13 @@ class ilObjLanguageExt extends ilObjLanguage
 
                 foreach ($translations as $identifier => $entry) {
                     $identifier = (string) $identifier;
-                    if ($a_topics !== [] && !in_array($identifier, $a_topics, true)) {
+                    // a plural message is listed as its forms (see PluralFormKey) - a topic selects
+                    // all of them, like it selects the row of a singular message
+                    if (
+                        $a_topics !== []
+                        && !in_array($identifier, $a_topics, true)
+                        && !in_array(PluralFormKey::parse($identifier)[0] ?? null, $a_topics, true)
+                    ) {
                         continue;
                     }
                     if ($a_pattern !== '' && !self::matchesLikePattern($entry['value'], $a_pattern)) {
@@ -982,6 +989,13 @@ class ilObjLanguageExt extends ilObjLanguage
         $global_values = array_merge($db_values, $file_values);
         $global_comments = array_merge($db_comments, $file_comments);
 
+        // The forms of a plural message of a module maintained in PO files have no lng_data row of
+        // their own: the row of the message is written once the module's content is saved, see below
+        $plural_rows = [];
+        $plural_changed = [];
+        $plural_remarks = [];
+        $shipped_by_module = [];
+
         // save the single translations in lng_data
         foreach ($a_values as $key => $value) {
             $keys = explode($lng->separator, $key);
@@ -996,6 +1010,32 @@ class ilObjLanguageExt extends ilObjLanguage
                 // empty value resets to the shipped one (see resolveLocalValue()) - written the same
                 // way here, so lng_data does not diverge from what is served
                 $value = MigratedLanguageFileSync::resolveLocalValue($shipped_migrated['values'][$key] ?? null, (string) $value);
+                $plural_identifier = MigratedLanguageFileSync::pluralMessageOf(
+                    $topic,
+                    $shipped_by_module[$module] ??= self::shippedModuleValues($shipped_migrated, $module, $lng->separator)
+                );
+                if ($plural_identifier !== null) {
+                    if (PluralFormKey::parse($topic) !== null && !array_key_exists($topic, $shipped_by_module[$module])) {
+                        // a form the shipped message does not have - it would only be an orphan
+                        continue;
+                    }
+                    $save_array[$module][$topic] = $value;
+                    // like for every other entry, the row is only written if something changes
+                    if (($db_values[$key] ?? null) !== $value) {
+                        $plural_changed[$module][$plural_identifier] = true;
+                    }
+                    // Remarks belong to the identifier (lng_data has no row per form): the first form
+                    // whose remark differs from the stored one wins ('' removes it), see below
+                    $stored_remark = (string) ($db_comments[$module . $lng->separator . $plural_identifier] ?? '');
+                    if (
+                        array_key_exists($key, $a_remarks)
+                        && (string) $a_remarks[$key] !== $stored_remark
+                        && !array_key_exists($plural_identifier, $plural_remarks[$module] ?? [])
+                    ) {
+                        $plural_remarks[$module][$plural_identifier] = (string) $a_remarks[$key];
+                    }
+                    continue;
+                }
             }
             $save_array[$module][$topic] = $value;
 
@@ -1018,25 +1058,42 @@ class ilObjLanguageExt extends ilObjLanguage
             }
         }
 
+        // The row of a plural message: written if a form's value or the remark changed; without a
+        // requested change the stored remark is kept
+        foreach (array_keys($plural_changed + $plural_remarks) as $module) {
+            $identifiers = array_keys(($plural_changed[$module] ?? []) + ($plural_remarks[$module] ?? []));
+            foreach ($identifiers as $plural_identifier) {
+                $remark = array_key_exists($plural_identifier, $plural_remarks[$module] ?? [])
+                    ? $plural_remarks[$module][$plural_identifier]
+                    : ($db_comments[$module . $lng->separator . $plural_identifier] ?? null);
+                $plural_rows[$module][$plural_identifier] = $remark === '' ? null : $remark;
+            }
+        }
+
         // save the serialized module entries in lng_modules
         $modules_with_unwritten_overlay = [];
         foreach ($save_array as $module => $entries) {
             $module = (string) $module;
+            $module_plural_rows = $plural_rows[$module] ?? [];
+            $shipped_module_values = $shipped_by_module[$module] ?? [];
             // Read and written under the overlay lock, so a concurrent write in between is not lost
             $written = self::withModuleLock(
                 $a_lang_key,
                 $module,
-                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content): bool {
+                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content, $module_plural_rows, $shipped_module_values, $save_date): bool {
                     // Without a current content (e.g. no lng_modules row of a module that is not
                     // maintained in PO files) the entries are written as they are - replaceLangModule()
                     // then creates the row from scratch
                     $current = $merge_onto_current_content ? self::currentModuleContent($a_lang_key, $module) : [];
-                    return ilObjLanguage::replaceLangModule(
+                    $content = array_merge($current, $entries);
+                    $written = ilObjLanguage::replaceLangModule(
                         $a_lang_key,
                         $module,
-                        array_merge($current, $entries),
+                        $content,
                         $refreshOriginalFromShipped
                     );
+                    self::writePluralRows($a_lang_key, $module, $content, $shipped_module_values, $module_plural_rows, $save_date);
+                    return $written;
                 }
             );
             if (!$written) {
@@ -1047,6 +1104,69 @@ class ilObjLanguageExt extends ilObjLanguage
         ilCachedLanguage::getInstance($a_lang_key)->flush();
 
         return $modules_with_unwritten_overlay;
+    }
+
+    /**
+     * The shipped values of $module out of readShippedMigratedModules()' values (keyed
+     * module.separator.identifier), as identifier => value.
+     *
+     * @param array{values: array<string, string>} $shipped_migrated
+     * @return array<string, string>
+     */
+    private static function shippedModuleValues(array $shipped_migrated, string $module, string $separator): array
+    {
+        $prefix = $module . $separator;
+        $values = [];
+        foreach ($shipped_migrated['values'] as $key => $value) {
+            if (str_starts_with((string) $key, $prefix)) {
+                $values[substr((string) $key, strlen($prefix))] = $value;
+            }
+        }
+        return $values;
+    }
+
+    /**
+     * Writes the lng_data row of every plural message in $plural_rows (identifier => remarks) of a
+     * module maintained in PO files whose content is now $content (identifier => value, the forms as
+     * form keys, see PluralFormKey): the database holds a plural message only under its identifier,
+     * with the value of its default form (see MigratedLanguageFileSync::collapsePluralForms()), marked
+     * as local change only if that value differs from the shipped default form - the row stands for
+     * that value alone (a local change of another form lives in the overlay only), so a later update
+     * of the legacy `.lang` files is not held back by it after a rollback.
+     *
+     * @param array<string, string> $content
+     * @param array<string, string> $shipped_values identifier => shipped value of the module
+     * @param array<string, ?string> $plural_rows
+     */
+    private static function writePluralRows(
+        string $a_lang_key,
+        string $module,
+        array $content,
+        array $shipped_values,
+        array $plural_rows,
+        string $save_date
+    ): void {
+        if ($plural_rows === []) {
+            return;
+        }
+        $content = MigratedLanguageFileSync::mapLegacyPluralValues($content, $shipped_values);
+        $values = MigratedLanguageFileSync::collapsePluralForms($content, $shipped_values);
+        $shipped_defaults = MigratedLanguageFileSync::collapsePluralForms($shipped_values, $shipped_values);
+        $database_values = MigratedLanguageFileSync::databaseValues($values, $shipped_defaults);
+        foreach ($plural_rows as $identifier => $remarks) {
+            if (!isset($database_values[$identifier])) {
+                ilObjLanguage::deleteLangEntry($module, (string) $identifier, $a_lang_key);
+                continue;
+            }
+            ilObjLanguage::replaceLangEntry(
+                $module,
+                (string) $identifier,
+                $a_lang_key,
+                (string) $database_values[$identifier],
+                (string) $values[$identifier] !== (string) ($shipped_defaults[$identifier] ?? '') ? $save_date : null,
+                $remarks
+            );
+        }
     }
 
     /**
@@ -1163,6 +1283,10 @@ class ilObjLanguageExt extends ilObjLanguage
 
         $delete_array = array();
         $modules_with_unwritten_overlay = [];
+        $shipped_migrated = null;
+        $shipped_by_module = [];
+        $plural_rows = [];
+        $db_comments = null;
 
         // save the single translations in lng_data
         foreach ($a_values as $key => $value) {
@@ -1172,21 +1296,42 @@ class ilObjLanguageExt extends ilObjLanguage
                 $topic = $keys[1];
                 $delete_array[$module][$topic] = $value;
 
+                // A form of a plural message of a module maintained in PO files has no row of its
+                // own - the row of the message is rewritten once the module is saved, see below
+                if (PluralFormKey::parse($topic) !== null) {
+                    $shipped_migrated ??= self::readShippedMigratedModules($a_lang_key);
+                    $shipped_by_module[$module] ??= self::shippedModuleValues($shipped_migrated, $module, $lng->separator);
+                }
+                $plural_identifier = isset($shipped_by_module[$module])
+                    ? MigratedLanguageFileSync::pluralMessageOf($topic, $shipped_by_module[$module])
+                    : null;
+                if ($plural_identifier !== null) {
+                    // the remark of the identifier is kept
+                    $db_comments ??= self::_getRemarks($a_lang_key);
+                    $plural_rows[$module][$plural_identifier] = $db_comments[$module . $lng->separator . $plural_identifier] ?? null;
+                    continue;
+                }
                 ilObjLanguage::deleteLangEntry($module, $topic, $a_lang_key);
             }
         }
 
         // save the serialized module entries in lng_modules
+        $save_date = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
         foreach ($delete_array as $module => $entries) {
             $module = (string) $module;
+            $module_plural_rows = $plural_rows[$module] ?? [];
+            $shipped_module_values = $shipped_by_module[$module] ?? [];
             $written = self::withModuleLock(
                 $a_lang_key,
                 $module,
-                static function () use ($a_lang_key, $module, $entries): bool {
+                static function () use ($a_lang_key, $module, $entries, $module_plural_rows, $shipped_module_values, $save_date): bool {
                     // Without a current content there is nothing left to keep - the entries to
                     // delete must not be written back as the module's content instead
                     $current = self::currentModuleContent($a_lang_key, $module);
-                    return ilObjLanguage::replaceLangModule($a_lang_key, $module, array_diff_key($current, $entries));
+                    $content = array_diff_key($current, $entries);
+                    $written = ilObjLanguage::replaceLangModule($a_lang_key, $module, $content);
+                    self::writePluralRows($a_lang_key, $module, $content, $shipped_module_values, $module_plural_rows, $save_date);
+                    return $written;
                 }
             );
             if (!$written) {

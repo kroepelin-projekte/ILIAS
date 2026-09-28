@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\PlainLogText;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
 use ILIAS\FileUpload\DTO\ProcessingStatus;
 use ILIAS\FileUpload\Location;
 use ILIAS\HTTP\Services as HTTPServices;
@@ -253,6 +254,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             foreach ($translations as $name => $translation) {
                 $keys = explode($this->lng->separator, $name);
                 $db_found[] = $keys[1];
+                // the forms of a plural message (see PluralFormKey) are its topic
+                $db_found[] = PluralFormKey::parse($keys[1])[0] ?? $keys[1];
             }
             $missing_entries = array_diff($topics, $db_found);
         } else { // normal view mode:
@@ -395,7 +398,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $row["topic"] = $keys[1];
             $row["name"] = $name;
             $row["translation"] = $translation;
-            $row["comment"] = $comments[$name] ?? "";
+            // a form of a plural message (see PluralFormKey) shows the remark of its identifier
+            $row["comment"] = $comments[$name]
+                ?? (($identifier = PluralFormKey::parse($keys[1] ?? '')[0] ?? null) !== null
+                    ? ($comments[$keys[0] . $this->lng->separator . $identifier] ?? "")
+                    : "");
             $row["default"] = $compare_content[$name] ?? "";
             $row["default_comment"] = $compare_comments[$name] ?? "";
 
@@ -461,7 +468,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $orginal_key = $key;
             // mantis #25237
             // @see https://php.net/manual/en/language.variables.external.php
-            $key = str_replace(["_POSTDOT_", "_POSTSPACE_"], [".", " "], $key);
+            $key = str_replace(
+                ["_POSTDOT_", "_POSTSPACE_", "_POSTLBRACKET_", "_POSTRBRACKET_"],
+                [".", " ", "[", "]"],
+                $key
+            );
 
             // example key of variable: 'common#:#access'
             // example key of comment: 'common#:#access#:#comment'
