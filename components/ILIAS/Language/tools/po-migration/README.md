@@ -676,7 +676,13 @@ Für Einträge ohne Overlay liefert `loadModuleTranslations()` `local_change = f
   abweicht und kein Datums-Marker ist. Echte Bemerkungs-Edits von vor der Migration wandern so
   weiter ins Overlay. Remark-only-Einträge stehen sortiert nach Key (kein Neuschreiben ohne
   Inhaltsänderung).
-  **„Lokale Änderungen entfernen"** entfernt auch die Bemerkungen (`sync(..., [])`).
+  **„Lokale Änderungen entfernen"** (Sprachenliste) entfernt auch die Bemerkungen (`sync(..., [])`).
+- **„Lokale Änderungen in der Datenbank löschen"** (Wartung, "clear", `importLanguageFile()` mit der
+  Shipped-Datei) setzt migrierte Module auf den Shipped-Stand und entfernt ihre Bemerkungen aus
+  `lng_data` und Overlay (`removeRemarksOfMigratedModules()`; ein reines Bemerkungs-Overlay
+  verschwindet). Die `###`-Kommentare ihrer `.lang`-Zeilen werden dabei nicht als Bemerkungen
+  importiert. „Lokale Ergänzungen löschen" entfernt mit einer lokal hinzugefügten Variable auch
+  deren Bemerkung; die Deinstallation entfernt das ganze Overlay und die `lng_data`-Zeilen.
 - **Admin-GUI:** Speichern schreibt geänderte Bemerkungen ins Overlay; ändert sich nur die
   Bemerkung, wird in `lng_data` nur `remarks` aktualisiert. Löschen einer Variable entfernt ihre
   Bemerkung auch aus dem Overlay (Plural-Formzeilen: die Bemerkung des Keys bleibt). Bekannt: Bei
@@ -1073,3 +1079,7 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    `mb_substr` auf 250 Zeichen, ungültiges UTF-8 verworfen, Overlay-UTF-8-Prüfung vor dem Schreiben;
    Remark-only-Einträge sortiert; Fuzzy-Marker nur Anzeige; Vergleichssprache nur für angezeigte
    Module; Overlay-Bemerkungen beim Löschen nur für migrierte Module.
+5. Fix nach Browser-Test: Wartung „Lokale Änderungen in der Datenbank löschen" ("clear") ließ
+   Bemerkungen migrierter Module (Remark-only-Overlay, `lng_data.remarks`) stehen, weil sich dort
+   kein Wert änderte; jetzt entfernt, `.lang`-`###`-Kommentare migrierter Module werden nicht mehr
+   als Bemerkungen übernommen.

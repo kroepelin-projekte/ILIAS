@@ -571,15 +571,28 @@ class ilObjLanguageExt extends ilObjLanguage
                 $to_save[$key] = $value;
             }
         }
+        $import_comments = $import_file_obj->getAllComments();
+        if ($shipped !== null) {
+            // Resetting to the shipped state: a migrated module has no shipped remarks (the "###"
+            // comments of its .lang lines are not its source) - its remarks are local changes and
+            // removed below
+            $import_comments = self::withoutModules($import_comments, $shipped['modules'], $this->separator);
+        }
         // "delete" wiped every module above: $to_save is each module's complete content then, it is
         // not merged onto the (for a migrated module: still existing) overlay
         $modules_with_unwritten_overlay = self::saveValues(
             $this->key,
             $to_save,
-            $import_file_obj->getAllComments(),
+            $import_comments,
             $refreshOriginalFromShipped,
             $a_mode_existing !== "delete"
         );
+        if ($shipped !== null) {
+            $modules_with_unwritten_overlay = array_merge(
+                $modules_with_unwritten_overlay,
+                self::removeRemarksOfMigratedModules($this->key, $shipped['modules'])
+            );
+        }
 
         if ($a_mode_existing === "delete") {
             $modules_with_unwritten_overlay = array_merge(
@@ -1296,6 +1309,53 @@ class ilObjLanguageExt extends ilObjLanguage
         }
 
         return $a_remarks;
+    }
+
+    /**
+     * Removes every remark of the modules maintained in PO files $modules for $a_lang_key - from
+     * lng_data and from their overlays (a remark-only overlay disappears, see
+     * MigratedLanguageFileSync::sync()). Part of resetting a language to its shipped state
+     * (importLanguageFile() with the shipped file, "clear" in the admin GUI).
+     *
+     * @param list<string> $modules
+     * @return list<string> the modules whose overlay could not be written (logged)
+     */
+    private static function removeRemarksOfMigratedModules(string $a_lang_key, array $modules): array
+    {
+        global $DIC;
+
+        if ($modules === [] || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return [];
+        }
+        $ilDB = $DIC->database();
+        $ilDB->manipulate(sprintf(
+            "UPDATE lng_data SET remarks = NULL WHERE lang_key = %s AND remarks IS NOT NULL AND %s",
+            $ilDB->quote($a_lang_key, "text"),
+            $ilDB->in('module', $modules, false, 'text')
+        ));
+
+        $manager = $DIC[LanguageFileDirectoryManager::class];
+        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
+        $failed = [];
+        foreach ($modules as $module) {
+            try {
+                $remarks = MigratedLanguageFileSync::loadRemarks($manager, $a_lang_key, $module, $client_data_dir, ILIAS_ABSOLUTE_PATH) ?? [];
+            } catch (\Throwable $t) {
+                $DIC->logger()->forComponent('lang')->warning(sprintf(
+                    'Could not read the remarks of migrated module "%s", language "%s": %s',
+                    $module,
+                    $a_lang_key,
+                    $t->getMessage()
+                ));
+                $failed[] = $module;
+                continue;
+            }
+            if ($remarks !== [] && !self::setOverlayRemarks($a_lang_key, $module, array_fill_keys(array_keys($remarks), ''))) {
+                $failed[] = $module;
+            }
+        }
+
+        return $failed;
     }
 
     /**
