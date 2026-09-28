@@ -189,6 +189,7 @@ msgstr "Never"
 msgid "poll_vote"
 msgstr "Vote"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Please select no more than %s answers."

@@ -127,6 +127,7 @@ msgstr "Deaktywowanie powiadamiania"
 msgid "poll_percentage"
 msgstr "Aktualna zawartość"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s uczestników"
@@ -189,6 +190,7 @@ msgstr "Nigdy"
 msgid "poll_vote"
 msgstr "Głosuj"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Wybierz maksymalnie %s odpowiedzi."

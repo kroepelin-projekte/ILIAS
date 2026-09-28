@@ -1,5 +1,5 @@
 {
-    "_comment": "Input of convert_module_to_po.php, see README.md (\"Pluralformen\"). plural_forms: the Plural-Forms header written into every generated .po of the language (gettext/CLDR rules, as shipped with tos since the pilot). modules: per module the plural messages - msgid => {\"singular\": key whose value becomes msgstr[0] in languages with the rule n == 1 -> 0, else 1 (optional), \"plural_id\": msgid_plural (optional, default <msgid>_plural)}.",
+    "_comment": "Input of convert_module_to_po.php, see README.md (\"Pluralformen\"). plural_forms: the Plural-Forms header written into every generated .po of the language. Source: CLDR 48.2 (release-48-2, 2026-03-17), integer categories; checked for all 31 languages against n=0..2000 and large values (31/31 OK). CLDR main (49, unreleased) changes vi to 2 forms (nplurals=2; plural=n > 1) - to be followed with release 49. modules: per module the plural messages - msgid => {\"singular\": key whose value becomes msgstr[0] in languages with the rule n == 1 -> 0, else 1 (optional), \"plural_id\": msgid_plural (optional, default <msgid>_plural)}.",
     "plural_forms": {
         "ar": "nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));",
         "bg": "nplurals=2; plural=n != 1;",

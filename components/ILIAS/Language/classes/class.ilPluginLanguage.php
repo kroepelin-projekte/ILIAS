@@ -216,7 +216,7 @@ class ilPluginLanguage
      * allow is cleaned (and logged), like the build does for the shipped `.po` of a component, not
      * rejected. Extracted comments ("#.") are not stored, like the "###" comments of a `.lang` file
      * on this path. Fuzzy entries are read too, entries without translation are not. A plural message
-     * is read with the value of its default form (msgstr[1] with at least two forms, see
+     * is read with the value of its default form (the last form, see
      * PluralForms) and logged: plugins are still served from the database, which holds one value per
      * key, so ntxt() falls back to that value for them.
      *

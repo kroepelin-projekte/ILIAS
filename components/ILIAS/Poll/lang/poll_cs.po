@@ -127,6 +127,7 @@ msgstr "Deaktivovat oznámení"
 msgid "poll_percentage"
 msgstr "Aktuální procento"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s Hlasů"
@@ -189,6 +190,7 @@ msgstr "Nikdy"
 msgid "poll_vote"
 msgstr "Hlas"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Vyberte více než %s odpovědí."

@@ -355,6 +355,41 @@ class ConvertModuleToPoToolTest extends TestCase
     }
 
     /**
+     * A plural message with NO configured singular key (real example: poll's "poll_vote_error_multi")
+     * has its own, single translated value copied into every form ($plural_forms_of() with no
+     * "singular" - decided 2026-09-28, see convert_module_to_po.php's docblock): copied into more than
+     * one form (nplurals > 1) is marked "fuzzy" - it still needs a translation per form, not just a
+     * duplicate of the one value that happened to exist before the module had plurals. A single-form
+     * language (nplurals=1: "zh") copies into exactly one form, so it is never marked fuzzy this way.
+     */
+    public function testAPluralMessageWithoutASingularKeyIsFuzzyWhenItsValueIsCopiedIntoMoreThanOneForm(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#multi#:#Mehrere Werte\n");
+        $this->writeLangFile($root, 'zh', "tst#:#multi#:#Mehrere Werte ZH\n");
+        $this->writePluralsConfig(
+            $root,
+            ['de' => 'nplurals=2; plural=(n != 1);', 'zh' => 'nplurals=1; plural=0;'],
+            ['tst' => ['multi' => []]]
+        );
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $de_multi = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po')
+            ->find(null, 'multi');
+        $this->assertNotNull($de_multi);
+        $this->assertSame(['Mehrere Werte', 'Mehrere Werte'], $de_multi->getPluralTranslations());
+        $this->assertTrue($de_multi->hasFlag('fuzzy'), 'de: copied into 2 forms');
+
+        $zh_multi = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_zh.po')
+            ->find(null, 'multi');
+        $this->assertNotNull($zh_multi);
+        $this->assertSame(['Mehrere Werte ZH'], $zh_multi->getPluralTranslations());
+        $this->assertFalse($zh_multi->hasFlag('fuzzy'), 'zh: a single form is not "copied" anywhere');
+    }
+
+    /**
      * findShippedModuleFiles()'s sibling in this tool, the `lang/ilias_*.lang` glob loop: a matched
      * file whose name still doesn't yield a lowercase language key (e.g. an uppercase one) is skipped
      * with a warning rather than silently used or fatally erroring - proven here by seeding an

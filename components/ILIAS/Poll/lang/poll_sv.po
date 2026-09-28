@@ -189,6 +189,7 @@ msgstr "Aldrig"
 msgid "poll_vote"
 msgstr "Rösta"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] " Välj högst %s svar."

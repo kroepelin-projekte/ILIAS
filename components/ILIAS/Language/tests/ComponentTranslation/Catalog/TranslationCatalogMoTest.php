@@ -225,8 +225,28 @@ class TranslationCatalogMoTest extends TestCase
             ['item' => ['eins', '', 'viele']],
             TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations()
         );
-        // the default form (index 1, count >= 2) is empty - defaultValueOf() falls back to form 0
-        $this->assertSame(['item' => 'eins'], $this->read($mo));
+        // the default form is the last one (index 2, count 3) - it is not empty here, so no fallback
+        // search is even needed (see PluralFormsTest for that)
+        $this->assertSame(['item' => 'viele'], $this->read($mo));
+    }
+
+    /**
+     * The LAST form (not msgstr[1]) is the default - and when it is itself empty, the search falls
+     * back downwards to the closest non-empty one before it (here: msgstr[1], skipping the always-
+     * empty msgstr[2] slot of this fixture's Czech-shaped rule).
+     */
+    public function testReadMoTranslationsFallsBackDownwardsWhenTheLastFormIsEmpty(): void
+    {
+        $catalog = TranslationCatalog::fromPoString(
+            "msgid \"\"\nmsgstr \"\"\n"
+            . "\"Plural-Forms: nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);\\n\"\n\n"
+            . "msgctxt \"mod\"\nmsgid \"item\"\nmsgid_plural \"items\"\n"
+            . "msgstr[0] \"jeden\"\nmsgstr[1] \"dva\"\nmsgstr[2] \"\"\n"
+        );
+
+        $mo = $catalog->toMoString();
+
+        $this->assertSame(['item' => 'dva'], $this->read($mo));
     }
 
     /**

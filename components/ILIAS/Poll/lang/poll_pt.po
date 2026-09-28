@@ -127,6 +127,7 @@ msgstr "Desativar notificação"
 msgid "poll_percentage"
 msgstr "Percentagem atual"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "A transferência dados de rastreio foi bem-sucedida."
@@ -189,6 +190,7 @@ msgstr "Nunca"
 msgid "poll_vote"
 msgstr "Votar"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Não selecione mais do que %s respostas."

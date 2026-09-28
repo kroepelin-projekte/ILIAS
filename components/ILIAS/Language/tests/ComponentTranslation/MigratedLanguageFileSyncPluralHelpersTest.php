@@ -126,6 +126,31 @@ class MigratedLanguageFileSyncPluralHelpersTest extends TestCase
         $this->assertSame($shipped, MigratedLanguageFileSync::collapsePluralForms($shipped, $shipped));
     }
 
+    /**
+     * A language with more than two forms (here: three, Czech-shaped): the identifier's value is the
+     * LAST form's ("many"/"other"), not msgstr[1] ("few") - decided 2026-09-28, see PluralForms.
+     */
+    public function testCollapsesToTheLastFormForAThreeFormLanguage(): void
+    {
+        $shipped = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => 'mnoho'];
+        $entries = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => 'mnoho NEU'];
+
+        $this->assertSame(['item' => 'mnoho NEU'], MigratedLanguageFileSync::collapsePluralForms($entries, $shipped));
+    }
+
+    /**
+     * The last form of a multi-form language is empty - collapsePluralForms() falls back to the
+     * closest non-empty form before it (PluralForms::defaultValueForCount()), not to form 0 directly
+     * nor to an empty string.
+     */
+    public function testCollapsesToTheClosestNonEmptyFormWhenTheLastFormIsEmpty(): void
+    {
+        $shipped = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => 'mnoho'];
+        $entries = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => ''];
+
+        $this->assertSame(['item' => 'dva'], MigratedLanguageFileSync::collapsePluralForms($entries, $shipped));
+    }
+
     // ------------------------------------------------------------- mapLegacyPluralValues()
 
     /**
@@ -139,6 +164,18 @@ class MigratedLanguageFileSyncPluralHelpersTest extends TestCase
         $entries = ['item' => 'Alter DB-Wert'];
 
         $this->assertSame(['item [1]' => 'Alter DB-Wert'], MigratedLanguageFileSync::mapLegacyPluralValues($entries, $shipped));
+    }
+
+    /**
+     * A language with more than two forms: the legacy plain value becomes the LAST form's key
+     * ("item [2]" for a three-form language), not "item [1]".
+     */
+    public function testAPlainValueOfAThreeFormLanguagesPluralIdentifierBecomesTheLastForm(): void
+    {
+        $shipped = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => 'mnoho'];
+        $entries = ['item' => 'Alter DB-Wert'];
+
+        $this->assertSame(['item [2]' => 'Alter DB-Wert'], MigratedLanguageFileSync::mapLegacyPluralValues($entries, $shipped));
     }
 
     public function testAPlainValueOfASingleFormLanguagesPluralIdentifierBecomesFormZero(): void

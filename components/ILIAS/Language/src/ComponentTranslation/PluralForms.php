@@ -35,8 +35,10 @@ use InvalidArgumentException;
  * formulas, an index outside of 0..count-1 for any sampled n) makes the header invalid.
  *
  * Rule for callers that need one value of a plural message (txt(), the database fallback, a
- * plugin's database write): the default form is msgstr[1] if the language has at least two forms,
- * msgstr[0] otherwise - see defaultFormIndex() and defaultValueOf().
+ * plugin's database write): the default form is the last one, msgstr[nplurals - 1] - CLDR's
+ * "other", the most general category (msgstr[1] is e.g. the 2-4 form in cs/pl/ru, the dual in sl,
+ * the singular in ar, the "million" form in es/fr/it/pt). If it is empty, the closest non-empty form
+ * before it is used - see defaultFormIndex() and defaultValueOf(). Decided 2026-09-28.
  */
 final class PluralForms
 {
@@ -189,8 +191,8 @@ final class PluralForms
     }
 
     /**
-     * The form serving a plural message where only one value can be used: msgstr[1] if there are at
-     * least two forms, msgstr[0] otherwise.
+     * The form serving a plural message where only one value can be used: the last one,
+     * msgstr[nplurals - 1].
      */
     public function defaultFormIndex(): int
     {
@@ -202,12 +204,13 @@ final class PluralForms
      */
     public static function defaultFormIndexForCount(int $count): int
     {
-        return $count >= 2 ? 1 : 0;
+        return max(0, $count - 1);
     }
 
     /**
      * The value of the default form (see defaultFormIndex()) of a message with $forms (msgstr[0],
-     * msgstr[1], ...), msgstr[0] if that form is missing or empty.
+     * msgstr[1], ...) - if that form is missing or empty, the closest form before it that is not;
+     * '' if all are empty.
      *
      * @param array<int, string> $forms
      */
@@ -223,9 +226,14 @@ final class PluralForms
      */
     public static function defaultValueForCount(array $forms, int $count): string
     {
-        $value = $forms[self::defaultFormIndexForCount($count)] ?? '';
+        for ($form = self::defaultFormIndexForCount($count); $form >= 0; $form--) {
+            $value = (string) ($forms[$form] ?? '');
+            if ($value !== '') {
+                return $value;
+            }
+        }
 
-        return $value !== '' ? $value : ($forms[0] ?? '');
+        return '';
     }
 
     /**

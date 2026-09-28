@@ -177,6 +177,7 @@ msgstr "Niemals"
 msgid "poll_vote"
 msgstr "Abstimmen"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Wählen Sie maximal %s Antworten aus."

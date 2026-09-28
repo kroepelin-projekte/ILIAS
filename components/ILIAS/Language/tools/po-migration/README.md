@@ -482,11 +482,27 @@ dynamisch zusammengesetzten Keys).
   genau `txt($a_topic, $a_default_lang_fallback_mod)`. Die Zahl setzt der Aufrufer selbst ein
   (`sprintf()`); ein negatives `$a_n` zählt wie sein Betrag.
 - **`txt()` ändert sich für keinen bestehenden Aufrufer.** Ein Plural-Eintrag liefert seine
-  **Standardform**: `msgstr[1]`, wenn die Sprache mindestens zwei Formen hat, sonst `msgstr[0]`
-  (ist die Form leer: `msgstr[0]`). Die Regel steht an genau einer Stelle
-  (`PluralForms::defaultFormIndex()`/`defaultValueOf()`) und gilt ebenso für `txtlng()`, den
-  DB-Dual-Write und die Plugin-`.po`-Brücke. Für `poll_population` ist das der bisherige Wert von
-  `poll_population`.
+  **Standardform = die letzte Form** `msgstr[nplurals-1]` (CLDR „other", die allgemeinste
+  Kategorie; entschieden 2026-09-28). Ist sie leer, gilt die letzte nicht leere Form davor; sind
+  alle leer, gilt der Eintrag als nicht geshippt. Die Regel steht an genau einer Stelle
+  (`PluralForms::defaultFormIndex()`/`defaultValueOf()`) und gilt ebenso für `txtlng()`,
+  `readMoTranslations*()`, den DB-Dual-Write samt `local_change`, alte Einzelwerte
+  (`mapLegacyPluralValues()`), „Neue Variable hinzufügen", die Admin-GUI und die
+  Plugin-`.po`-Brücke. Für `poll_population` ist das der bisherige Wert von `poll_population`.
+  `msgstr[1]` wäre falsch, weil es in vielen Sprachen eine Sonderform ist:
+
+  | Sprachen | nplurals | `msgstr[1]` | Standardform |
+  |---|---|---|---|
+  | cs, sk | 3 | n = 2–4 | `[2]` other |
+  | pl, ru, uk, hr, sr | 3 | 2–4 (few) | `[2]` many/other |
+  | lt | 3 | 2–9 (few) | `[2]` other |
+  | ro | 3 | 0, 2–19 (few) | `[2]` other |
+  | es, fr, it, pt | 3 | Millionen (many) | `[2]` other |
+  | sl | 4 | Dual (n % 100 = 2) | `[3]` other |
+  | ar | 6 | n = 1 | `[5]` other |
+
+  Für Sprachen mit 2 Formen (`[1]`) und mit einer Form (`[0]`) ändert sich gegenüber der früheren
+  Regel nichts.
 
 ### Formel-Auswertung (`PluralForms`)
 
@@ -502,15 +518,19 @@ Kein `eval`, kein `create_function`, kein `Gettext\Translator`. Validierung beim
 einige große Werte (1000, 1000000, …) muss der Index in 0…nplurals−1 liegen. Ein fehlender oder
 ungültiger Header ergibt die germanische Regel `nplurals=2; plural=(n != 1);` plus Warnung
 (Laufzeit: Logger `lang`, einmal pro Modul/Sprache und Request; Build: Warnung im Index; Plugin:
-Logger). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform.
+Logger). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform (letzte
+Form).
 
 ### Kanonische Tabelle und Konverter (`plurals.json`)
 
 `tools/po-migration/plurals.json` enthält
 
 - `plural_forms`: den `Plural-Forms`-Header aller 31 Sprachen der Root-`lang/ilias_*.lang`
-  (gettext/CLDR-Formeln, identisch mit den seit dem Piloten in `tos_*.po` stehenden Headern, die
-  `tos`-Dateien bleiben daher byte-identisch). Der Konverter schreibt ihn in jede erzeugte `.po`;
+  (identisch mit den seit dem Piloten in `tos_*.po` stehenden Headern, die `tos`-Dateien bleiben
+  daher byte-identisch). **Quelle: CLDR 48.2** (`release-48-2`, 2026-03-17), Integer-Kategorien;
+  für alle 31 Sprachen gegen n = 0…2000 und große Werte geprüft (31/31 OK). es/fr/it/pt behalten
+  die dreiformige CLDR-Regel (entschieden 2026-09-28). CLDR main (49, unveröffentlicht) ändert `vi`
+  auf zwei Formen (`nplurals=2; plural=n > 1;`) — bei Release 49 nachziehen. Der Konverter schreibt ihn in jede erzeugte `.po`;
   die `.pot` bekommt keinen.
 - `modules.<modul>`: die Plural-Einträge pro Modul, `msgid => {"singular": <key>, "plural_id": <msgid_plural>}`
   (beides optional, `msgid_plural` sonst `<key>_plural`, Label nach dem Beispiel des FR). Für `poll`:
@@ -523,9 +543,12 @@ Der Konverter erfindet keine Texte, er verteilt nur vorhandene Werte:
   Singular-Keys (falls vorhanden und nicht leer), `msgstr[1]` = bisheriger Wert.
 - alle anderen Sprachen und Einträge ohne Singular-Key (`poll_vote_error_multi`, „%s answers"):
   alle Formen = bisheriger Wert.
-- Der Fuzzy-Status folgt dem bisherigen Wert — und dem Singular-Key, wenn dessen Wert als
-  `msgstr[0]` übernommen wurde (z. B. `da`, `tr`: englischer Platzhalter); der Singular-Key bleibt
-  als eigener Eintrag erhalten;
+- **Fuzzy**, wenn der bisherige Wert fuzzy ist, wenn der Wert eines fuzzy Singular-Keys als
+  `msgstr[0]` übernommen wurde (z. B. `da`, `tr`: englischer Platzhalter), **oder wenn der bisherige
+  Wert in mehr als eine Form kopiert wurde** (die Formen sind dann noch zu übersetzen; betrifft
+  z. B. `poll_vote_error_multi` auch in `de`/`en` und `poll_population` in allen Sprachen ohne
+  „n == 1"-Regel). Sprachen mit `nplurals=1` kopieren nie. Die `.mo` kompiliert Fuzzy weiter mit,
+  zur Laufzeit ändert sich dadurch nichts. Der Singular-Key bleibt als eigener Eintrag erhalten;
   in der `.pot` hat ein Plural-Eintrag `msgstr[0]`/`msgstr[1]` leer.
 
 ### Datenmodell in den Schreib-/Lesepfaden (`PluralFormKey`)
@@ -960,7 +983,13 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    `PluralForms`; Längensumme der `.mo`-Strings gedeckelt; überzählige Formzeilen werden verworfen;
    leere Shipped-Übersetzungen werden nicht mehr als `''` in `lng_data` geschrieben (Runtime-Check:
    `poll/poll_import/en`).
-8. Nebenbefunde der Platzhalterprüfung (nicht geändert, Pflege der `.lang`): `fr`
+8. Nutzerentscheidungen: **Standardform = letzte Form** (`PluralForms::defaultFormIndexForCount()`
+   = nplurals−1, bei leerer Form abwärts die nächste nicht leere) statt `msgstr[1]`; es/fr/it/pt
+   bleiben dreiformig, Quelle CLDR 48.2 in `plurals.json` dokumentiert; Konverter markiert kopierte
+   Plural-Werte als fuzzy (`poll_*.po` neu erzeugt, 16 Dateien, nur `#, fuzzy`-Zeilen; `tos`
+   byte-identisch). Das Build-Kompilat enthält die Regel nicht (die `.mo` hat alle Formen), der
+   Fingerprint ändert sich trotzdem mit dem Hash von `PluralForms`, `FORMAT_VERSION` bleibt 3.
+9. Nebenbefunde der Platzhalterprüfung (nicht geändert, Pflege der `.lang`): `fr`
    `poll_vote_error_multi` („de% réponses"), `sv` `poll_voting_period_info` ohne `%s`, `tr`
    `poll_population`/`poll_block_results_available_on` („% s"), `pt` `poll_population` (falscher Text
    ohne `%s`); `en`, `ja`, `pt` fehlt `poll_import`.

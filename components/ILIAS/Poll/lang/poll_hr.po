@@ -127,6 +127,7 @@ msgstr "Deaktiviraj obavijest"
 msgid "poll_percentage"
 msgstr "Trenutni postotak"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s sudionika"
@@ -189,6 +190,7 @@ msgstr "Nikada"
 msgid "poll_vote"
 msgstr "Glasanje"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Molimo odaberite najviše %s odgovora."

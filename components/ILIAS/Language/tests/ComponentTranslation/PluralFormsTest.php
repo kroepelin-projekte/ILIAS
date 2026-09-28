@@ -136,8 +136,13 @@ class PluralFormsTest extends TestCase
 
     // ------------------------------------------------------------- default form
 
+    /**
+     * decided 2026-09-28 (superseding an earlier "msgstr[1], or msgstr[0] for a single form" rule,
+     * see the class docblock): the default form is always the LAST one - CLDR's "other", the most
+     * general category - never fixed at index 1 regardless of how many forms the language has.
+     */
     #[DataProvider('countsAndDefaultIndex')]
-    public function testDefaultFormIndexForCountIsOneFromTwoFormsOnwardsElseZero(int $count, int $expected): void
+    public function testDefaultFormIndexForCountIsTheLastForm(int $count, int $expected): void
     {
         $this->assertSame($expected, PluralForms::defaultFormIndexForCount($count));
     }
@@ -148,28 +153,29 @@ class PluralFormsTest extends TestCase
     public static function countsAndDefaultIndex(): array
     {
         return [
-            'single form' => [1, 0],
-            'two forms' => [2, 1],
-            'three forms' => [3, 1],
-            'six forms (Arabic)' => [6, 1],
+            'single form (ja/vi/zh)' => [1, 0],
+            'two forms (en/de)' => [2, 1],
+            'three forms (cs/pl/ru)' => [3, 2],
+            'four forms (sl)' => [4, 3],
+            'six forms (ar)' => [6, 5],
         ];
     }
 
-    public function testDefaultValueOfFallsBackToFormZeroWhenTheDefaultFormIsEmpty(): void
+    public function testDefaultValueOfFallsBackDownwardsWhenTheLastFormIsEmpty(): void
     {
         $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
 
         $this->assertSame('Eintrag', $forms->defaultValueOf(['Eintrag', '']));
     }
 
-    public function testDefaultValueOfFallsBackToFormZeroWhenTheDefaultFormIsMissingEntirely(): void
+    public function testDefaultValueOfFallsBackDownwardsWhenTheLastFormIsMissingEntirely(): void
     {
         $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
 
         $this->assertSame('Eintrag', $forms->defaultValueOf([0 => 'Eintrag']));
     }
 
-    public function testDefaultValueOfPrefersFormOneOverFormZeroWhenBothArePresent(): void
+    public function testDefaultValueOfPrefersTheLastFormWhenItIsNotEmpty(): void
     {
         $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
 
@@ -188,6 +194,53 @@ class PluralFormsTest extends TestCase
         $forms = PluralForms::fromHeader('nplurals=2; plural=(n != 1);');
 
         $this->assertSame('', $forms->defaultValueOf([]));
+    }
+
+    /**
+     * Three forms (e.g. Czech): the last one (index 2, "many") is preferred over the earlier ones.
+     */
+    public function testDefaultValueOfPrefersTheLastOfThreeForms(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);');
+
+        $this->assertSame('mnoho', $forms->defaultValueOf(['jeden', 'dva', 'mnoho']));
+    }
+
+    /**
+     * A gap in the middle (index 1 empty) is not the fallback target: the search from the last form
+     * downward skips straight to the next non-empty one before it, not to index 0.
+     */
+    public function testDefaultValueOfSkipsAnEmptyFormInTheMiddleWhileSearchingDownwards(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=4; plural=(n%100==1?0:(n%100==2?1:(n%100==3||n%100==4?2:3)));');
+
+        $this->assertSame(
+            'dve',
+            $forms->defaultValueOf(['ena', 'dve', '', '']),
+            'form 3 (the actual default) and form 2 are both empty - form 1 is the closest non-empty one'
+        );
+    }
+
+    /**
+     * Every form empty: no non-empty value exists anywhere to fall back to.
+     */
+    public function testDefaultValueOfIsEmptyWhenEveryFormIsEmpty(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);');
+
+        $this->assertSame('', $forms->defaultValueOf(['', '', '']));
+    }
+
+    /**
+     * A formula that fails to evaluate for a sampled n (a division by zero only that n reaches, see
+     * testFormIndexForFallsBackToTheDefaultFormWhenTheFormulaDividesByZeroForThisN below) falls back
+     * to the LAST form even for a language with more than two forms - not to index 1.
+     */
+    public function testFormIndexForFallsBackToTheLastFormOnEvaluationFailureForAMultiFormLanguage(): void
+    {
+        $forms = PluralForms::fromHeader('nplurals=3; plural=(n % (n==300 ? 0 : 3));');
+
+        $this->assertSame(2, $forms->formIndexFor(300));
     }
 
     // ------------------------------------------------------------- isOneSingularOtherPlural

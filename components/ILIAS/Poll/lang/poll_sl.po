@@ -127,6 +127,7 @@ msgstr "Onemogoči obveščanje"
 msgid "poll_percentage"
 msgstr "Aktualni delež"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s udeleženec"
@@ -190,6 +191,7 @@ msgstr "Nikoli"
 msgid "poll_vote"
 msgstr "Glasuj"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Izberite maksimalno %s odgovorov."

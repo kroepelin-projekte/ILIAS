@@ -118,6 +118,7 @@ msgstr "Desactivar Notificación"
 msgid "poll_percentage"
 msgstr "Porcentaje Actual"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s Participantes"
@@ -178,6 +179,7 @@ msgstr "Nunca"
 msgid "poll_vote"
 msgstr "Votar"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Por favor, seleccione no más de %s respuestas."

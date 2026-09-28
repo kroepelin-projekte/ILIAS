@@ -139,6 +139,7 @@ msgstr "Deactivate Notification"
 msgid "poll_percentage"
 msgstr "Текущий процент"
 
+#, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
 msgstr[0] "%s голосов"

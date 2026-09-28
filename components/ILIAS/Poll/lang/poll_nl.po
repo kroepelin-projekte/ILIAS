@@ -190,6 +190,7 @@ msgstr "Nooit"
 msgid "poll_vote"
 msgstr "Stemmen"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Niet meer dan %s antwoorden selecteren"

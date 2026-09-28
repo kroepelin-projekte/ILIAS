@@ -177,6 +177,7 @@ msgstr "Soha"
 msgid "poll_vote"
 msgstr "Szavazás"
 
+#, fuzzy
 msgid "poll_vote_error_multi"
 msgid_plural "poll_vote_error_multi_plural"
 msgstr[0] "Ne válasszon többet, mint %s."

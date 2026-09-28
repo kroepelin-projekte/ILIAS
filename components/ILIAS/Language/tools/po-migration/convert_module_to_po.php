@@ -47,8 +47,10 @@ declare(strict_types=1);
  * the value of the configured singular key (if the language has it) and msgstr[1] the message's own
  * value; in every other language, and for a message without singular key, every form is the
  * message's own value. The msgid_plural is "<msgid>_plural" unless configured. The fuzzy flag
- * follows the message's own value - and the singular key's, where its value became msgstr[0]. The
- * singular key stays an entry of its own.
+ * follows the message's own value - and the singular key's, where its value became msgstr[0] -, and
+ * is also set wherever the own value was copied into more than one form (those forms still need a
+ * translation; a language with a single form never copies). The singular key stays an entry of
+ * its own.
  *
  * Deliberately declares no named classes or functions: this file lives inside the classmap-scanned
  * components/ tree, and anything named here would end up in Composer's autoload classmap (and be
@@ -170,14 +172,31 @@ $is_fuzzy_marker = static function (string $comment): bool {
  * @param array{singular?: string, plural_id?: string} $definition
  * @return list<string>
  */
-$plural_forms_of = static function (string $key, array $definition, array $entries, PluralForms $plural_forms): array {
+$takes_singular = static function (string $key, array $definition, array $entries, PluralForms $plural_forms): bool {
     $value = $entries[$key]['value'] ?? '';
     $singular = isset($definition['singular']) ? ($entries[$definition['singular']]['value'] ?? null) : null;
-    if ($value !== '' && $singular !== null && $singular !== '' && $plural_forms->isOneSingularOtherPlural()) {
-        return [$singular, $value];
+
+    return $value !== '' && $singular !== null && $singular !== '' && $plural_forms->isOneSingularOtherPlural();
+};
+$plural_forms_of = static function (string $key, array $definition, array $entries, PluralForms $plural_forms) use ($takes_singular): array {
+    $value = $entries[$key]['value'] ?? '';
+    if ($takes_singular($key, $definition, $entries, $plural_forms)) {
+        return [$entries[$definition['singular']]['value'], $value];
     }
 
     return array_fill(0, $plural_forms->getCount(), $value);
+};
+/**
+ * Whether the own value of the plural message $key was copied into more than one form (see the
+ * file docblock) - such a message is flagged fuzzy.
+ *
+ * @param array<string, array{value: string, comment: ?string}> $entries
+ * @param array{singular?: string, plural_id?: string} $definition
+ */
+$copies_own_value = static function (string $key, array $definition, array $entries, PluralForms $plural_forms) use ($takes_singular): bool {
+    return ($entries[$key]['value'] ?? '') !== ''
+        && $plural_forms->getCount() > 1
+        && !$takes_singular($key, $definition, $entries, $plural_forms);
 };
 
 /**
@@ -194,7 +213,7 @@ $build_catalog = static function (
     array $existing_headers,
     ?PluralForms $plural_forms,
     array $plural_definitions
-) use ($is_fuzzy_marker, $plural_forms_of): TranslationCatalog {
+) use ($is_fuzzy_marker, $plural_forms_of, $copies_own_value): TranslationCatalog {
     $is_template = $translation_entries === null;
     $catalog = new TranslationCatalog();
     foreach ($existing_headers as $name => $value) {
@@ -247,6 +266,10 @@ $build_catalog = static function (
                 && $is_fuzzy_marker($singular_comment)
                 && $entry->getPluralTranslations()[0] !== ($own['value'] ?? '')
             ) {
+                $entry->addFlag('fuzzy');
+            }
+            // the own value copied into several forms: they still need a translation
+            if ($plural_definition !== null && $copies_own_value((string) $key, $plural_definition, $translation_entries, $plural_forms)) {
                 $entry->addFlag('fuzzy');
             }
         }
