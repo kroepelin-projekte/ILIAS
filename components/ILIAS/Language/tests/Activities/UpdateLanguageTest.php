@@ -25,13 +25,14 @@ use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use ilSetupLanguage;
 
 class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 {
     protected function createDefaultActivity(): UpdateLanguage
     {
-        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         return $this->createActivity($setup_language);
@@ -48,7 +49,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
      */
     public function testPassesOnlyTheLanguageKeyToInsertLanguageForInstallation(): void
     {
-        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
         $calls = [];
         $setup_language->method('insertLanguageForInstallation')->willReturnCallback(
@@ -314,7 +315,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     {
         $this->expectException(InvalidInputException::class);
 
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform($parameters);
+        $this->createActivity($this->createSetupLanguageStub([], [], []))->perform($parameters);
     }
 
     /**
@@ -327,7 +328,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     {
         $this->expectException(InvalidInputException::class);
 
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform('not-an-array');
+        $this->createActivity($this->createSetupLanguageStub([], [], []))->perform('not-an-array');
     }
 
     public function testInputDescriptionUsesOnlyTheLanguageKeysFieldWithNoModeField(): void
@@ -355,7 +356,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
             ->willReturn($group);
 
         $activity = $this->createActivity(
-            $this->createSetupLanguageMock([], [], [])
+            $this->createSetupLanguageStub([], [], [])
         );
 
         $this->assertSame($group, $activity->getInputDescription($field));
@@ -395,7 +396,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         $result = $this->createActivity(
@@ -425,7 +426,7 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de', 'fr']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         $result = $this->createActivity($setup_language, $rbac)
@@ -454,6 +455,29 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         array $installed_language_keys
     ): MockObject&ilSetupLanguage {
         $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language->method('getAvailableLanguagesForInstallation')->willReturn($available_languages);
+        $setup_language->method('getLocalLanguages')->willReturn($local_language_keys);
+        $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);
+
+        return $setup_language;
+    }
+
+    /**
+     * Stub variant of createSetupLanguageMock() for tests/call sites that never add their own
+     * ->expects() on the returned double (e.g. createDefaultActivity() or validation-rejection
+     * tests that never reach a collaborator call) - a plain createMock() there triggers PHPUnit's
+     * "no expectations configured" notice.
+     *
+     * @param array<mixed> $available_languages
+     * @param array<mixed> $local_language_keys
+     * @param array<mixed> $installed_language_keys
+     */
+    private function createSetupLanguageStub(
+        array $available_languages,
+        array $local_language_keys,
+        array $installed_language_keys
+    ): Stub&ilSetupLanguage {
+        $setup_language = $this->createStub(ilSetupLanguage::class);
         $setup_language->method('getAvailableLanguagesForInstallation')->willReturn($available_languages);
         $setup_language->method('getLocalLanguages')->willReturn($local_language_keys);
         $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);

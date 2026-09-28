@@ -238,6 +238,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * production class. This also pins down that the parameters are built
      * from $this->object->key, not some other source.
      */
+    // createGuiForSaveSettings()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initNewSettingsForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveSettingsObjectBuildsEnabledTrueFromANonEmptyTranslationPostValue(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -264,6 +267,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * "translation" POST key must build enabled=false, exactly like an
      * explicit empty string does.
      */
+    // createGuiForSaveSettings()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initNewSettingsForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveSettingsObjectBuildsEnabledFalseWhenTranslationPostKeyIsMissing(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -285,6 +291,9 @@ class ilObjLanguageExtGUITest extends TestCase
         $gui->saveSettingsObject();
     }
 
+    // createGuiForSaveSettings()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initNewSettingsForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveSettingsObjectShowsSuccessMessageWhenResultReportsChangedTrue(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -312,6 +321,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * extracted code's original behaviour (see the 'changed' field's own
      * description in SetLanguageTranslationEnabled::getOutputDescription()).
      */
+    // createGuiForSaveSettings()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initNewSettingsForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveSettingsObjectShowsNoMessageWhenResultReportsChangedFalse(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -341,6 +353,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * activityErrorMessage() (logged, generic message shown), never the raw
      * message.
      */
+    // createGuiForSaveSettings()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initNewSettingsForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveSettingsObjectShowsGenericFailureMessageAndNeverRedirectsOnThrowableError(): void
     {
         $this->stubLoggerLangError('boom');
@@ -426,6 +441,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * installed language (via $this->lng->getInstalledLanguages()), each
      * value trimmed from the form's own "trans_<lang_key>" field.
      */
+    // createGuiForSaveNewEntry()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initAddNewEntryForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveNewEntryObjectBuildsModuleIdentifierAndTranslationsFromFormAcrossAllInstalledLanguages(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -460,6 +478,9 @@ class ilObjLanguageExtGUITest extends TestCase
         $gui->saveNewEntryObject();
     }
 
+    // createGuiForSaveNewEntry()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initAddNewEntryForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveNewEntryObjectShowsSuccessMessageAndRedirectsToViewOnSuccess(): void
     {
         $user = $this->createStub(ilObjUser::class);
@@ -497,6 +518,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * ilObjLanguageFolderGUI's write commands - and must not crash/continue
      * to the success path.
      */
+    // createGuiForSaveNewEntry()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initAddNewEntryForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveNewEntryObjectShowsGenericFailureMessageAndRedirectsToViewOnThrowableError(): void
     {
         $this->stubLoggerLangError('boom');
@@ -544,6 +568,9 @@ class ilObjLanguageExtGUITest extends TestCase
      * filled in ($form->setValuesByPost(), then addNewEntryObject($form)),
      * exactly like the existing $form->checkInput() === false branch does.
      */
+    // createGuiForSaveNewEntry()'s $gui is a partial mock (PHPUnit has no partial-double stub
+    // builder) stubbing only initAddNewEntryForm() - it is never itself asserted on.
+    #[AllowMockObjectsWithoutExpectations]
     public function testSaveNewEntryObjectDoesNotRedirectAndReshowsTheFormWithPostedValuesOnASafeToDisplayError(): void
     {
         $user = $this->createStub(ilObjUser::class);

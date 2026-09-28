@@ -1487,18 +1487,27 @@ class ilObjLanguageFolderGUITest extends TestCase
      *        is trusted" test below uses: that IS the property the blocker
      *        fix guarantees, not just an implementation detail.
      */
+    /**
+     * Only the $expect_no_title_lookup branch adds a real ->expects() to the double - the other
+     * (default) branch never asserts anything on the cache itself, so it is built as a plain stub
+     * there to avoid PHPUnit's "no expectations configured" notice for an unverified mock.
+     */
     private function stubObjDataCache(
         array $types_by_id,
         array $titles_by_id = [],
         bool $expect_no_title_lookup = false
     ): void {
-        $cache = $this->createMock(\ilObjectDataCache::class);
-        $cache->method('lookupType')->willReturnCallback(
-            static fn(int $id): string => $types_by_id[$id] ?? ''
-        );
         if ($expect_no_title_lookup) {
+            $cache = $this->createMock(\ilObjectDataCache::class);
+            $cache->method('lookupType')->willReturnCallback(
+                static fn(int $id): string => $types_by_id[$id] ?? ''
+            );
             $cache->expects($this->never())->method('lookupTitle');
         } else {
+            $cache = $this->createStub(\ilObjectDataCache::class);
+            $cache->method('lookupType')->willReturnCallback(
+                static fn(int $id): string => $types_by_id[$id] ?? ''
+            );
             $cache->method('lookupTitle')->willReturnCallback(
                 static fn(int $id): string => $titles_by_id[$id] ?? ''
             );

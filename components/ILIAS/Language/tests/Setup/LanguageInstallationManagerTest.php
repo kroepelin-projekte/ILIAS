@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -44,6 +45,25 @@ class LanguageInstallationManagerTest extends TestCase
     private function createDatabaseMock(): MockObject&ilDBInterface
     {
         $db = $this->createMock(ilDBInterface::class);
+        $db->method('nextId')->willReturn(42);
+        $db->method('quote')->willReturnCallback(
+            static fn(mixed $value): string => "'" . (string) $value . "'"
+        );
+        $db->method('now')->willReturn('NOW()');
+        $db->method('manipulate')->willReturn(1);
+
+        return $db;
+    }
+
+    /**
+     * Stub variant of createDatabaseMock() for tests that never add their own ->expects() on the
+     * returned double (they only inspect calls captured via a willReturnCallback() override, or
+     * don't care about manipulate() calls at all) - a plain createMock() there triggers PHPUnit's
+     * "no expectations configured" notice.
+     */
+    private function createDatabaseStub(): Stub&ilDBInterface
+    {
+        $db = $this->createStub(ilDBInterface::class);
         $db->method('nextId')->willReturn(42);
         $db->method('quote')->willReturnCallback(
             static fn(mixed $value): string => "'" . (string) $value . "'"
@@ -115,7 +135,7 @@ class LanguageInstallationManagerTest extends TestCase
 
     public function testInstallLanguagesSetsLastUpdateOnUninstallUsingInjectedClock(): void
     {
-        $db = $this->createDatabaseMock();
+        $db = $this->createDatabaseStub();
         $calls = [];
         $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
             $calls[] = $query;
@@ -166,7 +186,7 @@ class LanguageInstallationManagerTest extends TestCase
 
     public function testFlushLanguageForUninstallationDeletesEverything(): void
     {
-        $db = $this->createDatabaseMock();
+        $db = $this->createDatabaseStub();
         $calls = [];
         $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
             $calls[] = $query;
@@ -199,7 +219,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -245,7 +265,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -304,7 +324,7 @@ class LanguageInstallationManagerTest extends TestCase
         try {
             $calls = 0;
             $inserts = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(
                 static function (string $query) use (&$inserts): int {
@@ -371,7 +391,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -439,7 +459,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -493,7 +513,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -554,7 +574,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -621,7 +641,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -687,7 +707,7 @@ class LanguageInstallationManagerTest extends TestCase
      */
     public function testInstallLanguagesDoesNotReUpdateAlreadyNotInstalledLanguage(): void
     {
-        $db = $this->createDatabaseMock();
+        $db = $this->createDatabaseStub();
         $calls = [];
         $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
             $calls[] = $query;
@@ -747,7 +767,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('assessment')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -805,7 +825,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -864,7 +884,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('file')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
@@ -912,7 +932,7 @@ class LanguageInstallationManagerTest extends TestCase
 
         try {
             $calls = [];
-            $db = $this->createDatabaseMock();
+            $db = $this->createDatabaseStub();
             $db->method('in')->willReturn("module IN ('common')");
             $db->method('manipulate')->willReturnCallback(static function (string $query) use (&$calls): int {
                 $calls[] = $query;
