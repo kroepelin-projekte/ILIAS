@@ -258,7 +258,25 @@ class InstalledLanguageDatabaseRepository implements InstalledLanguageRepository
 
     public function checkLanguage(string $lang_key): bool
     {
-        foreach ($this->language_file_directory_manager->getAllDirectories() as $directory) {
+        return $this->checkLanguageIn($lang_key, $this->language_file_directory_manager->getAllDirectories());
+    }
+
+    /**
+     * checkLanguage() without the customizing/local directory: whether $lang_key can be rebuilt
+     * purely from its shipped files (global/component `.lang`, shipped `.po`) - what "remove local
+     * changes" does, which does not apply the customizing file, so an invalid one must not block it.
+     */
+    public function checkShippedLanguage(string $lang_key): bool
+    {
+        return $this->checkLanguageIn($lang_key, $this->language_file_directory_manager->getDirectories());
+    }
+
+    /**
+     * @param iterable<LanguageFileDirectory> $directories
+     */
+    private function checkLanguageIn(string $lang_key, iterable $directories): bool
+    {
+        foreach ($directories as $directory) {
             $required = $directory instanceof \ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
             if (!$this->checkLanguageFile($lang_key, $directory, $required)) {
                 return false;

@@ -32,10 +32,14 @@ class RemoveLocalLanguageChanges extends LanguageActivity
 
     private readonly \Closure $lng_objects;
     private readonly \Closure $obj_language_factory;
+    private readonly \Closure $refresh_plugins;
 
     /**
      * @param \Closure|null $lng_objects (): list<array{obj_id: int, title: string}>
      * @param \Closure|null $obj_language_factory (int $obj_id): \ilObjLanguage
+     * @param \Closure|null $refresh_plugins (list<string> $lang_keys): void - re-applies the plugin
+     *        language files (removing local changes flushes their rows as well); by default
+     *        ilObjLanguage::refreshPlugins(), a no-op without the component repository
      */
     public function __construct(
         RefineryFactory $refinery,
@@ -44,12 +48,20 @@ class RemoveLocalLanguageChanges extends LanguageActivity
         int|\Closure $language_folder_ref_id = 0,
         ?\Closure $lng_objects = null,
         ?\Closure $obj_language_factory = null,
+        ?\Closure $refresh_plugins = null,
     ) {
         parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
         $this->lng_objects = $lng_objects
             ?? static fn(): array => \ilObject::_getObjectsByType('lng');
         $this->obj_language_factory = $obj_language_factory
             ?? static fn(int $obj_id): \ilObjLanguage => new \ilObjLanguage($obj_id, false);
+        $this->refresh_plugins = $refresh_plugins
+            ?? static function (array $lang_keys): void {
+                global $DIC;
+                if (isset($DIC) && $DIC->offsetExists('component.repository')) {
+                    \ilObjLanguage::refreshPlugins($lang_keys);
+                }
+            };
     }
 
     public function getDescription(): Text\SimpleDocumentMarkdown
@@ -58,8 +70,10 @@ class RemoveLocalLanguageChanges extends LanguageActivity
             <<<'MARKDOWN'
 Removes all local changes of one or more already installed languages - both
 entries edited directly via the "adjust language variables" table and any
-override coming from a customizing/local language file - and reinstalls each
-language purely from the global/component language files.
+override coming from a customizing/local language file, locally added variables
+and remarks - and reinstalls each language purely from the global/component
+language files (for a module maintained in PO files: from its shipped .po, its
+overlay is removed); the language files of the active plugins are applied again.
 
 A language is left completely untouched, and reported separately, if it is
 not installed (or not a known language key at all), or if its underlying
@@ -98,6 +112,16 @@ MARKDOWN
                 'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
+    }
+
+    private static function logWarning(string $message): void
+    {
+        global $DIC;
+        try {
+            $DIC->logger()->forComponent('lang')->warning($message);
+        } catch (\Throwable) {
+            error_log($message);
+        }
     }
 
     public function perform(mixed $parameters): array
@@ -146,7 +170,21 @@ MARKDOWN
             // removeLocalChanges() re-checks isInstalled() internally (and additionally
             // validates the language file) and returns false if either fails - "not installed"
             // is already excluded above, so false here can only mean validation failed.
-            if ($language_object->removeLocalChanges()) {
+            try {
+                $removed = $language_object->removeLocalChanges();
+            } catch (\Throwable $t) {
+                // flush("all") and the rebuild are not one transaction: the language may be left
+                // incomplete - reported, and the way back named
+                self::logWarning(sprintf(
+                    'Removing the local changes of language "%s" failed after its data was flushed - '
+                    . 'the language may be incomplete, run "php cli/setup.php update" (or "Update" in the '
+                    . 'language list) to rebuild it: %s',
+                    $language_key,
+                    $t->getMessage()
+                ));
+                throw $t;
+            }
+            if ($removed) {
                 $removed_local_changes_language_keys[] = $language_key;
                 if ($language_object->getModulesWithUnwrittenOverlay() !== []) {
                     $overlay_write_failed_language_keys[] = $language_key;
@@ -154,6 +192,12 @@ MARKDOWN
             } else {
                 $invalid_language_file_keys[] = $language_key;
             }
+        }
+
+        // Plugin language files are re-applied only for the languages whose local changes were
+        // actually removed (their rows were flushed with the rest)
+        if ($removed_local_changes_language_keys !== []) {
+            ($this->refresh_plugins)($removed_local_changes_language_keys);
         }
 
         return [

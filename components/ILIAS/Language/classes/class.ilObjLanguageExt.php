@@ -438,36 +438,26 @@ class ilObjLanguageExt extends ilObjLanguage
     *
     * $a_mode_existing      handling of existing values
     *                       ('keepall','keepnew','replace','delete')
-    * $refreshOriginalFromShipped   Whether $a_file IS the shipped core language file for this
-    *                       component (i.e. this import represents "reset to shipped defaults", not
-    *                       importing an admin-uploaded or customizing/local file that merely happens
-    *                       to have the same format) - forwarded to _saveValues()/replaceLangModule()
-    *                       and to syncMigratedFilesAfterDeleteModeImport() (see their own docblocks).
-    *                       Defaults to `false`: an uploaded or customizing file is never assumed to be
-    *                       the shipped baseline, even under "replace" mode. When `true`, the values
-    *                       of every module migrated to PO/MO are taken from its shipped .po instead
-    *                       of $a_file (see getShippedValues()) - and nothing at all is imported if
-    *                       one of these shipped .po files cannot be read.
-    * $skipInvalidMarkup    Every value of an uploaded or customizing/local file ($refreshOriginalFromShipped
-    *                       `false`) the import changes (see findInvalidMarkupOfChangedValues()) is
+    * An uploaded or customizing/local file - its values are local ones (resetting a language to its
+    * shipped state is RemoveLocalLanguageChanges, see ilObjLanguage::removeLocalChanges()).
+    *
+    * $a_mode_existing      handling of existing values
+    *                       ('keepall','keepnew','replace','delete')
+    * $skipInvalidMarkup    Every value the import changes (see findInvalidMarkupOfChangedValues()) is
     *                       checked by TranslationMarkupPolicy before anything is changed.
     *                       `false` (an upload): one value with markup that is not allowed rejects the
     *                       whole import (ilLanguageInvalidMarkupException). `true` (the customizing
     *                       file, applied like at installation): such values are left out, the others
-    *                       imported - see getSkippedInvalidMarkupValues(). The shipped file is not
-    *                       checked (its values are shipped, not local ones).
+    *                       imported - see getSkippedInvalidMarkupValues().
     *
     * @return list<string> the modules maintained in PO files whose PO/MO overlay could not be
     *         written - the database was written regardless; empty if every overlay is in sync
-    * @throws ilLanguageException with $refreshOriginalFromShipped, if the shipped .po of a module
-    *         maintained in PO files cannot be read - thrown before anything is changed
     * @throws ilLanguageInvalidMarkupException see $skipInvalidMarkup - thrown before anything is
     *         changed
     */
     public function importLanguageFile(
         string $a_file,
         string $a_mode_existing = "keepnew",
-        bool $refreshOriginalFromShipped = false,
         bool $skipInvalidMarkup = false
     ): array {
         global $DIC;
@@ -481,43 +471,31 @@ class ilObjLanguageExt extends ilObjLanguage
             $ilErr->raiseError($import_file_obj->getErrorMessage(), $ilErr->MESSAGE);
         }
 
+        // A plain line of a plural message is its default form - before the modes compare and the
+        // markup check runs (see withPluralFormKeys())
+        $file_values = self::withPluralFormKeys($import_file_obj->getAllValues(), $this->shippedMigratedModules(), $this->separator);
+        $file_comments = self::withPluralFormKeys($import_file_obj->getAllComments(), $this->shippedMigratedModules(), $this->separator);
+
         $this->skipped_invalid_markup_values = [];
         // Only values the import actually changes (neither the current nor the shipped value) are
         // checked - an exported file imported again must not be rejected for shipped texts
         // - and no value the mode keeps (the existing value stays, the imported one is not written)
         $invalid_values = [];
-        if (!$refreshOriginalFromShipped) {
-            $policy = new TranslationMarkupPolicy();
-            $kept_by_mode = match ($a_mode_existing) {
-                "keepall" => $this->getAllValues(),
-                "keepnew" => $this->getChangedValues(),
-                default => [],
-            };
-            $written = array_diff_key($import_file_obj->getAllValues(), $kept_by_mode);
-            $candidates = array_intersect_key($written, $policy->findInvalidValues($written));
-            if ($candidates !== []) {
-                $invalid_values = $policy->findInvalidChangedValues($candidates, $this->getAllValues(), $this->getShippedValues());
-            }
+        $policy = new TranslationMarkupPolicy();
+        $kept_by_mode = match ($a_mode_existing) {
+            "keepall" => $this->getAllValues(),
+            "keepnew" => $this->getChangedValues(),
+            default => [],
+        };
+        $written = array_diff_key($file_values, $kept_by_mode);
+        $candidates = array_intersect_key($written, $policy->findInvalidValues($written));
+        if ($candidates !== []) {
+            $invalid_values = $policy->findInvalidChangedValues($candidates, $this->getAllValues(), $this->getShippedValues());
         }
         if ($invalid_values !== [] && !$skipInvalidMarkup) {
             throw new ilLanguageInvalidMarkupException($invalid_values);
         }
         $this->skipped_invalid_markup_values = $invalid_values;
-
-        $shipped = null;
-        if ($refreshOriginalFromShipped) {
-            // Checked before anything is changed: resetting to the shipped values without the
-            // shipped values of a migrated module would silently reset it to its outdated .lang lines.
-            // Read through the instance cache, so a caller reporting getUnreadableShippedPoModules()
-            // afterwards neither parses nor logs the same files again.
-            $shipped = $this->shippedMigratedModules();
-            if ($shipped['unreadable_modules'] !== []) {
-                throw new ilLanguageException(sprintf(
-                    'The shipped PO files of the following modules cannot be read: %s',
-                    implode(', ', $shipped['unreadable_modules'])
-                ));
-            }
-        }
 
         // Only "delete" wipes lng_data/lng_modules for the whole language up front, independently of
         // what the imported file actually contains - see below. The other three modes never remove a
@@ -554,15 +532,7 @@ class ilObjLanguageExt extends ilObjLanguage
                 return [];
         }
 
-        $import_values = array_diff_key($import_file_obj->getAllValues(), $invalid_values);
-        if ($shipped !== null) {
-            // $a_file is the shipped .lang file - for a migrated module the shipped .po is the only
-            // source of its shipped values, not the module's (possibly outdated) .lang lines
-            $import_values = array_merge(
-                self::withoutModules($import_values, $shipped['modules'], $this->separator),
-                $shipped['values']
-            );
-        }
+        $import_values = array_diff_key($file_values, $invalid_values);
 
         // process the values of the import file
         $to_save = array();
@@ -571,33 +541,19 @@ class ilObjLanguageExt extends ilObjLanguage
                 $to_save[$key] = $value;
             }
         }
-        $import_comments = $import_file_obj->getAllComments();
-        if ($shipped !== null) {
-            // Resetting to the shipped state: a migrated module has no shipped remarks (the "###"
-            // comments of its .lang lines are not its source) - its remarks are local changes and
-            // removed below
-            $import_comments = self::withoutModules($import_comments, $shipped['modules'], $this->separator);
-        }
         // "delete" wiped every module above: $to_save is each module's complete content then, it is
         // not merged onto the (for a migrated module: still existing) overlay
         $modules_with_unwritten_overlay = self::saveValues(
             $this->key,
             $to_save,
-            $import_comments,
-            $refreshOriginalFromShipped,
+            $file_comments,
             $a_mode_existing !== "delete"
         );
-        if ($shipped !== null) {
-            $modules_with_unwritten_overlay = array_merge(
-                $modules_with_unwritten_overlay,
-                self::removeRemarksOfMigratedModules($this->key, $shipped['modules'])
-            );
-        }
 
         if ($a_mode_existing === "delete") {
             $modules_with_unwritten_overlay = array_merge(
                 $modules_with_unwritten_overlay,
-                $this->syncMigratedFilesAfterDeleteModeImport($modules_before_delete, $to_save, $refreshOriginalFromShipped)
+                $this->syncMigratedFilesAfterDeleteModeImport($modules_before_delete, $to_save)
             );
         }
 
@@ -628,14 +584,11 @@ class ilObjLanguageExt extends ilObjLanguage
      *        captured before the raw DELETE above ran.
      * @param array<string, string> $to_save module.separator.topic => value, exactly what was just
      *        written via _saveValues() - the complete, final DB content for this language now.
-     * @param bool $refreshOriginalFromShipped forwarded verbatim to MigratedLanguageFileSync::sync()
-     *        below - see importLanguageFile()'s docblock for what it means here.
      * @return list<string> the modules whose overlay could not be written
      */
     private function syncMigratedFilesAfterDeleteModeImport(
         array $modules_before_delete,
-        array $to_save,
-        bool $refreshOriginalFromShipped = false
+        array $to_save
     ): array {
         global $DIC;
 
@@ -662,8 +615,7 @@ class ilObjLanguageExt extends ilObjLanguage
                     $this->key,
                     (string) $module,
                     $entries_by_module[$module] ?? [],
-                    $client_data_dir,
-                    $refreshOriginalFromShipped
+                    $client_data_dir
                 );
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
@@ -1042,9 +994,6 @@ class ilObjLanguageExt extends ilObjLanguage
     * $a_lang_key      language key
     * $a_values        module.separator.topic => value
     * $a_remarks       module.separator.topic => remarks
-    * $refreshOriginalFromShipped forwarded verbatim to ilObjLanguage::replaceLangModule() - see its
-    *      own docblock. `false` (the default) for an ordinary form-save; `true` only when the caller
-    *      can vouch that $a_values reflects the current shipped content (see importLanguageFile()).
     *
     * @return list<string> the modules maintained in PO files whose PO/MO overlay could not be
     *         written - the database was written regardless; empty if every overlay is in sync
@@ -1052,10 +1001,9 @@ class ilObjLanguageExt extends ilObjLanguage
     public static function _saveValues(
         string $a_lang_key,
         array $a_values = array(),
-        array $a_remarks = array(),
-        bool $refreshOriginalFromShipped = false
+        array $a_remarks = array()
     ): array {
-        return self::saveValues($a_lang_key, $a_values, $a_remarks, $refreshOriginalFromShipped, true);
+        return self::saveValues($a_lang_key, $a_values, $a_remarks, true);
     }
 
     /**
@@ -1068,7 +1016,6 @@ class ilObjLanguageExt extends ilObjLanguage
         string $a_lang_key,
         array $a_values,
         array $a_remarks,
-        bool $refreshOriginalFromShipped,
         bool $merge_onto_current_content
     ): array {
         global $DIC;
@@ -1082,6 +1029,9 @@ class ilObjLanguageExt extends ilObjLanguage
         // Read and get the shipped values - for a module maintained in PO files from its shipped .po
         // (an unreadable one keeps its .lang lines for this comparison, see getShippedValues())
         $shipped_migrated = self::readShippedMigratedModules($a_lang_key);
+        // a plain value of a plural message is its default form (see withPluralFormKeys())
+        $a_values = self::withPluralFormKeys($a_values, $shipped_migrated, $lng->separator);
+        $a_remarks = self::withPluralFormKeys($a_remarks, $shipped_migrated, $lng->separator);
         [$file_values, $file_comments] = self::shippedValuesAndComments(
             ilLanguageFile::_getGlobalLanguageFile($a_lang_key),
             $shipped_migrated
@@ -1110,13 +1060,14 @@ class ilObjLanguageExt extends ilObjLanguage
 
             list($module, $topic) = $keys;
             if (in_array($module, $shipped_migrated['modules'], true)) {
+                $shipped_by_module[$module] ??= self::shippedModuleValues($shipped_migrated, $module, $lng->separator);
                 // A module maintained in PO files: the value is what its overlay keeps, e.g. an
                 // empty value resets to the shipped one (see resolveLocalValue()) - written the same
                 // way here, so lng_data does not diverge from what is served
                 $value = MigratedLanguageFileSync::resolveLocalValue($shipped_migrated['values'][$key] ?? null, (string) $value);
                 $plural_identifier = MigratedLanguageFileSync::pluralMessageOf(
                     $topic,
-                    $shipped_by_module[$module] ??= self::shippedModuleValues($shipped_migrated, $module, $lng->separator)
+                    $shipped_by_module[$module]
                 );
                 if ($plural_identifier !== null) {
                     if (PluralFormKey::parse($topic) !== null && !array_key_exists($topic, $shipped_by_module[$module])) {
@@ -1200,18 +1151,13 @@ class ilObjLanguageExt extends ilObjLanguage
             $written = self::withModuleLock(
                 $a_lang_key,
                 $module,
-                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content, $module_plural_rows, $shipped_module_values, $save_date, $module_remark_changes): bool {
+                static function () use ($a_lang_key, $module, $entries, $merge_onto_current_content, $module_plural_rows, $shipped_module_values, $save_date, $module_remark_changes): bool {
                     // Without a current content (e.g. no lng_modules row of a module that is not
                     // maintained in PO files) the entries are written as they are - replaceLangModule()
                     // then creates the row from scratch
                     $current = $merge_onto_current_content ? self::currentModuleContent($a_lang_key, $module) : [];
                     $content = array_merge($current, $entries);
-                    $written = ilObjLanguage::replaceLangModule(
-                        $a_lang_key,
-                        $module,
-                        $content,
-                        $refreshOriginalFromShipped
-                    );
+                    $written = ilObjLanguage::replaceLangModule($a_lang_key, $module, $content);
                     self::writePluralRows($a_lang_key, $module, $content, $shipped_module_values, $module_plural_rows, $save_date);
                     return self::setOverlayRemarks($a_lang_key, $module, $module_remark_changes) && $written;
                 }
@@ -1224,6 +1170,42 @@ class ilObjLanguageExt extends ilObjLanguage
         ilCachedLanguage::getInstance($a_lang_key)->flush();
 
         return $modules_with_unwritten_overlay;
+    }
+
+    /**
+     * $entries (module.separator.identifier => value or remark) with the plain identifier of a
+     * plural message of a module maintained in PO files replaced by the key of its default form (the
+     * last one, see MigratedLanguageFileSync::defaultFormKeyOf()) - the form its lng_data row stands
+     * for. Where $entries has both, the later one wins. Used for every input (import file, saved
+     * values, remarks), before anything is compared, kept or checked.
+     *
+     * @param array<string, mixed> $entries
+     * @param array{values: array<string, string>, modules: list<string>} $shipped_migrated see
+     *        readShippedMigratedModules()
+     * @return array<string, mixed>
+     */
+    private static function withPluralFormKeys(array $entries, array $shipped_migrated, string $separator): array
+    {
+        if ($shipped_migrated['modules'] === []) {
+            return $entries;
+        }
+        $shipped_by_module = [];
+        $result = [];
+        foreach ($entries as $key => $value) {
+            $keys = explode($separator, (string) $key);
+            if (count($keys) === 2 && in_array($keys[0], $shipped_migrated['modules'], true)) {
+                $form_key = MigratedLanguageFileSync::defaultFormKeyOf(
+                    $keys[1],
+                    $shipped_by_module[$keys[0]] ??= self::shippedModuleValues($shipped_migrated, $keys[0], $separator)
+                );
+                if ($form_key !== null) {
+                    $key = $keys[0] . $separator . $form_key;
+                }
+            }
+            $result[$key] = $value;
+        }
+
+        return $result;
     }
 
     /**
@@ -1309,53 +1291,6 @@ class ilObjLanguageExt extends ilObjLanguage
         }
 
         return $a_remarks;
-    }
-
-    /**
-     * Removes every remark of the modules maintained in PO files $modules for $a_lang_key - from
-     * lng_data and from their overlays (a remark-only overlay disappears, see
-     * MigratedLanguageFileSync::sync()). Part of resetting a language to its shipped state
-     * (importLanguageFile() with the shipped file, "clear" in the admin GUI).
-     *
-     * @param list<string> $modules
-     * @return list<string> the modules whose overlay could not be written (logged)
-     */
-    private static function removeRemarksOfMigratedModules(string $a_lang_key, array $modules): array
-    {
-        global $DIC;
-
-        if ($modules === [] || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
-            return [];
-        }
-        $ilDB = $DIC->database();
-        $ilDB->manipulate(sprintf(
-            "UPDATE lng_data SET remarks = NULL WHERE lang_key = %s AND remarks IS NOT NULL AND %s",
-            $ilDB->quote($a_lang_key, "text"),
-            $ilDB->in('module', $modules, false, 'text')
-        ));
-
-        $manager = $DIC[LanguageFileDirectoryManager::class];
-        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
-        $failed = [];
-        foreach ($modules as $module) {
-            try {
-                $remarks = MigratedLanguageFileSync::loadRemarks($manager, $a_lang_key, $module, $client_data_dir, ILIAS_ABSOLUTE_PATH) ?? [];
-            } catch (\Throwable $t) {
-                $DIC->logger()->forComponent('lang')->warning(sprintf(
-                    'Could not read the remarks of migrated module "%s", language "%s": %s',
-                    $module,
-                    $a_lang_key,
-                    $t->getMessage()
-                ));
-                $failed[] = $module;
-                continue;
-            }
-            if ($remarks !== [] && !self::setOverlayRemarks($a_lang_key, $module, array_fill_keys(array_keys($remarks), ''))) {
-                $failed[] = $module;
-            }
-        }
-
-        return $failed;
     }
 
     /**

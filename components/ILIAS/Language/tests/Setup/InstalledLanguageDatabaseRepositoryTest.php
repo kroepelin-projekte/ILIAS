@@ -611,6 +611,76 @@ class InstalledLanguageDatabaseRepositoryTest extends TestCase
         $this->assertTrue($this->checkLanguageWithShippedPo(''));
     }
 
+    // ------------------------------------------------------------ checkShippedLanguage()
+
+    /**
+     * checkShippedLanguage() is checkLanguage() WITHOUT the customizing/local directory (see its own
+     * docblock: what "remove local changes" needs, since it never applies the customizing file) - an
+     * invalid customizing "ilias_de.lang.local" must not block it, while the very same file blocks the
+     * ordinary checkLanguage().
+     */
+    public function testCheckShippedLanguageIgnoresAnInvalidCustomizingFileThatMakesCheckLanguageFail(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/ilias_de.lang', "<!-- language file start -->\ncommon#:#yes#:#Ja\n");
+        // Malformed line (only 1 field instead of module/identifier/value) in the customizing file.
+        file_put_contents($root . '/lang/customizing/ilias_de.lang.local', "<!-- language file start -->\nonly_one_field\n");
+
+        try {
+            $repository = $this->createRepository($this->createReadDatabaseMock(), $root);
+
+            $this->assertTrue($repository->checkShippedLanguage('de'), 'the invalid customizing file is never consulted');
+            $this->assertFalse($repository->checkLanguage('de'), 'precondition: the same file makes checkLanguage() fail');
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * An invalid GLOBAL "ilias_de.lang" (not the customizing one) is part of getDirectories() and
+     * therefore still makes checkShippedLanguage() fail, exactly like checkLanguage().
+     */
+    public function testCheckShippedLanguageRejectsAnInvalidGlobalLanguageFile(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        // Missing the "<!-- language file start -->" header entirely.
+        file_put_contents($root . '/lang/ilias_de.lang', "common#:#yes#:#Ja\n");
+
+        try {
+            $repository = $this->createRepository($this->createReadDatabaseMock(), $root);
+
+            $this->assertFalse($repository->checkShippedLanguage('de'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    /**
+     * An unreadable/unparsable SHIPPED `.po` of a module maintained in PO files is part of
+     * getDirectories() too - it makes checkShippedLanguage() fail exactly like checkLanguage() (see
+     * checkLanguageWithShippedPo()'s reasoning above).
+     */
+    public function testCheckShippedLanguageRejectsAnUnparsableShippedPo(): void
+    {
+        $root = $this->createTempInstallationRoot();
+        file_put_contents($root . '/lang/ilias_de.lang', "<!-- language file start -->\ncommon#:#yes#:#Ja\n");
+        mkdir($root . '/components/pilot/lang', 0777, true);
+        file_put_contents($root . '/components/pilot/lang/pilot_de.po', "msgctxt \"pilot\"\nmsgid \"abc\nmsgstr \"Hallo\"\n");
+        $pilot = MigratedPoFixture::directory('pilot', 'components/pilot/lang/');
+
+        try {
+            $repository = new InstalledLanguageDatabaseRepository(
+                $this->createReadDatabaseMock(),
+                new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), new MainLanguageFileDirectory(), $pilot),
+                $root
+            );
+
+            $this->assertFalse($repository->checkShippedLanguage('de'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function createTempInstallationRoot(): string
     {
         $dir = sys_get_temp_dir() . '/ilias_lang_repo_test_' . bin2hex(random_bytes(8));

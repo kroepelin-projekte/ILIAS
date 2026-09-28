@@ -277,6 +277,24 @@ final class MigratedLanguageFileSync
     }
 
     /**
+     * The key of the default form (the last one, see PluralForms) of the plural message $identifier
+     * of $shipped_entries (shipped values or a module's content, form keys included) - where a plain
+     * value given for the identifier of a plural message goes (an import line, "add new variable").
+     * `null` if $identifier is no plain identifier of a plural message there (also for a form key).
+     *
+     * @param array<string|int, mixed> $shipped_entries
+     */
+    public static function defaultFormKeyOf(string $identifier, array $shipped_entries): ?string
+    {
+        if (PluralFormKey::parse($identifier) !== null || self::pluralMessageOf($identifier, $shipped_entries) !== $identifier) {
+            return null;
+        }
+        $count = self::pluralFormCounts($shipped_entries)[$identifier] ?? 1;
+
+        return PluralFormKey::of($identifier, PluralForms::defaultFormIndexForCount($count));
+    }
+
+    /**
      * The identifier of the plural message of $shipped_entries (shipped values, form keys included)
      * $key belongs to - as one of its form keys or as the identifier itself -, `null` for every other
      * key.

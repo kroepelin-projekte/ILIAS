@@ -25,6 +25,7 @@ use ILIAS\FileUpload\Location;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\RendersActivityErrors;
@@ -51,6 +52,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
     private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
+    private readonly RemoveLocalLanguageChanges $remove_local_language_changes;
 
     /**
     * Constructor
@@ -77,6 +79,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         // reach into `global $DIC` themselves.
         $this->add_language_entry = $DIC[AddLanguageEntry::class];
         $this->set_language_translation_enabled = $DIC[SetLanguageTranslationEnabled::class];
+        $this->remove_local_language_changes = $DIC[RemoveLocalLanguageChanges::class];
         // Used exclusively by activityErrorMessage() (see RendersActivityErrors) -
         // resolved once here, per the same idiom as the Activities above.
         $this->activity_error_logger = $DIC->logger()->lang();
@@ -473,6 +476,59 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     }
 
     /**
+     * "Reset the entries of this language to the shipped ones" (maintenance action "clear"): performs
+     * RemoveLocalLanguageChanges for this language - exactly what "remove local changes" in the
+     * language list does (local values, locally added variables and remarks removed from lng_data
+     * and the overlays of modules maintained in PO files, which are reset to their shipped .po;
+     * plugin language files re-applied; status "installed"; language cache invalidated).
+     */
+    private function clearLocalChanges(): void
+    {
+        $result = $this->remove_local_language_changes->maybePerformAs(
+            $this->ui_factory->input(),
+            $this->user->getId(),
+            ['language_keys' => [$this->object->key]]
+        );
+        if ($result->isError()) {
+            // e.g. a failure while the language was rebuilt after its data was flushed (logged by
+            // the Activity with the way back)
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->lng->txt("language_error_clear_local") . '<br />' . $this->activityErrorMessage($result->error()),
+                true
+            );
+            return;
+        }
+        $value = $result->value();
+
+        if ($value['removed_local_changes_language_keys'] === []) {
+            // not installed, or its language file (or the shipped .po of a module maintained in PO
+            // files) is not valid - nothing was changed
+            $unreadable_modules = $this->object->getUnreadableShippedPoModules();
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $unreadable_modules !== []
+                    ? sprintf($this->lng->txt("lng_error_clear_shipped_po_unreadable"), implode(', ', $unreadable_modules))
+                    : $this->lng->txt("language_error_clear_local"),
+                true
+            );
+            return;
+        }
+        if (($value['overlay_write_failed_language_keys'] ?? []) !== []) {
+            $this->tpl->setOnScreenMessage(
+                'failure',
+                $this->lng->txt("language_cleared_local") . '<br />' . sprintf(
+                    $this->lng->txt("lng_po_overlay_not_written_languages"),
+                    $this->lng->txt("meta_l_" . $this->object->key)
+                ),
+                true
+            );
+            return;
+        }
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_cleared_local"), true);
+    }
+
+    /**
      * Apply filter
      */
     public function applyFilterObject(): void
@@ -842,7 +898,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 if (is_file($lang_file) and is_readable($lang_file)) {
                     // like at installation: a value of the customizing file with markup that is not
                     // allowed is left out (and named), the others are applied
-                    $modules_with_unwritten_overlay = $this->object->importLanguageFile($lang_file, "replace", false, true);
+                    $modules_with_unwritten_overlay = $this->object->importLanguageFile($lang_file, "replace", true);
                     $this->object->setLocal(true);
                     $skipped = $this->object->getSkippedInvalidMarkupValues();
                     if ($skipped !== [] && $modules_with_unwritten_overlay === []) {
@@ -864,33 +920,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 }
                 break;
 
-                // revert the database to the default language file
+                // reset the language to its shipped state - the same Activity as "remove local
+                // changes" in the language list (ilObjLanguageFolderGUI::uninstallChangesObject())
             case "clear":
-                $lang_file = $this->object->getLangPath() . "/ilias_" . $this->object->key . ".lang";
-                if (is_file($lang_file) and is_readable($lang_file)) {
-                    // $lang_file here genuinely IS the shipped core file (see getLangPath()), unlike
-                    // "load" above (a customizing/local override) - so a migrated module's "original"
-                    // baseline may be refreshed; for such a module importLanguageFile() takes the
-                    // values from its shipped .po instead of the .lang file (see its docblock) - and
-                    // aborts before changing anything if one of those cannot be read.
-                    try {
-                        $modules_with_unwritten_overlay = $this->object->importLanguageFile($lang_file, "replace", true);
-                    } catch (ilLanguageException) {
-                        $this->tpl->setOnScreenMessage(
-                            'failure',
-                            sprintf(
-                                $this->lng->txt("lng_error_clear_shipped_po_unreadable"),
-                                implode(', ', $this->object->getUnreadableShippedPoModules())
-                            ),
-                            true
-                        );
-                        break;
-                    }
-                    $this->object->setLocal(false);
-                    $this->setSuccessOrOverlayWarning($this->lng->txt("language_cleared_local"), $modules_with_unwritten_overlay);
-                } else {
-                    $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_error_clear_local"), true);
-                }
+                $this->clearLocalChanges();
                 break;
 
                 // delete local additions in the datavase (langmode only)

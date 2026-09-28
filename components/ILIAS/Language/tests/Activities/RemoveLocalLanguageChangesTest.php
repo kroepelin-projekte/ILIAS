@@ -728,12 +728,56 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $this->assertNotSame('', $result->error()->getMessage());
     }
 
+    /**
+     * A Throwable from removeLocalChanges() itself (not merely a `false` return, which is the
+     * ordinary "invalid language file" case) is logged as a warning naming "setup update" as the way
+     * back (see RemoveLocalLanguageChanges::logWarning()'s call site) and then rethrown - so
+     * maybePerformAs() turns it into a Result\Error, exactly like any other Throwable from perform().
+     */
+    public function testRemoveLocalChangesThrowingIsLoggedWithSetupUpdateAdviceAndSurfacesAsAResultError(): void
+    {
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('setup.php update'));
+        $logger_factory = $this->createStub(\ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilLoggerFactory'] = static fn() => $logger_factory;
+
+        $object = new class () {
+            public function isInstalled(): bool
+            {
+                return true;
+            }
+
+            public function removeLocalChanges(): bool
+            {
+                throw new \RuntimeException('db gone');
+            }
+        };
+        $lng_objects = static fn(): array => [['obj_id' => 1, 'title' => 'de']];
+        $obj_language_factory = static fn(int $id) => $object;
+
+        $rbac = $this->createStub(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        try {
+            $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+                ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
+
+            $this->assertTrue($result->isError());
+            $this->assertInstanceOf(\RuntimeException::class, $result->error());
+        } finally {
+            unset($GLOBALS['DIC']);
+        }
+    }
+
     private function createActivity(
         \Closure $lng_objects,
         \Closure $obj_language_factory,
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null,
-        int $language_folder_ref_id = 0
+        int $language_folder_ref_id = 0,
+        ?\Closure $refresh_plugins = null
     ): RemoveLocalLanguageChanges {
         return new RemoveLocalLanguageChanges(
             $this->createStub(RefineryFactory::class),
@@ -741,8 +785,61 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             $rbac ?? $this->createStub(\ilRbacSystem::class),
             $language_folder_ref_id,
             $lng_objects,
-            $obj_language_factory
+            $obj_language_factory,
+            $refresh_plugins
         );
+    }
+
+    // -----------------------------------------------------------------
+    // refresh_plugins
+    // -----------------------------------------------------------------
+
+    /**
+     * Plugin language files are re-applied exactly once, only for the languages whose local changes
+     * were actually removed - never for one reported as invalid or not installed.
+     */
+    public function testRefreshPluginsIsCalledOnceWithExactlyTheRemovedLanguageKeys(): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => [],
+            'en' => [],
+            'fr' => ['remove_local_changes_return' => false],
+            'it' => ['installed' => false],
+        ]);
+        $calls = [];
+
+        $this->createActivity(
+            $lng_objects,
+            $obj_language_factory,
+            refresh_plugins: function (array $lang_keys) use (&$calls): void {
+                $calls[] = $lang_keys;
+            }
+        )->perform(['language_keys' => ['de', 'en', 'fr', 'it']]);
+
+        $this->assertSame([['de', 'en']], $calls);
+    }
+
+    /**
+     * Without a single language actually removed (all invalid/not installed), refresh_plugins() is
+     * never called at all - not even with an empty list.
+     */
+    public function testRefreshPluginsIsNeverCalledWhenNoLanguagesLocalChangesWereActuallyRemoved(): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => ['remove_local_changes_return' => false],
+            'en' => ['installed' => false],
+        ]);
+        $calls = [];
+
+        $this->createActivity(
+            $lng_objects,
+            $obj_language_factory,
+            refresh_plugins: function (array $lang_keys) use (&$calls): void {
+                $calls[] = $lang_keys;
+            }
+        )->perform(['language_keys' => ['de', 'en']]);
+
+        $this->assertSame([], $calls);
     }
 }
 

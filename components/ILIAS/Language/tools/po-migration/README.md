@@ -276,7 +276,7 @@ Wo was passiert:
 | `lng_data`/`lng_modules` migrierter Module | bereinigte Shipped-Werte (`MigratedLanguageFileSync::databaseValues()`), damit der DB-Fallback die Bereinigung nicht umgeht; der Delta-Vergleich bleibt gegen den **rohen** `.po`-Wert |
 | Admin-Bearbeitung (`ilObjLanguageExtGUI::saveObject()`, ersetzt `ilUtil::stripSlashes()`), Upload-Import, `AddLanguageEntry` | **ablehnen**, nichts speichern, Meldung nennt alle betroffenen Keys (escaped, ohne Werte; max. 20, dann `… (+N)`, vollständige Liste im Log) |
 | Customizing (`.lang.local`) bei Install/Update/"lokale Datei laden" | betroffene Einträge überspringen und melden (Setup-WARNING, Ausgabefeld `invalid_markup_customizing_entries` der Activities, GUI-Meldung), Rest wird übernommen |
-| "clear" (Import der ausgelieferten Datei) | ungeprüft (Shipped-Stand) |
+| "clear"/„Lokale Änderungen entfernen" (Neuaufbau aus dem Shipped-Stand) | ungeprüft (Shipped-Stand) |
 | Setup-Update | meldet unzulässige **lokale Altbestände** (`lng_data`-local_change und Overlay-Deltas) einmal pro Lauf als WARNING, ändert nichts |
 
 **Geprüft wird nur, was sich ändert:** Ein Wert wird nur geprüft, wenn er vom aktuellen Wert
@@ -574,7 +574,11 @@ Key ein Plural-Eintrag ist (shipped oder im Overlay).
   verworfen; „Neue Variable hinzufügen" lehnt eine solche Form ab.
 - **Alte Einzelwerte:** Ein einfacher Wert für den Key eines Plural-Eintrags (lokale Änderung aus der
   Zeit vor dem Plural, aus `lng_data` zurückgelesen, Customizing-Zeile, Import) steht für die
-  Standardform (`mapLegacyPluralValues()`); steht die Form bereits da, gewinnt sie.
+  Standardform (`mapLegacyPluralValues()`); steht die Form bereits da, gewinnt sie. **Eingaben**
+  (Import/„Datei laden"/Upload in allen Modi, „Neue Variable hinzufügen") bilden einen einfachen
+  Wert vorher auf den Schlüssel der Standardform ab (`MigratedLanguageFileSync::defaultFormKeyOf()`),
+  er gilt also als Änderung der letzten Form; enthält eine Datei den einfachen Key und die Formzeile
+  der Standardform, gewinnt die spätere Zeile.
 - **Overlay:** Ein Plural-Eintrag im Delta enthält immer alle Formen (nicht geänderte mit dem
   Shipped-Wert), ein `# original[<form>]: …` (bzw. `original_escaped[<form>]`) pro Form und ein
   `# local_change` für den ganzen Eintrag (`LocalChangeComments::refreshForms()`). `loadLocalChanges()`
@@ -620,13 +624,13 @@ anschließend dieselbe `identifier => wert`-Zuordnung (roh, Plural-Einträge als
 Vor dem Schreiben prüfen alle lokalen Schreibpfade das Markup (siehe "Markup-Prüfung").
 
 `$refresh_original_from_shipped = true` übergeben nur Aufrufer, deren Werte aus der geshippten
-Quelle stammen: alle Pfade des `LanguageInstallationManager`, die "clear"-Aktion in
-`ilObjLanguageExtGUI` (importiert `lang/ilias_<sprache>.lang`, übernimmt für migrierte Module aber die
-Werte der geshippten `.po`) und `ilPluginLanguage::updateLanguages()`. Ist die geshippte `.po` eines
-migrierten Moduls dabei nicht lesbar, bricht "clear" ab, bevor irgendetwas geändert wird
-(`ilLanguageException`, Meldung `lng_error_clear_shipped_po_unreadable`). Ad-hoc-Edits und Importe
-hochgeladener/Customizing-Dateien übergeben `false`, damit sich die Referenz ("original") nie
-unbemerkt verschiebt.
+Quelle stammen: alle Pfade des `LanguageInstallationManager` (auch "clear"/„Lokale Änderungen
+entfernen") und `ilPluginLanguage::updateLanguages()`. Ad-hoc-Edits und Importe
+hochgeladener/Customizing-Dateien (`_saveValues()`, `importLanguageFile()`, die den Parameter nicht
+mehr haben) übergeben `false`, damit sich die Referenz ("original") nie unbemerkt verschiebt. Ist die
+geshippte `.po` eines migrierten Moduls nicht lesbar, gilt die Sprache als ungültig
+(`InstalledLanguageDatabaseRepository::checkLanguage()`) und "clear" ändert nichts (Meldung
+`lng_error_clear_shipped_po_unreadable`).
 
 ### Lokale Änderungen nachvollziehen (`LocalChangeComments`)
 
@@ -677,12 +681,10 @@ Für Einträge ohne Overlay liefert `loadModuleTranslations()` `local_change = f
   weiter ins Overlay. Remark-only-Einträge stehen sortiert nach Key (kein Neuschreiben ohne
   Inhaltsänderung).
   **„Lokale Änderungen entfernen"** (Sprachenliste) entfernt auch die Bemerkungen (`sync(..., [])`).
-- **„Lokale Änderungen in der Datenbank löschen"** (Wartung, "clear", `importLanguageFile()` mit der
-  Shipped-Datei) setzt migrierte Module auf den Shipped-Stand und entfernt ihre Bemerkungen aus
-  `lng_data` und Overlay (`removeRemarksOfMigratedModules()`; ein reines Bemerkungs-Overlay
-  verschwindet). Die `###`-Kommentare ihrer `.lang`-Zeilen werden dabei nicht als Bemerkungen
-  importiert. „Lokale Ergänzungen löschen" entfernt mit einer lokal hinzugefügten Variable auch
-  deren Bemerkung; die Deinstallation entfernt das ganze Overlay und die `lng_data`-Zeilen.
+- **„Lokale Änderungen in der Datenbank löschen"** (Wartung, "clear") ist seit 2026-09-28 derselbe
+  Codepfad wie „Lokale Änderungen entfernen" (siehe "Wartungsaktionen"). „Lokale Ergänzungen
+  löschen" entfernt mit einer lokal hinzugefügten Variable auch deren Bemerkung; die
+  Deinstallation entfernt das ganze Overlay und die `lng_data`-Zeilen.
 - **Admin-GUI:** Speichern schreibt geänderte Bemerkungen ins Overlay; ändert sich nur die
   Bemerkung, wird in `lng_data` nur `remarks` aktualisiert. Löschen einer Variable entfernt ihre
   Bemerkung auch aus dem Overlay (Plural-Formzeilen: die Bemerkung des Keys bleibt). Bekannt: Bei
@@ -749,10 +751,43 @@ mehr geshippt) bleiben stehen; eine Konfliktanzeige (`original` ≠ neuer Shippe
 
 - **Entfernen** (`insertLanguageForRemovingLocalChanges()`, nach `flush("all")`): ohne
   Customizing-Directory und ohne lokale Änderungen — das Delta wird leer, das Overlay entfernt
-  (lokal hinzugefügte Variablen verschwinden).
+  (lokal hinzugefügte Variablen und Bemerkungen verschwinden). Einziger Codepfad für
+  „Lokale Änderungen entfernen" (Sprachenliste) und „Lokale Änderungen in der Datenbank löschen"
+  (Wartung): beide führen die Activity `RemoveLocalLanguageChanges` aus
+  (`ilObjLanguage::removeLocalChanges()`: `flush("all")`, Neuaufbau aus `lang/ilias_<lang>.lang`,
+  Component-`.lang` und Shipped-`.po`, Status „installed", Cache-Invalidierung; danach spielt die
+  Activity die Sprachdateien der aktiven Plugins neu ein). Rechteprüfung über die Activity.
+  Geprüft wird vorher nur der Shipped-Stand (`ilObjLanguage::check("shipped")`,
+  `InstalledLanguageDatabaseRepository::checkShippedLanguage()`): eine ungültige Customizing-Datei
+  blockiert das Entfernen nicht, sie wird ja nicht angewendet. **Restrisiko:** `flush("all")` und
+  der Neuaufbau sind keine Transaktion; scheitert der Neuaufbau, meldet die GUI den Fehler
+  (`language_error_clear_local`), das Log nennt den Rückweg (`setup update` bzw. „Aktualisieren").
 - **Anwenden** (`insertLanguageForApplyingLocalChanges()`, `install_local`): wendet nur die
   Customizing-Datei auf den gespeicherten Stand an; die Shipped-`.po` wird dabei nicht erneut
   eingemischt. Gilt nur für bereits installierte Sprachen.
+
+### Wartungsaktionen (Reiter „Wartung", Stand 2026-09-28)
+
+| Aktion | Verhalten für PO-Module | Offen |
+|---|---|---|
+| `save_dist` („Globale Sprachdatei sichern") | kopiert `lang/ilias_<lang>.lang` ins Datenverzeichnis | Die Kopie enthält die `.lang`-Zeilen, nicht die Shipped-`.po`; der Filter "Konflikte" ist für PO-Module blind |
+| `load` („Lokale Datei laden") | `importLanguageFile(<customizing>, "replace", true)`: Werte als lokale Änderungen ins Overlay, Kommentare als Bemerkungen; unzulässiges Markup übersprungen; einfacher Key eines Plural-Eintrags = letzte Form (gleich nach dem Einlesen, auch für "keepall"/"keepnew" und die Markup-Prüfung, `withPluralFormKeys()`) | – |
+| `clear` („Lokale Änderungen in der Datenbank löschen") | = „Lokale Änderungen entfernen" (Activity `RemoveLocalLanguageChanges`): Werte, lokal hinzugefügte Keys, Bemerkungen weg (DB und Overlay), Shipped-Stand aus der `.po`, Status „installed", Plugins neu eingespielt; läuft auch bei ungültiger Customizing-Datei | Nicht atomar (siehe oben); Case-Duplikate der `.lang` (siehe `SHIPPED_CASE_DUPLICATES.md`) |
+| `delete_added` („Lokale Ergänzungen löschen") | `_deleteValues(getAddedValues())`: lokal hinzugefügte Keys samt Bemerkung aus DB und Overlay | – |
+| `remove_local_file` | löscht die Customizing-Datei, keine Datenänderung | – |
+| `merge` (Entwicklermodus) | überspringt PO-Module, ihre `.lang`-Zeilen bleiben unverändert | Übernahme lokaler Änderungen in die Shipped-`.po` offen (spätere Runde) |
+
+Der frühere Reset-Zweig des Imports (`importLanguageFile(..., $refreshOriginalFromShipped)`,
+`removeRemarksOfMigratedModules()`, der gleichnamige Parameter von `_saveValues()`) ist entfernt;
+`importLanguageFile($file, $mode, $skipInvalidMarkup)` importiert nur noch hochgeladene bzw.
+Customizing-Dateien.
+
+**Case-Duplikate in den Sprachdateien:** `scan_shipped_case_duplicates.php` findet Identifier, die
+in derselben `.lang` im selben Modul nur in Groß-/Kleinschreibung verschieden vorkommen
+(`style#:#Style`/`style#:#style` in allen Sprachen, `content#:#cont_Link`/`cont_link` und
+`cont_Media`/`cont_media` in 26, zwei `lti`-Keys in `hu`). Der Primärschlüssel von `lng_data` ist
+case-insensitiv: Jeder Import der ganzen Datei hält die zweite Schreibweise für geändert und setzt
+`local_change` (auch in trunk). Hinweis an die Sprachdatei-Pflege: `SHIPPED_CASE_DUPLICATES.md`.
 
 ### Weitere Schritte nach dem Schreiben von `lng_modules`
 
@@ -891,7 +926,7 @@ Plural-Einträge erscheinen als eine Zeile pro Form (`poll_population [0]`, …)
 "kommentiert", Export "merged" und `_saveValues()`. Der Filter "Konflikte" vergleicht mit einer
 gesicherten Kopie der `.lang`-Datei; migrierte Module erscheinen dort nie. Ist eine geshippte `.po`
 nicht lesbar, zeigen die Leser ersatzweise die `.lang`-Zeilen und die GUI eine Warnung
-(`lng_shipped_po_unreadable_fallback`); "clear" bricht in diesem Fall ab.
+(`lng_shipped_po_unreadable_fallback`); "clear" ändert in diesem Fall nichts.
 
 **Informationen der Shipped-`.po` in der Admin-GUI** (seit 2026-09-28):
 
@@ -1083,3 +1118,24 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    Bemerkungen migrierter Module (Remark-only-Overlay, `lng_data.remarks`) stehen, weil sich dort
    kein Wert änderte; jetzt entfernt, `.lang`-`###`-Kommentare migrierter Module werden nicht mehr
    als Bemerkungen übernommen.
+
+### 2026-09-28: Wartungsaktionen vereinheitlicht, Plural-Plain-Key beim Import, Case-Duplikate
+
+1. **Fix B1:** Ein einfacher Key eines Plural-Eintrags in einem Import (load, Upload, alle Modi) ging
+   verloren (`mapLegacyPluralValues()` verwarf ihn neben den Formzeilen). `saveValues()` bildet ihn
+   jetzt vorher auf die Standardform ab (`MigratedLanguageFileSync::defaultFormKeyOf()`, auch von
+   `AddLanguageEntry` genutzt); die Bemerkung wandert mit.
+2. **„clear" = „Lokale Änderungen entfernen":** Die Wartungsaktion führt die Activity
+   `RemoveLocalLanguageChanges` aus (vorher `importLanguageFile(…, "replace", true)`, das lokal
+   hinzugefügte Keys stehen ließ). Das Neueinspielen der Plugin-Sprachdateien liegt jetzt in der
+   Activity (vorher in `ilObjLanguageFolderGUI`). Der damit tote Reset-Zweig ist entfernt:
+   `importLanguageFile()` ohne `$refreshOriginalFromShipped` (neu: `($file, $mode,
+   $skipInvalidMarkup)`), `_saveValues()` ohne diesen Parameter, `removeRemarksOfMigratedModules()`
+   gelöscht.
+4. Nach Review: einfache Plural-Keys werden schon beim Einlesen der Importdatei auf die
+   Standardform abgebildet (`withPluralFormKeys()`, gemeinsam mit `saveValues()`), damit
+   "keepall"/"keepnew" und die Markup-Prüfung dieselben Keys sehen; „Lokale Änderungen entfernen"
+   prüft nur den Shipped-Stand (ungültige Customizing-Datei blockiert nicht) und meldet einen
+   Fehler beim Neuaufbau mit Rückweg im Log.
+3. **Case-Duplikate:** `scan_shipped_case_duplicates.php` und `SHIPPED_CASE_DUPLICATES.md` (Befund
+   `style/style/de` mit `local_change` nach "clear"); kein Code-Fix.

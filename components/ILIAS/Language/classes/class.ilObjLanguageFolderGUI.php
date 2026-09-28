@@ -566,10 +566,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
         $value = $result->value();
 
-        // Plugin language files are refreshed only for the languages whose
-        // local changes were actually removed - a requested-but-not-installed
-        // or invalid language (see below) has nothing to refresh.
-        ilObjLanguage::refreshPlugins($value['removed_local_changes_language_keys']);
+        // The plugin language files were re-applied by the Activity itself
 
         if (($lang_changed = $value['removed_local_changes_language_keys']) !== []) {
             $this->tpl->setOnScreenMessage(

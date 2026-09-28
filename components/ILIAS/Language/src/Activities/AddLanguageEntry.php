@@ -27,7 +27,6 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PluralFormKey;
-use ILIAS\Language\ComponentTranslation\PluralForms;
 use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -140,15 +139,7 @@ class AddLanguageEntry extends LanguageActivity
      */
     private static function entryKeyOf(array $entries, string $identifier): string
     {
-        if (MigratedLanguageFileSync::pluralMessageOf($identifier, $entries) !== $identifier) {
-            return $identifier;
-        }
-        $count = 0;
-        while (array_key_exists(PluralFormKey::of($identifier, $count), $entries)) {
-            $count++;
-        }
-
-        return PluralFormKey::of($identifier, PluralForms::defaultFormIndexForCount($count));
+        return MigratedLanguageFileSync::defaultFormKeyOf($identifier, $entries) ?? $identifier;
     }
 
     /**

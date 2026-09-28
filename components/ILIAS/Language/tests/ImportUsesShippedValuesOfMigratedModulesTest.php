@@ -216,19 +216,6 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         return $object;
     }
 
-    public function testTheClearImportTakesTheValuesOfAMigratedModuleFromTheShippedPo(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-
-        $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
-
-        $this->assertSame(
-            ['farewell' => 'Tschüss aus der PO', 'greeting' => 'Aus der PO'],
-            $this->sorted($this->lng_modules['itest'])
-        );
-        $this->assertSame(['yes' => 'Ja'], $this->lng_modules['common'], 'non-migrated modules keep the file value');
-    }
-
     public function testAnImportWithoutRefreshKeepsTheValuesOfTheFile(): void
     {
         $this->seedGlobalLanguageFile([]);
@@ -279,32 +266,6 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Veraltet in lang/']);
 
         $this->assertNotNull($this->local_changes['itest#:#greeting']);
-    }
-
-    // ------------------------------------------------ "clear" with an unreadable shipped .po
-
-    /**
-     * "clear" (refresh from shipped) must not silently reset a migrated module to its outdated .lang
-     * lines: with an unreadable shipped .po nothing at all is changed - not even the up-front wipe of
-     * the "delete" mode - and an ilLanguageException is thrown.
-     */
-    #[DataProvider('importModes')]
-    public function testTheClearImportAbortsBeforeAnyChangeWhenAShippedPoIsUnreadable(string $mode): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        file_put_contents($this->fixture_directory . '/itest_' . self::LANG . '.po', "msgid \"kaputt\n");
-        $this->stubLogger();
-
-        try {
-            $this->languageObject()->importLanguageFile($this->upload_file, $mode, true);
-            $this->fail('Expected an ilLanguageException');
-        } catch (ilLanguageException $e) {
-            $this->assertStringContainsString('itest', $e->getMessage());
-        }
-
-        $this->assertSame([], $this->writes, 'no database write at all');
-        $this->assertSame([], $this->lng_modules);
-        $this->assertDirectoryDoesNotExist($this->overlayDirectory(), 'no overlay written either');
     }
 
     public static function importModes(): array
@@ -432,15 +393,12 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->assertSame(['yes' => 'Jawohl'], $this->lng_modules['common']);
     }
 
-    public function testSaveValuesAndTheImportReturnNothingWhenEveryOverlayWasWritten(): void
+    public function testSaveValuesReturnsNothingWhenEveryOverlayWasWritten(): void
     {
         $this->seedGlobalLanguageFile([]);
 
         $this->assertSame([], ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Servus', 'common#:#yes' => 'Ja']));
         $this->assertFileExists($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
-        $this->assertSame([], $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true));
-        // Adapted to the delta overlay: the clear import leaves only shipped values - overlay removed
-        $this->assertFileDoesNotExist($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
     }
 
     /**
@@ -474,27 +432,6 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
      * import already read the shipped .po files through the same per-object cache, so the answer is
      * available without parsing - and logging - a second time.
      */
-    public function testAfterAnAbortedClearTheUnreadableModulesAreKnownAndLoggedOnlyOnce(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        file_put_contents($this->fixture_directory . '/itest_' . self::LANG . '.po', "msgid \"kaputt\n");
-        $logger = $this->createMock(ilLogger::class);
-        $logger->expects($this->once())->method('warning')->with($this->stringContains('"itest"'));
-        $logger_factory = $this->createStub(ilLoggerFactory::class);
-        $logger_factory->method('getComponentLogger')->willReturn($logger);
-        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
-        $object = $this->languageObject();
-
-        try {
-            $object->importLanguageFile($this->upload_file, 'replace', true);
-            $this->fail('Expected an ilLanguageException');
-        } catch (ilLanguageException) {
-        }
-
-        $this->assertSame(['itest'], $object->getUnreadableShippedPoModules());
-        $this->assertSame(['itest'], $object->getUnreadableShippedPoModules());
-    }
-
     // ------------------------------------------------------------ _deleteValues()
 
     /**
@@ -658,7 +595,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $file = $this->writeUploadFileWithOneInvalidEntry();
 
         $object = $this->languageObject();
-        $object->importLanguageFile($file, 'replace', false, true);
+        $object->importLanguageFile($file, 'replace', true);
 
         $this->assertSame('Ja', $this->lng_modules['common']['yes']);
         $this->assertArrayNotHasKey('bad', $this->lng_modules['common']);
@@ -720,142 +657,12 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
     }
 
     /**
-     * Re-ships "itest" with a plural message ("item"/"items") in addition to the singular
-     * "greeting"/"farewell" of setUp() - needed for the plural-base-remark scenario below.
+     * A migrated module's "###" line comment is taken over as a remark exactly as for any other
+     * module - importLanguageFile() no longer has a "clear"/refresh branch that would strip it (that
+     * reset is now RemoveLocalLanguageChanges/LanguageInstallationManager::
+     * insertLanguageForRemovingLocalChanges(), see LanguageInstallationManagerMigratedModulesTest).
      */
-    private function shipPluralMessageToo(): void
-    {
-        $catalog = MigratedPoFixture::catalog('itest', ['greeting' => 'Aus der PO', 'farewell' => 'Tschüss aus der PO']);
-        $catalog->setHeader('Plural-Forms', 'nplurals=2; plural=(n != 1);');
-        $item = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry('itest', 'item');
-        $item->setPlural('items', ['Eintrag', 'Einträge']);
-        $catalog->add($item);
-        MigratedPoFixture::writePo($this->fixture_directory . '/itest_' . self::LANG . '.po', $catalog);
-    }
-
-    /**
-     * Writes a "remark only" overlay of "itest" (empty msgstr, see MigratedLanguageFileSync::sync()'s
-     * own docblock) for the singular identifier "greeting" and, if $with_plural, the plural message
-     * "item" under its base identifier - exactly what an administrator's remark alone (no value
-     * change) produces.
-     */
-    private function seedRemarkOnlyOverlay(bool $with_plural = false): void
-    {
-        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $greeting = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry('itest', 'greeting');
-        \ILIAS\Language\ComponentTranslation\LocalChangeComments::setRemark($greeting, 'Admin-Bemerkung zu greeting');
-        $catalog->add($greeting);
-        if ($with_plural) {
-            $catalog->setHeader('Plural-Forms', 'nplurals=2; plural=(n != 1);');
-            $item = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry('itest', 'item');
-            $item->setPlural('items', ['', '']);
-            \ILIAS\Language\ComponentTranslation\LocalChangeComments::setRemark($item, 'Admin-Bemerkung zu item');
-            $catalog->add($item);
-        }
-        MigratedPoFixture::writePair($this->overlayDirectory() . '/itest_' . self::LANG, $catalog);
-    }
-
-    /**
-     * (1) A "clear" reset removes a remark-only overlay entirely - both for a singular identifier and
-     * for a plural message under its base identifier - and issues the UPDATE lng_data SET remarks =
-     * NULL query for the migrated module.
-     */
-    public function testClearRemovesARemarkOnlyOverlayOfASingularAndAPluralIdentifier(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        $this->shipPluralMessageToo();
-        $this->seedRemarkOnlyOverlay(with_plural: true);
-        $this->assertFileExists($this->overlayDirectory() . '/itest_' . self::LANG . '.po', 'precondition');
-
-        $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
-
-        $this->assertFileDoesNotExist($this->overlayDirectory() . '/itest_' . self::LANG . '.po');
-        $this->assertFileDoesNotExist($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
-        $this->assertSame([], $this->loadRemarks());
-        $remark_wipe = array_values(array_filter(
-            $this->writes,
-            static fn(string $sql): bool => str_contains($sql, 'UPDATE lng_data') && str_contains($sql, 'remarks = NULL')
-        ));
-        $this->assertNotEmpty($remark_wipe, 'the bulk UPDATE of lng_data.remarks must be issued');
-    }
-
-    /**
-     * (2) A locally changed value plus a remark on the same identifier - after "clear" both are gone:
-     * the value delta disappears because the import content is the shipped value itself, and the
-     * remark is removed by removeRemarksOfMigratedModules() - nothing is left to keep any overlay for.
-     */
-    public function testClearWithAValueDeltaAndARemarkLeavesNoOverlayAfterReset(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        $catalog = MigratedPoFixture::catalog('itest', ['greeting' => 'Lokal geändert']);
-        $entry = $catalog->find('itest', 'greeting');
-        $this->assertNotNull($entry);
-        \ILIAS\Language\ComponentTranslation\LocalChangeComments::setRemark($entry, 'Admin-Bemerkung');
-        MigratedPoFixture::writePair($this->overlayDirectory() . '/itest_' . self::LANG, $catalog);
-        $this->assertFileExists($this->overlayDirectory() . '/itest_' . self::LANG . '.po', 'precondition');
-
-        $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
-
-        $this->assertFileDoesNotExist($this->overlayDirectory() . '/itest_' . self::LANG . '.po');
-        $this->assertSame(['farewell' => 'Tschüss aus der PO', 'greeting' => 'Aus der PO'], $this->sorted($this->lng_modules['itest']));
-    }
-
-    /**
-     * (3) The "###" comment of a migrated module's `.lang` line (here the dated "not translated yet"
-     * placeholder - never an administrator's remark) must not be taken over as one during "clear":
-     * importLanguageFile() strips a migrated module's comments from $import_comments before they ever
-     * reach saveValues()'s remark handling.
-     */
-    public function testClearNeverTakesAMigratedModulesLangLineCommentAsARemark(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        file_put_contents(
-            $this->upload_file,
-            "/* header */\n<!-- language file start -->\n"
-            . "itest#:#greeting#:#Aus der lang-Datei###26 08 2024 new variable\n"
-            . "common#:#yes#:#Ja\n"
-        );
-
-        $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
-
-        $this->assertSame([], $this->loadRemarks());
-    }
-
-    /**
-     * (4) An overlay `.mo` without its `.po` (assertReadableOverlay()'s structural check, distinct
-     * from a merely corrupt-but-present `.po`, which sync() self-heals by silently rebuilding it - see
-     * MigratedLanguageFileSync::syncLocked()'s own docblock, so that case would never actually reach
-     * removeRemarksOfMigratedModules() with anything still wrong) is reported in the "overlay not
-     * written" list - the import itself does not abort, and the database write still happens.
-     */
-    public function testClearReportsAnUnreadableOverlayInsteadOfAborting(): void
-    {
-        $this->seedGlobalLanguageFile([]);
-        $this->stubLogger();
-        $overlay_dir = $this->overlayDirectory();
-        if (!is_dir($overlay_dir)) {
-            mkdir($overlay_dir, 0775, true);
-        }
-        // an .mo without its .po - assertReadableOverlay() throws for exactly this, in both the
-        // value-sync step and loadRemarks()
-        file_put_contents($overlay_dir . '/itest_' . self::LANG . '.mo', 'not a real mo file');
-
-        $unwritten = $this->languageObject()->importLanguageFile($this->upload_file, 'replace', true);
-
-        $this->assertSame(['itest'], $unwritten);
-        $this->assertSame(
-            ['farewell' => 'Tschüss aus der PO', 'greeting' => 'Aus der PO'],
-            $this->sorted($this->lng_modules['itest']),
-            'the database write itself still happened'
-        );
-    }
-
-    /**
-     * (5) Without the refresh flag ("replace" loading a customizing file, no reset) a migrated
-     * module's "###" line comment is still taken over as a remark exactly as for any other module -
-     * only the "clear"/refresh path strips it.
-     */
-    public function testReplaceWithoutRefreshStillTakesOverALangLineCommentAsARemark(): void
+    public function testImportTakesOverALangLineCommentOfAMigratedModuleAsARemark(): void
     {
         $this->seedGlobalLanguageFile([]);
         file_put_contents(

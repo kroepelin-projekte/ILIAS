@@ -269,4 +269,63 @@ class MigratedLanguageFileSyncPluralHelpersTest extends TestCase
         $this->assertNull(MigratedLanguageFileSync::pluralMessageOf('unknown [0]', []));
         $this->assertNull(MigratedLanguageFileSync::pluralMessageOf('unknown', []));
     }
+
+    // ------------------------------------------------------------- defaultFormKeyOf()
+
+    /**
+     * The plain identifier of a plural message (e.g. from an import line or "add new variable") maps
+     * to the key of its default (last) form.
+     */
+    public function testDefaultFormKeyOfMapsThePlainIdentifierToItsLastFormKey(): void
+    {
+        $shipped = ['item [0]' => 'Eintrag', 'item [1]' => 'Einträge'];
+
+        $this->assertSame('item [1]', MigratedLanguageFileSync::defaultFormKeyOf('item', $shipped));
+    }
+
+    public function testDefaultFormKeyOfMapsToTheLastFormOfAThreeFormLanguage(): void
+    {
+        $shipped = ['item [0]' => 'jeden', 'item [1]' => 'dva', 'item [2]' => 'mnoho'];
+
+        $this->assertSame('item [2]', MigratedLanguageFileSync::defaultFormKeyOf('item', $shipped));
+    }
+
+    /**
+     * A key that is already a form key (not the plain identifier) is not itself the plain identifier
+     * of a plural message - null, not mapped again.
+     */
+    public function testDefaultFormKeyOfIsNullForAFormKeyItself(): void
+    {
+        $shipped = ['item [0]' => 'Eintrag', 'item [1]' => 'Einträge'];
+
+        $this->assertNull(MigratedLanguageFileSync::defaultFormKeyOf('item [0]', $shipped));
+        $this->assertNull(MigratedLanguageFileSync::defaultFormKeyOf('item [1]', $shipped));
+    }
+
+    /**
+     * A singular key configured alongside a plural message (e.g. "item_singular") is an ordinary
+     * identifier of its own, not the plural message's plain identifier - null.
+     */
+    public function testDefaultFormKeyOfIsNullForASingularKey(): void
+    {
+        $shipped = ['item [0]' => 'Eintrag', 'item [1]' => 'Einträge', 'item_singular' => 'Ein Eintrag'];
+
+        $this->assertNull(MigratedLanguageFileSync::defaultFormKeyOf('item_singular', $shipped));
+    }
+
+    public function testDefaultFormKeyOfIsNullForAnUnknownIdentifier(): void
+    {
+        $this->assertNull(MigratedLanguageFileSync::defaultFormKeyOf('unknown', []));
+    }
+
+    /**
+     * An identifier shipped both as its own entry AND with form keys (see pluralMessageOf()'s own
+     * "not treated as plural at all" guard) is not mapped either.
+     */
+    public function testDefaultFormKeyOfIsNullForAnIdentifierShippedBothAsItsOwnEntryAndWithFormKeys(): void
+    {
+        $shipped = ['item' => 'Eigener Wert', 'item [0]' => 'Form 0', 'item [1]' => 'Form 1'];
+
+        $this->assertNull(MigratedLanguageFileSync::defaultFormKeyOf('item', $shipped));
+    }
 }

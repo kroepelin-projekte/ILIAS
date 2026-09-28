@@ -212,6 +212,99 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * B1: a plain key of a plural message (e.g. "poll_population" from an import line or the admin
+     * GUI's legacy "add new variable" form) maps to its default (last) form - so submitting the plain
+     * key with a changed value changes only that form in the overlay, leaves the other form(s) at
+     * their shipped value, and writes the merged lng_data row (default form's value) with a
+     * local_change, plus the remark in the overlay.
+     */
+    public function testSaveValuesMapsAPlainPluralKeyToItsDefaultFormInTheOverlayAndLngData(): void
+    {
+        $this->seedShippedPluralModule();
+        $lng = $this->stubLng();
+        $this->seedEmptyGlobalLanguageFile(self::LANG_KEY);
+        $replace_calls = [];
+        $this->mockDatabaseForWrites($replace_calls);
+
+        $unwritten = ilObjLanguageExt::_saveValues(
+            self::LANG_KEY,
+            [self::MODULE . $lng->separator . 'item' => 'X'],
+            [self::MODULE . $lng->separator . 'item' => 'Bitte prüfen']
+        );
+
+        $this->assertSame([], $unwritten);
+        $overlay = TranslationCatalog::fromPoFile(
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
+                . '/' . self::MODULE . '_' . self::LANG_KEY . '.po'
+        );
+        $entry = $overlay->find(null, 'item');
+        $this->assertNotNull($entry);
+        $this->assertSame(['Eintrag', 'X'], $entry->getPluralTranslations(), 'form [0] unchanged, form [1] (default) is the plain value');
+        $this->assertSame(
+            'Bitte prüfen',
+            \ILIAS\Language\ComponentTranslation\LocalChangeComments::getRemark($entry)
+        );
+        $item_calls = array_values(array_filter($replace_calls, static fn(array $call): bool => $call[0] === 'item'));
+        $this->assertCount(1, $item_calls);
+        $this->assertSame('X', $item_calls[0][1]['value']);
+        $this->assertNotNull($item_calls[0][1]['local_change']);
+    }
+
+    /**
+     * B1: order matters when the SAME resolved form ends up submitted twice, once via its plain
+     * identifier and once via its explicit form key - whichever one comes LATER in $a_values wins,
+     * exactly like an ordinary duplicate array key would (see withPluralFormKeys()). Here the explicit
+     * form key is listed after the plain one, so it wins.
+     */
+    public function testSaveValuesPlainKeyThenExplicitFormKeyTheLaterFormKeyWins(): void
+    {
+        $this->seedShippedPluralModule();
+        $lng = $this->stubLng();
+        $this->seedEmptyGlobalLanguageFile(self::LANG_KEY);
+        $replace_calls = [];
+        $this->mockDatabaseForWrites($replace_calls);
+
+        ilObjLanguageExt::_saveValues(
+            self::LANG_KEY,
+            [
+                self::MODULE . $lng->separator . 'item' => 'Von Plain-Key',
+                self::MODULE . $lng->separator . 'item [1]' => 'Von Formzeile',
+            ],
+            []
+        );
+
+        $item_calls = array_values(array_filter($replace_calls, static fn(array $call): bool => $call[0] === 'item'));
+        $this->assertCount(1, $item_calls);
+        $this->assertSame('Von Formzeile', $item_calls[0][1]['value']);
+    }
+
+    /**
+     * The reverse order: the explicit form key comes first, the plain identifier (mapping to the very
+     * same form) after it - the plain one, being later, now wins instead.
+     */
+    public function testSaveValuesExplicitFormKeyThenPlainKeyTheLaterPlainKeyWins(): void
+    {
+        $this->seedShippedPluralModule();
+        $lng = $this->stubLng();
+        $this->seedEmptyGlobalLanguageFile(self::LANG_KEY);
+        $replace_calls = [];
+        $this->mockDatabaseForWrites($replace_calls);
+
+        ilObjLanguageExt::_saveValues(
+            self::LANG_KEY,
+            [
+                self::MODULE . $lng->separator . 'item [1]' => 'Von Formzeile',
+                self::MODULE . $lng->separator . 'item' => 'Von Plain-Key',
+            ],
+            []
+        );
+
+        $item_calls = array_values(array_filter($replace_calls, static fn(array $call): bool => $call[0] === 'item'));
+        $this->assertCount(1, $item_calls);
+        $this->assertSame('Von Plain-Key', $item_calls[0][1]['value']);
+    }
+
+    /**
      * Once every form is resubmitted with its shipped value again (both back to shipped), the
      * lng_data row of the plural message is written with the shipped default value and NO local
      * change - mirroring an ordinary key being reset via resolveLocalValue()/databaseValues().

@@ -243,12 +243,11 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         string $lang_key,
         array $values,
         array $remarks,
-        bool $refresh_original_from_shipped,
         bool $merge_onto_current_content
     ): array {
         return (new ReflectionClass(ilObjLanguageExt::class))
             ->getMethod('saveValues')
-            ->invoke(null, $lang_key, $values, $remarks, $refresh_original_from_shipped, $merge_onto_current_content);
+            ->invoke(null, $lang_key, $values, $remarks, $merge_onto_current_content);
     }
 
     // -----------------------------------------------------------------
@@ -471,7 +470,6 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
             $lang_key,
             ['wtest' . $lng->separator . 'greeting' => 'Neu'],
             [],
-            false,
             false
         );
 
@@ -504,7 +502,6 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
             $lang_key,
             ['wtest' . $lng->separator . 'greeting' => 'Neu'],
             [],
-            false,
             true
         );
 

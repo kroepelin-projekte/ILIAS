@@ -674,7 +674,8 @@ class ilObjLanguage extends ilObject
      */
     public function removeLocalChanges(): bool
     {
-        if (!$this->isInstalled() || !$this->check()) {
+        // The customizing file is not applied here - an invalid one must not block the reset
+        if (!$this->isInstalled() || !$this->check("shipped")) {
             return false;
         }
 
@@ -1020,8 +1021,9 @@ class ilObjLanguage extends ilObject
      * header, and each lang-entry consists of exactly three elements
      * (module, identifier, value).
      *
-     * $scope  empty/"global" (all managed directories) or "local"
-     *         (customizing directory only)
+     * $scope  empty/"global" (all managed directories), "local"
+     *         (customizing directory only) or "shipped" (all but the customizing directory, see
+     *         removeLocalChanges(); like "global" for another repository implementation)
      *
      * Delegates to InstalledLanguageRepository, which already implements
      * this validation, keyed off the LanguageFileDirectoryManager. This
@@ -1034,6 +1036,10 @@ class ilObjLanguage extends ilObject
     {
         if ($scope === "local") {
             return $this->repository->checkLocalLanguageFile($this->key);
+        }
+        if ($scope === "shipped" && $this->repository instanceof InstalledLanguageDatabaseRepository) {
+            // only the shipped files - see removeLocalChanges()
+            return $this->repository->checkShippedLanguage($this->key);
         }
 
         return $this->repository->checkLanguage($this->key);

@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Data\Result\Error as ResultError;
 use ILIAS\Data\Result\Ok as ResultOk;
 use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -877,8 +878,12 @@ class ilObjLanguageExtGUITest extends TestCase
      * @param list<array{0: string, 1: string}> $messages collects type and message of every
      *        setOnScreenMessage() call, in call order
      */
-    private function runMaintenance(string $action, ilObjLanguageExt $object, array &$messages): void
-    {
+    private function runMaintenance(
+        string $action,
+        ilObjLanguageExt $object,
+        array &$messages,
+        ?RemoveLocalLanguageChanges $remove_local_language_changes = null
+    ): void {
         $tpl = $this->createStub(ilGlobalTemplateInterface::class);
         $tpl->method('setOnScreenMessage')->willReturnCallback(
             static function (string $type, string $message) use (&$messages): void {
@@ -894,6 +899,16 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $this->createLanguageMockWithFormatStrings());
         $this->setProperty($gui, 'object', $object);
+        // "clear" alone reaches clearLocalChanges(), which needs these - never touched by any other
+        // maintenance action, so harmless to always set up
+        $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
+        $this->setProperty($gui, 'user', $this->createStub(ilObjUser::class));
+        $this->setReadonlyPropertyDeclaredOnGuiClass($gui, 'activity_error_logger', $this->activityErrorLoggerForGui());
+        $this->setReadonlyPropertyDeclaredOnGuiClass(
+            $gui,
+            'remove_local_language_changes',
+            $remove_local_language_changes ?? $this->createStub(RemoveLocalLanguageChanges::class)
+        );
 
         $session_before = $_SESSION ?? null;
         try {
@@ -908,23 +923,35 @@ class ilObjLanguageExtGUITest extends TestCase
         }
     }
 
+    private function stubRemoveLocalLanguageChanges(ResultOk|ResultError $result): RemoveLocalLanguageChanges&Stub
+    {
+        $activity = $this->createStub(RemoveLocalLanguageChanges::class);
+        $activity->method('maybePerformAs')->willReturn($result);
+
+        return $activity;
+    }
+
     /**
-     * "clear" resets to the shipped values - and must not do so with a module's outdated .lang lines
-     * when its shipped .po cannot be read: importLanguageFile() aborts before changing anything, the
-     * GUI shows a failure naming the modules and does NOT mark the language as without local
-     * changes (setLocal(false)).
+     * "clear" now performs RemoveLocalLanguageChanges for this language (see
+     * ilObjLanguageExtGUI::clearLocalChanges()) - a validation failure of the underlying language file
+     * (or an unreadable shipped .po of a module maintained in PO files) shows as a failure naming the
+     * unreadable modules, and never touches $this->object at all (the Activity works off its own
+     * ilObjLanguage instance, resolved by object id).
      */
     public function testClearWithAnUnreadableShippedPoShowsAFailureAndKeepsTheLocalFlag(): void
     {
         $object = $this->maintenanceLanguageObject();
-        $object->expects($this->once())->method('importLanguageFile')
-            ->with($this->maintenance_directory . '/ilias_zz.lang', 'replace', true)
-            ->willThrowException(new ilLanguageException('The shipped PO files of the following modules cannot be read: pilot'));
         $object->method('getUnreadableShippedPoModules')->willReturn(['pilot', 'tos']);
         $object->expects($this->never())->method('setLocal');
+        $object->expects($this->never())->method('importLanguageFile');
         $messages = [];
 
-        $this->runMaintenance('clear', $object, $messages);
+        $this->runMaintenance('clear', $object, $messages, $this->stubRemoveLocalLanguageChanges(new ResultOk([
+            'removed_local_changes_language_keys' => [],
+            'invalid_language_file_keys' => ['zz'],
+            'not_installed_language_keys' => [],
+            'overlay_write_failed_language_keys' => [],
+        ])));
 
         $this->assertSame([['failure', 'lng_error_clear_shipped_po_unreadable: pilot, tos']], $messages);
     }
@@ -932,25 +959,58 @@ class ilObjLanguageExtGUITest extends TestCase
     public function testClearWithAnUnwrittenOverlayShowsTheSuccessTextAsFailureNamingTheModules(): void
     {
         $object = $this->maintenanceLanguageObject();
-        $object->expects($this->once())->method('importLanguageFile')->willReturn(['pilot']);
-        $object->expects($this->once())->method('setLocal')->with(false);
+        $object->expects($this->never())->method('setLocal');
+        $object->expects($this->never())->method('importLanguageFile');
         $messages = [];
 
-        $this->runMaintenance('clear', $object, $messages);
+        $this->runMaintenance('clear', $object, $messages, $this->stubRemoveLocalLanguageChanges(new ResultOk([
+            'removed_local_changes_language_keys' => ['zz'],
+            'invalid_language_file_keys' => [],
+            'not_installed_language_keys' => [],
+            'overlay_write_failed_language_keys' => ['zz'],
+        ])));
 
-        $this->assertSame([['failure', 'language_cleared_local<br />lng_po_overlay_not_written: pilot']], $messages);
+        $this->assertSame(
+            [['failure', 'language_cleared_local<br />lng_po_overlay_not_written_languages: meta_l_zz']],
+            $messages
+        );
     }
 
     public function testClearWithEveryOverlayWrittenShowsSuccess(): void
     {
         $object = $this->maintenanceLanguageObject();
-        $object->expects($this->once())->method('importLanguageFile')->willReturn([]);
-        $object->expects($this->once())->method('setLocal')->with(false);
+        $object->expects($this->never())->method('setLocal');
+        $object->expects($this->never())->method('importLanguageFile');
         $messages = [];
 
-        $this->runMaintenance('clear', $object, $messages);
+        $this->runMaintenance('clear', $object, $messages, $this->stubRemoveLocalLanguageChanges(new ResultOk([
+            'removed_local_changes_language_keys' => ['zz'],
+            'invalid_language_file_keys' => [],
+            'not_installed_language_keys' => [],
+            'overlay_write_failed_language_keys' => [],
+        ])));
 
         $this->assertSame([['success', 'language_cleared_local']], $messages);
+    }
+
+    /**
+     * A hard Activity error (e.g. no permission) is rendered via activityErrorMessage() instead - the
+     * value-based branches above are never reached.
+     */
+    public function testClearWithAnActivityErrorShowsItsRenderedMessage(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->never())->method('setLocal');
+        $messages = [];
+
+        $this->runMaintenance(
+            'clear',
+            $object,
+            $messages,
+            $this->stubRemoveLocalLanguageChanges(new ResultError('msg_no_perm_write'))
+        );
+
+        $this->assertSame([['failure', 'language_error_clear_local<br />msg_no_perm_write']], $messages);
     }
 
     /**
