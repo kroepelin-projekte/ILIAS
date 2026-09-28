@@ -7,11 +7,26 @@ Komponenten skaliert wird. Dieses README beschreibt den **aktuellen Stand**; die
 am Ende unter "Änderungshistorie".
 
 Der Ansatz orientiert sich am ILIAS-Feature-Request ["PO-Files for improving language
-handling"](https://docu.ilias.de/go/wiki/wpage_8951_1357) — mit einer bewussten, unten begründeten
-Abweichung bei nativem PHP-`gettext()`.
+handling"](https://docu.ilias.de/go/wiki/wpage_8951_1357) — mit bewussten Abweichungen, die im
+nächsten Abschnitt begründet sind.
 
 Einziger Konsument ist derzeit `TermsOfService` (`TermsOfService.php` kontribuiert
 `$contribute[LanguageFileDirectory::class]` mit einer `ComponentLanguageFileDirectory` für `tos`).
+
+## Abweichungen vom Feature Request
+
+Dieselben Begründungen stehen auf Englisch im FR (Abschnitt 2.7 "Design decisions and their
+rationale").
+
+| Abweichung | Begründung |
+|---|---|
+| Kein natives `gettext()`, sondern `gettext/gettext` | Natives gettext braucht Extension und OS-Locales pro Sprache (Root-Rechte, auf vielen Hostings nicht vorhanden); Locale/Domain sind globaler Prozesszustand, `ilLanguage` liest aber mehrere Sprachen pro Request (`txtlng()`, Mails); gettext cacht `.mo` pro Prozess, GUI-Änderungen würden erst nach FPM-Neustart sichtbar. Das Format bleibt Standard-PO/MO. Details: "Natives PHP-`gettext()`". |
+| Weder Variante A (`msgctxt`) noch B (`modul.key`), sondern eine Datei pro Modul, `msgid` = Key, kein `msgctxt` | Die Datei legt das Modul fest, `msgctxt` = Modul wäre redundant; Variante B würde jeden Key und damit jeden `txt()`-Aufruf ändern (widerspricht FR 2.5); ohne Kontext bleibt eine Datei bei Umbenennung des Moduls gültig. Details: "Dateinamen und Kontext", "Uniqueness". |
+| GUI schreibt nicht in die Shipped-`.po`, sondern in ein Delta-Overlay im Client-Datenverzeichnis | Sonst Schreibrechte des Webservers im Code-Verzeichnis, Verlust lokaler Änderungen bei jedem Update und als geändert markierte versionierte Dateien. Details: "Overlay". |
+| `.mo` als Build-Artefakt statt versioniert | Binärdateien sind nicht reviewbar und veralten gegenüber der `.po`; `setup build` erzeugt sie reproduzierbar. Details: "Build-Artefakt". |
+| DB-Tabellen werden im Übergang mitgeschrieben (Dual-Write) | Rollback-Pfad nach FR 2.3; nicht migrierte Module, Plugins und zwei externe `lng_data`-Zugriffe hängen noch daran. Abschaltung erst nach vollständiger Migration. Details: "Rollback", "Bekannte Grenzen". |
+| Zentrale Markup-Allowlist | Umsetzung von FR 4.4 (keine Skripte über die GUI). Details: "Markup-Prüfung". |
+| Pluralformen noch nicht unterstützt | Für `tos` nicht nötig; werden in diesem Branch ergänzt, zweiter Pilot ist `poll`. Details: "Pluralformen". |
 
 ## Überblick: Datenstände pro migriertem Modul
 
@@ -433,7 +448,15 @@ Werden **nicht unterstützt**. Die frühere Methode `ilLanguage::ntxt()` wurde e
 ungenutzt), ebenso die Abhängigkeit auf `Gettext\Translator`. `convert_module_to_po.php` erzeugt nur
 `msgid`/`msgstr`-Paare. Über `gettext/gettext` werden `msgid_plural`/`msgstr[n]` gelesen und
 unverändert zurückgeschrieben (Einschränkungen siehe "Gettext-Bibliothek"), aber nicht ausgewertet;
-der Adapter bietet dafür keine API. Plural-Lookups sind eine künftige Option.
+der Adapter bietet dafür keine API.
+
+Geplant (entschieden 2026-09-28): Plural-Unterstützung kommt in diesen Branch. Zweiter Pilot ist
+`poll`: 68 Keys, nur von `Poll` genutzt, keine dynamisch zusammengesetzten Keys. Er enthält eine
+handgebaute Singular/Plural-Unterscheidung (`poll_population_singular`/`poll_population` in
+`ilPollContentRenderer::renderTotalParticipantsInfo()`), eine reine Pluralform auch für eine Stimme
+(`ilPollAnswerTableGUI`, "1 votes cast") und `poll_vote_error_multi` ("%s answers"; Sprachen wie
+`pl`/`ru` brauchen mehrere Formen). Die Aufrufer in `Poll` stellt die Language-Komponente nicht
+selbst um, das kommt als Vorschlag an die Maintainer.
 
 ## Schreibpfad
 
@@ -762,3 +785,11 @@ Nachträge 2026-09-25:
 
 Geprüft: Language-Tests 1362 grün, Code- und Security-Review der Plugin-Brücke; Artefakte nach der
 Neuerzeugung für alle 31 Sprachen inhaltsgleich.
+
+### 2026-09-28: Planung der nächsten Schritte
+
+- Abschnitt "Abweichungen vom Feature Request" mit Begründungen ergänzt (gleichlautend im FR, 2.7).
+- Entschieden: Plural-Unterstützung kommt in diesen Branch, zweiter Pilot `poll` (siehe
+  "Pluralformen"), Umstellung der `Poll`-Aufrufer nur als Vorschlag. Module ohne eigene Komponente
+  (sicher: `common`, `cptch`, `bkm`, `pdesk`) sollen in die Language-Komponente; offen sind
+  `assessment`, `content`, `pd`, `scormtrac`/`scov`. Der Branch wird nicht in mehrere PRs geteilt.
