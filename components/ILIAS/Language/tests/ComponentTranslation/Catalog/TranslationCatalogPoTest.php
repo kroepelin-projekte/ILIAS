@@ -808,4 +808,74 @@ class TranslationCatalogPoTest extends TestCase
         $this->assertSame('Sichern', $clone->find('common', 'save')->getTranslation());
         $this->assertSame('en', $clone->getHeader('Language'));
     }
+
+    // ------------------------------------------------------------- addInIdOrder()
+
+    /**
+     * @return list<string> the ids in the order the catalog holds them
+     */
+    private static function idsOf(TranslationCatalog $catalog): array
+    {
+        return array_map(static fn(TranslationEntry $entry): string => $entry->getId(), $catalog->getEntries());
+    }
+
+    private static function catalogOfIds(string ...$ids): TranslationCatalog
+    {
+        $catalog = new TranslationCatalog();
+        foreach ($ids as $id) {
+            $catalog->add(self::entry('common', $id, $id));
+        }
+
+        return $catalog;
+    }
+
+    public function testAddInIdOrderInsertsAtTheFront(): void
+    {
+        $catalog = self::catalogOfIds('m', 'z');
+
+        $catalog->addInIdOrder(self::entry('common', 'a', 'A'));
+
+        $this->assertSame(['a', 'm', 'z'], self::idsOf($catalog));
+    }
+
+    public function testAddInIdOrderInsertsInTheMiddle(): void
+    {
+        $catalog = self::catalogOfIds('a', 'z');
+
+        $catalog->addInIdOrder(self::entry('common', 'm', 'M'));
+
+        $this->assertSame(['a', 'm', 'z'], self::idsOf($catalog));
+    }
+
+    public function testAddInIdOrderInsertsAtTheEnd(): void
+    {
+        $catalog = self::catalogOfIds('a', 'm');
+
+        $catalog->addInIdOrder(self::entry('common', 'z', 'Z'));
+
+        $this->assertSame(['a', 'm', 'z'], self::idsOf($catalog));
+    }
+
+    /**
+     * An entry with an id (and context) the catalog already has is replaced in place, like add() -
+     * neither removed and re-appended nor duplicated.
+     */
+    public function testAddInIdOrderReplacesAnExistingEntryInPlace(): void
+    {
+        $catalog = self::catalogOfIds('a', 'm', 'z');
+
+        $catalog->addInIdOrder(self::entry('common', 'm', 'replaced'));
+
+        $this->assertSame(['a', 'm', 'z'], self::idsOf($catalog));
+        $this->assertSame('replaced', $catalog->find('common', 'm')->getTranslation());
+    }
+
+    public function testAddInIdOrderOnAnEmptyCatalogAddsTheOnlyEntry(): void
+    {
+        $catalog = new TranslationCatalog();
+
+        $catalog->addInIdOrder(self::entry('common', 'a', 'A'));
+
+        $this->assertSame(['a'], self::idsOf($catalog));
+    }
 }

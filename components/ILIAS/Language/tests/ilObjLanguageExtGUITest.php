@@ -882,7 +882,8 @@ class ilObjLanguageExtGUITest extends TestCase
         string $action,
         ilObjLanguageExt $object,
         array &$messages,
-        ?RemoveLocalLanguageChanges $remove_local_language_changes = null
+        ?RemoveLocalLanguageChanges $remove_local_language_changes = null,
+        bool $langmode = true
     ): void {
         $tpl = $this->createStub(ilGlobalTemplateInterface::class);
         $tpl->method('setOnScreenMessage')->willReturnCallback(
@@ -899,6 +900,14 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->setProperty($gui, 'ctrl', $ctrl);
         $this->setProperty($gui, 'lng', $this->createLanguageMockWithFormatStrings());
         $this->setProperty($gui, 'object', $object);
+        // "merge" escapes the module names of its result (mergeMessages()) with the real, unmocked
+        // Refinery classes - see the comment above importedMessageProvider()
+        $this->setProperty($gui, 'refinery', new \ILIAS\Refinery\Factory(
+            $this->createStub(\ILIAS\Data\Factory::class),
+            $this->createStub(\ILIAS\Language\Language::class)
+        ));
+        // "merge" (like "delete_added"/"remove_local_file") is a developer-mode-only (LANGMODE) action
+        $this->setProperty($gui, 'langmode', $langmode);
         // "clear" alone reaches clearLocalChanges(), which needs these - never touched by any other
         // maintenance action, so harmless to always set up
         $this->setProperty($gui, 'ui_factory', $this->stubUiFactoryForMaybePerformAs());
@@ -1033,18 +1042,26 @@ class ilObjLanguageExtGUITest extends TestCase
 
     /**
      * "merge" goes through mergeLocalChangesIntoGlobalLanguageFile() and names the skipped modules
-     * maintained in PO files in an additional info message.
+     * maintained in PO files in an additional failure message (not written at all - an error, not an
+     * intended skip, see mergeMessages()).
      */
     public function testMergeReportsTheSkippedModulesMaintainedInPoFiles(): void
     {
         $object = $this->maintenanceLanguageObject();
-        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn(['pilot', 'tos']);
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([
+            'written' => [],
+            'skipped' => ['pilot', 'tos'],
+            'invalid_markup' => [],
+            'not_merged' => [],
+            'unwritten_overlay' => [],
+            'unwritten_database' => [],
+        ]);
         $messages = [];
 
         $this->runMaintenance('merge', $object, $messages);
 
         $this->assertSame(
-            [['success', 'language_merged_global'], ['info', 'lng_merge_skipped_po_modules: pilot, tos']],
+            [['success', 'language_merged_global'], ['failure', 'language_error_write_global pilot, tos']],
             $messages
         );
     }
@@ -1052,12 +1069,103 @@ class ilObjLanguageExtGUITest extends TestCase
     public function testMergeWithoutModulesMaintainedInPoFilesShowsOnlyTheSuccess(): void
     {
         $object = $this->maintenanceLanguageObject();
-        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([]);
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([
+            'written' => [],
+            'skipped' => [],
+            'invalid_markup' => [],
+            'not_merged' => [],
+            'unwritten_overlay' => [],
+            'unwritten_database' => [],
+        ]);
         $messages = [];
 
         $this->runMaintenance('merge', $object, $messages);
 
         $this->assertSame([['success', 'language_merged_global']], $messages);
+    }
+
+    /**
+     * A database write that failed for the shipped .po files it did write (unwritten_database, see
+     * ilObjLanguageExt::mergeIntoDatabase()) is reported like every other partial failure - the files
+     * themselves stay written.
+     */
+    public function testMergeReportsModulesWhoseDatabaseUpdateFailed(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([
+            'written' => ['some/shipped.po'],
+            'skipped' => [],
+            'invalid_markup' => [],
+            'not_merged' => [],
+            'unwritten_overlay' => [],
+            'unwritten_database' => ['pilot'],
+        ]);
+        $messages = [];
+
+        $this->runMaintenance('merge', $object, $messages);
+
+        $this->assertSame(
+            [['success', "language_merged_global<br />some/shipped.po"], ['failure', 'error: pilot']],
+            $messages
+        );
+    }
+
+    /**
+     * "merge" (like "delete_added"/"remove_local_file") is a developer-mode-only (LANGMODE) action:
+     * without it, the request is refused before the language object is ever touched.
+     */
+    #[DataProvider('langmodeOnlyMaintenanceActions')]
+    public function testMaintenanceActionsRequiringLangmodeAreRefusedWithoutIt(string $action): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->never())->method('mergeLocalChangesIntoGlobalLanguageFile');
+        $messages = [];
+
+        $this->runMaintenance($action, $object, $messages, langmode: false);
+
+        $this->assertSame([['failure', 'permission_denied']], $messages);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function langmodeOnlyMaintenanceActions(): array
+    {
+        return [
+            'merge' => ['merge'],
+            'delete_added' => ['delete_added'],
+            'remove_local_file' => ['remove_local_file'],
+        ];
+    }
+
+    // -----------------------------------------------------------------
+    // ilCtrlSecurityInterface
+    // -----------------------------------------------------------------
+
+    /**
+     * Every command that changes data must require the CSRF token even when reached by GET (a
+     * crafted link, or a form posted with "cmd=<command>") - a command missing here would let an
+     * attacker trigger it without the token.
+     */
+    public function testGetUnsafeGetCommandsListsEveryDataChangingCommand(): void
+    {
+        $gui = (new ReflectionClass(ilObjLanguageExtGUI::class))->newInstanceWithoutConstructor();
+
+        $this->assertSame(
+            ['save', 'upload', 'maintainExecute', 'saveSettings', 'saveNewEntry'],
+            $gui->getUnsafeGetCommands()
+        );
+    }
+
+    /**
+     * No POST command is exempt from the CSRF token - a "safe" one here would let an attacker trigger
+     * it via a cross-site form post without the token.
+     */
+    public function testGetSafePostCommandsIsEmpty(): void
+    {
+        $gui = (new ReflectionClass(ilObjLanguageExtGUI::class))->newInstanceWithoutConstructor();
+
+        $this->assertSame([], $gui->getSafePostCommands());
     }
 
     // -----------------------------------------------------------------

@@ -441,8 +441,7 @@ if ($keys_missing_in_reference !== []) {
 }
 
 // POT
-$pot_name = trim(str_replace('%s', '', $pattern), '_-.');
-$pot_path = $output_dir . '/' . ($pot_name === '' ? $module : $pot_name) . '.pot';
+$pot_path = $output_dir . '/' . MigratedLanguageFilePaths::templateFileName($pattern, $module);
 $write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path), null, $plural_definitions)->toPoString());
 
 $report = [];

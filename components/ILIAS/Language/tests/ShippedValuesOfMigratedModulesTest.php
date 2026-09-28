@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -74,6 +75,8 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
     private array $remark_rows = [];
     /** @var array<int, list<array<string, ?string>>> rows fetchAssoc() hands out per statement */
     private array $statement_rows = [];
+    /** @var list<string> every manipulate() SQL string, in call order */
+    private array $manipulate_calls = [];
 
     protected function setUp(): void
     {
@@ -218,6 +221,10 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         $db->method('fetchAssoc')->willReturnCallback(function (ilDBStatement $statement): ?array {
             return array_shift($this->statement_rows[spl_object_id($statement)]);
         });
+        $db->method('manipulate')->willReturnCallback(function (string $sql): int {
+            $this->manipulate_calls[] = $sql;
+            return 0;
+        });
 
         return $db;
     }
@@ -228,6 +235,10 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         $object->key = self::LANG;
         // Set by the (skipped) constructor from $lng->separator
         $object->separator = '#:#';
+        // mergeLocalChangesIntoGlobalLanguageFile() passes this to ShippedPoMerger::merge() as the
+        // backup directory of the shipped .po files, unconditionally - never actually written to by
+        // the tests here (no overlay is seeded for the migrated module "itest")
+        $object->cust_lang_path = $this->fixture_directory;
 
         return $object;
     }
@@ -479,10 +490,21 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
             ['module' => 'common', 'identifier' => 'yes', 'remarks' => 'lokale Bemerkung'],
             ['module' => 'itest', 'identifier' => 'farewell', 'remarks' => 'lokale Bemerkung einer PO-Variable'],
         ];
+        // mergeLocalChangesIntoShippedPoFiles() always asks for a "lang" component logger once the
+        // directory manager is registered, whether or not anything is actually logged
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($this->createStub(ilLogger::class));
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
 
-        $skipped = $this->languageObject()->mergeLocalChangesIntoGlobalLanguageFile();
+        $result = $this->languageObject()->mergeLocalChangesIntoGlobalLanguageFile();
 
-        $this->assertSame(['itest'], $skipped);
+        // "itest" has no overlay here (its lng_data rows are only the stale dual-write fallback,
+        // not a real local change of a migrated module) - ShippedPoMerger has nothing to merge for
+        // it, so it is neither written nor reported as skipped.
+        $this->assertSame(
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []],
+            $result
+        );
         $this->assertSame(
             [
                 'common#:#yes#:#Jawohl###lokale Bemerkung',
@@ -507,7 +529,10 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
             ['module' => 'itest', 'identifier' => 'greeting', 'value' => 'Lokal geändert'],
         ];
 
-        $this->assertSame([], $this->languageObject()->mergeLocalChangesIntoGlobalLanguageFile());
+        $this->assertSame(
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []],
+            $this->languageObject()->mergeLocalChangesIntoGlobalLanguageFile()
+        );
         $this->assertSame(
             [
                 'common#:#yes#:#Ja###Zustimmung',
@@ -517,6 +542,40 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
                 'common#:#no#:#Nein',
             ],
             $this->entryLinesOfTheGlobalFile()
+        );
+    }
+
+    /**
+     * The database part of a successful merge (ilObjLanguageExt::mergeIntoDatabase(), only reachable
+     * through the real merge flow, see ShippedPoMerger::merge()'s $after_module callback): the
+     * lng_data row of every taken-over value and remark loses local_change/remarks - the shipped .po
+     * is authoritative for them now.
+     */
+    public function testMergeUpdatesLngDataOfTheTakenOverValueAndRemarkToNull(): void
+    {
+        $overlay = MigratedPoFixture::catalog('itest', ['greeting' => 'Lokal geändert']);
+        LocalChangeComments::setRemark($overlay->find('itest', 'greeting'), 'lokale Bemerkung');
+        MigratedPoFixture::writePair(
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
+            . basename((string) $this->fixture_directory) . '/itest_' . self::LANG,
+            $overlay
+        );
+        $logger = $this->createStub(ilLogger::class);
+        $logger_factory = $this->createStub(ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
+
+        $object = $this->languageObject();
+        $object->cust_lang_path = $this->fixture_directory;
+        $result = $object->mergeLocalChangesIntoGlobalLanguageFile();
+
+        $this->assertNotSame([], $result['written'], 'the shipped .po was actually written');
+        $this->assertSame(
+            [
+                "UPDATE lng_data SET local_change = NULL WHERE lang_key = 'zz' AND module = 'itest' AND 1 = 1",
+                "UPDATE lng_data SET remarks = NULL WHERE lang_key = 'zz' AND module = 'itest' AND 1 = 1",
+            ],
+            $this->manipulate_calls
         );
     }
 }

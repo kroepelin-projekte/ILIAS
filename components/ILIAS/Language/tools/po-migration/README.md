@@ -33,7 +33,7 @@ rationale").
 
 | Stand | Ort | Geschrieben von |
 |---|---|---|
-| Shipped-`.po` (versioniert, maßgebliche Auslieferung) | `components/ILIAS/TermsOfService/lang/tos_<lang>.po`, `tos.pot` (Dateiname nach Namensschema, siehe unten) | nur `convert_module_to_po.php` |
+| Shipped-`.po` (versioniert, maßgebliche Auslieferung) | `components/ILIAS/TermsOfService/lang/tos_<lang>.po`, `tos.pot` (Dateiname nach Namensschema, siehe unten) | `convert_module_to_po.php`; zur Laufzeit nur die Wartungsaktion „merge" im Übersetzungsmodus (siehe „merge in die Shipped-`.po`") |
 | Build-Artefakt `.mo` (kompilierter, bereinigter Shipped-Stand, gitignored) | `artifacts/language/<lang>/<modul>.mo`, Index `artifacts/language/index.json` | `php cli/setup.php build` (`ShippedLanguageFilesCompiledObjective`), läuft bei `composer install`/`composer du` |
 | Overlay `.po`+`.mo` (pro Installation, **nur das Delta** = lokale Änderungen) | `<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.po/.mo` (+ `.lock`) | Admin-Edits, Customizing-Werte bei Install/Update, "Lokale Änderungen anwenden" |
 | `lng_data`/`lng_modules` (Fallback, Dual-Write) | Datenbank | dieselben Schreibpfade wie bisher; für migrierte Module mit den **bereinigten** Shipped-Werten |
@@ -239,7 +239,9 @@ Kompilierweg wie der Laufzeit-Fallback.
 - Die Artefakt-Ablage in einem eigenen Unterverzeichnis mit Index weicht vom üblichen Schema
   `artifacts/<md5(Klasse)>.php` ab; mit den Setup-Maintainern noch abzustimmen.
 
-**Deploy-Voraussetzung:** Nach jeder Änderung einer Shipped-`.po` muss `setup build` laufen. Die
+**Deploy-Voraussetzung:** Nach jeder Änderung einer Shipped-`.po` sollte `setup build` laufen. Funktional
+nötig ist es nicht: bis dahin kompiliert die Laufzeit die neuere `.po` pro Request selbst (~1 ms pro
+Modul). „merge" datiert das Artefakt zusätzlich zurück (siehe „merge in die Shipped-`.po`"). Die
 Aktualität wird über mtime in Sekunden entschieden; ein Deploy, das mtimes erhält (`rsync -a`,
 `tar`, `cp -p`), kann eine geänderte `.po` älter aussehen lassen als das vorhandene Artefakt, das
 dann veraltet ausgeliefert wird.
@@ -298,7 +300,10 @@ Pflege der Sprachdateien in `SHIPPED_MARKUP_VIOLATIONS.md` aufgelistet.
 
 ## Overlay: Installations-eigene Delta-Dateien
 
-Der git-getrackte `lang/`-Ordner einer Komponente wird zur Laufzeit nie beschrieben. Lokale
+**Grundsatz:** Shipped-Dateien werden zur Laufzeit nie geschrieben – einzige Ausnahme ist die
+Wartungsaktion „merge" im Übersetzungsmodus (LANGMODE), wie bisher für `lang/ilias_<lang>.lang`
+(siehe „merge in die Shipped-`.po`"). Der git-getrackte `lang/`-Ordner einer Komponente wird sonst
+zur Laufzeit nie beschrieben. Lokale
 Änderungen landen in einem `.po`+`.mo`-Paar unterhalb des Client-Datenverzeichnisses, das den Pfad
 der Directory spiegelt:
 
@@ -770,17 +775,113 @@ mehr geshippt) bleiben stehen; eine Konfliktanzeige (`original` ≠ neuer Shippe
 
 | Aktion | Verhalten für PO-Module | Offen |
 |---|---|---|
-| `save_dist` („Globale Sprachdatei sichern") | kopiert `lang/ilias_<lang>.lang` ins Datenverzeichnis | Die Kopie enthält die `.lang`-Zeilen, nicht die Shipped-`.po`; der Filter "Konflikte" ist für PO-Module blind |
+| `save_dist` („Globale Sprachdatei sichern") | kopiert `lang/ilias_<lang>.lang` und (seit 2026-09-28) die Shipped-`.po` jedes PO-Moduls der Sprache nach `<client_data_dir>/lang_data/` (Dateiname der Shipped-`.po`, `ShippedPoMerger::backupShippedPoFiles()`); Grundlage des Filters "Konflikte" | Scheitert eine Kopie, meldet die Aktion `language_save_dist_failed` |
 | `load` („Lokale Datei laden") | `importLanguageFile(<customizing>, "replace", true)`: Werte als lokale Änderungen ins Overlay, Kommentare als Bemerkungen; unzulässiges Markup übersprungen; einfacher Key eines Plural-Eintrags = letzte Form (gleich nach dem Einlesen, auch für "keepall"/"keepnew" und die Markup-Prüfung, `withPluralFormKeys()`) | – |
 | `clear` („Lokale Änderungen in der Datenbank löschen") | = „Lokale Änderungen entfernen" (Activity `RemoveLocalLanguageChanges`): Werte, lokal hinzugefügte Keys, Bemerkungen weg (DB und Overlay), Shipped-Stand aus der `.po`, Status „installed", Plugins neu eingespielt; läuft auch bei ungültiger Customizing-Datei | Nicht atomar (siehe oben); Case-Duplikate der `.lang` (siehe `SHIPPED_CASE_DUPLICATES.md`) |
 | `delete_added` („Lokale Ergänzungen löschen") | `_deleteValues(getAddedValues())`: lokal hinzugefügte Keys samt Bemerkung aus DB und Overlay | – |
 | `remove_local_file` | löscht die Customizing-Datei, keine Datenänderung | – |
-| `merge` (Entwicklermodus) | überspringt PO-Module, ihre `.lang`-Zeilen bleiben unverändert | Übernahme lokaler Änderungen in die Shipped-`.po` offen (spätere Runde) |
+| `merge` (Übersetzungsmodus) | nicht migrierte Module wie bisher in `lang/ilias_<lang>.lang`; PO-Module mit Overlay in ihre Shipped-`.po` (neue Keys auch in die `.pot`), Sicherung nach `lang/customizing/`, siehe „merge in die Shipped-`.po`"; die `.lang`-Zeilen der PO-Module bleiben byte-genau erhalten | `setup build` empfohlen, nicht nötig (bis dahin Kompilierung pro Request) |
 
 Der frühere Reset-Zweig des Imports (`importLanguageFile(..., $refreshOriginalFromShipped)`,
 `removeRemarksOfMigratedModules()`, der gleichnamige Parameter von `_saveValues()`) ist entfernt;
 `importLanguageFile($file, $mode, $skipInvalidMarkup)` importiert nur noch hochgeladene bzw.
 Customizing-Dateien.
+
+### merge in die Shipped-`.po` (seit 2026-09-28)
+
+Wartungsaktion „In die globale Sprachdatei übernehmen" (`merge`, nur Übersetzungsmodus). Ein Klick
+übernimmt alles: nicht migrierte Module wie in trunk in `lang/ilias_<lang>.lang` (Sicherung vorher
+nach `lang/customizing/ilias_<lang>.lang`), migrierte Module in ihre Shipped-`.po`. Ablauf
+(`ilObjLanguageExt::mergeLocalChangesIntoGlobalLanguageFile()` → `ShippedPoMerger::merge()`), pro
+PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem Overlay-Lock
+(`withOverlayLock()`):
+
+1. **Prüfen:** Shipped-`.po` und ihr Verzeichnis, `lang/customizing/` und – nur bei neuen Keys – die
+   `.pot` (Pfad `MigratedLanguageFilePaths::shippedTemplatePath()`, dieselbe Namensregel
+   `templateFileName()` wie der Konverter) müssen beschreibbar sein, sonst wird das Modul ganz
+   übersprungen (Fehlermeldung `language_error_write_global` + Module, Grund im Log). Alle Dateien
+   müssen außerdem unterhalb des ILIAS-Verzeichnisses liegen (`realpath`; ein symbolischer Link
+   hinaus führt zum Überspringen, `AtomicFileWriter` prüft beim Schreiben erneut; die `lang_data`-Kopie
+   von `save_dist` ist auf das Client-Datenverzeichnis beschränkt). Zwei Module mit gleichem
+   Shipped-Dateinamen (gleiches Namensschema) werden übersprungen, weil ihre Sicherungen kollidieren.
+2. **Übernehmen** (auf dem geparsten Shipped-Katalog, `TranslationCatalog`; unveränderte Einträge,
+   Header inkl. `Plural-Forms` bleiben byte-genau):
+   - Wert → `msgstr` (Plural: alle Formen des Overlay-Eintrags; ein einfacher Wert eines
+     Plural-Eintrags ist seine Standardform), `#, fuzzy` entfällt.
+   - Reine Bemerkungseinträge liefern keinen Wert.
+   - **Bemerkung → `#.`:** Die Admin-Bemerkung (`# remark`) wird als **weitere** `#.`-Zeile nach den
+     vorhandenen angehängt (Zeilenumbrüche, andere Steuerzeichen, Zeilen-/Absatztrenner und
+     Bidi-Steuerzeichen U+202A–U+202E, U+2066–U+2069 werden zu Leerzeichen,
+     `TranslationEntry::plainLine()`, gilt für jede `#.`-Zeile); eine gleichlautende `#.`-Zeile
+     wird nicht verdoppelt, bestehende `#.`-Kommentare bleiben immer erhalten. Begründung: Die
+     Bemerkung eines PO-Moduls ist (anders als früher `lng_data.remarks`, das den `###`-Kommentar
+     enthielt und beim merge ersetzte) eine Ergänzung zur Notiz der Datei.
+   - `# original`/`# original[<n>]`/`# local_change` kommen nie in die Shipped-Datei.
+   - **Neue Keys** (nicht in der Shipped-`.po` der Sprache) werden nach `msgid` sortiert eingefügt
+     (`TranslationCatalog::addInIdOrder()`), ebenso in die `.pot` mit leerem `msgstr`
+     (Plural: `msgid_plural` der `.pot` bzw. `<key>_plural`, zwei leere Formen wie beim Konverter);
+     die `.po` der anderen Sprachen bleiben unverändert.
+   - **Nicht übernommen** (bleiben im Overlay, werden gemeldet): unzulässiges Markup
+     (`TranslationMarkupPolicy`, geprüft wird nur, was von der Shipped-`.po` abweicht), ein
+     Plural-Eintrag mit leerem `msgstr[0]` neben anderen Formen (nicht kompilierbar), ein
+     Plural-Eintrag im Overlay zu einem singulären Shipped-Eintrag und ein neuer Key der Form
+     `<key> [<n>]` (würde als Pluralform gelesen). Gemeldet werden Markup-Verstöße und diese Fälle
+     getrennt, beide mit `form_input_not_valid` + Keys (Grund im Log).
+3. **Schreiben:** Das Ergebnis wird vorher gelesen (`StrictPoLoader`) und kompiliert (`toMoString()`),
+   dann: Sicherung der bisherigen Shipped-`.po` nach `lang/customizing/<Dateiname der Shipped-.po>`
+   (überschreibt eine frühere Sicherung, wie bei `.lang`), `.pot`, dann `.po`, jeweils atomar mit
+   fsync (`AtomicFileWriter`). Die `.pot` gehört allen Sprachen: Sie wird unter einem eigenen Lock
+   gelesen und geschrieben (`MigratedLanguageFileSync::withTemplateLock()`, Lock-Datei
+   `<client_data_dir>/lang/<Pfad der Directory><modul>.pot.lock`, immer **nach** dem Overlay-Lock),
+   damit ein gleichzeitiger merge einer anderen Sprache keinen neuen Key verliert. Danach wird das
+   Build-Artefakt der Sprache eine Sekunde vor die `.po` datiert (sonst gewänne ein in derselben
+   Sekunde gebautes Artefakt, `readCompiled()` vergleicht mit `>=`), ersatzweise gelöscht; gelingt
+   beides nicht, steht eine Warnung im Log. **Eigentümer:** Die geschriebenen Dateien gehören danach
+   dem Webserver-Nutzer (neue Datei per `rename`, Rechte der alten Datei werden übernommen, Eigentümer
+   und Gruppe nicht) – im Log vermerkt; für einen Commit aus dem Arbeitsverzeichnis ggf. `chown`.
+4. **Abgleichen:** `sync(..., $refresh_original_from_shipped = true, remarks: die nicht übernommenen)`:
+   übernommene Einträge entsprechen jetzt dem Shipped-Stand und fallen aus dem Delta, übernommene
+   Bemerkungen aus dem Overlay; ein leeres Overlay wird entfernt (`.lock` bleibt). Der Parse-Cache
+   (`readShippedPo()`, Inhalts-Hash) erkennt die neue Datei selbst, der Request-Cache von
+   `ilLanguage` wird invalidiert. **Datenbank:** `lng_data.local_change` der übernommenen Keys wird
+   `NULL`, `lng_data.remarks` der übernommenen Bemerkungen ebenfalls (wie nach einer Neuinstallation,
+   bei der eine `#.`-Notiz keine Bemerkung ist); `lng_modules` bleibt (die Werte ändern sich nicht).
+   **Abweichung von trunk:** trunk lässt `local_change` nach merge stehen. Für ein PO-Modul würde ein
+   stehen gebliebenes `local_change` beim nächsten Update, sobald sich der Shipped-Wert ändert, im
+   Drei-Wege-Abgleich als lokale Änderung zurückkehren (L ≠ S, kein `original` mehr).
+5. **Meldung:** `language_merged_global` plus Liste der geschriebenen `.po` (Pfade relativ zum
+   ILIAS-Verzeichnis); als Fehler: übersprungene Module (`language_error_write_global` + Module),
+   Markup-Verstöße, nicht übernommene Keys, nicht abgeglichene Overlays (`lng_po_overlay_not_written`)
+   und Module, deren `lng_data`-Zeilen nicht aktualisiert werden konnten (`error` + Module; die
+   Dateien sind geschrieben, die übrigen Module werden weiter bearbeitet). `lng_merge_skipped_po_modules`
+   wird nicht mehr verwendet (Key-Vorschlag siehe unten).
+6. **Absicherung der GUI:** Die Wartungsaktionen `merge`, `delete_added` und `remove_local_file` prüfen
+   LANGMODE serverseitig (sonst `permission_denied`). `ilObjLanguageExtGUI` implementiert
+   `ilCtrlSecurityInterface`: `save`, `upload`, `maintainExecute`, `saveSettings` und `saveNewEntry`
+   brauchen das CSRF-Token auch per GET, POST-Befehle weiterhin immer. Das ilCtrl-Artefakt
+   (`setup build`) muss dafür neu gebaut werden.
+
+**Hinweise:** Eine Customizing-Zeile (`ilias_<lang>.lang.local`) für einen übernommenen Key sollte
+danach entfernt werden – sonst kommt der Wert beim nächsten Update erneut als lokale Änderung (bzw.
+die Bemerkung doppelt: als `#.` und im Overlay). Ein erneuter Lauf von `convert_module_to_po.php`
+erzeugt die `.po` aus den Root-`.lang` neu: per merge hinzugefügte Keys und `#.`-Zeilen gehen dabei
+verloren, solange sie nicht in die `.lang` nachgetragen sind. `lang/customizing/*.po` ist hier nur
+lokal per `.git/info/exclude` ausgeschlossen – Vorschlag für die Root-`.gitignore` (nicht geändert):
+`/lang/customizing/*.po`.
+
+**Build-Artefakt:** `setup build` ist funktional nicht nötig, aber empfohlen: bis dahin kompiliert die
+Laufzeit die `.po` pro Request selbst (das Artefakt ist zurückdatiert, siehe Schritt 3). **Rückweg:** Sicherung aus `lang/customizing/` zurückkopieren bzw. `git checkout` der
+Komponenten-Dateien (Entwicklungsumgebung) und die Werte ggf. neu eingeben – das Overlay enthält die
+übernommenen Werte nicht mehr. `lang/customizing/` ist in dieser Instanz per `.git/info/exclude`
+ausgeschlossen.
+
+**Filter "Konflikte"** (Lokale und Update-Änderungen): vergleicht jetzt auch PO-Module, mit der
+Kopie ihrer Shipped-`.po`, die `save_dist` nach `<client_data_dir>/lang_data/` schreibt – analog zur
+`.lang`-Kopie dort (`ilObjLanguageExt::getShippedChangesSinceBackup()`,
+`ShippedPoMerger::findShippedChangesSinceBackup()`): Einträge (Formzeilen bei Plural), deren
+Shipped-Wert neu ist oder von der Kopie abweicht, geschnitten mit den lokal geänderten Werten. Ein
+PO-Modul ohne Kopie trägt nichts bei. Die merge-Sicherung in `lang/customizing/` ist – wie die
+`.lang`-Sicherung dort – nur eine Sicherung, nicht die Vergleichsbasis des Filters.
 
 **Case-Duplikate in den Sprachdateien:** `scan_shipped_case_duplicates.php` findet Identifier, die
 in derselben `.lang` im selben Modul nur in Groß-/Kleinschreibung verschieden vorkommen
@@ -889,6 +990,10 @@ zurückschreiben".
 2. **Pro Sprache:** die Shipped-`.po` der Sprache entfernen; dann liest `ilLanguage` `lng_modules`.
    (Nur die Overlay-Dateien zu löschen, genügt nicht: dann wird der Shipped-Stand ohne lokale
    Änderungen geliefert.)
+   **Nach einem „merge"** stehen die übernommenen Werte nur noch in der Shipped-`.po` (Overlay und
+   `lng_data.local_change` sind bereinigt, der Wert steht weiter in `lng_data`); die `.lang`-Zeilen
+   des Moduls sind veraltet. Ein Rollback auf `.lang` verliert sie mit dem nächsten Update, solange
+   sie nicht in die `.lang` nachgetragen werden.
 3. **Build-Artefakte:** `artifacts/language/` kann jederzeit gelöscht werden; `ilLanguage` kompiliert
    dann die `.po` direkt, der nächste `setup build` legt die Artefakte neu an.
 4. **Gesamter Mechanismus:** den Lesepfad in `ilLanguage` und `ilObjLanguageExt` zurücknehmen und
@@ -923,8 +1028,9 @@ Plural-Einträge erscheinen als eine Zeile pro Form (`poll_population [0]`, …)
 "Standardwert" las, gilt für ein migriertes Modul die geshippte `.po`
 (`ilObjLanguageExt::getShippedValues()`/`getShippedComments()`; `.lang`-`###`-Kommentar ↔
 `.po`-Extracted-Comment `#.`): Vergleich mit dem Standardwert, Filter "hinzugefügt" und
-"kommentiert", Export "merged" und `_saveValues()`. Der Filter "Konflikte" vergleicht mit einer
-gesicherten Kopie der `.lang`-Datei; migrierte Module erscheinen dort nie. Ist eine geshippte `.po`
+"kommentiert", Export "merged" und `_saveValues()`. Der Filter "Konflikte" vergleicht mit den
+Kopien, die `save_dist` im Datenverzeichnis ablegt: `.lang` für nicht migrierte Module, die Kopie der
+Shipped-`.po` für migrierte (seit 2026-09-28, siehe „merge in die Shipped-`.po`"). Ist eine geshippte `.po`
 nicht lesbar, zeigen die Leser ersatzweise die `.lang`-Zeilen und die GUI eine Warnung
 (`lng_shipped_po_unreadable_fallback`); "clear" ändert in diesem Fall nichts.
 
@@ -947,11 +1053,9 @@ nicht lesbar, zeigen die Leser ersatzweise die `.lang`-Zeilen und die GUI eine W
   vielen migrierten Modulen mit Overlay ggf. einschränken. Alle Bemerkungen und Notizen
   werden escaped ausgegeben (`ilLegacyFormElementsUtil::prepareFormOutput()`).
 
-**"In die globale Sprachdatei übernehmen" (Entwicklermodus, "merge")**: migrierte Module werden
-übersprungen (`ilObjLanguageExt::mergeLocalChangesIntoGlobalLanguageFile()`); ihre vorhandenen
-Zeilen werden exakt so zurückgeschrieben, wie sie gelesen wurden
-(`ilLanguageFile::keepOriginalLines()`). Die GUI nennt die übersprungenen Module
-(`lng_merge_skipped_po_modules`).
+**"In die globale Sprachdatei übernehmen" (Übersetzungsmodus, "merge")**: migrierte Module werden
+in ihre Shipped-`.po` übernommen, siehe „merge in die Shipped-`.po`"; ihre vorhandenen `.lang`-Zeilen
+werden exakt so zurückgeschrieben, wie sie gelesen wurden (`ilLanguageFile::keepOriginalLines()`).
 
 Bei abgelehnter Speicherung (Markup) zeigt die Tabelle wieder die gespeicherten Werte; die Eingaben
 gehen verloren (das Tabellen-GUI kann POST-Werte nicht vorbelegen), die abgelehnten Keys werden
@@ -965,7 +1069,7 @@ genannt.
 - **Offen:** Artefakt-Konvention mit den Setup-Maintainern.
 - Mitgelieferte Markup-Verstöße in `lang/*.lang`: gemeldet über `SHIPPED_MARKUP_VIOLATIONS.md`.
 - Kein Reset-UI pro Eintrag. Bemerkungen stehen im Overlay, nicht in der Shipped-`.po` (dort nur
-  `#.`-Notizen). Ein Import im Modus "delete" übernimmt die Bemerkungen der Datei, ersetzt aber die
+  `#.`-Notizen; erst „merge" macht aus einer Bemerkung eine `#.`-Zeile). Ein Import im Modus "delete" übernimmt die Bemerkungen der Datei, ersetzt aber die
   übrigen Overlay-Bemerkungen nicht. Beim Export bekommen Plural-Formzeilen keine Bemerkung (sie
   gehört zum Key).
 - **Zwei externe Direktzugriffe auf `lng_data`** außerhalb der Language-Komponente:
@@ -998,7 +1102,9 @@ Relevante Tests liegen unter `components/ILIAS/Language/tests/`, u. a.
 `UninstallRemovesPluginMigratedMoFilesTest.php`, `ComponentTranslation/Catalog/TranslationCatalogPoTest.php`,
 `ComponentTranslation/Catalog/TranslationCatalogMoTest.php` (Standardform eines Plural-Eintrags),
 `ConvertModuleToPoToolTest.php`. Eigene Tests für `PluralForms`, `PluralFormKey`, `ntxt()` und die
-Plural-Pfade von Sync/Installation/Admin-GUI folgen (Stand 2026-09-28 noch offen).
+Plural-Pfade von Sync/Installation/Admin-GUI folgen (Stand 2026-09-28 noch offen), ebenso für
+`ShippedPoMerger`, `TranslationCatalog::addInIdOrder()` und `MigratedLanguageFilePaths::templateFileName()`
+(merge, Sicherungen, Filter "Konflikte").
 
 ## Änderungshistorie
 
@@ -1139,3 +1245,30 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    Fehler beim Neuaufbau mit Rückweg im Log.
 3. **Case-Duplikate:** `scan_shipped_case_duplicates.php` und `SHIPPED_CASE_DUPLICATES.md` (Befund
    `style/style/de` mit `local_change` nach "clear"); kein Code-Fix.
+
+### 2026-09-28: merge in die Shipped-`.po` (Variante A)
+
+1. **`ShippedPoMerger`** (neu): „merge" übernimmt die Overlays der PO-Module in ihre Shipped-`.po`
+   (Werte, Pluralformen, Bemerkungen als angehängte `#.`-Zeile, neue Keys auch in die `.pot`),
+   Sicherung nach `lang/customizing/`, atomar, unter dem Overlay-Lock; danach Overlay-Abgleich
+   (`refresh_original_from_shipped`) und `lng_data.local_change`/`remarks` der übernommenen Keys
+   `NULL` (Abweichung von trunk begründet unter „merge in die Shipped-`.po`").
+   `ilObjLanguageExt::mergeLocalChangesIntoGlobalLanguageFile()` liefert statt der Liste
+   übersprungener Module ein Ergebnis-Array (`written`, `skipped`, `invalid_markup`, `not_merged`,
+   `unwritten_overlay`); kein Aufrufer außerhalb der Language-Komponente.
+2. **`save_dist`** sichert auch die Shipped-`.po` nach `lang_data/`; der Filter "Konflikte" vergleicht
+   PO-Module damit (`getShippedChangesSinceBackup()`).
+3. Gemeinsame Helfer: `MigratedLanguageFilePaths::templateFileName()`/`shippedTemplatePath()` (auch
+   vom Konverter genutzt, Ausgabe für `poll` byte-identisch), `TranslationCatalog::addInIdOrder()`,
+   öffentlich gemacht: `MigratedLanguageFileSync::findDirectory()`, `isRemarkOnly()`, neu
+   `readOverlayCatalog()`. Der Build-Fingerprint ändert sich (Quellen von Catalog/Sync), der nächste
+   `setup build` ist ein Vollbau.
+4. Grundsatz ergänzt: Shipped-Dateien werden zur Laufzeit nie geschrieben – Ausnahme merge im
+   Übersetzungsmodus, wie bisher für `.lang`.
+5. Nach Code-/Security-Review: LANGMODE-Prüfung serverseitig; `ilObjLanguageExtGUI` implementiert
+   `ilCtrlSecurityInterface` (ctrl-Artefakt neu bauen); Confinement der Dateien auf das
+   ILIAS-/Client-Datenverzeichnis; eigener Lock für die `.pot`
+   (`MigratedLanguageFileSync::withTemplateLock()`); Artefakt nach merge zurückdatiert; DB-Fehler
+   eines Moduls bricht die übrigen nicht ab (`unwritten_database`); übersprungene Module als Fehler
+   gemeldet, nicht übernommene Keys getrennt von Markup-Verstößen; `#.`-Zeilen ohne Steuer-/Bidi-Zeichen
+   (`TranslationEntry::plainLine()`, `tos`/`poll` byte-identisch).

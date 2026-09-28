@@ -23,6 +23,7 @@ use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\Language\ComponentTranslation\PluralFormKey;
+use ILIAS\Language\ComponentTranslation\ShippedPoMerger;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 
 /**
@@ -358,35 +359,236 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-     * Merges the local changes back into the global language file (lang/ilias_<key>.lang) - the
-     * "merge" maintenance action of the developer mode (LANGMODE). A module maintained in PO files is
-     * skipped entirely: its source is the shipped .po, so neither its local values nor its local
-     * remarks are written, no line is added for it, and every line it already has in the file is
-     * written back exactly as it was read (see ilLanguageFile::keepOriginalLines()).
+     * Merges the local changes back into the shipped language files - the "merge" maintenance action
+     * of the developer mode (LANGMODE):
+     * - every module not maintained in PO files into the global language file
+     *   (lang/ilias_<key>.lang), as before; the lines a module maintained in PO files has there are
+     *   written back exactly as they were read (see ilLanguageFile::keepOriginalLines());
+     * - every module maintained in PO files with local changes into its shipped .po (and a locally
+     *   added entry into its template .pot), see ShippedPoMerger - the shipped .po is backed up into
+     *   the customizing directory before (like the global language file by the caller). Afterwards
+     *   the taken over entries are no local changes any more: they leave the overlay, and their
+     *   lng_data rows lose local_change - and their remarks where these became `#.` comments of the
+     *   shipped entry (the database stays in line with the files, see mergeIntoDatabase()).
      *
-     * @return list<string> the skipped modules maintained in PO files, to be reported to the user
+     * @return array{
+     *     written: list<string>,
+     *     skipped: list<string>,
+     *     invalid_markup: array<string, list<string>>,
+     *     not_merged: list<string>,
+     *     unwritten_overlay: list<string>,
+     *     unwritten_database: list<string>
+     * } for the modules maintained in PO files: written - the shipped .po files written (relative to
+     *   the ILIAS directory); skipped - the modules left out as a whole (e.g. not writable, logged
+     *   with the reason); invalid_markup - module.separator.identifier => violations of values not
+     *   taken over because of markup that is not allowed; not_merged - module.separator.identifier of
+     *   entries that could not be taken over (see ShippedPoMerger, logged); unwritten_overlay -
+     *   modules whose overlay could not be reconciled; unwritten_database - modules whose lng_data
+     *   rows could not be updated (logged; their files are written)
      */
     public function mergeLocalChangesIntoGlobalLanguageFile(): array
     {
-        $skipped_modules = $this->getModulesMaintainedInPoFiles();
+        $po_modules = $this->getModulesMaintainedInPoFiles();
         $global_file_obj = $this->getGlobalLanguageFile();
         $global_values = $global_file_obj->getAllValues();
 
         $global_file_obj->setAllValues(array_merge(
             $global_values,
-            self::withoutModules(self::_getValues($this->key), $skipped_modules, $this->separator)
+            self::withoutModules(self::_getValues($this->key), $po_modules, $this->separator)
         ));
         $global_file_obj->setAllComments(array_merge(
             $global_file_obj->getAllComments(),
-            self::withoutModules(self::_getRemarks($this->key, true), $skipped_modules, $this->separator)
+            self::withoutModules(self::_getRemarks($this->key, true), $po_modules, $this->separator)
         ));
         $global_file_obj->keepOriginalLines(array_keys(array_diff_key(
             $global_values,
-            self::withoutModules($global_values, $skipped_modules, $this->separator)
+            self::withoutModules($global_values, $po_modules, $this->separator)
         )));
         $global_file_obj->write();
 
-        return $skipped_modules;
+        $result = $this->mergeLocalChangesIntoShippedPoFiles();
+        // the shipped values read so far are outdated now
+        $this->shipped_migrated_modules = null;
+
+        return $result;
+    }
+
+    /**
+     * The part of mergeLocalChangesIntoGlobalLanguageFile() for the modules maintained in PO files.
+     *
+     * @return array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_overlay: list<string>, unwritten_database: list<string>}
+     */
+    private function mergeLocalChangesIntoShippedPoFiles(): array
+    {
+        global $DIC;
+
+        $result = ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []];
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return $result;
+        }
+        $lang_key = $this->key;
+        $merged = ShippedPoMerger::merge(
+            $DIC[LanguageFileDirectoryManager::class],
+            ILIAS_ABSOLUTE_PATH,
+            $lang_key,
+            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+            $this->getCustLangPath(),
+            static function (string $module, array $identifiers, array $remark_identifiers) use ($lang_key): void {
+                self::mergeIntoDatabase($lang_key, $module, $identifiers, $remark_identifiers);
+            }
+        );
+
+        $logger = $DIC->logger()->forComponent('lang');
+        $root = rtrim(ILIAS_ABSOLUTE_PATH, '/') . '/';
+        foreach ($merged['written'] as $file) {
+            $result['written'][] = str_starts_with($file, $root) ? substr($file, strlen($root)) : $file;
+        }
+        foreach ($merged['skipped'] as $module => $reason) {
+            $result['skipped'][] = (string) $module;
+            $logger->warning(PlainLogText::of(sprintf(
+                'The local changes of module "%s", language "%s" were not merged into its shipped PO file: %s',
+                $module,
+                $lang_key,
+                $reason
+            )));
+        }
+        foreach ($merged['invalid_markup'] as $module => $invalid) {
+            foreach ($invalid as $identifier => $violations) {
+                $result['invalid_markup'][$module . $this->separator . $identifier] = $violations;
+            }
+        }
+        foreach ($merged['not_merged'] as $module => $identifiers) {
+            foreach ($identifiers as $identifier) {
+                $result['not_merged'][] = $module . $this->separator . $identifier;
+            }
+        }
+        if ($result['not_merged'] !== []) {
+            $logger->warning(PlainLogText::of(sprintf(
+                'Language entries not merged into their shipped PO file (a plural message with an empty first form next to other forms, a plural message for a singular shipped one, or a new identifier in the form of a plural form): %s',
+                implode(', ', $result['not_merged'])
+            )));
+        }
+        $result['unwritten_overlay'] = $merged['unwritten_overlay'];
+        foreach ($merged['unwritten_database'] as $module => $reason) {
+            $result['unwritten_database'][] = (string) $module;
+            $logger->error(PlainLogText::of(sprintf(
+                'The shipped PO file of module "%s", language "%s" was merged, but its lng_data rows could not be updated (local_change/remarks stay set): %s',
+                $module,
+                $lang_key,
+                $reason
+            )));
+        }
+        foreach ($merged['stale_artifacts'] as $module) {
+            $logger->warning(sprintf(
+                'The build artifact of module "%s", language "%s" could neither be dated back nor removed after merging - run "php cli/setup.php build".',
+                $module,
+                $lang_key
+            ));
+        }
+        if ($result['written'] !== []) {
+            $logger->info(PlainLogText::of(sprintf(
+                'Merged the local changes of language "%s" into (now owned by the web server user, run "setup build" to update the artifacts): %s',
+                $lang_key,
+                implode(', ', $result['written'])
+            )));
+        }
+
+        return $result;
+    }
+
+    /**
+     * The database part of merging $identifiers (a plural message under its identifier) of the module
+     * maintained in PO files $module into its shipped .po (see mergeLocalChangesIntoGlobalLanguageFile()):
+     * their lng_data rows are no local change any more (their value already is the one shipped now)
+     * - unlike the global language file, where a merged row keeps its local_change: for a module
+     * maintained in PO files the next update compares a local change with the shipped value and the
+     * overlay's "original" (see LanguageInstallationManager::resolveMigratedModule()), a remaining
+     * local_change would bring the value back as a local change once the shipped one changes.
+     * The remarks of $remark_identifiers became `#.` comments of the shipped entry: removed, like a
+     * newly installed module has no remark (see LanguageInstallationManager::migratedModuleRemarks()).
+     * lng_modules keeps its content - its values do not change.
+     *
+     * @param list<string> $identifiers
+     * @param list<string> $remark_identifiers
+     */
+    private static function mergeIntoDatabase(string $a_lang_key, string $module, array $identifiers, array $remark_identifiers): void
+    {
+        global $DIC;
+        $ilDB = $DIC->database();
+
+        foreach (['local_change' => $identifiers, 'remarks' => $remark_identifiers] as $column => $keys) {
+            if ($keys === []) {
+                continue;
+            }
+            $ilDB->manipulate(sprintf(
+                "UPDATE lng_data SET %s = NULL WHERE lang_key = %s AND module = %s AND %s",
+                $column,
+                $ilDB->quote($a_lang_key, "text"),
+                $ilDB->quote($module, "text"),
+                $ilDB->in("identifier", $keys, false, "text")
+            ));
+        }
+    }
+
+    /**
+     * Copies the shipped .po of every module maintained in PO files into $directory - the backup the
+     * filter "conflicts" compares with (see getShippedChangesSinceBackup()), written by the
+     * "save_dist" maintenance action next to the backup of the global language file.
+     *
+     * @return list<string> the modules whose .po could not be copied
+     */
+    public function backupShippedPoFiles(string $directory): array
+    {
+        global $DIC;
+
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return [];
+        }
+
+        return ShippedPoMerger::backupShippedPoFiles(
+            $DIC[LanguageFileDirectoryManager::class],
+            ILIAS_ABSOLUTE_PATH,
+            $this->key,
+            $directory,
+            // e.g. lang_data below the client data directory: no symbolic link out of it
+            defined('CLIENT_DATA_DIR') ? (string) CLIENT_DATA_DIR : $directory
+        );
+    }
+
+    /**
+     * What the shipped language files changed since their backup (the filter "conflicts"): the
+     * entries of the global language file that differ from $former_file (its backup) - without the
+     * modules maintained in PO files, whose lines there are not their source -, and the entries of
+     * the shipped .po of every module maintained in PO files that differ from its backup in
+     * $po_backup_directory (see backupShippedPoFiles(); a module without backup contributes nothing).
+     *
+     * @return array<string, string> module.separator.identifier => current shipped value
+     */
+    public function getShippedChangesSinceBackup(ilLanguageFile $former_file, string $po_backup_directory): array
+    {
+        global $DIC;
+
+        $changes = self::withoutModules(
+            array_diff_assoc($this->getGlobalLanguageFile()->getAllValues(), $former_file->getAllValues()),
+            $this->getModulesMaintainedInPoFiles(),
+            $this->separator
+        );
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return $changes;
+        }
+        $po_changes = ShippedPoMerger::findShippedChangesSinceBackup(
+            $DIC[LanguageFileDirectoryManager::class],
+            ILIAS_ABSOLUTE_PATH,
+            $this->key,
+            $po_backup_directory
+        );
+        foreach ($po_changes['changes'] as $module => $values) {
+            foreach ($values as $identifier => $value) {
+                $changes[$module . $this->separator . $identifier] = $value;
+            }
+        }
+
+        return $changes;
     }
 
     /**

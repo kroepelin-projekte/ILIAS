@@ -294,6 +294,32 @@ final class TranslationCatalog
     }
 
     /**
+     * add() at the position of $entry's id: before the first entry whose id sorts after it (strcmp(),
+     * contexts are not taken into account), at the end if there is none - so a catalog sorted by id
+     * stays sorted, and every other entry keeps its relative order. An entry with the same context and
+     * id is replaced in place, like add() does.
+     */
+    public function addInIdOrder(TranslationEntry $entry): void
+    {
+        $translation = $entry->toGettext();
+        if ($this->translations->has($translation)) {
+            $this->translations->add($translation);
+            return;
+        }
+        $following = [];
+        foreach ($this->translations->getTranslations() as $existing) {
+            if ($following !== [] || strcmp($existing->getOriginal(), $translation->getOriginal()) > 0) {
+                $following[] = $existing;
+                $this->translations->remove($existing);
+            }
+        }
+        $this->translations->add($translation);
+        foreach ($following as $existing) {
+            $this->translations->add($existing);
+        }
+    }
+
+    /**
      * @return list<TranslationEntry> in the order they were added (or read)
      */
     public function getEntries(): array

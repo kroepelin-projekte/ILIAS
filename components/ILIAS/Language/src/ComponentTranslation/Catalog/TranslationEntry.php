@@ -182,13 +182,13 @@ final class TranslationEntry
         $extracted_comments = $this->translation->getExtractedComments();
         $extracted_comments->delete(...$extracted_comments->toArray());
         foreach ($comments as $comment) {
-            $extracted_comments->add(self::singleLine($comment));
+            $extracted_comments->add(self::plainLine($comment));
         }
     }
 
     public function addExtractedComment(string $comment): void
     {
-        $this->translation->getExtractedComments()->add(self::singleLine($comment));
+        $this->translation->getExtractedComments()->add(self::plainLine($comment));
     }
 
     /**
@@ -223,5 +223,20 @@ final class TranslationEntry
     private static function singleLine(string $comment): string
     {
         return str_replace(["\r\n", "\n", "\r"], ' ', $comment);
+    }
+
+    /**
+     * singleLine() for an extracted comment (`#.`), which is shown to translators and in the admin
+     * GUI and may come from an administrator's remark (see ShippedPoMerger): additionally every other
+     * control character, line/paragraph separator and bidirectional embedding/override/isolate
+     * character (U+202A-U+202E, U+2066-U+2069, which could make a comment read differently than it
+     * is) becomes a space. Translator comments keep singleLine() only: they carry values that must
+     * stay byte-identical (LocalChangeComments "original").
+     */
+    private static function plainLine(string $comment): string
+    {
+        $line = self::singleLine($comment);
+
+        return preg_replace('/[\p{Cc}\p{Zl}\p{Zp}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', ' ', $line) ?? $line;
     }
 }

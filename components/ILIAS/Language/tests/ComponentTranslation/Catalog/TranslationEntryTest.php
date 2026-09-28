@@ -146,6 +146,30 @@ class TranslationEntryTest extends TestCase
         $this->assertSame([], $entry->getExtractedComments());
     }
 
+    /**
+     * An extracted comment (`#.`) may come from an administrator's remark (see ShippedPoMerger) -
+     * every control character and bidirectional override/embedding/isolate character becomes a space,
+     * not just the line breaks singleLine() already handles - a translator comment ("original: ...")
+     * is never touched this way, only byte-for-byte normalised to a single line.
+     */
+    public function testAddExtractedCommentReplacesControlAndBidiCharactersWithASpace(): void
+    {
+        $entry = new TranslationEntry('mod', 'id');
+
+        $entry->addExtractedComment("a\tb\u{202E}c\u{2066}d");
+
+        $this->assertSame(['a b c d'], $entry->getExtractedComments());
+    }
+
+    public function testAddTranslatorCommentKeepsControlCharactersOtherThanLineBreaks(): void
+    {
+        $entry = new TranslationEntry('mod', 'id');
+
+        $entry->addTranslatorComment("original: a\tb");
+
+        $this->assertSame(["original: a\tb"], $entry->getTranslatorComments());
+    }
+
     // ------------------------------------------------------------- catalog
 
     public function testFindDistinguishesContexts(): void

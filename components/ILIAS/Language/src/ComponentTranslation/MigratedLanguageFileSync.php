@@ -523,15 +523,10 @@ final class MigratedLanguageFileSync
         ?string $client_data_dir,
         ?string $ilias_absolute_path = null
     ): ?array {
-        $directory = self::findDirectory($language_file_directory_manager, $module);
-        if (
-            $directory === null
-            || $client_data_dir === null
-            || !self::isShipped($ilias_absolute_path, $directory, $lang_key)
-        ) {
+        $overlay_base = self::overlayBaseIfShipped($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
+        if ($overlay_base === null) {
             return null;
         }
-        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
         self::assertReadableOverlay($overlay_base);
         if (!is_file($overlay_base . '.po')) {
             return [];
@@ -614,7 +609,7 @@ final class MigratedLanguageFileSync
     /**
      * Whether $entry of an overlay only carries a remark (see sync()): no value of its own.
      */
-    private static function isRemarkOnly(TranslationEntry $entry): bool
+    public static function isRemarkOnly(TranslationEntry $entry): bool
     {
         return implode('', $entry->getPluralTranslations()) === '';
     }
@@ -1235,6 +1230,46 @@ final class MigratedLanguageFileSync
             return $callback();
         }
 
+        return self::runWithLockFile($lock_file, $client_data_dir, $callback, $remove_lock_file);
+    }
+
+    /**
+     * Runs $callback while holding the lock of $module's template (`.pot`, see
+     * MigratedLanguageFilePaths::templateLockFile()) - one lock for all languages, since the
+     * template is shared by them. Taken after an overlay lock, never before (fixed order). Runs
+     * $callback without a lock in the cases withOverlayLock() does.
+     *
+     * @template T
+     * @param \Closure():T $callback
+     * @return T
+     */
+    public static function withTemplateLock(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $module,
+        ?string $client_data_dir,
+        \Closure $callback
+    ): mixed {
+        $directory = self::findDirectory($language_file_directory_manager, $module);
+        if ($directory === null || $client_data_dir === null) {
+            return $callback();
+        }
+        $lock_file = MigratedLanguageFilePaths::templateLockFile($client_data_dir, $directory);
+        if (isset(self::$held_locks[$lock_file])) {
+            return $callback();
+        }
+
+        return self::runWithLockFile($lock_file, $client_data_dir, $callback, false);
+    }
+
+    /**
+     * lockAndRun() once the lock file is determined.
+     *
+     * @template T
+     * @param \Closure():T $callback
+     * @return T
+     */
+    private static function runWithLockFile(string $lock_file, string $client_data_dir, \Closure $callback, bool $remove_lock_file): mixed
+    {
         $handle = self::acquireLock($lock_file, $client_data_dir);
         if ($handle === null) {
             return $callback();
@@ -1436,6 +1471,48 @@ final class MigratedLanguageFileSync
         ?string $client_data_dir,
         ?string $ilias_absolute_path = null
     ): ?array {
+        $overlay_base = self::overlayBaseIfShipped($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
+
+        return $overlay_base === null ? null : self::readOverlayEntries($overlay_base, $module);
+    }
+
+    /**
+     * The overlay `.po` of $module/$lang_key as it is (values, remarks and the LocalChangeComments
+     * bookkeeping), `null` without overlay and in the cases loadModuleTranslations() returns `null`
+     * for. For a caller that needs more than the values, e.g. ShippedPoMerger - to be read under the
+     * overlay lock (see withOverlayLock()) if it is written afterwards.
+     *
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
+     * @throws RuntimeException see loadLocalChanges()
+     */
+    public static function readOverlayCatalog(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
+    ): ?TranslationCatalog {
+        $overlay_base = self::overlayBaseIfShipped($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
+        if ($overlay_base === null) {
+            return null;
+        }
+        self::assertReadableOverlay($overlay_base);
+
+        return is_file($overlay_base . '.po') ? TranslationCatalog::fromPoFile($overlay_base . '.po') : null;
+    }
+
+    /**
+     * The overlay base path (MigratedLanguageFilePaths::overlayBasePath()) of $module/$lang_key,
+     * `null` in the cases loadModuleTranslations() returns `null` for (no contributed directory, no
+     * $client_data_dir, or the module is not shipped for $lang_key).
+     */
+    private static function overlayBaseIfShipped(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path
+    ): ?string {
         $directory = self::findDirectory($language_file_directory_manager, $module);
         if (
             $directory === null
@@ -1445,10 +1522,7 @@ final class MigratedLanguageFileSync
             return null;
         }
 
-        return self::readOverlayEntries(
-            MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key),
-            $module
-        );
+        return MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
     }
 
     /**
@@ -1570,7 +1644,10 @@ final class MigratedLanguageFileSync
         return is_file(MigratedLanguageFilePaths::shippedBasePath($ilias_absolute_path, $directory, $lang_key) . '.po');
     }
 
-    private static function findDirectory(
+    /**
+     * The contributed directory of $module, `null` if there is none.
+     */
+    public static function findDirectory(
         LanguageFileDirectoryManager $language_file_directory_manager,
         string $module
     ): ?LanguageFileDirectory {

@@ -496,4 +496,26 @@ class MigratedLanguageFilePathsTest extends TestCase
 
         MigratedLanguageFilePaths::findShippedPoFiles($this->root, $directory);
     }
+
+    // -------------------------------------------------- templateFileName()
+
+    #[DataProvider('templateFileNamePatterns')]
+    public function testTemplateFileName(string $pattern, string $module, string $expected): void
+    {
+        $this->assertSame($expected, MigratedLanguageFilePaths::templateFileName($pattern, $module));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public static function templateFileNamePatterns(): array
+    {
+        return [
+            'prefix-based default shape' => ['tos_%s', 'tos', 'tos.pot'],
+            'stable, module-independent shape' => ['ilias_%s', 'tos', 'ilias.pot'],
+            'placeholder alone falls back to the module' => ['%s', 'tos', 'tos.pot'],
+            'dashes and dots around the placeholder are trimmed too' => ['ilias-plugin.v2_%s', 'tos', 'ilias-plugin.v2.pot'],
+            'placeholder at the very start' => ['%s_suffix', 'tos', 'suffix.pot'],
+        ];
+    }
 }

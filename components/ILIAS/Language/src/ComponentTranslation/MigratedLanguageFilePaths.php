@@ -151,6 +151,31 @@ final class MigratedLanguageFilePaths
     }
 
     /**
+     * The template (`.pot`) of $directory next to its shipped `.po` files, named by
+     * templateFileName().
+     *
+     * @throws \InvalidArgumentException for a directory with an invalid file name pattern
+     */
+    public static function shippedTemplatePath(string $ilias_absolute_path, LanguageFileDirectory $directory): string
+    {
+        return self::shippedDirectoryPath($ilias_absolute_path, $directory)
+            . self::templateFileName(self::shippedFileNamePattern($directory), $directory->getPrefix());
+    }
+
+    /**
+     * The file name of the template (`.pot`) for the shipped file name pattern $pattern of $module:
+     * the pattern without "%s" and the separators around it (e.g. "tos_%s" -> "tos.pot",
+     * "ilias_%s" -> "ilias.pot"), "<module>.pot" if nothing is left. The one rule for the conversion
+     * tool and the runtime.
+     */
+    public static function templateFileName(string $pattern, string $module): string
+    {
+        $name = trim(str_replace('%s', '', $pattern), '_-.');
+
+        return ($name === '' ? $module : $name) . '.pot';
+    }
+
+    /**
      * $directory's path below $ilias_absolute_path, where its shipped `.po` files live.
      */
     private static function shippedDirectoryPath(string $ilias_absolute_path, LanguageFileDirectory $directory): string
@@ -232,6 +257,23 @@ final class MigratedLanguageFilePaths
         string $lang_key
     ): string {
         return rtrim($client_data_dir, '/') . '/lang/' . self::relativeBasePath($directory, $lang_key);
+    }
+
+    /**
+     * The lock file serializing the writes of $directory's template (`.pot`) - shared by all
+     * languages, next to the overlays of the module (see ShippedPoMerger).
+     *
+     * @throws \InvalidArgumentException for a module (the directory's prefix) that is not a plain
+     *         file name
+     */
+    public static function templateLockFile(string $client_data_dir, LanguageFileDirectory $directory): string
+    {
+        $module = $directory->getPrefix();
+        if (preg_match(self::MODULE_FORMAT, $module) !== 1) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
+        }
+
+        return rtrim($client_data_dir, '/') . '/lang/' . ltrim($directory->getPath(), '/') . $module . '.pot.lock';
     }
 
     /**

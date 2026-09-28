@@ -44,7 +44,7 @@ use ILIAS\Language\RendersActivityErrors;
 *
 * @ingroup ServicesLanguage
 */
-class ilObjLanguageExtGUI extends ilObjectGUI
+class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
 {
     use RendersActivityErrors;
 
@@ -137,6 +137,26 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     public function getId(): int
     {
         return $this->id;
+    }
+
+    /**
+     * The commands that change data: sent by GET (e.g. a crafted link or a form posted to
+     * "cmd=maintainExecute") they need the CSRF token as well - ilCtrl appends it to every link
+     * target of these commands. Every POST command keeps needing it (no safe POST commands).
+     *
+     * @return list<string>
+     */
+    public function getUnsafeGetCommands(): array
+    {
+        return ['save', 'upload', 'maintainExecute', 'saveSettings', 'saveNewEntry'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getSafePostCommands(): array
+    {
+        return [];
     }
 
     /**
@@ -359,17 +379,11 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                     }
                     $former_file_obj = new ilLanguageFile($former_file);
                     $former_file_obj->read();
-                    // The saved copy only holds .lang lines - which are not the source of a module
-                    // maintained in PO files, and there is no saved copy of its shipped .po to
-                    // compare with: such a module never shows up as a conflict here
-                    $po_modules = array_flip($this->object->getModulesMaintainedInPoFiles());
-                    $global_changes = array_filter(
-                        array_diff_assoc(
-                            $this->object->getGlobalLanguageFile()->getAllValues(),
-                            $former_file_obj->getAllValues()
-                        ),
-                        fn(int|string $key): bool => !isset($po_modules[explode($this->lng->separator, (string) $key, 2)[0]]),
-                        ARRAY_FILTER_USE_KEY
+                    // A module maintained in PO files is compared with the backup of its shipped .po
+                    // next to the saved global language file (both written by "save_dist")
+                    $global_changes = $this->object->getShippedChangesSinceBackup(
+                        $former_file_obj,
+                        $this->object->getDataPath()
                     );
                     if (!count($global_changes)) {
                         $this->tpl->setOnScreenMessage('info', sprintf($this->lng->txt("language_former_file_equal"), $former_file)
@@ -879,13 +893,21 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             ilSession::set("lang_ext_maintenance", $tmp);
         }
 
+        // The actions of the developer mode (LANGMODE) are only offered there - and only executed there
+        if (in_array($post_maintain, ['delete_added', 'merge', 'remove_local_file'], true) && !$this->langmode) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt("permission_denied"), true);
+            $this->ctrl->redirect($this, "maintain");
+            return;
+        }
+
         switch ($post_maintain) {
             // save the global language file for merge after
             case "save_dist":
                 // save a copy of the distributed language file
                 $orig_file = $this->object->getLangPath() . "/ilias_" . $this->object->key . ".lang";
                 $copy_file = $this->object->getDataPath() . "/ilias_" . $this->object->key . ".lang";
-                if (@copy($orig_file, $copy_file)) {
+                // with the shipped .po of the modules maintained in PO files, for the filter "conflicts"
+                if (@copy($orig_file, $copy_file) && $this->object->backupShippedPoFiles($this->object->getDataPath()) === []) {
                     $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_saved_dist"), true);
                 } else {
                     $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_save_dist_failed"), true);
@@ -950,17 +972,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                     // save a copy of the global language file
                     @copy($orig_file, $copy_file);
 
-                    // Modify and write the new global file - without the modules maintained in PO
-                    // files, whose lines in it stay exactly as they are
-                    $skipped_modules = $this->object->mergeLocalChangesIntoGlobalLanguageFile();
-                    $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_merged_global"), true);
-                    if ($skipped_modules !== []) {
-                        $this->tpl->setOnScreenMessage(
-                            'info',
-                            sprintf($this->lng->txt("lng_merge_skipped_po_modules"), implode(', ', $skipped_modules)),
-                            true
-                        );
-                    }
+                    // Modify and write the new global file - and the shipped .po of every module
+                    // maintained in PO files with local changes (each backed up next to the copy)
+                    $this->mergeMessages($this->object->mergeLocalChangesIntoGlobalLanguageFile());
                 } else {
                     $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_error_write_global"), true);
                 }
@@ -1380,6 +1394,45 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $success_message . '<br />' . $this->overlayNotWrittenMessage($modules_with_unwritten_overlay),
             true
         );
+    }
+
+    /**
+     * The messages after "merge" (see ilObjLanguageExt::mergeLocalChangesIntoGlobalLanguageFile()):
+     * success, with the shipped .po files written - what failed or was left out in one failure
+     * message (setOnScreenMessage() keeps one message per type). Details are in the log.
+     *
+     * @param array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_overlay: list<string>, unwritten_database: list<string>} $result
+     */
+    private function mergeMessages(array $result): void
+    {
+        $escape = fn(string $text): string => $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform($text);
+        $success = $this->lng->txt("language_merged_global");
+        if ($result['written'] !== []) {
+            $success .= '<br />' . $escape(implode(', ', $result['written']));
+        }
+        $this->tpl->setOnScreenMessage('success', $success, true);
+
+        $failures = [];
+        if ($result['skipped'] !== []) {
+            // not written at all (e.g. no write permission) - an error, not an intended skip
+            $failures[] = $this->lng->txt("language_error_write_global") . ' ' . $escape(implode(', ', $result['skipped']));
+        }
+        if ($result['invalid_markup'] !== []) {
+            $failures[] = $this->invalidMarkupMessage($result['invalid_markup']);
+        }
+        if ($result['not_merged'] !== []) {
+            // logged by ilObjLanguageExt, with the reason
+            $failures[] = $this->lng->txt("form_input_not_valid") . ' ' . $escape(PlainLogText::keyList($result['not_merged']));
+        }
+        if ($result['unwritten_overlay'] !== []) {
+            $failures[] = $this->overlayNotWrittenMessage($result['unwritten_overlay']);
+        }
+        if ($result['unwritten_database'] !== []) {
+            $failures[] = $this->lng->txt("error") . ': ' . $escape(implode(', ', $result['unwritten_database']));
+        }
+        if ($failures !== []) {
+            $this->tpl->setOnScreenMessage('failure', implode('<br />', $failures), true);
+        }
     }
 
     /**
