@@ -138,6 +138,15 @@ final class MigratedLanguageFileSync
      *        overlay exists (see LanguageInstallationManager): with `false`, an overlay that exists
      *        once the lock is held was created concurrently after that decision (e.g. an admin edit
      *        during an installation) and is left untouched - sync() throws. `null`: no expectation.
+     * Remarks (the administrator's remark of an identifier, the counterpart of lng_data.remarks, see
+     * LocalChangeComments::setRemark()) are kept in the overlay, too: an entry with a remark belongs
+     * into it even if its value is the shipped one (see belongsInDelta()) - as a "remark only" entry
+     * with an empty msgstr, which the `.mo` leaves out, so it changes nothing that is served.
+     *
+     * @param array<string, string>|null $remarks identifier => remark (a plural message under its
+     *        identifier), the complete remarks of the module; `null` (the default) keeps the
+     *        remarks the overlay holds. A remark of an identifier that is neither shipped nor in
+     *        $entries is dropped.
      * @throws RuntimeException if the shipped `.po` or the overlay cannot be read or written, see
      *         also above
      */
@@ -149,7 +158,8 @@ final class MigratedLanguageFileSync
         array $entries,
         ?string $client_data_dir,
         bool $refresh_original_from_shipped = false,
-        ?bool $expected_overlay_exists = null
+        ?bool $expected_overlay_exists = null,
+        ?array $remarks = null
     ): void {
         $directory = self::findDirectory($language_file_directory_manager, $module);
         if ($directory === null || $client_data_dir === null) {
@@ -165,7 +175,11 @@ final class MigratedLanguageFileSync
         $shipped = clone self::readShippedPo($shipped_po);
         $delta = self::deltaOf($shipped, $module, $entries);
         $overlay_base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
-        if ($delta === [] && !self::hasOverlayFiles($overlay_base)) {
+        if (
+            $delta === []
+            && array_filter($remarks ?? [], static fn($remark): bool => (string) $remark !== '') === []
+            && !self::hasOverlayFiles($overlay_base)
+        ) {
             return;
         }
 
@@ -181,7 +195,8 @@ final class MigratedLanguageFileSync
                 $delta,
                 $client_data_dir,
                 $refresh_original_from_shipped,
-                $expected_overlay_exists
+                $expected_overlay_exists,
+                $remarks
             ),
             $ilias_absolute_path,
             false
@@ -461,13 +476,129 @@ final class MigratedLanguageFileSync
     /**
      * Whether $value belongs into the overlay (the delta) given the $shipped_value the shipped `.po`
      * carries for its key (`null`: the key is not shipped) - see resolveLocalValue(). An empty value
-     * never does.
+     * never does. With a $remark (not empty), an entry of a shipped key belongs into the overlay as
+     * well, even with the shipped value - only for its remark (see sync(); the `.mo` stays unchanged).
      */
-    public static function belongsInDelta(?string $shipped_value, string $value): bool
+    public static function belongsInDelta(?string $shipped_value, string $value, ?string $remark = null): bool
     {
-        $value = self::resolveLocalValue($shipped_value, $value);
+        $resolved = self::resolveLocalValue($shipped_value, $value);
+        if ($resolved !== '' && $resolved !== $shipped_value) {
+            return true;
+        }
 
-        return $value !== '' && $value !== $shipped_value;
+        return $remark !== null && $remark !== '' && ($shipped_value !== null || $resolved !== '');
+    }
+
+    /**
+     * The remarks the overlay of $module/$lang_key holds (see LocalChangeComments::setRemark()),
+     * identifier => remark - `[]` without overlay, `null` in the cases loadModuleTranslations() returns
+     * `null` for.
+     *
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
+     * @return array<string, string>|null
+     * @throws RuntimeException see loadLocalChanges()
+     */
+    public static function loadRemarks(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
+    ): ?array {
+        $directory = self::findDirectory($language_file_directory_manager, $module);
+        if (
+            $directory === null
+            || $client_data_dir === null
+            || !self::isShipped($ilias_absolute_path, $directory, $lang_key)
+        ) {
+            return null;
+        }
+        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($client_data_dir, $directory, $lang_key);
+        self::assertReadableOverlay($overlay_base);
+        if (!is_file($overlay_base . '.po')) {
+            return [];
+        }
+
+        return self::remarksOf(TranslationCatalog::fromPoFile($overlay_base . '.po'), $module);
+    }
+
+    /**
+     * Changes remarks of $module/$lang_key in its overlay (the values stay as they are): identifier =>
+     * remark, `null` or '' removes the remark. Remarks not in $changes are kept. A no-op like sync().
+     *
+     * @param array<string, ?string> $changes
+     * @param string|null $ilias_absolute_path see loadModuleTranslations()
+     * @throws RuntimeException see sync()
+     */
+    public static function setRemarks(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        array $changes,
+        ?string $client_data_dir,
+        ?string $ilias_absolute_path = null
+    ): void {
+        if ($changes === []) {
+            return;
+        }
+        $ilias_absolute_path ??= defined('ILIAS_ABSOLUTE_PATH') ? (string) ILIAS_ABSOLUTE_PATH : dirname(__DIR__, 5);
+        self::withOverlayLock(
+            $language_file_directory_manager,
+            $lang_key,
+            $module,
+            $client_data_dir,
+            static function () use ($language_file_directory_manager, $lang_key, $module, $changes, $client_data_dir, $ilias_absolute_path): void {
+                $current = self::loadModuleTranslations($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
+                $remarks = self::loadRemarks($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
+                if ($current === null || $remarks === null) {
+                    return;
+                }
+                foreach ($changes as $identifier => $remark) {
+                    $identifier = PluralFormKey::parse((string) $identifier)[0] ?? (string) $identifier;
+                    if ($remark === null || $remark === '') {
+                        unset($remarks[$identifier]);
+                    } else {
+                        $remarks[$identifier] = $remark;
+                    }
+                }
+                self::sync(
+                    $language_file_directory_manager,
+                    $ilias_absolute_path,
+                    $lang_key,
+                    $module,
+                    array_map(static fn(array $entry): string => $entry['value'], $current),
+                    $client_data_dir,
+                    false,
+                    null,
+                    $remarks
+                );
+            },
+            $ilias_absolute_path
+        );
+    }
+
+    /**
+     * @return array<string, string> identifier => remark of the entries of $module in $catalog
+     */
+    private static function remarksOf(TranslationCatalog $catalog, string $module): array
+    {
+        $remarks = [];
+        foreach (self::moduleEntries($catalog, $module) as $entry) {
+            $remark = LocalChangeComments::getRemark($entry);
+            if ($remark !== null && $remark !== '') {
+                $remarks[$entry->getId()] = $remark;
+            }
+        }
+
+        return $remarks;
+    }
+
+    /**
+     * Whether $entry of an overlay only carries a remark (see sync()): no value of its own.
+     */
+    private static function isRemarkOnly(TranslationEntry $entry): bool
+    {
+        return implode('', $entry->getPluralTranslations()) === '';
     }
 
     /**
@@ -597,7 +728,8 @@ final class MigratedLanguageFileSync
         array $delta,
         string $client_data_dir,
         bool $refresh_original_from_shipped,
-        ?bool $expected_overlay_exists
+        ?bool $expected_overlay_exists,
+        ?array $remarks = null
     ): void {
         $overlay_po = $overlay_base . '.po';
         $overlay_mo = $overlay_base . '.mo';
@@ -611,11 +743,6 @@ final class MigratedLanguageFileSync
             ));
         }
 
-        if ($delta === []) {
-            self::removeOverlayFiles($overlay_base, $module, $lang_key, $client_data_dir);
-            return;
-        }
-
         $overlay_exists = is_file($overlay_po);
         $existing = null;
         if ($overlay_exists) {
@@ -624,10 +751,44 @@ final class MigratedLanguageFileSync
             } catch (RuntimeException) {
                 // A corrupt overlay is rebuilt like a missing one: $delta carries every value, and
                 // "original"/"local_change" are recomputed against the shipped file - only the
-                // previous local_change timestamps are lost.
+                // previous local_change timestamps (and remarks) are lost.
                 $overlay_exists = false;
             }
         }
+
+        // The remarks: those given, or those the overlay holds - only of identifiers that are
+        // shipped or in the delta (a plural message under its identifier)
+        $remarks ??= $existing === null ? [] : self::remarksOf($existing, $module);
+        $shipped_values = self::flatModuleValues($shipped, $module);
+        $delta_identifiers = [];
+        foreach (array_keys($delta) as $key) {
+            $delta_identifiers[self::pluralMessageOf((string) $key, $shipped_values) ?? PluralFormKey::parse((string) $key)[0] ?? (string) $key] = true;
+            $delta_identifiers[(string) $key] = true;
+        }
+        $kept_remarks = [];
+        foreach ($remarks as $identifier => $remark) {
+            $identifier = (string) $identifier;
+            if (!mb_check_encoding((string) $remark, 'UTF-8')) {
+                // would make the overlay unreadable - dropped, the rest is written
+                self::logWarning(PlainLogText::of(sprintf('The remark of "%s" (module "%s") is not valid UTF-8 and was dropped.', $identifier, $module)));
+                continue;
+            }
+            $is_plural = self::pluralMessageOf($identifier, $shipped_values) !== null;
+            $shipped_value = $shipped_values[$identifier] ?? ($is_plural ? '' : null);
+            if (
+                (string) $remark !== ''
+                && (isset($delta_identifiers[$identifier]) || self::belongsInDelta($shipped_value, $shipped_value ?? '', (string) $remark))
+            ) {
+                $kept_remarks[$identifier] = (string) $remark;
+            }
+        }
+
+        if ($delta === [] && $kept_remarks === []) {
+            self::removeOverlayFiles($overlay_base, $module, $lang_key, $client_data_dir);
+            return;
+        }
+        // a stable order: the same content always gives the same file
+        ksort($kept_remarks, SORT_STRING);
 
         $catalog = new TranslationCatalog();
         foreach ($shipped->getHeaders() as $name => $value) {
@@ -638,7 +799,7 @@ final class MigratedLanguageFileSync
         $plural_forms = self::pluralFormsOf($shipped);
         [$delta, $plural_delta] = self::splitPluralDelta($shipped, $existing, $module, $delta);
         foreach ($plural_delta as $identifier => $forms) {
-            $catalog->add(self::overlayPluralEntry(
+            $entry = self::overlayPluralEntry(
                 $shipped,
                 $existing,
                 $module,
@@ -647,14 +808,18 @@ final class MigratedLanguageFileSync
                 $plural_forms,
                 $refresh_original_from_shipped,
                 $now
-            ));
+            );
+            LocalChangeComments::setRemark($entry, $kept_remarks[(string) $identifier] ?? null);
+            unset($kept_remarks[(string) $identifier]);
+            $catalog->add($entry);
         }
         foreach ($delta as $identifier => $value) {
             $identifier = (string) $identifier;
             $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
             $existing_entry = $existing === null ? null : self::findModuleEntry($existing, $module, $identifier);
-            if ($existing_entry?->isPlural()) {
-                // was a plural message in the overlay, is a singular one now: rebuilt from scratch
+            if ($existing_entry?->isPlural() || ($existing_entry !== null && self::isRemarkOnly($existing_entry))) {
+                // was a plural message in the overlay, is a singular one now - or only carried a
+                // remark: rebuilt from scratch
                 $existing_entry = null;
             }
             // Written without msgctxt, like the shipped files: the overlay belongs to one module. An
@@ -673,10 +838,30 @@ final class MigratedLanguageFileSync
             $entry->translate($value);
             $entry->removeFlag('fuzzy');
             LocalChangeComments::refresh($entry, $previous_value, $value, $now);
+            LocalChangeComments::setRemark($entry, $kept_remarks[$identifier] ?? null);
+            unset($kept_remarks[$identifier]);
+            $catalog->add($entry);
+        }
+
+        // The remaining remarks belong to entries with the shipped value: "remark only" entries
+        // without a value of their own, left out of the .mo (empty msgstr)
+        foreach ($kept_remarks as $identifier => $remark) {
+            $identifier = (string) $identifier;
+            $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
+            $entry = new TranslationEntry(null, $identifier);
+            if ($shipped_entry?->isPlural()) {
+                $entry->setPlural((string) $shipped_entry->getPluralId(), array_fill(0, $plural_forms->getCount(), ''));
+            }
+            LocalChangeComments::setRemark($entry, $remark);
             $catalog->add($entry);
         }
 
         $po_content = $catalog->toPoString();
+        if (!mb_check_encoding($po_content, 'UTF-8')) {
+            // fromPoString() refuses such a file: writing it would lose every local change of the
+            // module with the next read - nothing is written instead
+            throw new RuntimeException(sprintf('The overlay "%s" would not be valid UTF-8 - it is left unchanged.', $overlay_po));
+        }
         $mo_content = $catalog->toMoString();
         $po_unchanged = $overlay_exists && $po_content === file_get_contents($overlay_po);
         $mo_unchanged = is_file($overlay_mo) && $mo_content === @file_get_contents($overlay_mo);
@@ -752,8 +937,9 @@ final class MigratedLanguageFileSync
         $shipped_entry = self::findModuleEntry($shipped, $module, $identifier);
         $shipped_forms = $shipped_entry?->isPlural() ? self::formsOf($shipped_entry, $plural_forms) : null;
         $existing_entry = $existing === null ? null : self::findModuleEntry($existing, $module, $identifier);
-        if ($existing_entry !== null && !$existing_entry->isPlural()) {
-            // a singular message in the overlay, a plural one now: rebuilt from scratch
+        if ($existing_entry !== null && (!$existing_entry->isPlural() || self::isRemarkOnly($existing_entry))) {
+            // a singular message in the overlay, a plural one now - or only a remark: rebuilt from
+            // scratch
             $existing_entry = null;
         }
 
@@ -857,6 +1043,31 @@ final class MigratedLanguageFileSync
         }
 
         return $entries;
+    }
+
+    /**
+     * The identifiers of $module in the shipped `.po` $shipped_po (as in loadShippedModuleEntries(),
+     * form keys for a plural message) that are flagged "fuzzy" - not translated yet (for a module
+     * converted from the legacy `.lang` files: the dated "... new variable" marker there, or a value
+     * copied into several plural forms, see convert_module_to_po.php).
+     *
+     * @return array<string, true>
+     * @throws RuntimeException if the file cannot be read or parsed
+     */
+    public static function loadShippedFuzzyIdentifiers(string $shipped_po, string $module): array
+    {
+        $catalog = self::readShippedPo($shipped_po);
+        $plural_forms = self::pluralFormsOf($catalog);
+        $fuzzy = [];
+        foreach (self::moduleEntries($catalog, $module) as $entry) {
+            if ($entry->hasFlag('fuzzy')) {
+                foreach (array_keys(self::shippedValuesOf($entry, $plural_forms)) as $identifier) {
+                    $fuzzy[$identifier] = true;
+                }
+            }
+        }
+
+        return $fuzzy;
     }
 
     /**
@@ -1237,6 +1448,10 @@ final class MigratedLanguageFileSync
         $catalog = TranslationCatalog::fromPoFile($overlay_base . '.po');
         $plural_forms = self::pluralFormsOf($catalog);
         foreach (self::moduleEntries($catalog, $module) as $entry) {
+            if (self::isRemarkOnly($entry)) {
+                // carries a remark only (see sync()), no value - see loadRemarks()
+                continue;
+            }
             $is_local_change = LocalChangeComments::getLocalChange($entry) !== null;
             $local_change_date = LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry);
             if (!$entry->isPlural()) {

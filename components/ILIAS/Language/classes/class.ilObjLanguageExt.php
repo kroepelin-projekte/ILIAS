@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\Language\ComponentTranslation\PluralFormKey;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 
@@ -35,7 +36,14 @@ use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 class ilObjLanguageExt extends ilObjLanguage
 {
     /**
-     * @var array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>}|null
+     * How the admin GUI marks an entry of a module maintained in PO files that is not translated yet
+     * (flagged fuzzy in its shipped .po) - the wording of the dated "... new variable" comments of the
+     * legacy .lang files, which carried that information before. Not a language variable (yet).
+     */
+    private const string SHIPPED_FUZZY_MARKER = 'new variable';
+
+    /**
+     * @var array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>, fuzzy: list<string>}|null
      */
     private ?array $shipped_migrated_modules = null;
 
@@ -282,6 +290,54 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
+     * getShippedComments() for display only (the admin GUI): additionally with the "not translated
+     * yet" marker for every fuzzy entry of a module maintained in PO files (see withFuzzyMarkers()).
+     * The marker is no comment - it is neither exported, nor filtered for, nor compared on saving.
+     *
+     * @return array<string, string> module.separator.topic => comment
+     */
+    public function getShippedCommentsForDisplay(): array
+    {
+        return self::withFuzzyMarkers($this->getShippedComments(), $this->shippedMigratedModules());
+    }
+
+    /**
+     * For display only (like getShippedCommentsForDisplay()): the shipped comments of the modules
+     * maintained in PO files for $a_lang_key - their `#.` notes, with the "not translated yet" marker
+     * for a fuzzy entry -, e.g. of a compare language in the admin GUI. With $a_modules only those
+     * modules' shipped .po are read.
+     *
+     * @param list<string> $a_modules
+     * @return array<string, string> module.separator.topic => comment
+     */
+    public static function _getShippedMigratedComments(string $a_lang_key, array $a_modules = []): array
+    {
+        $shipped = self::readShippedMigratedModules($a_lang_key, $a_modules);
+
+        return self::withFuzzyMarkers($shipped['comments'], $shipped);
+    }
+
+    /**
+     * $comments with the marker SHIPPED_FUZZY_MARKER for every entry of a module maintained in PO
+     * files that is flagged fuzzy (not translated yet) - appended to its `#.` note, if any. The
+     * legacy `.lang` files carried the same information as a dated "... new variable" comment.
+     *
+     * @param array<string, string> $comments
+     * @param array{fuzzy: list<string>} $shipped see readShippedMigratedModules()
+     * @return array<string, string>
+     */
+    private static function withFuzzyMarkers(array $comments, array $shipped): array
+    {
+        foreach ($shipped['fuzzy'] as $key) {
+            $comments[$key] = isset($comments[$key]) && $comments[$key] !== ''
+                ? $comments[$key] . ' - ' . self::SHIPPED_FUZZY_MARKER
+                : self::SHIPPED_FUZZY_MARKER;
+        }
+
+        return $comments;
+    }
+
+    /**
      * Every module maintained in PO files for this language (its shipped .po exists).
      *
      * @return list<string>
@@ -370,7 +426,7 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-     * @return array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>}
+     * @return array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>, fuzzy: list<string>}
      */
     private function shippedMigratedModules(): array
     {
@@ -682,6 +738,31 @@ class ilObjLanguageExt extends ilObjLanguage
         while ($row = $ilDB->fetchAssoc($result)) {
             $remarks[$row["module"] . $lng->separator . $row["identifier"]] = $row["remarks"];
         }
+
+        // A module maintained in PO files keeps its remarks in its overlay as well (see
+        // MigratedLanguageFileSync::sync()) - they win; a remark only lng_data holds (written before
+        // the overlay kept remarks) is shown until the next reconciling write takes it over
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            $manager = $DIC[LanguageFileDirectoryManager::class];
+            $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
+            foreach (MigratedLanguageFileSync::getMigratedModules($manager, $a_lang_key, $client_data_dir) as $module) {
+                try {
+                    $overlay_remarks = MigratedLanguageFileSync::loadRemarks($manager, $a_lang_key, $module, $client_data_dir) ?? [];
+                } catch (\Throwable $t) {
+                    $DIC->logger()->forComponent('lang')->warning(sprintf(
+                        'Could not read the remarks of migrated module "%s", language "%s" - using lng_data: %s',
+                        $module,
+                        $a_lang_key,
+                        $t->getMessage()
+                    ));
+                    continue;
+                }
+                foreach ($overlay_remarks as $identifier => $remark) {
+                    $remarks[$module . $lng->separator . $identifier] = $remark;
+                }
+            }
+        }
+
         return $remarks;
     }
 
@@ -819,14 +900,15 @@ class ilObjLanguageExt extends ilObjLanguage
      * (importLanguageFile()) or only worth a warning (the readers above). Everything empty if no
      * LanguageFileDirectoryManager is registered.
      *
-     * @return array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>}
-     *         values/comments keyed module.separator.identifier
+     * @return array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>, fuzzy: list<string>}
+     *         values/comments/fuzzy keyed module.separator.identifier ("fuzzy": not translated yet)
+     * @param list<string> $only_modules only these modules (all if empty)
      */
-    private static function readShippedMigratedModules(string $a_lang_key): array
+    private static function readShippedMigratedModules(string $a_lang_key, array $only_modules = []): array
     {
         global $DIC;
 
-        $result = ['values' => [], 'comments' => [], 'modules' => [], 'unreadable_modules' => []];
+        $result = ['values' => [], 'comments' => [], 'modules' => [], 'unreadable_modules' => [], 'fuzzy' => []];
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             return $result;
         }
@@ -839,9 +921,15 @@ class ilObjLanguageExt extends ilObjLanguage
         );
         foreach ($shipped_files as $module => $shipped_po) {
             $module = (string) $module;
+            if ($only_modules !== [] && !in_array($module, $only_modules, true)) {
+                continue;
+            }
             $result['modules'][] = $module;
             try {
                 $entries = MigratedLanguageFileSync::loadShippedModuleEntries($shipped_po, $module);
+                foreach (array_keys(MigratedLanguageFileSync::loadShippedFuzzyIdentifiers($shipped_po, $module)) as $identifier) {
+                    $result['fuzzy'][] = $module . $separator . $identifier;
+                }
             } catch (\Throwable $t) {
                 $DIC->logger()->forComponent('lang')->warning(sprintf(
                     'Could not read the shipped PO file of module "%s", language "%s": %s',
@@ -976,6 +1064,7 @@ class ilObjLanguageExt extends ilObjLanguage
         $save_array = [];
         $save_date = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
             ->format('Y-m-d H:i:s');
+        $a_remarks = self::normalizedRemarks($a_remarks);
 
         // Read and get the shipped values - for a module maintained in PO files from its shipped .po
         // (an unreadable one keeps its .lang lines for this comparison, see getShippedValues())
@@ -994,6 +1083,8 @@ class ilObjLanguageExt extends ilObjLanguage
         $plural_rows = [];
         $plural_changed = [];
         $plural_remarks = [];
+        // module => identifier => remark ('' removes it) to be written into the overlay
+        $remark_changes = [];
         $shipped_by_module = [];
 
         // save the single translations in lng_data
@@ -1039,9 +1130,21 @@ class ilObjLanguageExt extends ilObjLanguage
             }
             $save_array[$module][$topic] = $value;
 
+            // A module maintained in PO files keeps its remarks in its overlay, too - see below
+            $is_remark_changed = in_array($module, $shipped_migrated['modules'], true)
+                && array_key_exists($key, $a_remarks)
+                && (string) $a_remarks[$key] !== (string) ($db_comments[$key] ?? '');
+            if ($is_remark_changed) {
+                $remark_changes[$module][$topic] = (string) $a_remarks[$key];
+            }
+
             $are_comments_set = array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
+            $is_comment_changed = $are_comments_set ? $global_comments[$key] != $a_remarks[$key] : $are_comments_set;
             $are_changes_made = (isset($global_values[$key]) ? $global_values[$key] != $value : true) || (isset($db_values[$key]) ? $db_values[$key] != $value : true);
-            if ($are_changes_made || ($are_comments_set ? $global_comments[$key] != $a_remarks[$key] : $are_comments_set)) {
+            if (!$are_changes_made && !$is_comment_changed && $is_remark_changed) {
+                // only the remark changed: lng_data gets it as well (dual write), the value stays
+                self::updateRemark($module, $topic, $a_lang_key, (string) $a_remarks[$key]);
+            } elseif ($are_changes_made || $is_comment_changed) {
                 $local_change = (isset($db_values[$key]) ? $db_values[$key] == $value : true) || (isset($global_values[$key]) ? $global_values[$key] != $value : true) ? $save_date : null;
                 ilObjLanguage::replaceLangEntry(
                     $module,
@@ -1067,6 +1170,9 @@ class ilObjLanguageExt extends ilObjLanguage
                     ? $plural_remarks[$module][$plural_identifier]
                     : ($db_comments[$module . $lng->separator . $plural_identifier] ?? null);
                 $plural_rows[$module][$plural_identifier] = $remark === '' ? null : $remark;
+                if (array_key_exists($plural_identifier, $plural_remarks[$module] ?? [])) {
+                    $remark_changes[$module][$plural_identifier] = $plural_remarks[$module][$plural_identifier];
+                }
             }
         }
 
@@ -1076,11 +1182,12 @@ class ilObjLanguageExt extends ilObjLanguage
             $module = (string) $module;
             $module_plural_rows = $plural_rows[$module] ?? [];
             $shipped_module_values = $shipped_by_module[$module] ?? [];
+            $module_remark_changes = $remark_changes[$module] ?? [];
             // Read and written under the overlay lock, so a concurrent write in between is not lost
             $written = self::withModuleLock(
                 $a_lang_key,
                 $module,
-                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content, $module_plural_rows, $shipped_module_values, $save_date): bool {
+                static function () use ($a_lang_key, $module, $entries, $refreshOriginalFromShipped, $merge_onto_current_content, $module_plural_rows, $shipped_module_values, $save_date, $module_remark_changes): bool {
                     // Without a current content (e.g. no lng_modules row of a module that is not
                     // maintained in PO files) the entries are written as they are - replaceLangModule()
                     // then creates the row from scratch
@@ -1093,7 +1200,7 @@ class ilObjLanguageExt extends ilObjLanguage
                         $refreshOriginalFromShipped
                     );
                     self::writePluralRows($a_lang_key, $module, $content, $shipped_module_values, $module_plural_rows, $save_date);
-                    return $written;
+                    return self::setOverlayRemarks($a_lang_key, $module, $module_remark_changes) && $written;
                 }
             );
             if (!$written) {
@@ -1123,6 +1230,105 @@ class ilObjLanguageExt extends ilObjLanguage
             }
         }
         return $values;
+    }
+
+    /**
+     * Writes the remarks $changes (identifier => remark, '' removes it) into the overlay of the module
+     * maintained in PO files $module (see MigratedLanguageFileSync::setRemarks()). `false` if that
+     * failed (logged) - lng_data holds them regardless.
+     *
+     * @param array<string, string> $changes
+     */
+    private static function setOverlayRemarks(string $a_lang_key, string $module, array $changes): bool
+    {
+        global $DIC;
+
+        if ($changes === [] || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return true;
+        }
+        try {
+            MigratedLanguageFileSync::setRemarks(
+                $DIC[LanguageFileDirectoryManager::class],
+                $a_lang_key,
+                $module,
+                $changes,
+                MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                ILIAS_ABSOLUTE_PATH
+            );
+        } catch (\Throwable $t) {
+            $DIC->logger()->forComponent('lang')->warning(sprintf(
+                'Could not write the remarks of migrated module "%s", language "%s": %s',
+                $module,
+                $a_lang_key,
+                $t->getMessage()
+            ));
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * $a_remarks as they are stored - once, the same for lng_data and the overlay: cut to 250
+     * characters (not bytes, which could split a character), a remark that is not valid UTF-8 is
+     * dropped (logged) - it would make the overlay unreadable.
+     *
+     * @param array<string, mixed> $a_remarks
+     * @return array<string, mixed>
+     */
+    private static function normalizedRemarks(array $a_remarks): array
+    {
+        global $DIC;
+
+        foreach ($a_remarks as $key => $remark) {
+            if (!is_string($remark)) {
+                continue;
+            }
+            if (!mb_check_encoding($remark, 'UTF-8')) {
+                $DIC->logger()->forComponent('lang')->warning(PlainLogText::of(sprintf(
+                    'The remark of "%s" is not valid UTF-8 and was not saved.',
+                    $key
+                )));
+                unset($a_remarks[$key]);
+                continue;
+            }
+            $a_remarks[$key] = mb_substr($remark, 0, 250);
+        }
+
+        return $a_remarks;
+    }
+
+    /**
+     * Whether $module is maintained in PO files for $a_lang_key (its shipped .po exists).
+     */
+    private static function isMaintainedInPoFiles(string $a_lang_key, string $module): bool
+    {
+        global $DIC;
+
+        return $DIC->offsetExists(LanguageFileDirectoryManager::class)
+            && isset(MigratedLanguageFileSync::findShippedModuleFiles(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $a_lang_key
+            )[$module]);
+    }
+
+    /**
+     * Sets only the remark of an existing lng_data row ('' removes it), like replaceLangEntry() cuts
+     * it to 250 characters.
+     */
+    private static function updateRemark(string $module, string $identifier, string $a_lang_key, string $remark): void
+    {
+        global $DIC;
+        $ilDB = $DIC->database();
+
+        $ilDB->manipulate(sprintf(
+            "UPDATE lng_data SET remarks = %s WHERE module = %s AND identifier = %s AND lang_key = %s",
+            $ilDB->quote($remark === '' ? null : mb_substr($remark, 0, 250), "text"),
+            $ilDB->quote($module, "text"),
+            $ilDB->quote($identifier, "text"),
+            $ilDB->quote($a_lang_key, "text")
+        ));
     }
 
     /**
@@ -1287,6 +1493,7 @@ class ilObjLanguageExt extends ilObjLanguage
         $shipped_by_module = [];
         $plural_rows = [];
         $db_comments = null;
+        $remark_changes = [];
 
         // save the single translations in lng_data
         foreach ($a_values as $key => $value) {
@@ -1312,6 +1519,11 @@ class ilObjLanguageExt extends ilObjLanguage
                     continue;
                 }
                 ilObjLanguage::deleteLangEntry($module, $topic, $a_lang_key);
+                // the remark goes with the row - for a module maintained in PO files also from its
+                // overlay
+                if (self::isMaintainedInPoFiles($a_lang_key, $module)) {
+                    $remark_changes[$module][$topic] = '';
+                }
             }
         }
 
@@ -1321,17 +1533,18 @@ class ilObjLanguageExt extends ilObjLanguage
             $module = (string) $module;
             $module_plural_rows = $plural_rows[$module] ?? [];
             $shipped_module_values = $shipped_by_module[$module] ?? [];
+            $module_remark_changes = $remark_changes[$module] ?? [];
             $written = self::withModuleLock(
                 $a_lang_key,
                 $module,
-                static function () use ($a_lang_key, $module, $entries, $module_plural_rows, $shipped_module_values, $save_date): bool {
+                static function () use ($a_lang_key, $module, $entries, $module_plural_rows, $shipped_module_values, $save_date, $module_remark_changes): bool {
                     // Without a current content there is nothing left to keep - the entries to
                     // delete must not be written back as the module's content instead
                     $current = self::currentModuleContent($a_lang_key, $module);
                     $content = array_diff_key($current, $entries);
                     $written = ilObjLanguage::replaceLangModule($a_lang_key, $module, $content);
                     self::writePluralRows($a_lang_key, $module, $content, $shipped_module_values, $module_plural_rows, $save_date);
-                    return $written;
+                    return self::setOverlayRemarks($a_lang_key, $module, $module_remark_changes) && $written;
                 }
             );
             if (!$written) {

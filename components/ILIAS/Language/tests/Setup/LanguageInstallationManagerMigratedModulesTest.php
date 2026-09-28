@@ -1099,7 +1099,13 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame([], $invalidated, 'no cache invalidation for data that was not saved correctly');
         $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'no overlay for data that was not saved correctly');
         $this->assertSame($cwd, getcwd(), 'the working directory is restored on the exception path');
-        $collation_query = array_values(array_filter($this->queries, static fn(string $q): bool => str_starts_with($q, 'SELECT')));
+        // Only the "did the lng_modules write actually round-trip" collation query is counted here -
+        // migratedModuleRemarks() issues its own, unrelated "SELECT ... FROM lng_data" beforehand
+        // (see its own tests), which must not be mistaken for a second collation check.
+        $collation_query = array_values(array_filter(
+            $this->queries,
+            static fn(string $q): bool => str_starts_with($q, 'SELECT') && str_contains($q, 'lang_array') && str_contains($q, 'lng_modules')
+        ));
         $this->assertCount(1, $collation_query);
         $this->assertStringContainsString("module IN ('pilot')", $collation_query[0]);
     }
@@ -1386,5 +1392,172 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame(['yes' => 'Jawohl'], $this->lngModules()['common']);
         $this->assertStringNotContainsString('Duplicate', $this->errorLog());
+    }
+
+    // ------------------------------------------------------------ migratedModuleRemarks()
+
+    /**
+     * @param array<string, array<string, string>> $shipped_migrated_modules
+     * @param array<string, array<string, string>> $customized_remarks
+     * @param array<string, array<string, string>> $shipped_line_comments
+     * @return array<string, array<string, string>>
+     */
+    private function callMigratedModuleRemarks(
+        array $shipped_migrated_modules,
+        array $customized_remarks = [],
+        array $shipped_line_comments = []
+    ): array {
+        $manager = $this->manager();
+        $method = new ReflectionMethod(LanguageInstallationManager::class, 'migratedModuleRemarks');
+
+        return $method->invoke(
+            $manager,
+            'de',
+            $shipped_migrated_modules,
+            $customized_remarks,
+            $shipped_line_comments,
+            $this->root . '/client-data'
+        );
+    }
+
+    private function seedOverlayWithRemark(string $identifier, string $value, string $remark): void
+    {
+        $catalog = new TranslationCatalog();
+        $entry = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry(self::MODULE, $identifier);
+        $entry->translate($value);
+        LocalChangeComments::setRemark($entry, $remark);
+        $catalog->add($entry);
+        MigratedPoFixture::writePair($this->overlayBase(), $catalog);
+    }
+
+    /**
+     * Merge precedence: lng_data (kept from before the overlay itself started keeping remarks) is the
+     * base, the overlay overrides it, the customizing file overrides both.
+     */
+    public function testMigratedModuleRemarksMergesLngDataOverlayAndCustomizingWithCustomizingWinning(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->seedOverlayWithRemark('greeting', 'Hallo', 'Overlay-Bemerkung');
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'DB-Bemerkung'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks(
+            [self::MODULE => ['greeting' => 'Hallo']],
+            [self::MODULE => ['greeting' => 'Customizing-Bemerkung']]
+        );
+
+        $this->assertSame(['greeting' => 'Customizing-Bemerkung'], $remarks[self::MODULE]);
+    }
+
+    public function testMigratedModuleRemarksOverlayWinsOverLngDataWithoutACustomizingRemark(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->seedOverlayWithRemark('greeting', 'Hallo', 'Overlay-Bemerkung');
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'DB-Bemerkung'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
+
+        $this->assertSame(['greeting' => 'Overlay-Bemerkung'], $remarks[self::MODULE]);
+    }
+
+    public function testMigratedModuleRemarksFallsBackToLngDataWithoutAnOverlayOrCustomizingRemark(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'DB-Bemerkung'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
+
+        $this->assertSame(['greeting' => 'DB-Bemerkung'], $remarks[self::MODULE]);
+    }
+
+    public function testMigratedModuleRemarksIsEmptyWithoutAnyRemarkAnywhere(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->collation_rows = [];
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
+
+        $this->assertSame([], $remarks[self::MODULE] ?? []);
+    }
+
+    /**
+     * A lng_data remark that is only the carried-over "###" comment of the pre-migration `.lang` line
+     * (never an administrator's own remark) is not taken over as one.
+     */
+    public function testMigratedModuleRemarksExcludesALngDataRemarkThatMatchesTheShippedLineComment(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'Alter Zeilenkommentar'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks(
+            [self::MODULE => ['greeting' => 'Hallo']],
+            [],
+            [self::MODULE => ['greeting' => 'Alter Zeilenkommentar']]
+        );
+
+        $this->assertArrayNotHasKey('greeting', $remarks[self::MODULE] ?? []);
+    }
+
+    /**
+     * Same exclusion for the shipped `.po`'s own "#." note (extracted comment) of the identifier.
+     */
+    public function testMigratedModuleRemarksExcludesALngDataRemarkThatMatchesTheShippedPoNote(): void
+    {
+        $catalog = new TranslationCatalog();
+        $entry = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry(self::MODULE, 'greeting');
+        $entry->translate('Hallo');
+        $entry->addExtractedComment('PO-Notiz');
+        $catalog->add($entry);
+        MigratedPoFixture::writePo($this->root . '/components/pilot/lang/pilot_de.po', $catalog);
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'PO-Notiz'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
+
+        $this->assertArrayNotHasKey('greeting', $remarks[self::MODULE] ?? []);
+    }
+
+    /**
+     * A dated "... new variable" placeholder (the legacy "not translated yet" marker) is never taken
+     * over as an administrator's remark either - regardless of whether it matches a shipped comment.
+     */
+    public function testMigratedModuleRemarksExcludesADatedNewVariableMarkerRemark(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => '28 08 2012 new variable'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
+
+        $this->assertArrayNotHasKey('greeting', $remarks[self::MODULE] ?? []);
+    }
+
+    /**
+     * A lng_data remark genuinely different from every shipped comment - an administrator really did
+     * edit it - is still taken over.
+     */
+    public function testMigratedModuleRemarksKeepsALngDataRemarkThatDiffersFromEveryShippedComment(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->collation_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'remarks' => 'Echte Admin-Bemerkung'],
+        ];
+
+        $remarks = $this->callMigratedModuleRemarks(
+            [self::MODULE => ['greeting' => 'Hallo']],
+            [],
+            [self::MODULE => ['greeting' => 'Ganz anderer Zeilenkommentar']]
+        );
+
+        $this->assertSame('Echte Admin-Bemerkung', $remarks[self::MODULE]['greeting'] ?? null);
     }
 }

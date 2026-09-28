@@ -51,12 +51,17 @@ use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
  * - A plural message keeps one "original" per form, as `original[<form>]: ` (or
  *   `original_escaped[<form>]: `), and one "local_change" for the whole message, present whenever
  *   any form differs from its "original" (see refreshForms()).
+ * - "remark" is the administrator's remark on the entry (the counterpart of lng_data.remarks, one
+ *   per identifier - also for a plural message), stored like "original": verbatim as `remark: `,
+ *   or reversibly encoded as `remark_escaped: ` if it contains a line break or a backslash.
  */
 final class LocalChangeComments
 {
     private const string ORIGINAL_PREFIX = 'original: ';
     private const string ESCAPED_ORIGINAL_PREFIX = 'original_escaped: ';
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
+    private const string REMARK_PREFIX = 'remark: ';
+    private const string ESCAPED_REMARK_PREFIX = 'remark_escaped: ';
 
     /**
      * Does not touch "local_change" - refresh() is always called right after and recomputes it
@@ -69,16 +74,7 @@ final class LocalChangeComments
      */
     public static function setOriginal(TranslationEntry $entry, string $value, ?int $form = null): void
     {
-        [$prefix, $other_prefix, $stored] = self::needsEscaping($value)
-            ? [self::originalPrefix(true, $form), self::originalPrefix(false, $form), self::escape($value)]
-            : [self::originalPrefix(false, $form), self::originalPrefix(true, $form), $value];
-
-        // Unchanged: keep the comment where it is, so re-running a sync produces identical output
-        if (self::find($entry, $prefix) === $stored && self::find($entry, $other_prefix) === null) {
-            return;
-        }
-        self::replace($entry, $other_prefix, null);
-        self::replace($entry, $prefix, $stored);
+        self::setEscapable($entry, self::originalPrefix(false, $form), self::originalPrefix(true, $form), $value);
     }
 
     /**
@@ -111,12 +107,40 @@ final class LocalChangeComments
      */
     public static function getOriginal(TranslationEntry $entry, ?int $form = null): ?string
     {
-        $escaped = self::find($entry, self::originalPrefix(true, $form));
-        if ($escaped !== null) {
-            return self::unescape($escaped);
-        }
+        return self::getEscapable($entry, self::originalPrefix(false, $form), self::originalPrefix(true, $form));
+    }
 
-        return self::find($entry, self::originalPrefix(false, $form));
+    /**
+     * How many characters of a remark are kept - like lng_data.remarks.
+     */
+    public const int MAX_REMARK_LENGTH = 250;
+
+    /**
+     * Sets the remark of $entry - `null` or '' removes it; cut to MAX_REMARK_LENGTH characters.
+     *
+     * @throws \InvalidArgumentException for a remark that is not valid UTF-8 (the overlay would
+     *         become unreadable)
+     */
+    public static function setRemark(TranslationEntry $entry, ?string $remark): void
+    {
+        if ($remark !== null && !mb_check_encoding($remark, 'UTF-8')) {
+            throw new \InvalidArgumentException(sprintf('The remark of "%s" is not valid UTF-8.', $entry->getId()));
+        }
+        $remark = $remark === null ? null : mb_substr($remark, 0, self::MAX_REMARK_LENGTH);
+        if ($remark === null || $remark === '') {
+            self::replace($entry, self::REMARK_PREFIX, null);
+            self::replace($entry, self::ESCAPED_REMARK_PREFIX, null);
+            return;
+        }
+        self::setEscapable($entry, self::REMARK_PREFIX, self::ESCAPED_REMARK_PREFIX, $remark);
+    }
+
+    /**
+     * The decoded remark of $entry, exactly as it was passed to setRemark(), `null` without one.
+     */
+    public static function getRemark(TranslationEntry $entry): ?string
+    {
+        return self::getEscapable($entry, self::REMARK_PREFIX, self::ESCAPED_REMARK_PREFIX);
     }
 
     /**
@@ -212,6 +236,38 @@ final class LocalChangeComments
         $prefix = $escaped ? self::ESCAPED_ORIGINAL_PREFIX : self::ORIGINAL_PREFIX;
 
         return $form === null ? $prefix : substr($prefix, 0, -2) . '[' . $form . ']: ';
+    }
+
+    /**
+     * Stores $value under $prefix, or under $escaped_prefix if it needs escaping (see
+     * needsEscaping()) - used by setOriginal() and setRemark(), which only differ in their prefixes.
+     */
+    private static function setEscapable(TranslationEntry $entry, string $prefix, string $escaped_prefix, string $value): void
+    {
+        [$prefix, $other_prefix, $stored] = self::needsEscaping($value)
+            ? [$escaped_prefix, $prefix, self::escape($value)]
+            : [$prefix, $escaped_prefix, $value];
+
+        // Unchanged: keep the comment where it is, so re-running a sync produces identical output
+        if (self::find($entry, $prefix) === $stored && self::find($entry, $other_prefix) === null) {
+            return;
+        }
+        self::replace($entry, $other_prefix, null);
+        self::replace($entry, $prefix, $stored);
+    }
+
+    /**
+     * The value stored under $escaped_prefix (decoded) or $prefix, `null` if neither is present -
+     * the read side of setEscapable().
+     */
+    private static function getEscapable(TranslationEntry $entry, string $prefix, string $escaped_prefix): ?string
+    {
+        $escaped = self::find($entry, $escaped_prefix);
+        if ($escaped !== null) {
+            return self::unescape($escaped);
+        }
+
+        return self::find($entry, $prefix);
     }
 
     private static function find(TranslationEntry $entry, string $prefix): ?string

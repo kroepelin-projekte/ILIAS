@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
 
 /**
  * Write access to the language installation domain: installing, flushing
@@ -610,11 +611,13 @@ class LanguageInstallationManager
         // that worker.
         try {
             $customized = [];
+            $customized_remarks = [];
             $duplicates = [];
             // For the markup check of the customizing file: the values before this run (the seed)
             // and the shipped values read from the global/component files
             $current_values = $lang_array;
             $shipped_line_values = [];
+            $shipped_line_comments = [];
 
             foreach ($directories as $directory) {
                 $lang_file = "ilias_" . $lang_key . ".lang" . $directory->getSuffix();
@@ -683,6 +686,11 @@ class LanguageInstallationManager
 
                     if (!$is_local) {
                         $shipped_line_values[$module][$identifier] ??= $value;
+                        if (($separated[3] ?? '') !== '') {
+                            // the shipped "###" comment - lng_data.remarks held it before the module
+                            // was migrated, see migratedModuleRemarks()
+                            $shipped_line_comments[$module][$identifier] ??= $separated[3];
+                        }
                         if (isset($shipped_migrated_modules[$module])) {
                             // Migrated: the shipped .po is the only source, see resolveMigratedModule()
                             continue;
@@ -713,6 +721,9 @@ class LanguageInstallationManager
                     $lang_array[$module][$identifier] = $value;
                     if ($is_local) {
                         $customized[$module][$identifier] = true;
+                        if (isset($shipped_migrated_modules[$module]) && ($separated[3] ?? '') !== '') {
+                            $customized_remarks[$module][$identifier] = $separated[3];
+                        }
                     }
                 }
             }
@@ -737,6 +748,13 @@ class LanguageInstallationManager
                     implode(', ', $duplicates)
                 ));
             }
+
+            // The remarks of the migrated modules, kept in their overlay as well (see
+            // MigratedLanguageFileSync::sync()): lng_data (still holding them from before the
+            // overlay kept remarks), the overlay, the customizing file - later ones win
+            $migrated_remarks = $keep_local_changes
+                ? $this->migratedModuleRemarks($lang_key, $shipped_migrated_modules, $customized_remarks, $shipped_line_comments, $client_data_dir)
+                : [];
 
             $dropped_identifiers = [];
             foreach ($shipped_migrated_modules as $module => $shipped_entries) {
@@ -768,7 +786,7 @@ class LanguageInstallationManager
                 }
             }
             foreach ($migrated_rows as $module => $rows) {
-                foreach (self::databaseRowsOfMigratedModule($rows, $lang_array[$module] ?? [], $shipped_migrated_modules[$module]) as $identifier => [$value, $local_change, $remarks]) {
+                foreach (self::databaseRowsOfMigratedModule($rows, $lang_array[$module] ?? [], $shipped_migrated_modules[$module], $migrated_remarks[$module] ?? []) as $identifier => [$value, $local_change, $remarks]) {
                     $sql_row((string) $module, (string) $identifier, $value, $local_change, $remarks);
                 }
             }
@@ -840,7 +858,13 @@ class LanguageInstallationManager
                 $expected_overlays[(string) $module] = in_array((string) $module, $locked_modules, true) ? null : false;
             }
 
-            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir, $expected_overlays);
+            // Without keeping local changes ("remove local changes"), the remarks go as well
+            $remarks = [];
+            foreach (array_keys($shipped_migrated_modules) as $module) {
+                $remarks[(string) $module] = $keep_local_changes ? ($migrated_remarks[(string) $module] ?? null) : [];
+            }
+
+            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir, $expected_overlays, $remarks);
         } finally {
             chdir($working_dir);
         }
@@ -861,19 +885,21 @@ class LanguageInstallationManager
      *        local_change, remarks
      * @param array<string, string> $final_entries the module's final identifier => value map
      * @param array<string, string> $shipped_entries
+     * @param array<string, string> $remarks identifier => remark of the module (see
+     *        migratedModuleRemarks()) - written into its rows
      * @return array<string, array{0: string, 1: ?string, 2: ?string}>
      */
-    private static function databaseRowsOfMigratedModule(array $rows, array $final_entries, array $shipped_entries): array
+    private static function databaseRowsOfMigratedModule(array $rows, array $final_entries, array $shipped_entries, array $remarks = []): array
     {
         $values = MigratedLanguageFileSync::collapsePluralForms($final_entries, $shipped_entries);
         $shipped_defaults = MigratedLanguageFileSync::collapsePluralForms($shipped_entries, $shipped_entries);
         $database_values = MigratedLanguageFileSync::databaseValues($values, $shipped_defaults);
         $result = [];
-        foreach ($rows as $identifier => [$value, $local_change, $remarks]) {
+        foreach ($rows as $identifier => [$value, $local_change, $row_remarks]) {
             $identifier = (string) $identifier;
             $plural_identifier = MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped_entries);
             if ($plural_identifier === null) {
-                $result[$identifier] = [$value, $local_change, $remarks];
+                $result[$identifier] = [$value, $local_change, $remarks[$identifier] ?? $row_remarks];
                 continue;
             }
             if (!isset($database_values[$plural_identifier])) {
@@ -884,7 +910,7 @@ class LanguageInstallationManager
             $result[$plural_identifier] = [
                 (string) $database_values[$plural_identifier],
                 $is_local_change ? ($previous[1] ?? $local_change) : null,
-                $previous[2] ?? $remarks,
+                $remarks[$plural_identifier] ?? $previous[2] ?? $row_remarks,
             ];
         }
 
@@ -1041,16 +1067,123 @@ class LanguageInstallationManager
     }
 
     /**
+     * The remarks of every migrated module (identifier => remark, a plural message under its
+     * identifier): those still in lng_data, overridden by those of the overlay, overridden by those
+     * of the customizing file. A module whose overlay cannot be read is left out (its sync() then
+     * keeps the remarks the overlay holds, see MigratedLanguageFileSync::sync()).
+     *
+     * Before a module was migrated, lng_data.remarks held the shipped "###" comment of its `.lang`
+     * line (mostly the dated "... new variable" marker) - that is no remark of an administrator: a
+     * lng_data remark is only taken over if it differs from the shipped "###" comment
+     * ($shipped_line_comments), from the `#.` note of the shipped `.po`, and is no dated "new
+     * variable" marker. A remark an administrator edited before the migration is taken over.
+     *
+     * @param array<string, array<string, string>> $shipped_migrated_modules
+     * @param array<string, array<string, string>> $customized_remarks
+     * @param array<string, array<string, string>> $shipped_line_comments module => identifier =>
+     *        "###" comment of the shipped `.lang` lines
+     * @return array<string, array<string, string>>
+     */
+    /**
+     * A dated "not translated yet" marker of the legacy `.lang` files ("28 08 2012 new variable"),
+     * the same pattern convert_module_to_po.php turns into "fuzzy".
+     */
+    private const string FUZZY_MARKER_PATTERN = '/^\s*(\d{1,2}\s+\d{1,2}\s+\d{4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{4}-\d{1,2}-\d{1,2})\b.*\bnew variable\b/i';
+
+    private function migratedModuleRemarks(
+        string $lang_key,
+        array $shipped_migrated_modules,
+        array $customized_remarks,
+        array $shipped_line_comments,
+        ?string $client_data_dir
+    ): array {
+        if ($shipped_migrated_modules === []) {
+            return [];
+        }
+        $ilDB = $this->db();
+        $database_remarks = [];
+        $result = $ilDB->query(sprintf(
+            "SELECT module, identifier, remarks FROM lng_data WHERE lang_key = %s AND remarks IS NOT NULL AND %s",
+            $ilDB->quote($lang_key, "text"),
+            $ilDB->in('module', array_map('strval', array_keys($shipped_migrated_modules)), false, 'text')
+        ));
+        while ($row = $ilDB->fetchAssoc($result)) {
+            if (isset($row['module'], $row['identifier'], $row['remarks']) && (string) $row['remarks'] !== '') {
+                $database_remarks[(string) $row['module']][(string) $row['identifier']] = (string) $row['remarks'];
+            }
+        }
+
+        $shipped_files = MigratedLanguageFileSync::findShippedModuleFiles(
+            $this->language_file_directory_manager,
+            $this->absolute_path,
+            $lang_key
+        );
+        $remarks = [];
+        foreach ($shipped_migrated_modules as $module => $shipped_entries) {
+            $module = (string) $module;
+            try {
+                $po_notes = isset($shipped_files[$module])
+                    ? array_filter(array_map(
+                        static fn(array $entry): string => (string) $entry['comment'],
+                        MigratedLanguageFileSync::loadShippedModuleEntries($shipped_files[$module], $module)
+                    ), static fn(string $note): bool => $note !== '')
+                    : [];
+            } catch (\Throwable) {
+                $po_notes = [];
+            }
+            foreach ($database_remarks[$module] ?? [] as $identifier => $remark) {
+                $plural_identifier = MigratedLanguageFileSync::pluralMessageOf((string) $identifier, $shipped_entries);
+                $shipped_comments = [
+                    $shipped_line_comments[$module][$identifier] ?? null,
+                    $po_notes[$identifier] ?? null,
+                    $plural_identifier === null ? null : ($po_notes[PluralFormKey::of($plural_identifier, 0)] ?? null),
+                ];
+                if (
+                    in_array(trim($remark), array_map(static fn(?string $c): ?string => $c === null ? null : trim($c), $shipped_comments), true)
+                    || preg_match(self::FUZZY_MARKER_PATTERN, $remark) === 1
+                ) {
+                    unset($database_remarks[$module][$identifier]);
+                }
+            }
+            try {
+                $overlay_remarks = MigratedLanguageFileSync::loadRemarks(
+                    $this->language_file_directory_manager,
+                    $lang_key,
+                    $module,
+                    $client_data_dir,
+                    $this->absolute_path
+                ) ?? [];
+            } catch (\Throwable) {
+                // reported by loadOverlay() - the sync keeps what the overlay holds
+                continue;
+            }
+            $module_remarks = [];
+            foreach ([$database_remarks[$module] ?? [], $overlay_remarks, $customized_remarks[$module] ?? []] as $source) {
+                foreach ($source as $identifier => $remark) {
+                    $identifier = (string) $identifier;
+                    $module_remarks[MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped_entries) ?? $identifier] = (string) $remark;
+                }
+            }
+            $remarks[$module] = $module_remarks;
+        }
+
+        return $remarks;
+    }
+
+    /**
      * @param array<string, array<string, string>> $lang_array
      * @param array<string, bool|null> $expected_overlays module => $expected_overlay_exists of
      *        MigratedLanguageFileSync::sync()
+     * @param array<string, array<string, string>|null> $remarks module => $remarks of
+     *        MigratedLanguageFileSync::sync() (`null`/missing: keep the overlay's remarks)
      * @return list<string> the modules whose overlay could not be written
      */
     private function syncMigratedModules(
         string $lang_key,
         array $lang_array,
         ?string $client_data_dir,
-        array $expected_overlays = []
+        array $expected_overlays = [],
+        array $remarks = []
     ): array {
         $failed_modules = [];
         foreach ($lang_array as $module => $entries) {
@@ -1065,7 +1198,8 @@ class LanguageInstallationManager
                     // every caller of insertLanguage() reconciles the language with the shipped
                     // files, see MigratedLanguageFileSync::sync()
                     true,
-                    $expected_overlays[(string) $module] ?? null
+                    $expected_overlays[(string) $module] ?? null,
+                    $remarks[(string) $module] ?? null
                 );
             } catch (\Throwable $t) {
                 // No injected logger here - this class also runs in Setup contexts before a

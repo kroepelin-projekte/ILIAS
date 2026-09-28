@@ -643,8 +643,50 @@ Pro Delta-Eintrag zwei Übersetzerkommentare (nur in der `.po`; die `.mo` kennt 
   `original` existiert (lokal hinzugefügte Variable). Ein unverändert erneut gespeicherter Wert
   behält seinen Zeitstempel.
 
+- **`# remark: <text>`** (bzw. **`# remark_escaped: <text>`**, kodiert wie `original_escaped`) —
+  die Bemerkung des Administrators (Gegenstück zu `lng_data.remarks`, eine pro Key, auch bei
+  Plural-Einträgen). Siehe "Bemerkungen im Overlay".
+
 Für Einträge ohne Overlay liefert `loadModuleTranslations()` `local_change = false` und
-`original` = Shipped-Wert. `remarks` (Freitext) wird nicht in der `.po` abgebildet.
+`original` = Shipped-Wert.
+
+### Bemerkungen im Overlay (seit 2026-09-28)
+
+- **Gespeichert** werden Admin-Bemerkungen (Kommentarspalte im Übersetzungsmodus, Import-Kommentare,
+  der Login bei „Neue Variable hinzufügen", Bemerkungen aus Customizing-Zeilen) zusätzlich zu
+  `lng_data.remarks` (Dual-Write bleibt) im Overlay (`LocalChangeComments::setRemark()`,
+  `MigratedLanguageFileSync::setRemarks()`).
+- **Delta mit Bemerkung:** Ein Eintrag mit Bemerkung gehört ins Overlay, auch wenn sein Wert der
+  geshippte ist (`belongsInDelta(..., $remark)`). Dann ist er ein **reiner Bemerkungseintrag** mit
+  leerem `msgstr` (Plural: alle Formen leer): die `.mo` lässt ihn weg, ausgeliefert wird weiter der
+  Shipped-Wert; `loadModuleTranslations()`/`loadLocalChanges()` übergehen ihn (kein veralteter Wert,
+  wenn sich der Shipped-Wert später ändert).
+- **`sync(..., $remarks)`**: `null` (Standard, z. B. Admin-Edit über `replaceLangModule()`) behält die
+  Bemerkungen des Overlays — auch für einen Eintrag, der auf den Shipped-Wert zurückgesetzt wird;
+  ein Array ist die vollständige Menge des Moduls. Bemerkungen zu Keys, die weder geshippt noch im
+  Delta sind, entfallen.
+- **Lesen:** `ilObjLanguageExt::_getRemarks()` nimmt für migrierte Module die Overlay-Bemerkungen
+  (`loadRemarks()`), eine nur in `lng_data` stehende Bemerkung gilt weiter (Altbestand).
+- **Setup (Drei-Wege-Abgleich):** Bemerkungen aus `lng_data` (Altbestand), Overlay und
+  Customizing-Datei (spätere gewinnen) werden ins Overlay und in die geschriebenen `lng_data`-Zeilen
+  übernommen — so wandert Altbestand beim nächsten abgleichenden Schreiben ins Overlay. Vor der
+  Migration stand in `lng_data.remarks` der geshippte `###`-Kommentar der `.lang` (meist der
+  Datums-Marker „… new variable"); eine `lng_data`-Bemerkung wird deshalb nur übernommen, wenn sie
+  vom `###`-Kommentar der Root-/Component-`.lang` **und** von der `#.`-Notiz der Shipped-`.po`
+  abweicht und kein Datums-Marker ist. Echte Bemerkungs-Edits von vor der Migration wandern so
+  weiter ins Overlay. Remark-only-Einträge stehen sortiert nach Key (kein Neuschreiben ohne
+  Inhaltsänderung).
+  **„Lokale Änderungen entfernen"** entfernt auch die Bemerkungen (`sync(..., [])`).
+- **Admin-GUI:** Speichern schreibt geänderte Bemerkungen ins Overlay; ändert sich nur die
+  Bemerkung, wird in `lng_data` nur `remarks` aktualisiert. Löschen einer Variable entfernt ihre
+  Bemerkung auch aus dem Overlay (Plural-Formzeilen: die Bemerkung des Keys bleibt). Bekannt: Bei
+  einer Bemerkungsänderung wird das Overlay zweimal geschrieben (erst der Wert über
+  `replaceLangModule()`, dessen Signatur keine Bemerkungen trägt, dann `setRemarks()`); ebenso bei
+  „Neue Variable hinzufügen".
+- **Kodierung/Länge:** Bemerkungen werden einmal zentral auf 250 Zeichen gekürzt (`mb_substr`, auch
+  in `ilObjLanguage::replaceLangEntry()`/`updateLangEntry()`), nicht gültiges UTF-8 wird verworfen
+  und geloggt (`LocalChangeComments::setRemark()` wirft dafür). Ein Overlay, das kein gültiges
+  UTF-8 wäre, wird nicht geschrieben (`RuntimeException`), damit es lesbar bleibt.
 
 ## Installation und Update
 
@@ -845,6 +887,25 @@ gesicherten Kopie der `.lang`-Datei; migrierte Module erscheinen dort nie. Ist e
 nicht lesbar, zeigen die Leser ersatzweise die `.lang`-Zeilen und die GUI eine Warnung
 (`lng_shipped_po_unreadable_fallback`); "clear" bricht in diesem Fall ab.
 
+**Informationen der Shipped-`.po` in der Admin-GUI** (seit 2026-09-28):
+
+- **Nicht übersetzt:** Ein fuzzy Eintrag bekommt im Kommentar des Standardwerts den Marker
+  `new variable` (angehängt an eine `#.`-Notiz) — die Formulierung der früheren Datums-Marker
+  „… new variable" der `.lang`-Dateien; ein eigener Sprach-Key existiert nicht (Vorschlag siehe
+  Änderungshistorie). Der Marker ist **nur Anzeige** (`getShippedCommentsForDisplay()`,
+  `_getShippedMigratedComments()`): `getShippedComments()` — und damit der Filter "kommentiert",
+  der Export "merged" (`getMergedRemarks()`) und `_saveValues()` — enthält nur die `#.`-Notizen.
+- **Andere Vergleichssprache:** Die Kommentarspalte der Vergleichssprache zeigt deren Bemerkungen
+  und, wo keine besteht, die `#.`-Notizen/den Marker ihrer Shipped-`.po`
+  (`ilObjLanguageExt::_getShippedMigratedComments()`).
+- **Filter:** "kommentiert" berücksichtigt `#.`-Notizen, "dbremarks" die Bemerkungen aus Overlay und
+  `lng_data`, Formzeilen über die Bemerkung ihres Keys.
+- **Aufwand:** Die Shipped-`.po` der Vergleichssprache werden nur für die angezeigten Module gelesen
+  (Modulfilter bzw. Module der Seitenübersetzung; ohne Filter alle). `_getRemarks()` liest die
+  Overlay-`.po` aller migrierten Module der Sprache (nur Module mit Overlay kosten etwas) — bei sehr
+  vielen migrierten Modulen mit Overlay ggf. einschränken. Alle Bemerkungen und Notizen
+  werden escaped ausgegeben (`ilLegacyFormElementsUtil::prepareFormOutput()`).
+
 **"In die globale Sprachdatei übernehmen" (Entwicklermodus, "merge")**: migrierte Module werden
 übersprungen (`ilObjLanguageExt::mergeLocalChangesIntoGlobalLanguageFile()`); ihre vorhandenen
 Zeilen werden exakt so zurückgeschrieben, wie sie gelesen wurden
@@ -862,7 +923,10 @@ genannt.
   `setup build`. Ein Overlay entsteht nur bei lokalen Änderungen.
 - **Offen:** Artefakt-Konvention mit den Setup-Maintainern.
 - Mitgelieferte Markup-Verstöße in `lang/*.lang`: gemeldet über `SHIPPED_MARKUP_VIOLATIONS.md`.
-- Kein Reset-UI pro Eintrag, keine `remarks` in der `.po`.
+- Kein Reset-UI pro Eintrag. Bemerkungen stehen im Overlay, nicht in der Shipped-`.po` (dort nur
+  `#.`-Notizen). Ein Import im Modus "delete" übernimmt die Bemerkungen der Datei, ersetzt aber die
+  übrigen Overlay-Bemerkungen nicht. Beim Export bekommen Plural-Formzeilen keine Bemerkung (sie
+  gehört zum Key).
 - **Zwei externe Direktzugriffe auf `lng_data`** außerhalb der Language-Komponente:
   `ilNotificationDatabaseHandler::getTranslatedLanguageVariablesOfNotificationParameters()` und
   `ilDclStandardField::_getNonImportableStandardFieldTitles()`/`_getImportableStandardFieldTitle()`.
@@ -993,3 +1057,19 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    `poll_vote_error_multi` („de% réponses"), `sv` `poll_voting_period_info` ohne `%s`, `tr`
    `poll_population`/`poll_block_results_available_on` („% s"), `pt` `poll_population` (falscher Text
    ohne `%s`); `en`, `ja`, `pt` fehlt `poll_import`.
+
+### 2026-09-28: Bemerkungen im Overlay, Shipped-Informationen in der Admin-GUI
+
+1. **Bemerkungen im Overlay** (`# remark:`/`# remark_escaped:`), reine Bemerkungseinträge mit leerem
+   `msgstr`, `sync(..., $remarks)`, `loadRemarks()`, `setRemarks()`, `belongsInDelta(..., $remark)`;
+   Setup übernimmt Bemerkungen aus `lng_data`/Customizing, „Lokale Änderungen entfernen" entfernt
+   sie; Admin-GUI schreibt sie ins Overlay und liest sie von dort (Fallback `lng_data`).
+2. **Admin-GUI:** Marker `new variable` für fuzzy Einträge, `#.`-Notizen der Vergleichssprache,
+   Filter "dbremarks" mit Formzeilen. Vorschlag für einen eigenen Key (Root-`lang/*.lang`, nicht
+   angelegt): `administration#:#language_not_translated#:#Not translated` / `Nicht übersetzt`.
+3. Vorab an der Instanz bestätigt: `setup update` behält Bemerkungen lokal geänderter Zeilen.
+4. Nach Code-/Security-Review: geshippte `###`-Kommentare/`#.`-Notizen/Datums-Marker aus
+   `lng_data.remarks` werden nicht als Bemerkungen ins Overlay übernommen; Bemerkungen mit
+   `mb_substr` auf 250 Zeichen, ungültiges UTF-8 verworfen, Overlay-UTF-8-Prüfung vor dem Schreiben;
+   Remark-only-Einträge sortiert; Fuzzy-Marker nur Anzeige; Vergleichssprache nur für angezeigte
+   Module; Overlay-Bemerkungen beim Löschen nur für migrierte Module.

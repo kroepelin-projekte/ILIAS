@@ -463,4 +463,174 @@ class LocalChangeCommentsTest extends TestCase
         $this->assertSame('yesterday', LocalChangeComments::getLocalChange($entry));
         $this->assertNull(LocalChangeComments::getLocalChangeAsDatabaseTimestamp($entry));
     }
+
+    // ------------------------------------------------------------- remark
+
+    public function testGetRemarkIsNullWithoutOneSet(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+
+        $this->assertNull(LocalChangeComments::getRemark($entry));
+    }
+
+    public function testSetRemarkAndGetRemarkRoundTripAPlainValueVerbatim(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, 'Bitte prüfen');
+
+        $this->assertSame(['remark: Bitte prüfen'], $entry->getTranslatorComments());
+        $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
+    }
+
+    /**
+     * Same escaping mechanism as "original" (setEscapable()), just under its own prefix - a
+     * remark with a line break or backslash round-trips via a single "remark_escaped: " comment.
+     */
+    #[DataProvider('valuesNeedingEscaping')]
+    public function testSetRemarkEscapesALineBreakOrBackslashLikeSetOriginalDoes(string $value, string $unused_original_comment): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, $value);
+
+        $comments = $entry->getTranslatorComments();
+        $this->assertCount(1, $comments);
+        $this->assertStringStartsWith('remark_escaped: ', $comments[0]);
+        $this->assertSame($value, LocalChangeComments::getRemark($entry));
+    }
+
+    public function testSetRemarkKeepsLeadingAndTrailingWhitespaceExactly(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, '  Bemerkung  ');
+
+        $this->assertSame('  Bemerkung  ', LocalChangeComments::getRemark($entry));
+    }
+
+    /**
+     * An empty remark is treated the same as no remark at all - unlike "original", which
+     * deliberately distinguishes "" from absent (see testAnEmptyOriginalIsDistinctFromNoOriginal()):
+     * a remark has no such "matches the shipped value" semantics, so there is nothing to keep an
+     * empty marker for.
+     */
+    public function testSetRemarkWithAnEmptyStringRemovesIt(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, 'Bitte prüfen');
+
+        LocalChangeComments::setRemark($entry, '');
+
+        $this->assertNull(LocalChangeComments::getRemark($entry));
+        $this->assertSame([], $entry->getTranslatorComments());
+    }
+
+    public function testSetRemarkWithNullRemovesAnExistingOne(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, 'Bitte prüfen');
+
+        LocalChangeComments::setRemark($entry, null);
+
+        $this->assertNull(LocalChangeComments::getRemark($entry));
+    }
+
+    /**
+     * Invalid UTF-8 would make the overlay `.po` itself unreadable (TranslationCatalog::fromPoString()
+     * rejects non-UTF-8 content) - rejected here instead, before it ever reaches a comment.
+     */
+    public function testSetRemarkThrowsForInvalidUtf8(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+
+        $this->expectException(\InvalidArgumentException::class);
+        LocalChangeComments::setRemark($entry, "Ung\xFCltig");
+    }
+
+    /**
+     * lng_data.remarks is limited to 250 characters (see ilObjLanguage::replaceLangEntry()) - the
+     * overlay's remark is cut to the same MAX_REMARK_LENGTH, character-wise (mb_substr(), not byte-
+     * wise) so a multi-byte character straddling the cut point is never split into invalid UTF-8.
+     */
+    public function testSetRemarkIsCutToMaxRemarkLengthCharactersNotBytes(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        // 250 "ä" (2 bytes each in UTF-8) plus one more character right at the boundary
+        $remark = str_repeat('ä', LocalChangeComments::MAX_REMARK_LENGTH) . 'X';
+
+        LocalChangeComments::setRemark($entry, $remark);
+
+        $stored = LocalChangeComments::getRemark($entry);
+        $this->assertSame(LocalChangeComments::MAX_REMARK_LENGTH, mb_strlen((string) $stored));
+        $this->assertSame(str_repeat('ä', LocalChangeComments::MAX_REMARK_LENGTH), $stored);
+        $this->assertTrue(mb_check_encoding((string) $stored, 'UTF-8'), 'no character was split in half');
+    }
+
+    public function testSetRemarkAtExactlyMaxRemarkLengthIsNotCut(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        $remark = str_repeat('x', LocalChangeComments::MAX_REMARK_LENGTH);
+
+        LocalChangeComments::setRemark($entry, $remark);
+
+        $this->assertSame($remark, LocalChangeComments::getRemark($entry));
+    }
+
+    /**
+     * Switching from an escaped to a plain value (or back) leaves exactly one remark comment behind -
+     * never both the legacy and the escaped prefix at once.
+     */
+    public function testSetRemarkSwitchingBetweenEscapedAndPlainKeepsExactlyOneComment(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setRemark($entry, "mit\nZeilenumbruch");
+
+        LocalChangeComments::setRemark($entry, 'ohne Umbruch');
+
+        $this->assertSame(['remark: ohne Umbruch'], $entry->getTranslatorComments());
+        $this->assertSame('ohne Umbruch', LocalChangeComments::getRemark($entry));
+    }
+
+    /**
+     * "remark" coexists independently with "original"/"local_change" (a plural message's
+     * "original[<form>]" too) - setting/reading one must never disturb the others, and all three can
+     * be present on the very same entry at once.
+     */
+    public function testRemarkCoexistsWithOriginalAndLocalChangeOnTheSameEntry(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Hallo');
+        LocalChangeComments::refresh($entry, 'Hallo', 'Servus', new \DateTimeImmutable('2026-09-21T10:00:00Z'));
+
+        LocalChangeComments::setRemark($entry, 'Bitte prüfen');
+
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($entry));
+        $this->assertSame('2026-09-21T10:00:00Z', LocalChangeComments::getLocalChange($entry));
+        $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
+
+        LocalChangeComments::setRemark($entry, null);
+
+        $this->assertNull(LocalChangeComments::getRemark($entry));
+        $this->assertSame('Hallo', LocalChangeComments::getOriginal($entry), 'removing the remark must not touch "original"');
+        $this->assertSame('2026-09-21T10:00:00Z', LocalChangeComments::getLocalChange($entry), 'nor "local_change"');
+    }
+
+    /**
+     * A plural message's per-form "original[<form>]" comments must not be confused with, or removed
+     * by, the (single, per-identifier) "remark".
+     */
+    public function testRemarkCoexistsWithPerFormOriginalsOfAPluralMessage(): void
+    {
+        $entry = new TranslationEntry('demo', 'greeting');
+        LocalChangeComments::setOriginal($entry, 'Eintrag', 0);
+        LocalChangeComments::setOriginal($entry, 'Einträge', 1);
+
+        LocalChangeComments::setRemark($entry, 'Bitte prüfen');
+
+        $this->assertSame('Eintrag', LocalChangeComments::getOriginal($entry, 0));
+        $this->assertSame('Einträge', LocalChangeComments::getOriginal($entry, 1));
+        $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
+
+        LocalChangeComments::removeFormOriginals($entry);
+
+        $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry), 'removing the form originals must not touch the remark');
+    }
 }

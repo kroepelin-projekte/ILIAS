@@ -44,9 +44,10 @@ class AddLanguageEntry extends LanguageActivity
      * @param \Closure|null $replace_lang_entry (string $module, string $identifier, string $lang_key,
      *        string $value, string $local_change, string $remarks): bool
      * @param \Closure|null $update_module_cache (string $lang_key, string $module, string $identifier,
-     *        string $value): ?bool - `false` if the entry reached the database, but the PO/MO overlay
-     *        of the module (if it is maintained in PO files) could not be written; `true`/`null`
-     *        otherwise
+     *        string $value, string $remarks = ''): ?bool - `false` if the entry reached the database,
+     *        but the PO/MO overlay of the module (if it is maintained in PO files) could not be
+     *        written; `true`/`null` otherwise. $remarks (the author's login, like in lng_data) is
+     *        kept in the overlay as the entry's remark.
      * @param \Closure|null $user_login (int $usr_id): string
      * @param \ilDBInterface|\Closure $db (): \ilDBInterface
      */
@@ -77,11 +78,14 @@ class AddLanguageEntry extends LanguageActivity
                 string $lang_key,
                 string $module,
                 string $identifier,
-                string $value
+                string $value,
+                string $remarks = ''
             ) use ($db_resolver): bool {
                 global $DIC;
 
-                $write = static function () use ($db_resolver, $lang_key, $module, $identifier, $value): bool {
+                $write = static function () use ($db_resolver, $lang_key, $module, $identifier, $value, $remarks): bool {
+                    global $DIC;
+
                     $entries = self::currentModuleEntries($db_resolver(), $lang_key, $module);
                     if ($entries === null) {
                         // as before: no lng_modules row of a module not maintained in PO files -
@@ -89,7 +93,24 @@ class AddLanguageEntry extends LanguageActivity
                         return true;
                     }
                     $entries[self::entryKeyOf($entries, $identifier)] = $value;
-                    return \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
+                    $written = \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
+                    if ($remarks === '' || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+                        return $written;
+                    }
+                    // the remark lng_data got (see replace_lang_entry) - in the overlay as well
+                    try {
+                        MigratedLanguageFileSync::setRemarks(
+                            $DIC[LanguageFileDirectoryManager::class],
+                            $lang_key,
+                            $module,
+                            [$identifier => $remarks],
+                            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                            ILIAS_ABSOLUTE_PATH
+                        );
+                    } catch (\Throwable) {
+                        return false;
+                    }
+                    return $written;
                 };
                 $manager = isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)
                     ? $DIC[LanguageFileDirectoryManager::class]
@@ -439,7 +460,7 @@ MARKDOWN
             }
 
             ($this->replace_lang_entry)($module, $identifier, $lang_key, $value, $local_change, $login);
-            if (($this->update_module_cache)($lang_key, $module, $identifier, $value) === false) {
+            if (($this->update_module_cache)($lang_key, $module, $identifier, $value, $login) === false) {
                 $overlay_write_failed_language_keys[] = $lang_key;
             }
 

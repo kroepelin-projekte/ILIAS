@@ -287,6 +287,39 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * getShippedComments() itself never carries the "not translated yet" marker of a fuzzy shipped
+     * entry - only getShippedCommentsForDisplay() (the admin GUI) does, see the next test. The marker
+     * is display-only: never exported, filtered for, or compared on saving.
+     */
+    public function testShippedCommentsNeverIncludeTheFuzzyMarker(): void
+    {
+        $shipped = MigratedPoFixture::readPo($this->shippedPo());
+        $shipped->find('itest', 'farewell')?->addFlag('fuzzy');
+        MigratedPoFixture::writePo($this->shippedPo(), $shipped);
+
+        $this->assertArrayNotHasKey('itest#:#farewell', $this->languageObject()->getShippedComments());
+    }
+
+    /**
+     * getShippedCommentsForDisplay() appends the "not translated yet" marker for a shipped entry
+     * flagged "fuzzy" - appended to its own comment where it has one (see "greeting"), or alone where
+     * it does not (see "farewell").
+     */
+    public function testShippedCommentsForDisplayAppendsTheFuzzyMarker(): void
+    {
+        $shipped = MigratedPoFixture::readPo($this->shippedPo());
+        $shipped->find('itest', 'greeting')?->addFlag('fuzzy');
+        $shipped->find('itest', 'farewell')?->addFlag('fuzzy');
+        MigratedPoFixture::writePo($this->shippedPo(), $shipped);
+
+        $comments = $this->languageObject()->getShippedCommentsForDisplay();
+
+        $this->assertSame('Begrüßung auf der Startseite kurz halten - new variable', $comments['itest#:#greeting'] ?? null);
+        $this->assertSame('new variable', $comments['itest#:#farewell'] ?? null);
+        $this->assertArrayNotHasKey('itest#:#po_only', $comments, 'not fuzzy - no marker');
+    }
+
+    /**
      * An unreadable shipped .po keeps that module's .lang lines (values and comments) as the best
      * available approximation - logged, and reported for a warning in the GUI. The module still is
      * maintained in PO files.

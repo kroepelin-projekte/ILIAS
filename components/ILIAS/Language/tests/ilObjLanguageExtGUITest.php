@@ -1082,4 +1082,67 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->assertStringStartsWith('Imported ', $message);
         $assertOnMessage($this, $message);
     }
+
+    // ------------------------------------------------------------ remarkOf()
+
+    /**
+     * @param array<string, string> $comments
+     */
+    private function callRemarkOf(array $comments, string $name): string
+    {
+        $gui = (new ReflectionClass(ilObjLanguageExtGUI::class))->newInstanceWithoutConstructor();
+        $this->setProperty($gui, 'lng', (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor());
+
+        return (new ReflectionMethod(ilObjLanguageExtGUI::class, 'remarkOf'))->invoke($gui, $comments, $name);
+    }
+
+    public function testRemarkOfReturnsTheCommentOfTheGivenKeyItselfWhenPresent(): void
+    {
+        $this->assertSame(
+            'Bitte prüfen',
+            $this->callRemarkOf(['pilot#:#greeting' => 'Bitte prüfen'], 'pilot#:#greeting')
+        );
+    }
+
+    /**
+     * A form of a plural message (see PluralFormKey, "identifier [form]") has no comment of its own -
+     * it falls back to the comment of its identifier.
+     */
+    public function testRemarkOfFallsBackToTheIdentifiersCommentForAPluralFormKeyWithoutItsOwn(): void
+    {
+        $this->assertSame(
+            'Bitte prüfen',
+            $this->callRemarkOf(['pilot#:#item' => 'Bitte prüfen'], 'pilot#:#item [1]')
+        );
+    }
+
+    /**
+     * A plural form's OWN comment (should one somehow exist) wins over the identifier's - "$name
+     * itself" is always tried first.
+     */
+    public function testRemarkOfPrefersThePluralFormsOwnCommentOverTheIdentifiersWhenBothArePresent(): void
+    {
+        $this->assertSame(
+            'Form-spezifisch',
+            $this->callRemarkOf(
+                ['pilot#:#item' => 'Identifier-Bemerkung', 'pilot#:#item [1]' => 'Form-spezifisch'],
+                'pilot#:#item [1]'
+            )
+        );
+    }
+
+    public function testRemarkOfIsEmptyWithoutAnyMatchingComment(): void
+    {
+        $this->assertSame('', $this->callRemarkOf([], 'pilot#:#unknown'));
+        $this->assertSame('', $this->callRemarkOf(['pilot#:#other' => 'X'], 'pilot#:#greeting'));
+    }
+
+    /**
+     * An ordinary (non-plural) identifier without a comment must not accidentally fall back to
+     * anything - PluralFormKey::parse() returning null for it is the guard.
+     */
+    public function testRemarkOfIsEmptyForAnOrdinaryIdentifierWithoutAComment(): void
+    {
+        $this->assertSame('', $this->callRemarkOf(['pilot#:#item' => 'Bemerkung'], 'pilot#:#greeting'));
+    }
 }

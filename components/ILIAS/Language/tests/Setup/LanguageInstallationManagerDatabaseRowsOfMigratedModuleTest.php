@@ -38,13 +38,15 @@ class LanguageInstallationManagerDatabaseRowsOfMigratedModuleTest extends TestCa
      * @param array<string, array{0: string, 1: ?string, 2: ?string}> $rows
      * @param array<string, string> $final_entries
      * @param array<string, string> $shipped_entries
+     * @param array<string, string> $remarks identifier => remark (see migratedModuleRemarks()),
+     *        written into the row instead of the buffered rows' own remark
      * @return array<string, array{0: string, 1: ?string, 2: ?string}>
      */
-    private function call(array $rows, array $final_entries, array $shipped_entries): array
+    private function call(array $rows, array $final_entries, array $shipped_entries, array $remarks = []): array
     {
         $method = (new ReflectionClass(LanguageInstallationManager::class))->getMethod('databaseRowsOfMigratedModule');
 
-        return $method->invoke(null, $rows, $final_entries, $shipped_entries);
+        return $method->invoke(null, $rows, $final_entries, $shipped_entries, $remarks);
     }
 
     private const SHIPPED = [
@@ -89,6 +91,54 @@ class LanguageInstallationManagerDatabaseRowsOfMigratedModuleTest extends TestCa
             ['poll_population_singular' => ['Eine Stimmabgabe', '2024-01-01 00:00:00', 'Anmerkung']],
             $result
         );
+    }
+
+    /**
+     * $remarks (from migratedModuleRemarks()'s lng_data/overlay/customizing merge) overrides whatever
+     * remark the buffered rows themselves carry - for a plain identifier as well as for the merged
+     * row of a plural message's forms.
+     */
+    public function testRemarksParameterOverridesTheRowsOwnRemarkForAPlainIdentifier(): void
+    {
+        $rows = ['poll_population_singular' => ['Eine Stimmabgabe', '2024-01-01 00:00:00', 'Alte Anmerkung']];
+
+        $result = $this->call(
+            $rows,
+            ['poll_population_singular' => 'Eine Stimmabgabe'],
+            self::SHIPPED,
+            ['poll_population_singular' => 'Neue Anmerkung']
+        );
+
+        $this->assertSame(
+            ['poll_population_singular' => ['Eine Stimmabgabe', '2024-01-01 00:00:00', 'Neue Anmerkung']],
+            $result
+        );
+    }
+
+    public function testRemarksParameterOverridesTheMergedRemarkOfAPluralMessage(): void
+    {
+        $rows = [
+            'poll_population [0]' => ['Eine Stimmabgabe', null, null],
+            'poll_population [1]' => ['%s Stimmabgaben', null, 'Alte Anmerkung'],
+        ];
+        $final_entries = ['poll_population [0]' => 'Eine Stimmabgabe', 'poll_population [1]' => '%s Stimmabgaben'];
+
+        $result = $this->call($rows, $final_entries, self::SHIPPED, ['poll_population' => 'Neue Anmerkung']);
+
+        $this->assertSame('Neue Anmerkung', $result['poll_population'][2]);
+    }
+
+    /**
+     * An identifier not mentioned in $remarks at all keeps the rows' own remark - $remarks only
+     * overrides what it actually names.
+     */
+    public function testAnIdentifierNotInRemarksKeepsTheRowsOwnRemark(): void
+    {
+        $rows = ['poll_population_singular' => ['Eine Stimmabgabe', null, 'Eigene Anmerkung']];
+
+        $result = $this->call($rows, ['poll_population_singular' => 'Eine Stimmabgabe'], self::SHIPPED, []);
+
+        $this->assertSame('Eigene Anmerkung', $result['poll_population_singular'][2]);
     }
 
     /**

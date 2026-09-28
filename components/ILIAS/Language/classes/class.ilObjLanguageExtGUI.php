@@ -210,7 +210,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         if ($compare == $this->object->key) {
             // For a module maintained in PO files its shipped .po is the default, not its .lang lines
             $compare_content = $this->object->getShippedValues();
-            $compare_comments = $this->object->getShippedComments();
+            $compare_comments = $this->object->getShippedCommentsForDisplay();
         }
 
         // page translation mode:
@@ -240,7 +240,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                     $topics
                 );
 
-                $compare_comments = ilObjLanguageExt::_getRemarks($compare);
+                $compare_comments = $this->compareComments($compare, $modules);
             }
 
             $translations = ilObjLanguageExt::_getValues(
@@ -275,7 +275,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                     $filter_topics
                 );
 
-                $compare_comments = ilObjLanguageExt::_getRemarks($compare);
+                $compare_comments = $this->compareComments($compare, $filter_modules);
             }
 
             switch ($filter_mode) {
@@ -318,7 +318,12 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                         $filter_topics
                     );
 
-                    $translations = array_intersect_key($translations, $comments);
+                    // a form of a plural message (see PluralFormKey) has the remark of its identifier
+                    $translations = array_filter(
+                        $translations,
+                        fn(int|string $name): bool => $this->remarkOf($comments, (string) $name) !== '',
+                        ARRAY_FILTER_USE_KEY
+                    );
                     break;
 
                 case "equal":
@@ -399,12 +404,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $row["name"] = $name;
             $row["translation"] = $translation;
             // a form of a plural message (see PluralFormKey) shows the remark of its identifier
-            $row["comment"] = $comments[$name]
-                ?? (($identifier = PluralFormKey::parse($keys[1] ?? '')[0] ?? null) !== null
-                    ? ($comments[$keys[0] . $this->lng->separator . $identifier] ?? "")
-                    : "");
+            $row["comment"] = $this->remarkOf($comments, (string) $name);
             $row["default"] = $compare_content[$name] ?? "";
-            $row["default_comment"] = $compare_comments[$name] ?? "";
+            $row["default_comment"] = $this->remarkOf($compare_comments, (string) $name);
 
             $data[] = $row;
         }
@@ -429,6 +431,45 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         // render and show the table
         $table_gui->setData($data);
         $tpl->setContent($table_gui->getHTML() . $this->buildMissingEntries($missing_entries));
+    }
+
+    /**
+     * The comments shown for the compare language $compare (another language than the edited one):
+     * its remarks (lng_data, for a module maintained in PO files also its overlay, see
+     * ilObjLanguageExt::_getRemarks()) - and, for a module maintained in PO files, the notes (`#.`)
+     * and the "not translated yet" marker of its shipped .po where it has no remark (see
+     * ilObjLanguageExt::_getShippedMigratedComments()).
+     *
+     * @param list<string> $modules the displayed modules, all if empty
+     * @return array<string, string> module.separator.topic => comment
+     */
+    private function compareComments(string $compare, array $modules = []): array
+    {
+        return array_merge(
+            // only the shipped .po of the displayed modules are read (all without module filter)
+            ilObjLanguageExt::_getShippedMigratedComments($compare, $modules),
+            array_filter(
+                ilObjLanguageExt::_getRemarks($compare),
+                static fn(?string $remark): bool => $remark !== null && $remark !== ''
+            )
+        );
+    }
+
+    /**
+     * The comment of $name (module.separator.topic) in $comments - for a form of a plural message
+     * (see PluralFormKey) without one of its own, the comment of its identifier; '' without any.
+     *
+     * @param array<string, string|null> $comments
+     */
+    private function remarkOf(array $comments, string $name): string
+    {
+        if (($comments[$name] ?? '') !== '') {
+            return (string) $comments[$name];
+        }
+        $keys = explode($this->lng->separator, $name, 2);
+        $identifier = PluralFormKey::parse($keys[1] ?? '')[0] ?? null;
+
+        return $identifier === null ? '' : (string) ($comments[$keys[0] . $this->lng->separator . $identifier] ?? '');
     }
 
     /**
