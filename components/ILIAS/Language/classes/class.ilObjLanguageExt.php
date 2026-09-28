@@ -37,11 +37,11 @@ use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 class ilObjLanguageExt extends ilObjLanguage
 {
     /**
-     * How the admin GUI marks an entry of a module maintained in PO files that is not translated yet
-     * (flagged fuzzy in its shipped .po) - the wording of the dated "... new variable" comments of the
-     * legacy .lang files, which carried that information before. Not a language variable (yet).
+     * Language variable of the marker the admin GUI shows for an entry of a module maintained in PO
+     * files that is not translated yet (flagged fuzzy in its shipped .po) - the legacy .lang files
+     * carried that information as a dated "... new variable" comment.
      */
-    private const string SHIPPED_FUZZY_MARKER = 'new variable';
+    private const string SHIPPED_FUZZY_MARKER_TOPIC = 'lng_not_translated';
 
     /**
      * @var array{values: array<string, string>, comments: array<string, string>, modules: list<string>, unreadable_modules: list<string>, fuzzy: list<string>}|null
@@ -319,8 +319,8 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
-     * $comments with the marker SHIPPED_FUZZY_MARKER for every entry of a module maintained in PO
-     * files that is flagged fuzzy (not translated yet) - appended to its `#.` note, if any. The
+     * $comments with the marker SHIPPED_FUZZY_MARKER_TOPIC for every entry of a module maintained in
+     * PO files that is flagged fuzzy (not translated yet) - appended to its `#.` note, if any. The
      * legacy `.lang` files carried the same information as a dated "... new variable" comment.
      *
      * @param array<string, string> $comments
@@ -329,10 +329,15 @@ class ilObjLanguageExt extends ilObjLanguage
      */
     private static function withFuzzyMarkers(array $comments, array $shipped): array
     {
+        if ($shipped['fuzzy'] === []) {
+            return $comments;
+        }
+        global $DIC;
+        $marker = $DIC->language()->txt(self::SHIPPED_FUZZY_MARKER_TOPIC, 'lng');
         foreach ($shipped['fuzzy'] as $key) {
             $comments[$key] = isset($comments[$key]) && $comments[$key] !== ''
-                ? $comments[$key] . ' - ' . self::SHIPPED_FUZZY_MARKER
-                : self::SHIPPED_FUZZY_MARKER;
+                ? $comments[$key] . ' - ' . $marker
+                : $marker;
         }
 
         return $comments;

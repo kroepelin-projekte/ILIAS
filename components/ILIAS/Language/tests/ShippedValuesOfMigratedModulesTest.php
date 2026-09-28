@@ -323,10 +323,14 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         $shipped->find('itest', 'farewell')?->addFlag('fuzzy');
         MigratedPoFixture::writePo($this->shippedPo(), $shipped);
 
+        $lng = $this->createStub(ilLanguage::class);
+        $lng->method('txt')->willReturnArgument(0);
+        $this->setGlobalVariable('lng', $lng);
+
         $comments = $this->languageObject()->getShippedCommentsForDisplay();
 
-        $this->assertSame('Begrüßung auf der Startseite kurz halten - new variable', $comments['itest#:#greeting'] ?? null);
-        $this->assertSame('new variable', $comments['itest#:#farewell'] ?? null);
+        $this->assertSame('Begrüßung auf der Startseite kurz halten - lng_not_translated', $comments['itest#:#greeting'] ?? null);
+        $this->assertSame('lng_not_translated', $comments['itest#:#farewell'] ?? null);
         $this->assertArrayNotHasKey('itest#:#po_only', $comments, 'not fuzzy - no marker');
     }
 

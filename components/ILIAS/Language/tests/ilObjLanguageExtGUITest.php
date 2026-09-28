@@ -1061,7 +1061,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->runMaintenance('merge', $object, $messages);
 
         $this->assertSame(
-            [['success', 'language_merged_global'], ['failure', 'language_error_write_global pilot, tos']],
+            [['success', 'language_merged_global'], ['failure', 'lng_merge_po_not_written: pilot, tos']],
             $messages
         );
     }
@@ -1105,7 +1105,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->runMaintenance('merge', $object, $messages);
 
         $this->assertSame(
-            [['success', "language_merged_global<br />some/shipped.po"], ['failure', 'error: pilot']],
+            [['success', "language_merged_global<br />lng_merged_po_modules: some/shipped.po"], ['failure', 'lng_merge_database_not_updated: pilot']],
             $messages
         );
     }

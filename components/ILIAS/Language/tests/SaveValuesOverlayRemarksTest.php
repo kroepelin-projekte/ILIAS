@@ -399,8 +399,8 @@ class SaveValuesOverlayRemarksTest extends ilLanguageBaseTestCase
     // ---------------------------------------------------------------- _getShippedMigratedComments()
 
     /**
-     * An entry flagged "fuzzy" in the shipped `.po` (not translated yet) gets the "new variable"
-     * marker appended to its shipped comment - a plain, non-fuzzy entry (here: the shipped, untouched
+     * An entry flagged "fuzzy" in the shipped `.po` (not translated yet) gets the "not translated"
+     * marker (lng_not_translated) appended to its shipped comment - a plain, non-fuzzy entry (here: the shipped, untouched
      * "greeting") stays as it is.
      */
     public function testGetShippedMigratedCommentsAppendsTheFuzzyMarkerForAFuzzyEntryOnly(): void
@@ -424,9 +424,13 @@ class SaveValuesOverlayRemarksTest extends ilLanguageBaseTestCase
         );
         $this->setGlobalVariable(LanguageFileDirectoryManager::class, $this->manager);
 
+        $marker_lng = $this->createStub(ilLanguage::class);
+        $marker_lng->method('txt')->willReturnArgument(0);
+        $this->setGlobalVariable('lng', $marker_lng);
+
         $comments = ilObjLanguageExt::_getShippedMigratedComments(self::LANG_KEY);
 
-        $this->assertSame('new variable', $comments[self::MODULE . $lng->separator . 'fuzzy_one'] ?? null);
+        $this->assertSame('lng_not_translated', $comments[self::MODULE . $lng->separator . 'fuzzy_one'] ?? null);
         $this->assertArrayNotHasKey(self::MODULE . $lng->separator . 'greeting', $comments);
     }
 }

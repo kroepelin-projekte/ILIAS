@@ -799,7 +799,7 @@ PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem
 1. **Prüfen:** Shipped-`.po` und ihr Verzeichnis, `lang/customizing/` und – nur bei neuen Keys – die
    `.pot` (Pfad `MigratedLanguageFilePaths::shippedTemplatePath()`, dieselbe Namensregel
    `templateFileName()` wie der Konverter) müssen beschreibbar sein, sonst wird das Modul ganz
-   übersprungen (Fehlermeldung `language_error_write_global` + Module, Grund im Log). Alle Dateien
+   übersprungen (Fehlermeldung `lng_merge_po_not_written` mit den Modulen, Grund im Log). Alle Dateien
    müssen außerdem unterhalb des ILIAS-Verzeichnisses liegen (`realpath`; ein symbolischer Link
    hinaus führt zum Überspringen, `AtomicFileWriter` prüft beim Schreiben erneut; die `lang_data`-Kopie
    von `save_dist` ist auf das Client-Datenverzeichnis beschränkt). Zwei Module mit gleichem
@@ -849,12 +849,12 @@ PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem
    **Abweichung von trunk:** trunk lässt `local_change` nach merge stehen. Für ein PO-Modul würde ein
    stehen gebliebenes `local_change` beim nächsten Update, sobald sich der Shipped-Wert ändert, im
    Drei-Wege-Abgleich als lokale Änderung zurückkehren (L ≠ S, kein `original` mehr).
-5. **Meldung:** `language_merged_global` plus Liste der geschriebenen `.po` (Pfade relativ zum
-   ILIAS-Verzeichnis); als Fehler: übersprungene Module (`language_error_write_global` + Module),
+5. **Meldung:** `language_merged_global` plus `lng_merged_po_modules` mit den geschriebenen `.po`
+   (Pfade relativ zum ILIAS-Verzeichnis); als Fehler: übersprungene Module (`lng_merge_po_not_written`),
    Markup-Verstöße, nicht übernommene Keys, nicht abgeglichene Overlays (`lng_po_overlay_not_written`)
-   und Module, deren `lng_data`-Zeilen nicht aktualisiert werden konnten (`error` + Module; die
-   Dateien sind geschrieben, die übrigen Module werden weiter bearbeitet). `lng_merge_skipped_po_modules`
-   wird nicht mehr verwendet (Key-Vorschlag siehe unten).
+   und Module, deren `lng_data`-Zeilen nicht aktualisiert werden konnten (`lng_merge_database_not_updated`;
+   die Dateien sind geschrieben, die übrigen Module werden weiter bearbeitet). Der frühere Key
+   `lng_merge_skipped_po_modules` ist entfernt.
 6. **Absicherung der GUI:** Die Wartungsaktionen `merge`, `delete_added` und `remove_local_file` prüfen
    LANGMODE serverseitig (sonst `permission_denied`). `ilObjLanguageExtGUI` implementiert
    `ilCtrlSecurityInterface`: `save`, `upload`, `maintainExecute`, `saveSettings` und `saveNewEntry`
@@ -1037,9 +1037,8 @@ nicht lesbar, zeigen die Leser ersatzweise die `.lang`-Zeilen und die GUI eine W
 **Informationen der Shipped-`.po` in der Admin-GUI** (seit 2026-09-28):
 
 - **Nicht übersetzt:** Ein fuzzy Eintrag bekommt im Kommentar des Standardwerts den Marker
-  `new variable` (angehängt an eine `#.`-Notiz) — die Formulierung der früheren Datums-Marker
-  „… new variable" der `.lang`-Dateien; ein eigener Sprach-Key existiert nicht (Vorschlag siehe
-  Änderungshistorie). Der Marker ist **nur Anzeige** (`getShippedCommentsForDisplay()`,
+  `lng_not_translated` („Nicht übersetzt“, angehängt an eine `#.`-Notiz) — er ersetzt die früheren
+  Datums-Marker „… new variable" der `.lang`-Dateien. Der Marker ist **nur Anzeige** (`getShippedCommentsForDisplay()`,
   `_getShippedMigratedComments()`): `getShippedComments()` — und damit der Filter "kommentiert",
   der Export "merged" (`getMergedRemarks()`) und `_saveValues()` — enthält nur die `#.`-Notizen.
 - **Andere Vergleichssprache:** Die Kommentarspalte der Vergleichssprache zeigt deren Bemerkungen
@@ -1272,3 +1271,15 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
    eines Moduls bricht die übrigen nicht ab (`unwritten_database`); übersprungene Module als Fehler
    gemeldet, nicht übernommene Keys getrennt von Markup-Verstößen; `#.`-Zeilen ohne Steuer-/Bidi-Zeichen
    (`TranslationEntry::plainLine()`, `tos`/`poll` byte-identisch).
+
+### 2026-09-28: Sprach-Keys für merge und den Marker „Nicht übersetzt“
+
+- Neu in `lang/ilias_en.lang` und `lang/ilias_de.lang` (Modul `lng`, Präfix `lng_` wie die übrigen
+  Keys dieses Branches): `lng_not_translated` (Marker für fuzzy Einträge, ersetzt das Literal
+  `new variable`; statt des geplanten `administration#:#language_not_translated`),
+  `lng_merged_po_modules`, `lng_merge_po_not_written`, `lng_merge_database_not_updated` (Meldungen
+  von merge, statt `language_error_write_global` bzw. `error`).
+- Entfernt: `lng_merge_skipped_po_modules` (seit merge in die Shipped-`.po` ungenutzt).
+- Nach dem Einspielen: Sprachen aktualisieren (`setup update` bzw. „Aktualisieren“), damit die Keys
+  in der Datenbank stehen.
+

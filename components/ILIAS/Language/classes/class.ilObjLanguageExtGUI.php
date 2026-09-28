@@ -1408,14 +1408,20 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         $escape = fn(string $text): string => $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform($text);
         $success = $this->lng->txt("language_merged_global");
         if ($result['written'] !== []) {
-            $success .= '<br />' . $escape(implode(', ', $result['written']));
+            $success .= '<br />' . sprintf(
+                $this->lng->txt("lng_merged_po_modules"),
+                $escape(implode(', ', $result['written']))
+            );
         }
         $this->tpl->setOnScreenMessage('success', $success, true);
 
         $failures = [];
         if ($result['skipped'] !== []) {
             // not written at all (e.g. no write permission) - an error, not an intended skip
-            $failures[] = $this->lng->txt("language_error_write_global") . ' ' . $escape(implode(', ', $result['skipped']));
+            $failures[] = sprintf(
+                $this->lng->txt("lng_merge_po_not_written"),
+                $escape(implode(', ', $result['skipped']))
+            );
         }
         if ($result['invalid_markup'] !== []) {
             $failures[] = $this->invalidMarkupMessage($result['invalid_markup']);
@@ -1428,7 +1434,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             $failures[] = $this->overlayNotWrittenMessage($result['unwritten_overlay']);
         }
         if ($result['unwritten_database'] !== []) {
-            $failures[] = $this->lng->txt("error") . ': ' . $escape(implode(', ', $result['unwritten_database']));
+            $failures[] = sprintf(
+                $this->lng->txt("lng_merge_database_not_updated"),
+                $escape(implode(', ', $result['unwritten_database']))
+            );
         }
         if ($failures !== []) {
             $this->tpl->setOnScreenMessage('failure', implode('<br />', $failures), true);
