@@ -841,6 +841,48 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * One warning per pair of modules, not per identifier (cmix/lti share 75): it counts the
+     * colliding identifiers, names the first five and leaves out identifiers with the same value.
+     */
+    public function testLogsOneWarningPerModulePairListingTheCollidingIdentifiers(): void
+    {
+        $alpha = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
+        $beta = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
+        for ($i = 1; $i <= 6; $i++) {
+            $alpha->add(MigratedPoFixture::entry('alpha', 'key_' . $i, 'Alpha ' . $i));
+            $beta->add(MigratedPoFixture::entry('beta', 'key_' . $i, 'Beta ' . $i));
+        }
+        $alpha->add(MigratedPoFixture::entry('alpha', 'same_key', 'Same'));
+        $beta->add(MigratedPoFixture::entry('beta', 'same_key', 'Same'));
+
+        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
+        $this->registerDirectoryManager(
+            $this->contributeFixtureModule('alpha', $alpha),
+            $this->contributeFixtureModule('beta', $beta)
+        );
+
+        $messages = [];
+        $logger = $this->createMock(ilLogger::class);
+        $logger->expects($this->once())
+            ->method('warning')
+            ->willReturnCallback(static function (string $message) use (&$messages): void {
+                $messages[] = $message;
+            });
+
+        $language = $this->buildLanguageWithoutRunningConstructor('de');
+        (new ReflectionObject($language))->getProperty('log')->setValue($language, $logger);
+
+        $language->loadLanguageModule('alpha');
+        $language->loadLanguageModule('beta');
+
+        $this->assertSame(
+            'Language key collision: modules "alpha" and "beta" define 6 identifier(s) with different values'
+            . ' - the values from "beta" now win for txt(): "key_1", "key_2", "key_3", "key_4", "key_5" … (+1).',
+            $messages[0]
+        );
+    }
+
+    /**
      * A CLIENT_DATA_DIR that is not a test-owned temp directory (e.g. the real /var/iliasdata a
      * full-suite run may already have defined, see MigratedPoFixture::ensureClientDataDirDefinedOrSkip())
      * must never be written into by ensureRealTosDeMoFileExists()/contributeFixtureModule() - the test

@@ -395,9 +395,13 @@ class ilLanguage implements \ILIAS\Language\Language
      * "silently overwritten" into "logged", for topics whose *previous* value also came from an
      * already-loaded migrated module (collisions against the legacy lng_modules path aren't tracked
      * here, since that path stores no per-topic module attribution to compare against).
+     * One warning per pair of modules, naming the first identifiers: pairs like cmix/lti share
+     * dozens of them (see tools/po-migration/SHIPPED_CROSS_MODULE_DUPLICATES.md). A module is loaded
+     * once per instance, so the pair cannot come up again.
      */
     private function logCrossModuleKeyCollisions(string $a_module, array $mo_text): void
     {
+        $topics_per_module = [];
         foreach ($mo_text as $topic => $value) {
             $existing_module = $this->migrated_topic_modules[$topic] ?? null;
             if (
@@ -405,16 +409,21 @@ class ilLanguage implements \ILIAS\Language\Language
                 && $existing_module !== $a_module
                 && ($this->text[$topic] ?? null) !== $value
             ) {
-                $this->log->warning(sprintf(
-                    'Language key collision: identifier "%s" is defined by both module "%s" and'
-                    . ' module "%s" - the value from "%s" now wins for txt("%s").',
-                    $topic,
-                    $existing_module,
-                    $a_module,
-                    $a_module,
-                    $topic
-                ));
+                $topics_per_module[$existing_module][] = '"' . $topic . '"';
             }
+        }
+
+        foreach ($topics_per_module as $existing_module => $topics) {
+            $this->log->warning(sprintf(
+                'Language key collision: modules "%s" and "%s" define %d identifier(s) with different'
+                . ' values - the values from "%s" now win for txt(): %s%s.',
+                $existing_module,
+                $a_module,
+                count($topics),
+                $a_module,
+                implode(', ', array_slice($topics, 0, 5)),
+                count($topics) > 5 ? sprintf(' … (+%d)', count($topics) - 5) : ''
+            ));
         }
     }
 

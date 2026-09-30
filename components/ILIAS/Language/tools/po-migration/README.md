@@ -480,9 +480,10 @@ anders übersetzt. Am häufigsten sind `cmix` + `lti` (75), `assessment` + `surv
 Ladereihenfolge, gleiches `array_merge`). Für den Rollout gilt aber:
 
 - Schon heute unerkannt: `poll` (migriert) und `rbac` (nicht migriert) teilen `poll_copy`.
-- Sind beide Module eines Paars migriert, schreibt jeder Request, der beide lädt, eine WARNING pro
-  Identifier mit abweichendem Wert in der aktuellen Sprache, also auch bei reinen
-  Übersetzungsunterschieden. Bei `cmix` + `lti` wären das bis zu 75 pro Seitenaufruf.
+- Sind beide Module eines Paars migriert, schreibt jeder Request, der beide lädt, **eine** WARNING
+  für das Paar (seit 2026-09-30, vorher eine pro Identifier). Sie nennt die Zahl der Identifier mit
+  abweichendem Wert in der aktuellen Sprache und die ersten fünf davon. Reine
+  Übersetzungsunterschiede zählen mit.
 - Beheben lässt sich eine Kollision nur durch Umbenennen eines Keys samt Aufrufern (FR 2.5 schließt
   eine Signaturänderung von `txt()` aus). Die Aufrufer liegen meist in anderen Komponenten.
 
@@ -1300,5 +1301,7 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
 ### 2026-09-30: Identifier in mehreren Modulen
 
 - `scan_shipped_cross_module_duplicates.php` und `SHIPPED_CROSS_MODULE_DUPLICATES.md`: Bestand und
-  Folgen für den Rollout unter „Uniqueness: Kollisionen zwischen Modulen“. Kein Code-Fix; offen ist,
-  ob `logCrossModuleKeyCollisions()` gedrosselt werden soll (z. B. einmal pro Modulpaar).
+  Folgen für den Rollout unter „Uniqueness: Kollisionen zwischen Modulen“.
+- `ilLanguage::logCrossModuleKeyCollisions()` meldet eine Warnung pro Modulpaar statt pro Identifier
+  (Zahl + die ersten fünf Identifier), damit Paare wie `cmix`/`lti` nach dem Rollout das Log nicht
+  füllen. Test: `testLogsOneWarningPerModulePairListingTheCollidingIdentifiers()`.
