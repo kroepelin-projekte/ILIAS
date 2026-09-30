@@ -40,7 +40,9 @@ declare(strict_types=1);
  *
  * Headers of an already existing target `.po` are kept, so re-running the tool for a module only
  * changes what the `.lang` files changed. The "Plural-Forms" header of every language comes from
- * plurals.json next to this tool (the canonical table, written into every generated `.po`).
+ * plurals.json next to this tool (the canonical table, written into every generated `.po`). The
+ * "Language" header keeps the language key, which translation tools read; the "Language-Team"
+ * header names the language in English, taken from `meta_l_<lang>` of `lang/ilias_en.lang`.
  *
  * Plural messages (plurals.json, "modules"): the tool invents no text, it only distributes the
  * existing values - in a language whose rule is "n == 1 -> form 0, otherwise form 1", msgstr[0] is
@@ -204,6 +206,7 @@ $copies_own_value = static function (string $key, array $definition, array $entr
  * @param array<string, array{value: string, comment: ?string}>|null $translation_entries null => POT (no msgstr, no fuzzy)
  * @param array<string, string> $existing_headers headers of an already existing target file
  * @param array<string, array{singular?: string, plural_id?: string}> $plural_definitions msgid => definition
+ * @param string|null $language_name English name of the language, null => keep an existing "Language-Team"
  */
 $build_catalog = static function (
     string $module,
@@ -212,7 +215,8 @@ $build_catalog = static function (
     ?array $translation_entries,
     array $existing_headers,
     ?PluralForms $plural_forms,
-    array $plural_definitions
+    array $plural_definitions,
+    ?string $language_name = null
 ) use ($is_fuzzy_marker, $plural_forms_of, $copies_own_value): TranslationCatalog {
     $is_template = $translation_entries === null;
     $catalog = new TranslationCatalog();
@@ -228,6 +232,9 @@ $build_catalog = static function (
     $catalog->setHeader('X-Domain', $module);
     if (!$is_template) {
         $catalog->setHeader('Language', $lang_key);
+    }
+    if (!$is_template && $language_name !== null) {
+        $catalog->setHeader('Language-Team', $language_name);
     }
 
     foreach ($reference_entries as $key => $ref) {
@@ -440,6 +447,23 @@ if ($keys_missing_in_reference !== []) {
     exit(1);
 }
 
+// English language names for the "Language-Team" header (see the file docblock)
+$language_names = [];
+$english_lang_file = $repo_root . '/lang/ilias_en.lang';
+if (is_file($english_lang_file)) {
+    foreach ($parse_module($english_lang_file, 'meta') as $key => $entry) {
+        $name = trim($entry['value']);
+        if (str_starts_with((string) $key, 'meta_l_') && $name !== '') {
+            $language_names[substr((string) $key, strlen('meta_l_'))] = $name;
+        }
+    }
+}
+foreach (array_keys($per_language) as $lang_key) {
+    if (!isset($language_names[$lang_key])) {
+        echo "NOTE: no meta_l_$lang_key in lang/ilias_en.lang - the Language-Team header of '$lang_key' is left as it is.\n";
+    }
+}
+
 // POT
 $pot_path = $output_dir . '/' . MigratedLanguageFilePaths::templateFileName($pattern, $module);
 $write($pot_path, $build_catalog($module, '', $reference_entries, null, $existing_headers($pot_path), null, $plural_definitions)->toPoString());
@@ -456,7 +480,8 @@ foreach ($per_language as $lang_key => $entries) {
             $entries,
             $existing_headers($po_path),
             $plural_rules[$lang_key] ?? null,
-            $plural_definitions
+            $plural_definitions,
+            $language_names[$lang_key] ?? null
         )->toPoString()
     );
 

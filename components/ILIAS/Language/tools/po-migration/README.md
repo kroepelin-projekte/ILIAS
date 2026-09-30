@@ -61,6 +61,11 @@ mit `gettext/gettext` (siehe "Gettext-Bibliothek"):
 - je Sprache eine PO-Datei (`<modul>_<sprache>.po`) mit Standard-Headern (`Content-Type`,
   `Language`, `X-Domain` usw.). Header einer bereits vorhandenen Zieldatei werden übernommen;
   `Plural-Forms` kommt immer aus der kanonischen Tabelle in `plurals.json` (siehe "Pluralformen").
+  `Language` bleibt das Kürzel (`de`), weil Übersetzungswerkzeuge (Poedit, Weblate, `msgfmt`) daraus
+  Sprache und Plural-Regel ableiten. Den englischen Namen schreibt der Konverter in das
+  Standardfeld `Language-Team` (`German`), aus `meta_l_<sprache>` in `lang/ilias_en.lang`. Fehlt der
+  Name, bleibt ein vorhandener `Language-Team`-Header stehen (Hinweis auf stdout). Die `.pot`
+  bekommt keinen. Zur Laufzeit wird der Header nicht ausgewertet.
 
 Es schreibt **keine `.mo`** und nichts in die Datenbank. Anschließend liest es jede geschriebene
 `.po` mit `TranslationCatalog::fromPoFile()` (`StrictPoLoader`) wieder ein und vergleicht jeden Wert
@@ -1305,3 +1310,10 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
 - `ilLanguage::logCrossModuleKeyCollisions()` meldet eine Warnung pro Modulpaar statt pro Identifier
   (Zahl + die ersten fünf Identifier), damit Paare wie `cmix`/`lti` nach dem Rollout das Log nicht
   füllen. Test: `testLogsOneWarningPerModulePairListingTheCollidingIdentifiers()`.
+
+### 2026-09-30: Sprachname im Header
+
+- `convert_module_to_po.php` schreibt `Language-Team: <englischer Name>` (aus `meta_l_<sprache>` in
+  `lang/ilias_en.lang`), `Language` bleibt das Kürzel. `tos_*.po` und `poll_*.po` neu erzeugt
+  (62 Dateien, nur diese Header-Zeile; `.pot` unverändert). Test:
+  `testLanguageTeamHeaderNamesTheLanguageInEnglishFromTheMetaModule()`.

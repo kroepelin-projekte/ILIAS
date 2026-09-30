@@ -411,6 +411,33 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertFileDoesNotExist($root . '/out/tst_ABC.po');
     }
 
+    /**
+     * "Language" keeps the language key (translation tools read it), "Language-Team" names the
+     * language in English from `meta_l_<lang>` of `lang/ilias_en.lang`. Without such a name the
+     * header is left out and a note is printed; the template never gets one.
+     */
+    public function testLanguageTeamHeaderNamesTheLanguageInEnglishFromTheMetaModule(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#greeting#:#Hallo\n");
+        $this->writeLangFile($root, 'en', "tst#:#greeting#:#Hello\nmeta#:#meta_l_de#:#German\nmeta#:#meta_l_en#:#English\n");
+        $this->writeLangFile($root, 'fr', "tst#:#greeting#:#Bonjour\n");
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $de = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po');
+        $this->assertSame('de', $de->getHeader('Language'));
+        $this->assertSame('German', $de->getHeader('Language-Team'));
+        $en = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_en.po');
+        $this->assertSame('English', $en->getHeader('Language-Team'));
+        $fr = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po');
+        $this->assertNull($fr->getHeader('Language-Team'));
+        $this->assertStringContainsString("NOTE: no meta_l_fr in lang/ilias_en.lang", $stdout);
+        $pot = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst.pot');
+        $this->assertNull($pot->getHeader('Language-Team'));
+    }
+
     // ------------------------------------------------------------ --pattern
 
     /**
