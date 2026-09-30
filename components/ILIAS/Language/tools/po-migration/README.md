@@ -472,6 +472,20 @@ Module denselben Identifier mit unterschiedlichem Wert liefern. Kollisionen zwis
 und einem nicht migrierten Modul werden nicht erkannt (der Legacy-Pfad führt keine
 Pro-Topic-Modulzuordnung).
 
+**Bestand** (`scan_shipped_cross_module_duplicates.php`, Bericht `SHIPPED_CROSS_MODULE_DUPLICATES.md`,
+Stand 2026-09-30): 241 von 17.968 Identifiern stehen in mehr als einem Modul, 85 davon schon in en mit
+anderer Bedeutung (z. B. `bibl`/`irss` `sorting_3…6`, `assessment`/`survey` `category`), 130 nur
+anders übersetzt. Am häufigsten sind `cmix` + `lti` (75), `assessment` + `survey` (33) und
+`<typ>_copy` in Objektmodul + `rbac`. Die Umstellung ändert nicht, welcher Wert gewinnt (gleiche
+Ladereihenfolge, gleiches `array_merge`). Für den Rollout gilt aber:
+
+- Schon heute unerkannt: `poll` (migriert) und `rbac` (nicht migriert) teilen `poll_copy`.
+- Sind beide Module eines Paars migriert, schreibt jeder Request, der beide lädt, eine WARNING pro
+  Identifier mit abweichendem Wert in der aktuellen Sprache, also auch bei reinen
+  Übersetzungsunterschieden. Bei `cmix` + `lti` wären das bis zu 75 pro Seitenaufruf.
+- Beheben lässt sich eine Kollision nur durch Umbenennen eines Keys samt Aufrufern (FR 2.5 schließt
+  eine Signaturänderung von `txt()` aus). Die Aufrufer liegen meist in anderen Komponenten.
+
 ## Pluralformen
 
 Seit 2026-09-28 unterstützt. Zweiter Pilot ist `poll` (69 Keys, in `en` 68, nur von `Poll` genutzt, keine
@@ -1283,3 +1297,8 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
 - Nach dem Einspielen: Sprachen aktualisieren (`setup update` bzw. „Aktualisieren“), damit die Keys
   in der Datenbank stehen.
 
+### 2026-09-30: Identifier in mehreren Modulen
+
+- `scan_shipped_cross_module_duplicates.php` und `SHIPPED_CROSS_MODULE_DUPLICATES.md`: Bestand und
+  Folgen für den Rollout unter „Uniqueness: Kollisionen zwischen Modulen“. Kein Code-Fix; offen ist,
+  ob `logCrossModuleKeyCollisions()` gedrosselt werden soll (z. B. einmal pro Modulpaar).
