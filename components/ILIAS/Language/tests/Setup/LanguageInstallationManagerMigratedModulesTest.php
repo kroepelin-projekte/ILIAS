@@ -670,6 +670,128 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame('Jetzt gültig', $this->lngModules()['common']['bad']);
     }
 
+    // ------------------------------------------------------------ changed number of plural forms
+
+    private const string TWO_FORMS = 'nplurals=2; plural=(n != 1);';
+    private const string THREE_FORMS = 'nplurals=3; plural=(n == 1 ? 0 : n >= 2 && n <= 4 ? 1 : 2);';
+
+    /**
+     * @param array<string, list<string>|string> $entries
+     */
+    private function shipPluralPo(array $entries, string $header): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->setHeader('Content-Type', 'text/plain; charset=UTF-8');
+        $catalog->setHeader('Plural-Forms', $header);
+        foreach ($entries as $identifier => $value) {
+            $entry = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry(self::MODULE, (string) $identifier);
+            if (is_array($value)) {
+                $entry->setPlural($identifier . '_plural', $value);
+            } else {
+                $entry->translate($value);
+            }
+            $catalog->add($entry);
+        }
+        MigratedPoFixture::writePo($this->root . '/components/pilot/lang/pilot_de.po', $catalog);
+    }
+
+    /**
+     * @param array<string, string> $flat_values
+     */
+    private function writeLocalOverlay(array $flat_values): void
+    {
+        MigratedLanguageFileSync::sync(
+            new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $this->directory),
+            $this->root,
+            'de',
+            self::MODULE,
+            $flat_values,
+            $this->root . '/client-data'
+        );
+    }
+
+    /**
+     * The plural rule of a language changes with an update (2 -> 3 forms, e.g. CLDR 49): until the
+     * next reconciling write the overlay is served as it was written - its `.mo` carries the old
+     * header and the old forms, consistently - while the admin view (shipped `.po` + overlay) already
+     * has the new number of forms.
+     */
+    public function testAnExistingOverlayIsServedWithItsOwnRuleUntilTheNextReconcilingWrite(): void
+    {
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge']], self::TWO_FORMS);
+        $this->writeLocalOverlay(['item [0]' => 'Eintrag', 'item [1]' => 'LOKAL-VIELE']);
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge-few', 'Einträge-viele']], self::THREE_FORMS);
+
+        $served = TranslationCatalog::readMoMessages($this->overlayBase() . '.mo');
+        $this->assertSame(self::TWO_FORMS, $served->getPluralFormsHeader());
+        $this->assertSame(['item' => ['Eintrag', 'LOKAL-VIELE']], $served->getPluralTranslations());
+
+        $effective = $this->effective();
+        $this->assertSame(['item [0]', 'item [1]', 'item [2]'], array_keys($effective));
+        $this->assertSame('LOKAL-VIELE', $effective['item [1]']['value']);
+        $this->assertTrue($effective['item [1]']['local_change']);
+        $this->assertSame('Einträge-viele', $effective['item [2]']['value']);
+        $this->assertFalse($effective['item [2]']['local_change']);
+    }
+
+    /**
+     * After the update's write the overlay follows the new rule: new header, exactly the new number of
+     * forms, the local value is kept (in the overlay) and the unrelated local change of the module
+     * survives; lng_data and lng_modules agree; a second run changes nothing.
+     */
+    public function testInstallAfterTheNumberOfPluralFormsGrewRewritesTheOverlayWithTheNewRuleAndKeepsLocalValues(): void
+    {
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge'], 'plain' => 'X'], self::TWO_FORMS);
+        $this->writeLocalOverlay(['item [0]' => 'Eintrag', 'item [1]' => 'LOKAL-VIELE', 'plain' => 'LOKAL-PLAIN']);
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge-few', 'Einträge-viele'], 'plain' => 'X'], self::THREE_FORMS);
+
+        $this->assertSame([], $this->manager()->insertLanguageForInstallation('de'));
+
+        $overlay = $this->overlayPo();
+        $this->assertSame(self::THREE_FORMS, $overlay->getHeader('Plural-Forms'));
+        $item = $overlay->find(null, 'item');
+        $this->assertNotNull($item);
+        $this->assertCount(3, $item->getPluralTranslations());
+        $this->assertContains('LOKAL-VIELE', $item->getPluralTranslations(), 'the local value must not be lost');
+        $this->assertSame('LOKAL-PLAIN', $overlay->find(null, 'plain')?->getTranslation());
+        $served = TranslationCatalog::readMoMessages($this->overlayBase() . '.mo');
+        $this->assertSame(self::THREE_FORMS, $served->getPluralFormsHeader());
+        $this->assertCount(3, $served->getPluralTranslations()['item']);
+
+        $data = $this->lngData();
+        $this->assertSame('LOKAL-PLAIN', $data['pilot|plain']['value']);
+        $this->assertNotNull($data['pilot|plain']['local_change']);
+        $this->assertSame($data['pilot|item']['value'], $this->lngModules()[self::MODULE]['item']);
+        $this->assertSame('LOKAL-PLAIN', $this->lngModules()[self::MODULE]['plain']);
+
+        $forms = $item->getPluralTranslations();
+        $local_change = LocalChangeComments::getLocalChange($item);
+        $this->manager()->insertLanguageForInstallation('de');
+        $again = $this->overlayPo()->find(null, 'item');
+        $this->assertSame($forms, $again?->getPluralTranslations(), 'the second run changes no form');
+        $this->assertSame($local_change, LocalChangeComments::getLocalChange($again), 'nor the local change');
+    }
+
+    /**
+     * 1 -> 2 forms (the announced CLDR 49 change of "vi"): the overlay gets the second form with its
+     * shipped value; the local value is kept.
+     */
+    public function testInstallAfterASingleFormLanguageGotASecondFormKeepsTheLocalValueAndAddsTheShippedForm(): void
+    {
+        $this->shipPluralPo(['item' => ['Eintrag']], 'nplurals=1; plural=0;');
+        $this->writeLocalOverlay(['item [0]' => 'LOKAL']);
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge']], self::TWO_FORMS);
+
+        $this->assertSame([], $this->manager()->insertLanguageForInstallation('de'));
+
+        $overlay = $this->overlayPo();
+        $this->assertSame(self::TWO_FORMS, $overlay->getHeader('Plural-Forms'));
+        $forms = $overlay->find(null, 'item')?->getPluralTranslations();
+        $this->assertCount(2, $forms);
+        $this->assertContains('LOKAL', $forms);
+        $this->assertContains('Einträge', $forms, 'the new form has its shipped value');
+    }
+
     /**
      * A local change that exists only in the overlay (e.g. lng_data was lost or rebuilt) is taken
      * over on install/update - with its overlay timestamp, as a local lng_data row.

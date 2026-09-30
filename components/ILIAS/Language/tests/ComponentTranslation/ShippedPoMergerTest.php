@@ -102,6 +102,26 @@ class ShippedPoMergerTest extends TestCase
     }
 
     /**
+     * @param array<string, string|list<string>> $entries plain value, or the forms of a plural message
+     */
+    private function seedShippedPlural(array $entries): void
+    {
+        $catalog = new TranslationCatalog();
+        $catalog->setHeader('Content-Type', 'text/plain; charset=UTF-8');
+        $catalog->setHeader('Plural-Forms', 'nplurals=2; plural=(n != 1);');
+        foreach ($entries as $identifier => $value) {
+            $entry = new TranslationEntry(self::MODULE, (string) $identifier);
+            if (is_array($value)) {
+                $entry->setPlural($identifier . '_plural', $value);
+            } else {
+                $entry->translate($value);
+            }
+            $catalog->add($entry);
+        }
+        MigratedPoFixture::writePo($this->shippedPo(), $catalog);
+    }
+
+    /**
      * @param array<string, string|array<string, mixed>> $entries
      */
     private function seedTemplate(array $entries): void
@@ -462,6 +482,77 @@ class ShippedPoMergerTest extends TestCase
 
         $this->assertSame([], $changes['changes']);
         $this->assertSame(['mtest'], $changes['without_backup']);
+    }
+
+    /**
+     * The "conflicts" filter compares plural messages form by form ("<identifier> [<form>]"); an entry
+     * added to the shipped .po after the backup is a change, an entry removed after it is not (there
+     * is no current shipped value to show).
+     */
+    public function testFindShippedChangesSinceBackupReportsPluralFormsNewEntriesAndIgnoresRemovedOnes(): void
+    {
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente'], 'gone' => 'Weg', 'same' => 'Gleich']);
+        ShippedPoMerger::backupShippedPoFiles($this->manager, ILIAS_ABSOLUTE_PATH, self::LANG, $this->backup_directory, ILIAS_ABSOLUTE_PATH);
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente (neu)'], 'added' => 'Neu', 'same' => 'Gleich']);
+
+        $changes = ShippedPoMerger::findShippedChangesSinceBackup($this->manager, ILIAS_ABSOLUTE_PATH, self::LANG, $this->backup_directory);
+
+        $this->assertSame(
+            ['mtest' => ['items [1]' => 'Elemente (neu)', 'added' => 'Neu']],
+            $changes['changes']
+        );
+        $this->assertSame([], $changes['without_backup']);
+    }
+
+    public function testFindShippedChangesSinceBackupListsAModuleWithoutReadableBackupEvenIfItChanged(): void
+    {
+        $this->seedShipped(['aaa' => 'A']);
+        ShippedPoMerger::backupShippedPoFiles($this->manager, ILIAS_ABSOLUTE_PATH, self::LANG, $this->backup_directory, ILIAS_ABSOLUTE_PATH);
+        file_put_contents($this->backup_directory . '/' . self::MODULE . '_' . self::LANG . '.po', "msgid \"broken\nmsgstr");
+        $this->seedShipped(['aaa' => 'A (geändert)']);
+
+        $changes = ShippedPoMerger::findShippedChangesSinceBackup($this->manager, ILIAS_ABSOLUTE_PATH, self::LANG, $this->backup_directory);
+
+        $this->assertSame([], $changes['changes']);
+        $this->assertSame(['mtest'], $changes['without_backup']);
+    }
+
+    // ---------------------------------------------------------------- merge(): plural messages
+
+    public function testMergeTakesOverAllFormsOfAPluralOverlayMessageAndKeepsTheShippedPluralId(): void
+    {
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente']]);
+        $entry = new TranslationEntry(self::MODULE, 'items');
+        $entry->setPlural('other_plural_id', ['Ein Ding', 'Dinge']);
+        $this->seedManualOverlayEntry($entry);
+
+        $result = $this->merge();
+
+        $this->assertSame(['mtest' => $this->shippedPo()], $result['written']);
+        $this->assertSame([], $result['not_merged']);
+        $merged = $this->readShippedPo()->find(self::MODULE, 'items');
+        $this->assertTrue($merged->isPlural());
+        $this->assertSame('items_plural', $merged->getPluralId());
+        $this->assertSame(['Ein Ding', 'Dinge'], $merged->getPluralTranslations());
+    }
+
+    /**
+     * A plain value for a shipped plural message is its default form (the last one, see
+     * PluralForms); the other forms keep their shipped value.
+     */
+    public function testMergeOfASingularOverlayValueReplacesOnlyTheDefaultFormOfAShippedPluralMessage(): void
+    {
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente']]);
+        $entry = new TranslationEntry(self::MODULE, 'items');
+        $entry->translate('Dinge');
+        $this->seedManualOverlayEntry($entry);
+
+        $result = $this->merge();
+
+        $this->assertSame([], $result['not_merged']);
+        $merged = $this->readShippedPo()->find(self::MODULE, 'items');
+        $this->assertTrue($merged->isPlural());
+        $this->assertSame(['Element', 'Dinge'], $merged->getPluralTranslations());
     }
 
     // ---------------------------------------------------------------- merge(): $after_module / database
