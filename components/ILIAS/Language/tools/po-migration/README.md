@@ -1105,7 +1105,11 @@ genannt.
   geführt. Ein exportierter `.lang`-Stand enthält Formzeilen (`poll_population [0]`), die ein
   System ohne migriertes `poll` als gewöhnliche Keys importieren würde. Wird die Formel einer
   Sprache später geändert (andere Formenzahl), passen bestehende Overlays erst nach dem nächsten
-  abgleichenden Schreiben.
+  abgleichenden Schreiben. **Offener Fehler (2026-09-30):** Dabei werden lokale Formwerte nach
+  Formindex übernommen, nicht nach Bedeutung. Bei 3→2 geht die lokale Standardform verloren und die
+  frühere Form 1 wird zur Standardform; bei 2→3 und 1→2 (angekündigter CLDR-49-Wechsel für `vi`)
+  gilt der lokale Wert nicht mehr für die Standardform, die wieder den Shipped-Wert hat (bei 2→3
+  auch in `lng_data`). Vor einer Formeländerung zu beheben.
 
 ## Tests
 
@@ -1120,10 +1124,25 @@ Relevante Tests liegen unter `components/ILIAS/Language/tests/`, u. a.
 `AdminGuiReadsValuesFromMigratedFileTest.php`, `UninstallRemovesMigratedMoFilesTest.php`,
 `UninstallRemovesPluginMigratedMoFilesTest.php`, `ComponentTranslation/Catalog/TranslationCatalogPoTest.php`,
 `ComponentTranslation/Catalog/TranslationCatalogMoTest.php` (Standardform eines Plural-Eintrags),
-`ConvertModuleToPoToolTest.php`. Eigene Tests für `PluralForms`, `PluralFormKey`, `ntxt()` und die
-Plural-Pfade von Sync/Installation/Admin-GUI folgen (Stand 2026-09-28 noch offen), ebenso für
-`ShippedPoMerger`, `TranslationCatalog::addInIdOrder()` und `MigratedLanguageFilePaths::templateFileName()`
-(merge, Sicherungen, Filter "Konflikte").
+`ConvertModuleToPoToolTest.php`.
+
+Pluralformen und merge (Stand 2026-09-30):
+
+- `PluralForms`: `ComponentTranslation/PluralFormsTest.php` (Formeln, Präzedenz, Randwerte, ungültige
+  Header) und `ComponentTranslation/PluralFormsShippedRulesTest.php` (alle Header aus `plurals.json`
+  gegen eine unabhängige CLDR-Referenz, n = 0…2000 und große Werte; eine Sprache ohne Referenz macht
+  den Test rot).
+- `PluralFormKey`: `ComponentTranslation/PluralFormKeyTest.php`; `ntxt()`: `NtxtTest.php`.
+- Plural-Pfade: `ComponentTranslation/MigratedLanguageFileSyncPluralHelpersTest.php`,
+  `ComponentTranslation/MigratedLanguageFileSyncPluralOverlayTest.php`,
+  `Setup/LanguageInstallationManagerDatabaseRowsOfMigratedModuleTest.php`,
+  `Setup/LanguageInstallationManagerMigratedModulesTest.php` (auch wachsende Formenzahl),
+  `SaveValuesWritesPluralFormsTest.php`, `ImportLanguageFilePluralPlainKeyTest.php`,
+  `WithPluralFormKeysTest.php`.
+- merge und Sicherungen: `ComponentTranslation/ShippedPoMergerTest.php`; Filter "Konflikte":
+  `ShippedChangesSinceBackupTest.php`.
+- `TranslationCatalog::addInIdOrder()`: `ComponentTranslation/Catalog/TranslationCatalogPoTest.php`;
+  `MigratedLanguageFilePaths::templateFileName()`: `ComponentTranslation/MigratedLanguageFilePathsTest.php`.
 
 ## Änderungshistorie
 
@@ -1317,3 +1336,11 @@ Neuerzeugung für alle 31 Sprachen inhaltsgleich.
   `lang/ilias_en.lang`), `Language` bleibt das Kürzel. `tos_*.po` und `poll_*.po` neu erzeugt
   (62 Dateien, nur diese Header-Zeile; `.pot` unverändert). Test:
   `testLanguageTeamHeaderNamesTheLanguageInEnglishFromTheMetaModule()`.
+
+### 2026-09-30: Tests nachgezogen
+
+- Neu: `PluralFormsShippedRulesTest.php`, `ShippedChangesSinceBackupTest.php`; ergänzt:
+  `ShippedPoMergerTest.php` (Plural-merge, Änderungen seit Sicherung, defekte Sicherung),
+  `LanguageInstallationManagerMigratedModulesTest.php` (Formenzahl 1→2, 2→3). Abschnitt "Tests"
+  aktualisiert.
+- Befund: Übernahme lokaler Formwerte bei geänderter Formenzahl, siehe "Bekannte Grenzen".
