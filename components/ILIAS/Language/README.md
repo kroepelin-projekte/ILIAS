@@ -44,8 +44,8 @@ and `LanguageFileDirectoryManager` aggregates all of them, contributed by other 
 ## Modules Maintained in PO Files (PO/MO Pilot)
 A component may ship a module as gettext files instead of `.lang` lines: it contributes a
 `LanguageFileDirectory` with the module as prefix and ships `<module>_<lang>.po` there (currently
-`TermsOfService`, module `tos`). For such a module the shipped `.po` is the only source of its
-shipped values - its lines in `lang/ilias_<lang>.lang` are ignored when installing/updating and are
+`TermsOfService`, module `tos`, and `Poll`, module `poll`). For such a module the shipped `.po` is
+the only source of its shipped values - its lines in `lang/ilias_<lang>.lang` are ignored when installing/updating and are
 not the default the administration GUI compares with. Each installation keeps only its local
 changes in files (the "overlay", `<client data dir>/lang/...po|.mo`): the entries whose value
 differs from the shipped `.po` or whose key it does not ship (customizing values, "add new
@@ -177,7 +177,7 @@ description rather than a copy here, which would drift out of sync:
   languages are skipped (reported as `not_installed_language_keys`). This is intended.
 * **UpdateLanguage** (`src/Activities/UpdateLanguage.php`) - refreshes one or more already
   installed languages from the current language files. For a module migrated to PO/MO (currently
-  only `tos`, see "Modules Maintained in PO Files" above) the shipped `.po` is the only source of shipped
+  `tos` and `poll`, see "Modules Maintained in PO Files" above) the shipped `.po` is the only source of shipped
   values, and each entry is reconciled three-way: an unchanged entry, or one whose local value equals
   the new or the previously shipped value, takes the new shipped value; a genuine local change is
   kept, even if the shipped value changed too ("remove local changes" then resets it to the current
