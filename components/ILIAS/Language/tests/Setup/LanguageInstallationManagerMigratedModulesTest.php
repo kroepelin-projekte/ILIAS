@@ -58,6 +58,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     private ?array $collation_rows = null;
     /** @var list<array<string, string>> */
     private array $pending_rows = [];
+    /** @var list<array<string, string>> rows of "SELECT module, identifier, local_change FROM lng_data" */
+    private array $local_change_rows = [];
 
     /** @var array<string, array<string, string>> */
     private array $db_local_changes = [];
@@ -98,6 +100,10 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         });
         $db->method('query')->willReturnCallback(function (string $query) use ($statement): ilDBStatement {
             $this->queries[] = $query;
+            if (str_starts_with($query, 'SELECT module, identifier, local_change FROM lng_data')) {
+                $this->pending_rows = $this->local_change_rows;
+                return $statement;
+            }
             $this->pending_rows = $this->collation_rows ?? array_map(
                 static fn(string $module, array $lang_array): array => ['module' => $module, 'lang_array' => serialize($lang_array)],
                 array_keys($this->lngModules()),
@@ -840,6 +846,31 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->manager()->insertLanguageForInstallation('de');
 
         $this->assertSame(['value' => 'Servus', 'local_change' => self::NOW], $this->lngData()['pilot|greeting']);
+    }
+
+    /**
+     * An entry that enters the overlay with this run keeps the time of its local change from
+     * lng_data.local_change (UTC) - not the time of the run.
+     */
+    public function testANewOverlayEntryCarriesTheLocalChangeDateOfTheDatabaseRow(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $this->db_local_changes = [self::MODULE => ['greeting' => 'Servus']];
+        $this->local_change_rows = [
+            ['module' => self::MODULE, 'identifier' => 'greeting', 'local_change' => '2024-03-04 05:06:07'],
+        ];
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame('Servus', $this->overlayPo()->find(null, 'greeting')?->getTranslation());
+        $this->assertSame(
+            '2024-03-04T05:06:07Z',
+            LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'greeting'))
+        );
+        $this->assertNotSame(
+            self::NOW,
+            LocalChangeComments::getLocalChangeAsDatabaseTimestamp($this->overlayPo()->find(null, 'greeting'))
+        );
     }
 
     public function testALocalEntryWithoutShippedCounterpartIsKept(): void

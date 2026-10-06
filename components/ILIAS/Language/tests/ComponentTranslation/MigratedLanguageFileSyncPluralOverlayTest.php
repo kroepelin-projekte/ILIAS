@@ -135,6 +135,77 @@ class MigratedLanguageFileSyncPluralOverlayTest extends TestCase
     // ---------------------------------------------------------------- tests
 
     /**
+     * @param array<string, string> $dates identifier or form key => database timestamp
+     */
+    private function syncWithLocalChangeDates(array $dates): void
+    {
+        MigratedLanguageFileSync::sync(
+            $this->manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            self::MODULE,
+            ['item [0]' => 'Eintrag NEU', 'item [1]' => 'Einträge NEU'],
+            $this->client_data_dir,
+            false,
+            null,
+            null,
+            $dates
+        );
+    }
+
+    /**
+     * A new plural overlay entry whose dates are known only per form (rows "item [0]", "item [1]" of
+     * lng_data) gets the latest of them as "local_change" - neither "now" nor the first form's date;
+     * a form of another message ("itemx [0]") is not considered.
+     */
+    public function testANewPluralEntryTakesTheLatestLocalChangeDateOfItsForms(): void
+    {
+        $this->seedShipped(['item' => ['Eintrag', 'Einträge']]);
+
+        $this->syncWithLocalChangeDates([
+            'item [0]' => '2021-05-06 07:08:09',
+            'item [1]' => '2020-01-02 03:04:05',
+            'itemx [0]' => '2023-01-01 00:00:00',
+        ]);
+
+        $this->assertSame('2021-05-06T07:08:09Z', LocalChangeComments::getLocalChange($this->overlayEntry('item')));
+    }
+
+    /**
+     * A date under the identifier itself wins over the dates of the forms; an unreadable date of a
+     * form is ignored.
+     */
+    public function testADateUnderThePluralIdentifierWinsOverTheFormDates(): void
+    {
+        $this->seedShipped(['item' => ['Eintrag', 'Einträge']]);
+
+        $this->syncWithLocalChangeDates(['item' => '2019-02-03 04:05:06', 'item [0]' => '2021-05-06 07:08:09']);
+
+        $this->assertSame('2019-02-03T04:05:06Z', LocalChangeComments::getLocalChange($this->overlayEntry('item')));
+    }
+
+    public function testAnUnreadableFormDateIsIgnoredAndWithoutAnyReadableDateTheEntryGetsTheCurrentTime(): void
+    {
+        $this->seedShipped(['item' => ['Eintrag', 'Einträge']]);
+        $before = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+
+        $this->syncWithLocalChangeDates(['item [0]' => 'garbage', 'item [1]' => '2021-05-06 07:08:09']);
+        $this->assertSame('2021-05-06T07:08:09Z', LocalChangeComments::getLocalChange($this->overlayEntry('item')));
+
+        $this->tearDownOverlay();
+        $this->syncWithLocalChangeDates(['item [0]' => 'garbage']);
+        $change = LocalChangeComments::getLocalChange($this->overlayEntry('item'));
+        $this->assertNotNull($change);
+        $this->assertGreaterThanOrEqual($before->format('Y-m-d\TH:i:s\Z'), $change);
+    }
+
+    private function tearDownOverlay(): void
+    {
+        MigratedPoFixture::removeDirectory($this->client_data_dir);
+        mkdir($this->client_data_dir, 0775, true);
+    }
+
+    /**
      * Only one of two forms is locally changed: the overlay still carries the whole plural entry
      * (both forms - not just the changed one), and gets an "original" comment per form (the shipped
      * value each form is compared against later).

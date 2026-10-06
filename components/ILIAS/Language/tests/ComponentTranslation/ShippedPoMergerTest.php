@@ -183,7 +183,7 @@ class ShippedPoMergerTest extends TestCase
      * @return array{
      *     written: array<string, string>, skipped: array<string, string>,
      *     invalid_markup: array<string, array<string, list<string>>>, not_merged: array<string, list<string>>,
-     *     unwritten_database: array<string, string>
+     *     unwritten_database: array<string, string>, unmarked_overlay: array<string, string>
      * }
      */
     private function merge(): array
@@ -240,7 +240,7 @@ class ShippedPoMergerTest extends TestCase
         $result = $this->merge();
 
         $this->assertSame(
-            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => []],
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => [], 'unmarked_overlay' => []],
             $result
         );
         $this->assertSame($shipped_after_first_merge, file_get_contents($this->shippedPo()));
@@ -831,6 +831,92 @@ class ShippedPoMergerTest extends TestCase
         }
 
         $this->assertSame('msgid "broken', file_get_contents($this->overlayBase() . '.po'));
+    }
+
+    // ---------------------------------------------------------------- merge(): marking of the overlay
+
+    /**
+     * Makes the overlay directory read-only (the marking cannot write its temporary file there) and
+     * returns the restore callback - or skips the test if the permission does not bind (root).
+     */
+    private function makeOverlayDirectoryReadOnly(): void
+    {
+        $directory = dirname($this->overlayBase());
+        chmod($directory, 0555);
+        clearstatcache();
+        if (is_writable($directory)) {
+            chmod($directory, 0775);
+            $this->markTestSkipped('The file permissions do not bind in this environment (root).');
+        }
+    }
+
+    private function restoreOverlayDirectory(): void
+    {
+        chmod(dirname($this->overlayBase()), 0775);
+        clearstatcache();
+    }
+
+    public function testAFailingMarkingOfTheOverlayIsReportedAndTheFilesStayWrittenAndTheNextMergeMakesUpForIt(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => 'Servus']);
+        $this->makeOverlayDirectoryReadOnly();
+
+        try {
+            $calls = [];
+            $result = ShippedPoMerger::merge(
+                $this->manager,
+                ILIAS_ABSOLUTE_PATH,
+                self::LANG,
+                $this->client_data_dir,
+                $this->backup_directory,
+                static function (string $module) use (&$calls): void {
+                    $calls[] = $module;
+                }
+            );
+        } finally {
+            $this->restoreOverlayDirectory();
+        }
+
+        $this->assertSame(['mtest' => $this->shippedPo()], $result['written']);
+        $this->assertSame([], $result['skipped']);
+        $this->assertSame([self::MODULE], $calls, 'the database callback runs regardless');
+        $this->assertSame([self::MODULE], array_keys($result['unmarked_overlay']));
+        $this->assertNotSame('', $result['unmarked_overlay'][self::MODULE]);
+        $this->assertSame([], $result['unwritten_database']);
+        $this->assertSame('Servus', $this->readShippedPo()->find(self::MODULE, 'greeting')?->getTranslation());
+        $this->assertFalse(
+            \ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped(MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'greeting')),
+            'not marked yet'
+        );
+
+        // cause removed: the shipped .po is already written, the marking is made up for
+        $second = $this->merge();
+
+        $this->assertSame([], $second['written']);
+        $this->assertSame([], $second['unmarked_overlay']);
+        $this->assertSame([], $second['skipped']);
+        $overlay_entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'greeting');
+        $this->assertTrue(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($overlay_entry));
+        $this->assertSame('Servus', $overlay_entry->getTranslation());
+    }
+
+    public function testARepeatedMergeDoesNotRewriteTheAlreadyMarkedOverlay(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo']);
+        $this->seedOverlay(['greeting' => 'Servus']);
+        $this->merge();
+        $overlay_po = $this->overlayBase() . '.po';
+        $content = (string) file_get_contents($overlay_po);
+        $in_the_past = time() - 86400;
+        touch($overlay_po, $in_the_past);
+
+        $this->merge();
+        MigratedLanguageFileSync::markMergedIntoShipped($this->manager, self::LANG, self::MODULE, ['greeting'], $this->client_data_dir, ILIAS_ABSOLUTE_PATH);
+
+        clearstatcache();
+        $this->assertSame($in_the_past, filemtime($overlay_po), 'not written again');
+        $this->assertSame($content, file_get_contents($overlay_po));
     }
 
     // ---------------------------------------------------------------- merge(): symlinked directory

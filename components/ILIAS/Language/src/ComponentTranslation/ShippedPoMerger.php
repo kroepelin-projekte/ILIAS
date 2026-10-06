@@ -57,7 +57,8 @@ use RuntimeException;
  *   entries keep being served from the overlay. They are marked
  *   (LocalChangeComments::setMergedIntoShipped()), so another write of the module (an admin edit,
  *   an import, an update) keeps them as long as the build does not serve the written `.po` (see
- *   MigratedLanguageFileSync::sync()). `php cli/setup.php build` and then `php cli/setup.php update`
+ *   MigratedLanguageFileSync::sync()); a marking that fails is reported (the files stay written) and
+ *   made up for by the next merge. `php cli/setup.php build` and then `php cli/setup.php update`
  *   (its three-way reconciliation drops an overlay entry equal to the new shipped value, and a
  *   remark equal to an extracted comment of the shipped entry) clean them up.
  *
@@ -76,11 +77,15 @@ final class ShippedPoMerger
      *     skipped: array<string, string>,
      *     invalid_markup: array<string, array<string, list<string>>>,
      *     not_merged: array<string, list<string>>,
-     *     unwritten_database: array<string, string>
+     *     unwritten_database: array<string, string>,
+     *     unmarked_overlay: array<string, string>
      * } written: module => path of the written shipped `.po`; skipped: module => reason; invalid_markup:
      *   module => identifier (a form key for a plural form) => violations; not_merged: module =>
      *   identifiers that could not be taken over (see the class docblock); unwritten_database: module
-     *   => reason, $after_module failed (the files are written)
+     *   => reason, $after_module failed (the files are written); unmarked_overlay: module => reason,
+     *   the taken over entries could not be marked in the overlay (the files are written, $after_module
+     *   ran): until then another write of the module before "setup build" may drop them from the overlay
+     *   - the next merge marks them
      */
     public static function merge(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -96,6 +101,7 @@ final class ShippedPoMerger
             'invalid_markup' => [],
             'not_merged' => [],
             'unwritten_database' => [],
+            'unmarked_overlay' => [],
         ];
         if ($client_data_dir === null) {
             return $result;
@@ -167,6 +173,9 @@ final class ShippedPoMerger
             }
             if (isset($outcome['database_error'])) {
                 $result['unwritten_database'][$module] = $outcome['database_error'];
+            }
+            if ($outcome['unmarked'] !== null) {
+                $result['unmarked_overlay'][$module] = $outcome['unmarked'];
             }
         }
 
@@ -251,7 +260,8 @@ final class ShippedPoMerger
      *
      * Runs under the overlay lock of the module/language and the template lock of the module.
      *
-     * @return array{written: bool, merged: list<string>, merged_remarks: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>}
+     * @return array{written: bool, merged: list<string>, merged_remarks: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unmarked: ?string}
+     *         unmarked: why the taken over entries could not be marked in the overlay
      * @throws RuntimeException|\InvalidArgumentException if the module has to be skipped as a whole
      */
     private static function mergeModule(
@@ -269,6 +279,7 @@ final class ShippedPoMerger
             'merged_remarks' => [],
             'invalid_markup' => [],
             'not_merged' => [],
+            'unmarked' => null,
         ];
         // read under the lock - it may have changed since hasOverlay()
         $overlay = MigratedLanguageFileSync::readOverlayCatalog($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path);
@@ -362,7 +373,9 @@ final class ShippedPoMerger
             throw new RuntimeException(sprintf('Could not read "%s".', $shipped_po));
         }
         if ($po_content === $previous_content && $template_content === null) {
-            // taken over before (the overlay keeps it until "setup update"): nothing to write
+            // taken over before (the overlay keeps it until "setup update"): nothing to write - only
+            // a marking that failed then is made up for (a marked entry stays as it is)
+            $outcome['unmarked'] = self::markMerged($language_file_directory_manager, $lang_key, $module, $outcome['merged'], $client_data_dir, $ilias_absolute_path);
             $outcome['merged'] = [];
             $outcome['merged_remarks'] = [];
             return $outcome;
@@ -379,16 +392,40 @@ final class ShippedPoMerger
         // The overlay keeps its values: the runtime serves the build, which still holds the former
         // shipped values. The taken over entries are marked, so no write until the next build drops
         // them (see MigratedLanguageFileSync::sync()); "setup update" after "setup build" does.
-        MigratedLanguageFileSync::markMergedIntoShipped(
-            $language_file_directory_manager,
-            $lang_key,
-            $module,
-            $outcome['merged'],
-            $client_data_dir,
-            $ilias_absolute_path
-        );
+        $outcome['unmarked'] = self::markMerged($language_file_directory_manager, $lang_key, $module, $outcome['merged'], $client_data_dir, $ilias_absolute_path);
 
         return $outcome;
+    }
+
+    /**
+     * MigratedLanguageFileSync::markMergedIntoShipped() for the files just written (or written by an
+     * earlier merge): a failure must not hide that they are - the next merge makes up for it.
+     *
+     * @param list<string> $identifiers
+     * @return string|null why the entries could not be marked
+     */
+    private static function markMerged(
+        LanguageFileDirectoryManager $language_file_directory_manager,
+        string $lang_key,
+        string $module,
+        array $identifiers,
+        string $client_data_dir,
+        string $ilias_absolute_path
+    ): ?string {
+        try {
+            MigratedLanguageFileSync::markMergedIntoShipped(
+                $language_file_directory_manager,
+                $lang_key,
+                $module,
+                $identifiers,
+                $client_data_dir,
+                $ilias_absolute_path
+            );
+        } catch (RuntimeException|\InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
+
+        return null;
     }
 
     /**

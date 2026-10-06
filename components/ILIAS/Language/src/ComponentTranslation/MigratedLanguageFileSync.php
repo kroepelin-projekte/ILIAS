@@ -1100,17 +1100,28 @@ final class MigratedLanguageFileSync
 
     /**
      * When the local change of $identifier was made according to $local_change_dates (identifier =>
-     * database timestamp "Y-m-d H:i:s", UTC, see sync()) - $now if unknown or unreadable.
+     * database timestamp "Y-m-d H:i:s", UTC, see sync()) - $now if unknown or unreadable. A plural
+     * message without a date under its identifier takes the latest one of its form keys (rows of
+     * the forms, see PluralFormKey).
      *
      * @param array<string, string> $local_change_dates
      */
     private static function localChangeDate(array $local_change_dates, string $identifier, DateTimeImmutable $now): DateTimeImmutable
     {
-        $date = isset($local_change_dates[$identifier])
-            ? DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $local_change_dates[$identifier], new DateTimeZone('UTC'))
-            : false;
+        $read = static fn(string $date): ?DateTimeImmutable
+            => DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $date, new DateTimeZone('UTC')) ?: null;
+        if (isset($local_change_dates[$identifier])) {
+            return $read($local_change_dates[$identifier]) ?? $now;
+        }
+        $latest = null;
+        foreach ($local_change_dates as $key => $date) {
+            if ((PluralFormKey::parse((string) $key)[0] ?? null) === $identifier) {
+                $form_date = $read($date);
+                $latest = $form_date !== null && ($latest === null || $form_date > $latest) ? $form_date : $latest;
+            }
+        }
 
-        return $date === false ? $now : $date;
+        return $latest ?? $now;
     }
 
     /**
@@ -1151,7 +1162,8 @@ final class MigratedLanguageFileSync
      * Marks the overlay entries of $identifiers (a plural message under its identifier) of
      * $module/$lang_key as taken over into the shipped `.po` by "merge" (see
      * LocalChangeComments::setMergedIntoShipped() and sync()). Only the overlay `.po` changes - the
-     * served values stay the same. Run under the overlay lock (re-entrant).
+     * served values stay the same -, and only if an entry is not marked yet (a repeated call writes
+     * nothing). Run under the overlay lock (re-entrant).
      *
      * @param list<string> $identifiers
      * @throws RuntimeException if the overlay cannot be read or written
@@ -1188,13 +1200,17 @@ final class MigratedLanguageFileSync
                     return;
                 }
                 $catalog = TranslationCatalog::fromPoFile($overlay['po']);
+                $changed = false;
                 foreach ($identifiers as $identifier) {
                     $entry = self::findModuleEntry($catalog, $module, $identifier);
-                    if ($entry !== null) {
+                    if ($entry !== null && !LocalChangeComments::isMergedIntoShipped($entry)) {
                         LocalChangeComments::setMergedIntoShipped($entry, true);
+                        $changed = true;
                     }
                 }
-                AtomicFileWriter::write($overlay['po'], $catalog->toPoString(), self::overlayRoot($client_data_dir));
+                if ($changed) {
+                    AtomicFileWriter::write($overlay['po'], $catalog->toPoString(), self::overlayRoot($client_data_dir));
+                }
             },
             $ilias_absolute_path
         );

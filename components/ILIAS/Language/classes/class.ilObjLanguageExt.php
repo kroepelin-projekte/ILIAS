@@ -482,6 +482,14 @@ class ilObjLanguageExt extends ilObjLanguage
                 $reason
             )));
         }
+        foreach ($merged['unmarked_overlay'] as $module => $reason) {
+            $logger->error(PlainLogText::of(sprintf(
+                'The shipped PO file of module "%s", language "%s" was merged, but its overlay entries could not be marked as taken over (until "php cli/setup.php build", saving the module again may fall back to the former shipped values - merging again marks them): %s',
+                $module,
+                $lang_key,
+                $reason
+            )));
+        }
         if ($result['written'] !== []) {
             $logger->info(PlainLogText::of(sprintf(
                 'Merged the local changes of language "%s" into (now owned by the web server user; served from the overlay until "php cli/setup.php build" and "php cli/setup.php update" ran): %s',
