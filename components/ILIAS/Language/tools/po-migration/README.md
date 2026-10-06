@@ -50,8 +50,13 @@ anderer Code baut sie selbst.
 php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php tos de components/ILIAS/TermsOfService/lang
 ```
 
-Aufruf: `convert_module_to_po.php <modul> [referenzSprache] [ausgabeOrdner]`. Ohne drittes Argument
-landet die Ausgabe in `tools/po-migration/output/<modul>/`.
+Aufruf: `convert_module_to_po.php [--pattern=<schema>] [--skip-unmigratable-keys] [--remove-from-lang]
+<modul> [referenzSprache] [ausgabeOrdner]`. Ohne drittes Argument landet die Ausgabe in
+`tools/po-migration/output/<modul>/` (der Ordner wird erst angelegt, wenn alle Prüfungen bestanden
+sind). Unbekannte Optionen (alles mit führendem `-`) brechen ab, damit ein Tippfehler nicht als
+Modulname oder Ausgabeordner gelesen wird. Modulname und Referenzsprache dürfen nur aus
+`[A-Za-z0-9_]` bestehen. Steuerzeichen in gemeldeten Keys (z. B. ESC) erscheinen maskiert
+(`\033`).
 
 Das Skript liest alle `lang/ilias_<sprache>.lang`-Dateien, extrahiert die Zeilen des Moduls (jede
 Zeile wird wie im ILIAS-Installer getrimmt) und schreibt über `TranslationCatalog::toPoString()`, also
@@ -71,7 +76,8 @@ Es schreibt **keine `.mo`** und nichts in die Datenbank. Anschließend liest es 
 `.po` mit `TranslationCatalog::fromPoFile()` (`StrictPoLoader`) wieder ein und vergleicht jeden Wert
 mit der Quelle (Exit-Code 1 bei Abweichung); bei Plural-Einträgen zusätzlich `msgid_plural`, jede Form
 und dass die Standardform (siehe "Pluralformen") dem bisherigen Wert entspricht. Doppelte Identifier
-eines Moduls in einer `.lang`-Datei, eine Plural-Definition, deren Key oder Singular-Key im Modul
+eines Moduls in einer `.lang`-Datei (Ausnahme: exakte Doppelzeilen mit `--skip-unmigratable-keys`,
+siehe unten), eine Plural-Definition, deren Key oder Singular-Key im Modul
 fehlt, und eine Sprache ohne `Plural-Forms` in der Tabelle (nur bei Modulen mit Plural-Einträgen)
 führen zum Abbruch, bevor irgendetwas geschrieben wird. Fehlt `plurals.json` neben dem Tool, schreibt
 es weder `Plural-Forms` noch Plural-Einträge (Hinweis auf stdout).
@@ -86,6 +92,101 @@ Das Skript schreibt **kein `msgctxt`** mehr und kennt `--pattern=<schema>` (Stan
 geprüft mit `MigratedLanguageFilePaths::assertValidShippedFileNamePattern()`); die POT heißt nach
 dem Schema ohne `%s` (z. B. `tos.pot`, `ilias.pot`). Die `tos`-Dateien sind damit neu erzeugt (nur
 die `msgctxt "tos"`-Zeilen entfallen; Werte, Flags, Kommentare und Header unverändert).
+
+Ein Modul ohne eine einzige Zeile in `lang/ilias_*.lang` (schon migriert und mit
+`--remove-from-lang` entfernt, oder Tippfehler im Modulnamen) bricht mit Exit-Code 1 ab, ohne etwas
+zu schreiben; vorhandene `.po`/`.pot` bleiben unverändert. Hat nur die Referenzsprache keine
+(übernehmbaren) Einträge, nennt die Meldung die Sprachen, die Zeilen haben.
+
+### `--skip-unmigratable-keys`: Altlasten überspringen statt abbrechen
+
+Ohne die Option bricht der Konverter ab, bevor er etwas schreibt, wenn eine Sprache Keys hat, die
+der Referenzsprache fehlen, wenn ein Key leer ist (`modul#:##:#…`; `msgid ""` wäre der PO-Header)
+oder wenn ein Key in einer Sprache doppelt vorkommt. Stand 2026-10 betrifft das 22 von 154 Modulen
+(u. a. verwaiste oder falsch einsortierte Keys, der leere Key in `badge`/`en`, der Tippfehler-Key
+`obj_cpad#_desc` in `common`, die Doppelzeilen mit gleichem Wert `rbac_select_roles` in `fa` und
+`svy_categories` in `nl`).
+
+Mit der Option:
+
+- werden Keys, die die Referenzsprache nicht hat, und der leere Key pro Sprache als `WARNING` auf
+  stderr gemeldet (`  <sprache>: key1, key2`, der leere Key als `"" (empty key)`) und nicht
+  übernommen. Sie fehlen in der `.po` und sind vom Roundtrip-Vergleich ausgenommen;
+- wird ein doppelter Key, dessen Vorkommen in einer Sprache alle denselben Wert und denselben
+  `###`-Kommentar haben, wie der Installer sie liest (dritter `#:#`-Teil der getrimmten Zeile), als
+  `WARNING` gemeldet und einmal übernommen. Ebenso nur `WARNING` ist ein doppelter Key, der ohnehin
+  übersprungen wird (fehlt in der Referenz bzw. leer), auch mit unterschiedlichen Werten. Andere
+  doppelte Keys mit **unterschiedlichen** Werten brechen weiterhin ab.
+
+Die übersprungenen Keys gehen nicht verloren, solange die `.lang`-Zeilen bleiben; ob sie in ein
+anderes Modul gehören oder weg können, ist ein eigenes Thema (Key-Bereinigung, ROADMAP).
+
+```bash
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys <modul> de components/ILIAS/<Komponente>/lang
+```
+
+### `--remove-from-lang`: Modulzeilen aus den `.lang`-Dateien entfernen
+
+**Voraussetzung: erst die Contribution eintragen, dann `--remove-from-lang`.** Die Option entfernt die
+bisher einzige andere Quelle des Moduls; sie läuft deshalb nur, wenn die `.po` dort landen, wo die
+Installation sie findet. Vor dem Lesen und Schreiben prüft der Konverter (sonst Exit-Code 1, nichts
+geschrieben):
+
+- `ausgabeOrdner` ist angegeben, existiert schon und ist (per `realpath`) genau
+  `components/<Vendor>/<Komponente>/lang` dieses Repos;
+- `components/<Vendor>/<Komponente>/<Komponente>.php` enthält (Kommentare ausgenommen) eine
+  Zuweisung `$contribute[LanguageFileDirectory::class] = … new ComponentLanguageFileDirectory($this,
+  '<modul>'[, '<pfad>'[, '<schema>']])` mit String-Literalen als Positionsargumenten; der Pfad ist
+  `lang/` (Standard) und das Schema gleich dem des Laufs (`--pattern`, Standard `<modul>_%s`).
+  Benannte Argumente, Konstanten oder Variablen erkennt die Textprüfung nicht – dann verweigert sie.
+- keine `lang/ilias_<sprache>.lang` ist ein symbolischer Link oder keine reguläre Datei (ein Link
+  würde erst beim Schreiben scheitern, nachdem andere Dateien schon geändert sind).
+
+Nur nach einem vollständig erfolgreichen Lauf (alle Dateien geschrieben, jede Sprache roundtrip-ok,
+also Exit-Code 0) entfernt der Konverter **alle** Zeilen des Moduls (`<modul>#:#…`, auch die mit
+`--skip-unmigratable-keys` übersprungenen) aus jeder `lang/ilias_<sprache>.lang` im Repo-Root, die er
+gelesen hat. Komponenten- und Customizing-`.lang` werden nicht angefasst. Am Ende der Migration
+zeigen die `.lang`-Dateien so, was noch übrig ist.
+
+- Entfernt werden genau die Zeilen, die der Konverter als Zeilen des Moduls gelesen hat, und nur
+  hinter `<!-- language file start -->` (eine Datei ohne diese Zeile gilt ganz als Inhalt). Alles
+  andere bleibt Byte für Byte: Header und Kommentare davor, Zeilenenden (`\n`/`\r\n`), Reihenfolge,
+  Encoding und ob die Datei mit einem Zeilenumbruch endet.
+- Jede Datei wird einmal gelesen; Zeilen und Hash stammen aus denselben Bytes.
+- Erst werden alle neuen Inhalte berechnet und geprüft: Datei seit dem Lesen unverändert (SHA-256)
+  und Zahl der zu entfernenden Zeilen = Zahl der gelesenen Modulzeilen (eine Modulzeile vor der
+  Startmarke würde gelesen, aber nicht entfernt). Schlägt das für eine Datei fehl, wird **keine**
+  `.lang` geändert (die `.po`/`.pot` sind dann geschrieben). Schlägt der Lauf vorher fehl, gilt das
+  ohnehin.
+- Geschrieben wird je Datei atomar über `AtomicFileWriter` (Temp-Datei im selben Ordner + `rename`,
+  Dateimodus bleibt, Ziel auf `lang/` beschränkt). Pro Datei meldet stdout die Zahl der entfernten
+  Zeilen. Scheitert ein Schreibvorgang mittendrin, sind die bis dahin gemeldeten Dateien geändert,
+  die übrigen nicht (Exit-Code 1).
+- Ein zweiter Lauf für dasselbe Modul bricht mit „no lines in any … lang file … most likely it is
+  migrated already" ab und lässt die `.po`/`.pot` unverändert.
+
+```bash
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys --remove-from-lang <modul> de components/ILIAS/<Komponente>/lang
+```
+
+**Folgen:**
+
+- **Rollback pro Modul** (siehe „Rollback") braucht danach die `.lang`-Zeilen zurück: aus git holen,
+  z. B. `git show <ref>:lang/ilias_de.lang` (Stand vor dem Entfernen) und die Zeilen des Moduls in
+  die aktuelle Datei einfügen. Ohne sie hat das Modul nach dem Entfernen der Contribution keine
+  ausgelieferten Werte mehr.
+- **Kein erneuter Konverterlauf** für das Modul: Die `.po` sind danach die einzige Quelle. Damit
+  kann ein Neulauf aus veralteten `.lang`-Zeilen auch nicht mehr überschreiben, was per „merge"
+  (Übersetzungsmodus) in die Shipped-`.po` gekommen ist (neue Keys, geänderte Werte). Änderungen am
+  Modul laufen ab jetzt nur noch über die `.po`/`.pot`. Wer die Zeilen für einen Rollback aus git
+  zurückholt, hat damit wieder einen veralteten Stand ohne diese Merge-Ergebnisse.
+- **Modul `meta` zuletzt migrieren** ist nicht nötig, aber zu beachten: Den `Language-Team`-Header
+  liest der Konverter aus `meta_l_<sprache>` in `lang/ilias_en.lang`. Hat `meta` dort keine Zeilen
+  mehr, nimmt er sie aus einer ausgelieferten `components/*/*/lang/meta_en.po` – aber nur unter dem
+  Standard-Dateinamen. Wird `meta` mit einem anderen Schema oder Pfad migriert, fehlen die Namen
+  (Hinweis auf stdout, ein vorhandener Header bleibt stehen).
+- Fällt eine Shipped-`.po` als unlesbar aus, nutzt `ilObjLanguageExt::getShippedValues()` bisher die
+  `.lang`-Zeilen des Moduls als Näherung; nach dem Entfernen liefert das Modul dort nichts.
 
 ### Design-Entscheidungen
 
@@ -1004,7 +1105,9 @@ zurückschreiben".
 1. **Pro Modul:** die `$contribute[LanguageFileDirectory::class]`-Contribution der Komponente
    entfernen. Ohne Directory lesen alle Pfade aus der DB, und der Sync ist ein No-op; beim nächsten
    Update werden wieder die `.lang`-Zeilen des Moduls verwendet (für `tos` und `poll` sind sie in
-   `lang/ilias_*.lang` weiterhin vorhanden, auch `poll_population_singular`). Für `poll` hält die DB
+   `lang/ilias_*.lang` weiterhin vorhanden, auch `poll_population_singular`). Wurden sie mit
+   `--remove-from-lang` entfernt, müssen sie vorher aus git zurück (`git show <ref>:lang/ilias_<sprache>.lang`,
+   siehe „`--remove-from-lang`"). Für `poll` hält die DB
    die Standardform der Plural-Einträge, also den bisherigen Wert; lokale Änderungen einzelner
    Formen außer der Standardform gehen beim Rollback verloren (sie stehen nur im Overlay).
 2. **Pro Sprache:** die Shipped-`.po` der Sprache entfernen; dann liest `ilLanguage` `lng_modules`.

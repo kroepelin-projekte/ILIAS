@@ -134,8 +134,14 @@ Further rules of the pilot:
   `.lang` update behaves the same way for locally changed keys; unchanged ones disappear with the
   flush.)
 * Shipped `.po` files are generated with `tools/po-migration/convert_module_to_po.php
-  [--pattern=<pattern>] <module> [referenceLanguage] [outputDir]` (never by hand; it fails if a
-  language has keys the reference language lacks, and verifies every written entry). `msgid` is the
+  [--pattern=<pattern>] [--skip-unmigratable-keys] [--remove-from-lang] <module> [referenceLanguage]
+  [outputDir]` (never by hand; it fails if a language has keys the reference language lacks, an empty
+  key or a duplicate key - with `--skip-unmigratable-keys` such keys are left out and exact duplicate
+  lines (same value and comment) collapsed, with a warning each - and verifies every written entry;
+  `--remove-from-lang` removes the module's lines from `lang/ilias_*.lang` after a fully successful
+  run, only into an existing `components/<Vendor>/<Component>/lang` whose component already
+  contributes the module's `ComponentLanguageFileDirectory` - register the contribution first, see
+  `tools/po-migration/README.md`). `msgid` is the
   language key, there is no `msgctxt` (the module is the one of the directory; files with the module
   as `msgctxt` are still read); a dated "new variable" comment becomes `#, fuzzy`, other comments
   `#.` comments. The overlay is written without `msgctxt` as well; an older overlay entry with the
