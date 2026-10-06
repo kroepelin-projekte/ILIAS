@@ -168,7 +168,8 @@ class ConvertModuleToPoToolTest extends TestCase
 
     /**
      * The tool keeps the headers of an existing target file (e.g., "Plural-Forms"), so it is run
-     * over a copy of the shipped files - exactly how a module is re-converted.
+     * over a copy of the shipped files - exactly how a module is re-converted. With the reference
+     * language "en" (the default): every key of "tos" has a value in every language, nothing is filled.
      */
     public function testReconvertingTosReproducesTheShippedFilesByteForByte(): void
     {
@@ -178,7 +179,7 @@ class ConvertModuleToPoToolTest extends TestCase
             file_put_contents($this->directory . '/out/' . $name, $content);
         }
 
-        [$exit_code, $stdout, $stderr] = $this->runTool('tos', 'de', $this->directory . '/out');
+        [$exit_code, $stdout, $stderr] = $this->runTool('tos', 'en', $this->directory . '/out');
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $this->assertSame('', $stderr, 'no warnings, notices or deprecations');
@@ -197,6 +198,11 @@ class ConvertModuleToPoToolTest extends TestCase
      * value and msgstr[1] from the message's own value (poll_population); a message with no singular
      * key, or a language whose rule isn't that shape, gets its own value in every form
      * (poll_vote_error_multi, and poll_population itself in "ja", which has only one form).
+     *
+     * Run with "de", the reference language the shipped files were converted with ("en" lacks
+     * poll_import, a key "en" cannot take over, see --skip-unmigratable-keys). The only difference:
+     * the languages without poll_import ("en", "ja", "pt") get the reference value, flagged fuzzy,
+     * instead of the empty translation they were shipped with.
      */
     public function testReconvertingPollReproducesTheShippedFilesByteForByteIncludingPluralForms(): void
     {
@@ -211,9 +217,16 @@ class ConvertModuleToPoToolTest extends TestCase
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $this->assertSame('', $stderr, 'no warnings, notices or deprecations');
+        $this->assertStringContainsString('(3 entries filled from \'de\', flagged fuzzy)', $stdout);
         $this->assertSame(array_keys($shipped), array_keys(self::files($this->directory . '/out')), 'no file added or lost');
         foreach (self::files($this->directory . '/out') as $name => $content) {
-            $this->assertSame($shipped[$name], $content, $name);
+            $expected = $shipped[$name];
+            if (in_array($name, ['poll_en.po', 'poll_ja.po', 'poll_pt.po'], true)) {
+                $empty = "msgid \"poll_import\"\nmsgstr \"\"\n";
+                $this->assertStringContainsString($empty, $expected, 'precondition: ' . $name);
+                $expected = str_replace($empty, "#, fuzzy\nmsgid \"poll_import\"\nmsgstr \"Abstimmung importieren\"\n", $expected);
+            }
+            $this->assertSame($expected, $content, $name);
         }
     }
 
@@ -306,6 +319,75 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertNotNull($entry);
         $this->assertTrue($entry->hasFlag('fuzzy'));
         $this->assertSame([], $entry->getExtractedComments());
+    }
+
+    /**
+     * The reference language is the template of every language: a reference key a language lacks
+     * (no line) or has with an empty value gets the reference value, flagged fuzzy - an own note of
+     * the empty entry stays its extracted comment. The reference language defaults to "en", and the
+     * statistics count the filled entries per language.
+     */
+    public function testAMissingOrEmptyValueGetsTheReferenceValueFlaggedFuzzy(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'en', "tst#:#greeting#:#Hello\ntst#:#bye#:#Bye\ntst#:#none#:#\n");
+        $this->writeLangFile($root, 'de', "tst#:#greeting#:#Hallo\n");
+        $this->writeLangFile($root, 'fr', "tst#:#greeting#:####Bitte uebersetzen\ntst#:#bye#:#Salut\n");
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        // no outputDir argument: the tool's own output/<module> folder
+        $out = dirname($this->toolPathOf($root)) . '/output/tst';
+        $pot = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($out . '/tst.pot');
+        $this->assertSame(['greeting', 'bye', 'none'], array_map(static fn($e): string => $e->getId(), $pot->getEntries()), 'msgids from en');
+
+        $de = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($out . '/tst_de.po');
+        $this->assertSame('Hallo', $de->find(null, 'greeting')?->getTranslation());
+        $this->assertFalse($de->find(null, 'greeting')->hasFlag('fuzzy'));
+        $this->assertSame('Bye', $de->find(null, 'bye')?->getTranslation(), 'no line: the en value');
+        $this->assertTrue($de->find(null, 'bye')->hasFlag('fuzzy'));
+        $this->assertSame('', $de->find(null, 'none')?->getTranslation(), 'an empty en value fills nothing');
+        $this->assertFalse($de->find(null, 'none')->hasFlag('fuzzy'));
+
+        $fr = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($out . '/tst_fr.po');
+        $this->assertSame('Hello', $fr->find(null, 'greeting')?->getTranslation(), 'empty value: the en value');
+        $this->assertTrue($fr->find(null, 'greeting')->hasFlag('fuzzy'));
+        $this->assertSame(['Bitte uebersetzen'], $fr->find(null, 'greeting')->getExtractedComments());
+        $this->assertFalse($fr->find(null, 'bye')?->hasFlag('fuzzy'));
+
+        $this->assertMatchesRegularExpression('/^de\s+1\s+0\s+1\s+yes$/m', $stdout);
+        $this->assertMatchesRegularExpression('/^en\s+3\s+0\s+0\s+yes$/m', $stdout);
+        $this->assertMatchesRegularExpression('/^fr\s+2\s+0\s+1\s+yes$/m', $stdout);
+        $this->assertStringContainsString("(2 entries filled from 'en', flagged fuzzy)", $stdout);
+    }
+
+    /**
+     * A plural message (and its singular key) a language lacks gets the reference values, distributed
+     * like existing values, and is flagged fuzzy.
+     */
+    public function testAMissingPluralMessageGetsTheReferenceValuesFlaggedFuzzy(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'en', "tst#:#item#:#Entries\ntst#:#item_singular#:#One entry\n");
+        $this->writeLangFile($root, 'de', "tst#:#item#:#Eintraege\n");
+        $this->writeLangFile($root, 'fr', "tst#:#item_singular#:#Une entree\n");
+        $this->writePluralsConfig(
+            $root,
+            ['en' => 'nplurals=2; plural=(n != 1);', 'de' => 'nplurals=2; plural=(n != 1);', 'fr' => 'nplurals=2; plural=(n > 1);'],
+            ['tst' => ['item' => ['singular' => 'item_singular']]]
+        );
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'en', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $de_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po')->find(null, 'item');
+        $this->assertSame(['One entry', 'Eintraege'], $de_item?->getPluralTranslations(), 'msgstr[0] from the filled singular key');
+        $this->assertTrue($de_item->hasFlag('fuzzy'));
+        $fr_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')->find(null, 'item');
+        $this->assertSame(['Entries', 'Entries'], $fr_item?->getPluralTranslations(), 'the en value in every form');
+        $this->assertTrue($fr_item->hasFlag('fuzzy'));
+        $this->assertStringContainsString('round-trip identically through PO', $stdout);
     }
 
     /**

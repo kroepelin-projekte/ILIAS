@@ -46,13 +46,19 @@ declare(strict_types=1);
  * once the module "meta" has no lines there any more (migrated), from `meta_l_<lang>` of a shipped
  * `components/<Vendor>/<Component>/lang/meta_en.po` (default file name pattern only).
  *
+ * English is the template of every language: the reference language (default "en") gives the msgids,
+ * their order and the `.pot`. A reference key that a language lacks (no line at all) or has with an
+ * empty value gets the reference language's value, flagged "fuzzy" (it still needs a translation;
+ * fuzzy entries are shipped like all others) - instead of an empty translation. A key only other
+ * languages have cannot be taken over (see --skip-unmigratable-keys).
+ *
  * Plural messages (plurals.json, "modules"): the tool invents no text, it only distributes the
- * existing values - in a language whose rule is "n == 1 -> form 0, otherwise form 1", msgstr[0] is
+ * existing values (a value taken from the reference language, see above, counts as existing) - in a language whose rule is "n == 1 -> form 0, otherwise form 1", msgstr[0] is
  * the value of the configured singular key (if the language has it) and msgstr[1] the message's own
  * value; in every other language, and for a message without singular key, every form is the
  * message's own value. The msgid_plural is "<msgid>_plural" unless configured. The fuzzy flag
- * follows the message's own value - and the singular key's, where its value became msgstr[0] -, and
- * is also set wherever the own value was copied into more than one form (those forms still need a
+ * follows the message's own value - and the singular key's, where its value became msgstr[0] - (also
+ * where that value was taken from the reference language), and is also set wherever the own value was copied into more than one form (those forms still need a
  * translation; a language with a single form never copies). The singular key stays an entry of
  * its own.
  *
@@ -61,7 +67,7 @@ declare(strict_types=1);
  * included by Setup's class discovery). Everything is a local closure instead.
  *
  * Usage: php convert_module_to_po.php [--pattern=<pattern>] [--skip-unmigratable-keys] [--remove-from-lang]
- *          <module> [referenceLangKey] [outputDir]
+ *          <module> [referenceLangKey (default "en")] [outputDir]
  *   --pattern  file name of a language without ".po", "%s" = language key (default "<module>_%s");
  *              must match the pattern of the module's ComponentLanguageFileDirectory
  *   --skip-unmigratable-keys  instead of failing: leave out (with a WARNING on stderr) every key the
@@ -70,7 +76,7 @@ declare(strict_types=1);
  *              as the installer reads them (other duplicates of a key left out anyway only warn,
  *              all others still fail); the left out keys are not part of the round-trip check
  *   --remove-from-lang  only after a completely successful run (every file written, every language
- *              round-tripped): remove every line of the module - the left out ones included - from
+ *              round-tripped, values taken from the reference language included): remove every line of the module - the left out ones included - from
  *              every lang/ilias_<lang>.lang read (atomically per file, all other bytes unchanged);
  *              if one file cannot be processed, no file is changed. Requires (checked first) an
  *              existing outputDir components/<Vendor>/<Component>/lang whose <Component>.php already
@@ -78,7 +84,7 @@ declare(strict_types=1);
  * Unknown options (anything starting with "-") fail; module and reference language must match
  * [A-Za-z0-9_]+. A module without any line in lang/ fails without writing anything (most likely
  * migrated already).
- * Example: php convert_module_to_po.php tos de ../../../TermsOfService/lang
+ * Example: php convert_module_to_po.php tos en ../../../TermsOfService/lang
  */
 
 // a build tool: never reachable through the web server
@@ -321,6 +327,7 @@ $copies_own_value = static function (string $key, array $definition, array $entr
  * @param array<string, string> $existing_headers headers of an already existing target file
  * @param array<string, array{singular?: string, plural_id?: string}> $plural_definitions msgid => definition
  * @param string|null $language_name English name of the language, null => keep an existing "Language-Team"
+ * @param array<string, true> $filled_keys keys whose value was taken from the reference language (-> fuzzy)
  */
 $build_catalog = static function (
     string $module,
@@ -330,7 +337,8 @@ $build_catalog = static function (
     array $existing_headers,
     ?PluralForms $plural_forms,
     array $plural_definitions,
-    ?string $language_name = null
+    ?string $language_name = null,
+    array $filled_keys = []
 ) use ($is_fuzzy_marker, $plural_forms_of, $copies_own_value): TranslationCatalog {
     $is_template = $translation_entries === null;
     $catalog = new TranslationCatalog();
@@ -374,6 +382,10 @@ $build_catalog = static function (
             // Deliberately no LocalChangeComments "original" comment: the shipped .po stays plain
             // translation content; "original" only exists in the per-installation overlay.
             $own_comment = $own['comment'] ?? null;
+            // the value taken from the reference language: not translated yet
+            if (isset($filled_keys[(string) $key])) {
+                $entry->addFlag('fuzzy');
+            }
             if ($own_comment !== null && $is_fuzzy_marker($own_comment)) {
                 $entry->addFlag('fuzzy');
             } elseif ($own_comment !== null) {
@@ -383,8 +395,8 @@ $build_catalog = static function (
             $singular_key = $plural_definition['singular'] ?? null;
             $singular_comment = $singular_key === null ? null : ($translation_entries[$singular_key]['comment'] ?? null);
             if (
-                $singular_comment !== null
-                && $is_fuzzy_marker($singular_comment)
+                $singular_key !== null
+                && (($singular_comment !== null && $is_fuzzy_marker($singular_comment)) || isset($filled_keys[$singular_key]))
                 && $entry->getPluralTranslations()[0] !== ($own['value'] ?? '')
             ) {
                 $entry->addFlag('fuzzy');
@@ -495,7 +507,7 @@ $write = static function (string $file, string $content): void {
 // component already contributes a ComponentLanguageFileDirectory (see
 // components/ILIAS/Language/src/ComponentTranslation/), pass that component's lang/ directory
 // explicitly instead - e.g., for "tos":
-//   php convert_module_to_po.php tos de ../../../TermsOfService/lang
+//   php convert_module_to_po.php tos en ../../../TermsOfService/lang
 
 $arguments = [];
 $pattern = null;
@@ -522,7 +534,7 @@ foreach (array_slice($argv, 1) as $argument) {
     $arguments[] = $argument;
 }
 $module = $arguments[0] ?? 'tos';
-$reference_lang_key = $arguments[1] ?? 'de';
+$reference_lang_key = $arguments[1] ?? 'en';
 // a module name is a lng_data module: it names the output directory and the files
 if (preg_match('/\A[A-Za-z0-9_]+\z/', $module) !== 1 || preg_match('/\A[A-Za-z0-9_]+\z/', $reference_lang_key) !== 1) {
     fwrite(STDERR, "FAILURE: module and reference language may only consist of A-Z, a-z, 0-9 and \"_\".\n");
@@ -707,6 +719,23 @@ if ($reference_entries === []) {
     exit(1);
 }
 
+// English is the template (see the file docblock): a reference key that a language lacks, or has
+// with an empty value, gets the reference language's value - flagged fuzzy when written
+$own_entry_counts = array_map('count', $per_language);
+$filled = [];
+foreach ($per_language as $lang_key => $entries) {
+    if ($lang_key === $reference_lang_key) {
+        continue;
+    }
+    foreach ($reference_entries as $key => $ref) {
+        $key = (string) $key;
+        if ($ref['value'] !== '' && ($entries[$key]['value'] ?? '') === '') {
+            $per_language[$lang_key][$key] = ['value' => $ref['value'], 'comment' => $entries[$key]['comment'] ?? null];
+            $filled[$lang_key][$key] = true;
+        }
+    }
+}
+
 // A plural message and its singular key must exist, and every language needs its plural rule
 $plural_problems = [];
 foreach ($plural_definitions as $key => $definition) {
@@ -783,12 +812,14 @@ foreach ($per_language as $lang_key => $entries) {
             $existing_headers($po_path),
             $plural_rules[$lang_key] ?? null,
             $plural_definitions,
-            $language_names[$lang_key] ?? null
+            $language_names[$lang_key] ?? null,
+            $filled[$lang_key] ?? []
         )->toPoString()
     );
 
     // self-check: read the written file back and compare every value - of every reference key and
-    // of every key of this language - and that the file holds nothing else
+    // of every key of this language, a value taken from the reference language included (it is the
+    // expected value then, and must be flagged fuzzy) - and that the file holds nothing else
     $parsed = TranslationCatalog::fromPoFile($po_path);
     $po_mismatches = [];
     $expected_keys = array_unique(array_merge(
@@ -801,6 +832,10 @@ foreach ($per_language as $lang_key => $entries) {
         // find(null, ...) also finds msgctxt "" (same library id) - only an entry without msgctxt counts
         if ($parsed_entry?->getContext() !== null) {
             $po_mismatches[] = $key;
+            continue;
+        }
+        if (isset($filled[$lang_key][$key]) && $parsed_entry?->hasFlag('fuzzy') !== true) {
+            $po_mismatches[] = $key . ' (not fuzzy)';
             continue;
         }
         $plural_definition = $plural_definitions[$key] ?? null;
@@ -838,17 +873,20 @@ foreach ($per_language as $lang_key => $entries) {
 
     $report[] = [
         'lang' => $lang_key,
-        'entries' => count($entries),
+        'entries' => $own_entry_counts[$lang_key],
         'fuzzy' => $fuzzy_count,
+        'filled' => count($filled[$lang_key] ?? []),
         'po_ok' => $po_mismatches === [],
         'po_mismatches' => $po_mismatches,
     ];
 }
 
-printf("%-6s %8s %8s %8s\n", 'lang', 'entries', 'fuzzy', 'po_ok');
+// entries: the language's own lines of the module; fuzzy: of those, marked "new variable";
+// filled: reference keys the language lacks or has empty, written with the reference value as fuzzy
+printf("%-6s %8s %8s %8s %8s\n", 'lang', 'entries', 'fuzzy', 'filled', 'po_ok');
 $all_ok = true;
 foreach ($report as $row) {
-    printf("%-6s %8d %8d %8s\n", $row['lang'], $row['entries'], $row['fuzzy'], $row['po_ok'] ? 'yes' : 'NO');
+    printf("%-6s %8d %8d %8d %8s\n", $row['lang'], $row['entries'], $row['fuzzy'], $row['filled'], $row['po_ok'] ? 'yes' : 'NO');
     if (!$row['po_ok']) {
         $all_ok = false;
         fwrite(STDERR, "  po_mismatches: " . $printable(implode(', ', $row['po_mismatches'])) . "\n");
@@ -857,7 +895,8 @@ foreach ($report as $row) {
 
 echo "\n";
 echo $all_ok
-    ? "OK: all " . count($report) . " languages round-trip identically through PO.\n"
+    ? "OK: all " . count($report) . " languages round-trip identically through PO ("
+        . array_sum(array_column($report, 'filled')) . " entries filled from '$reference_lang_key', flagged fuzzy).\n"
     : "FAILURE: at least one language did not round-trip correctly, see stderr above.\n";
 
 if (!$all_ok || !$remove_from_lang) {
