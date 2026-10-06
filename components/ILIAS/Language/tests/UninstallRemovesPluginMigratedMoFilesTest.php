@@ -115,8 +115,7 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             return null;
         }
 
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename($this->fixture_directory);
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang';
     }
 
     private function removeDirectoryRecursively(string $dir): void
@@ -229,15 +228,14 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
 
-        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/';
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/';
         if (!is_dir($overlay_dir)) {
             mkdir($overlay_dir, 0775, true);
         }
 
         $base_path = $overlay_dir . $module . '_' . $lang_key;
         MigratedPoFixture::writePo($base_path . '.po', $translations);
-        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
+        MigratedPoFixture::writeOverlayRevision($base_path, $translations);
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
@@ -255,8 +253,13 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
 
     private function overlayPath(string $module, string $lang_key, string $extension): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
+        $base = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/' . $module . '_' . $lang_key;
+
+        return match ($extension) {
+            'mo' => MigratedPoFixture::overlayMo($base),
+            'lock' => MigratedPoFixture::overlayLock($base),
+            default => $base . '.' . $extension,
+        };
     }
 
     /**
@@ -439,15 +442,13 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         mkdir($shipped_readonly_dir, 0775, true);
 
         $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
-        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_readonly_path;
-        mkdir($overlay_readonly_dir, 0775, true);
+        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module;
 
         foreach (['de' => 'Hallo', 'fr' => 'Bonjour'] as $lang_key => $value) {
             $translations = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
             $translations->add(MigratedPoFixture::entry($module, 'greeting', $value));
             MigratedPoFixture::writePo("$shipped_readonly_dir/{$module}_{$lang_key}.po", $translations);
-            MigratedPoFixture::writePo("$overlay_readonly_dir/{$module}_{$lang_key}.po", $translations);
-            MigratedPoFixture::writeMo("$overlay_readonly_dir/{$module}_{$lang_key}.mo", $translations);
+            MigratedPoFixture::writePair("$overlay_readonly_dir/$lang_key/{$module}_{$lang_key}", $translations);
         }
 
         $directory = new class ($module, $relative_readonly_path) implements LanguageFileDirectory {
@@ -478,7 +479,8 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->registerDirectoryManager($directory);
         $this->setGlobalVariable('ilDB', $this->createDatabaseStub());
 
-        chmod($overlay_readonly_dir, 0555);
+        chmod("$overlay_readonly_dir/de", 0555);
+        chmod("$overlay_readonly_dir/fr", 0555);
 
         $warnings = [];
         $logger = $this->createStub(ilLogger::class);
@@ -497,7 +499,8 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
             $plugin_language->uninstall();
         } finally {
             restore_error_handler();
-            chmod($overlay_readonly_dir, 0775);
+            chmod("$overlay_readonly_dir/de", 0775);
+            chmod("$overlay_readonly_dir/fr", 0775);
         }
 
         // both languages failed to remove (same read-only overlay directory) and were each logged
@@ -509,8 +512,8 @@ class UninstallRemovesPluginMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->assertCount(2, $warnings);
         $this->assertStringContainsString('de', $warnings[0] ?? '');
         $this->assertStringContainsString('fr', $warnings[1] ?? '');
-        $this->assertFileExists("$overlay_readonly_dir/{$module}_de.mo");
-        $this->assertFileExists("$overlay_readonly_dir/{$module}_fr.mo");
+        $this->assertFileExists(MigratedPoFixture::overlayMo("$overlay_readonly_dir/de/{$module}_de"));
+        $this->assertFileExists(MigratedPoFixture::overlayMo("$overlay_readonly_dir/fr/{$module}_fr"));
     }
 
     /**

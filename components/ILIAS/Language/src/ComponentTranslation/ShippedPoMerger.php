@@ -52,13 +52,14 @@ use RuntimeException;
  *   directory, the backup directory or - for a new entry - the template is not writable is skipped
  *   as a whole (reported). The written files belong to the web server user afterwards (a rename of a
  *   new file - owner and group of the previous one are not taken over);
- * - the build artifact of the written `.po` is dated back (or removed), so it is never served in
- *   place of the newer `.po`, see invalidateArtifact();
- * - afterwards the overlay is reconciled with the new shipped state (MigratedLanguageFileSync::sync()
- *   with $refresh_original_from_shipped): the taken over entries and remarks leave it, an empty
- *   overlay is removed.
- * A `setup build` is not needed for the result to be served, but recommended: until then the
- * runtime compiles the `.po` itself on every request (ShippedTranslations::readCompiled()).
+ * - no build is run (the web server does not write `artifacts/`) and the overlay keeps its values:
+ *   the runtime serves the build, which still holds the former shipped values, so the taken over
+ *   entries keep being served from the overlay. They are marked
+ *   (LocalChangeComments::setMergedIntoShipped()), so another write of the module (an admin edit,
+ *   an import, an update) keeps them as long as the build does not serve the written `.po` (see
+ *   MigratedLanguageFileSync::sync()). `php cli/setup.php build` and then `php cli/setup.php update`
+ *   (its three-way reconciliation drops an overlay entry equal to the new shipped value, and a
+ *   remark equal to an extracted comment of the shipped entry) clean them up.
  *
  * lng_data/lng_modules are not written here (the database belongs to the legacy classes): the
  * caller gets the taken over identifiers per module, see merge().
@@ -75,15 +76,11 @@ final class ShippedPoMerger
      *     skipped: array<string, string>,
      *     invalid_markup: array<string, array<string, list<string>>>,
      *     not_merged: array<string, list<string>>,
-     *     unwritten_overlay: list<string>,
-     *     unwritten_database: array<string, string>,
-     *     stale_artifacts: list<string>
+     *     unwritten_database: array<string, string>
      * } written: module => path of the written shipped `.po`; skipped: module => reason; invalid_markup:
      *   module => identifier (a form key for a plural form) => violations; not_merged: module =>
-     *   identifiers that could not be taken over (see the class docblock); unwritten_overlay: modules whose
-     *   shipped `.po` was written but whose overlay could not be reconciled; unwritten_database: module
-     *   => reason, $after_module failed (the files are written); stale_artifacts: modules whose build
-     *   artifact could neither be dated back nor removed (see invalidateArtifact())
+     *   identifiers that could not be taken over (see the class docblock); unwritten_database: module
+     *   => reason, $after_module failed (the files are written)
      */
     public static function merge(
         LanguageFileDirectoryManager $language_file_directory_manager,
@@ -98,9 +95,7 @@ final class ShippedPoMerger
             'skipped' => [],
             'invalid_markup' => [],
             'not_merged' => [],
-            'unwritten_overlay' => [],
             'unwritten_database' => [],
-            'stale_artifacts' => [],
         ];
         if ($client_data_dir === null) {
             return $result;
@@ -170,14 +165,8 @@ final class ShippedPoMerger
             if ($outcome['written']) {
                 $result['written'][$module] = $shipped_po;
             }
-            if (!$outcome['overlay_written']) {
-                $result['unwritten_overlay'][] = $module;
-            }
             if (isset($outcome['database_error'])) {
                 $result['unwritten_database'][$module] = $outcome['database_error'];
-            }
-            if ($outcome['stale_artifact']) {
-                $result['stale_artifacts'][] = $module;
             }
         }
 
@@ -262,7 +251,7 @@ final class ShippedPoMerger
      *
      * Runs under the overlay lock of the module/language and the template lock of the module.
      *
-     * @return array{written: bool, overlay_written: bool, stale_artifact: bool, merged: list<string>, merged_remarks: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>}
+     * @return array{written: bool, merged: list<string>, merged_remarks: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>}
      * @throws RuntimeException|\InvalidArgumentException if the module has to be skipped as a whole
      */
     private static function mergeModule(
@@ -276,8 +265,6 @@ final class ShippedPoMerger
     ): array {
         $outcome = [
             'written' => false,
-            'overlay_written' => true,
-            'stale_artifact' => false,
             'merged' => [],
             'merged_remarks' => [],
             'invalid_markup' => [],
@@ -314,7 +301,6 @@ final class ShippedPoMerger
 
         $plural_forms = MigratedLanguageFileSync::pluralFormsOf($shipped);
         $policy = new TranslationMarkupPolicy();
-        $remaining_remarks = [];
         $template_changed = false;
         foreach ($overlay_entries as $identifier => $overlay_entry) {
             $identifier = (string) $identifier;
@@ -330,7 +316,6 @@ final class ShippedPoMerger
                     : self::mergedMessage($overlay_entry, $shipped_entry, $template, $module, $plural_forms);
                 if ($message === null) {
                     $outcome['not_merged'][] = $identifier;
-                    self::keepRemark($remaining_remarks, $identifier, $remark);
                     continue;
                 }
                 // only a value the shipped .po does not carry yet is checked, see findInvalidChangedValues()
@@ -338,7 +323,6 @@ final class ShippedPoMerger
                 $invalid = $policy->findInvalidChangedValues(self::flatValues($identifier, $message), $shipped_values, $shipped_values);
                 if ($invalid !== []) {
                     $outcome['invalid_markup'] += $invalid;
-                    self::keepRemark($remaining_remarks, $identifier, $remark);
                     continue;
                 }
 
@@ -360,7 +344,6 @@ final class ShippedPoMerger
             if ($remark !== null && $remark !== '') {
                 if ($shipped_entry === null) {
                     // the remark of an entry without value that is not shipped - nothing to put it on
-                    self::keepRemark($remaining_remarks, $identifier, $remark);
                     continue;
                 }
                 $shipped_entry->addExtractedComment($remark);
@@ -378,6 +361,12 @@ final class ShippedPoMerger
         if ($previous_content === false) {
             throw new RuntimeException(sprintf('Could not read "%s".', $shipped_po));
         }
+        if ($po_content === $previous_content && $template_content === null) {
+            // taken over before (the overlay keeps it until "setup update"): nothing to write
+            $outcome['merged'] = [];
+            $outcome['merged_remarks'] = [];
+            return $outcome;
+        }
         // Confined to the ILIAS directory: a shipped directory that is a symbolic link out of it is
         // refused (AtomicFileWriter), nothing is written
         self::backup($shipped_po, $backup_file, $ilias_absolute_path, $previous_content);
@@ -387,27 +376,17 @@ final class ShippedPoMerger
         }
         AtomicFileWriter::write($shipped_po, $po_content, $ilias_absolute_path);
         $outcome['written'] = true;
-        $outcome['stale_artifact'] = !self::invalidateArtifact($ilias_absolute_path, $directory, $lang_key, $shipped_po);
-        \ilLanguage::invalidateMigratedLanguageFileCache($module, $lang_key);
-
-        // The overlay: the entries taken over equal the shipped state now and leave the delta, like
-        // the remarks taken over - "original" moves to the new shipped state
-        try {
-            $content = MigratedLanguageFileSync::loadModuleTranslations($language_file_directory_manager, $lang_key, $module, $client_data_dir, $ilias_absolute_path) ?? [];
-            MigratedLanguageFileSync::sync(
-                $language_file_directory_manager,
-                $ilias_absolute_path,
-                $lang_key,
-                $module,
-                array_map(static fn(array $entry): string => $entry['value'], $content),
-                $client_data_dir,
-                true,
-                null,
-                $remaining_remarks
-            );
-        } catch (RuntimeException|\InvalidArgumentException) {
-            $outcome['overlay_written'] = false;
-        }
+        // The overlay keeps its values: the runtime serves the build, which still holds the former
+        // shipped values. The taken over entries are marked, so no write until the next build drops
+        // them (see MigratedLanguageFileSync::sync()); "setup update" after "setup build" does.
+        MigratedLanguageFileSync::markMergedIntoShipped(
+            $language_file_directory_manager,
+            $lang_key,
+            $module,
+            $outcome['merged'],
+            $client_data_dir,
+            $ilias_absolute_path
+        );
 
         return $outcome;
     }
@@ -492,16 +471,6 @@ final class ShippedPoMerger
     }
 
     /**
-     * @param array<string, string> $remarks
-     */
-    private static function keepRemark(array &$remarks, string $identifier, ?string $remark): void
-    {
-        if ($remark !== null && $remark !== '') {
-            $remarks[$identifier] = $remark;
-        }
-    }
-
-    /**
      * $catalog as `.po` content, after making sure it can be read back and - for a `.po` of a
      * language - compiled like the build does.
      *
@@ -519,35 +488,6 @@ final class ShippedPoMerger
         }
 
         return $content;
-    }
-
-    /**
-     * Makes sure the build artifact of the written $shipped_po is never served any more: the runtime
-     * serves an artifact that is not older than its `.po` (ShippedTranslations::readCompiled(), mtime
-     * in seconds), so one built in the same second as this write would win. The artifact is dated
-     * back before the `.po` - the runtime then compiles the `.po` itself, silently, until the next
-     * build -, or removed if that is not possible (the runtime logs a notice per request then).
-     *
-     * @return bool `false` if neither worked (e.g. the artifact belongs to another user)
-     */
-    private static function invalidateArtifact(string $ilias_absolute_path, LanguageFileDirectory $directory, string $lang_key, string $shipped_po): bool
-    {
-        try {
-            $artifact = MigratedLanguageFilePaths::shippedArtifactFile($ilias_absolute_path, $directory, $lang_key);
-        } catch (\InvalidArgumentException) {
-            return true;
-        }
-        clearstatcache(true, $artifact);
-        if (!is_file($artifact) || is_link($artifact)) {
-            return true;
-        }
-        clearstatcache(true, $shipped_po);
-        $po_modified = @filemtime($shipped_po);
-        if ($po_modified !== false && @touch($artifact, $po_modified - 1)) {
-            return true;
-        }
-
-        return @unlink($artifact);
     }
 
     /**

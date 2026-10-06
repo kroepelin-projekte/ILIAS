@@ -372,23 +372,23 @@ class ilObjLanguageExt extends ilObjLanguage
      * - every module maintained in PO files with local changes into its shipped .po (and a locally
      *   added entry into its template .pot), see ShippedPoMerger - the shipped .po is backed up into
      *   the customizing directory before (like the global language file by the caller). Afterwards
-     *   the taken over entries are no local changes any more: they leave the overlay, and their
-     *   lng_data rows lose local_change - and their remarks where these became `#.` comments of the
-     *   shipped entry (the database stays in line with the files, see mergeIntoDatabase()).
+     *   the lng_data rows of the taken over entries lose local_change - and their remarks where
+     *   these became `#.` comments of the shipped entry (see mergeIntoDatabase()). The overlay keeps
+     *   serving the taken over values (marked, see ShippedPoMerger) until "setup build" (the web server
+     *   does not build) and "setup update" ran - the update drops an overlay entry equal to the new
+     *   shipped value and an overlay remark equal to an extracted comment of the shipped entry.
      *
      * @return array{
      *     written: list<string>,
      *     skipped: list<string>,
      *     invalid_markup: array<string, list<string>>,
      *     not_merged: list<string>,
-     *     unwritten_overlay: list<string>,
      *     unwritten_database: list<string>
      * } for the modules maintained in PO files: written - the shipped .po files written (relative to
      *   the ILIAS directory); skipped - the modules left out as a whole (e.g. not writable, logged
      *   with the reason); invalid_markup - module.separator.identifier => violations of values not
      *   taken over because of markup that is not allowed; not_merged - module.separator.identifier of
-     *   entries that could not be taken over (see ShippedPoMerger, logged); unwritten_overlay -
-     *   modules whose overlay could not be reconciled; unwritten_database - modules whose lng_data
+     *   entries that could not be taken over (see ShippedPoMerger, logged); unwritten_database - modules whose lng_data
      *   rows could not be updated (logged; their files are written)
      */
     public function mergeLocalChangesIntoGlobalLanguageFile(): array
@@ -421,13 +421,13 @@ class ilObjLanguageExt extends ilObjLanguage
     /**
      * The part of mergeLocalChangesIntoGlobalLanguageFile() for the modules maintained in PO files.
      *
-     * @return array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_overlay: list<string>, unwritten_database: list<string>}
+     * @return array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_database: list<string>}
      */
     private function mergeLocalChangesIntoShippedPoFiles(): array
     {
         global $DIC;
 
-        $result = ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []];
+        $result = ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => []];
         if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
             return $result;
         }
@@ -473,7 +473,6 @@ class ilObjLanguageExt extends ilObjLanguage
                 implode(', ', $result['not_merged'])
             )));
         }
-        $result['unwritten_overlay'] = $merged['unwritten_overlay'];
         foreach ($merged['unwritten_database'] as $module => $reason) {
             $result['unwritten_database'][] = (string) $module;
             $logger->error(PlainLogText::of(sprintf(
@@ -483,16 +482,9 @@ class ilObjLanguageExt extends ilObjLanguage
                 $reason
             )));
         }
-        foreach ($merged['stale_artifacts'] as $module) {
-            $logger->warning(sprintf(
-                'The build artifact of module "%s", language "%s" could neither be dated back nor removed after merging - run "php cli/setup.php build".',
-                $module,
-                $lang_key
-            ));
-        }
         if ($result['written'] !== []) {
             $logger->info(PlainLogText::of(sprintf(
-                'Merged the local changes of language "%s" into (now owned by the web server user, run "setup build" to update the artifacts): %s',
+                'Merged the local changes of language "%s" into (now owned by the web server user; served from the overlay until "php cli/setup.php build" and "php cli/setup.php update" ran): %s',
                 $lang_key,
                 implode(', ', $result['written'])
             )));

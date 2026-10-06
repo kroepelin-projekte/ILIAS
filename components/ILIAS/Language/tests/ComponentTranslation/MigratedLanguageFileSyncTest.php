@@ -48,6 +48,8 @@ class MigratedLanguageFileSyncTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -99,8 +101,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
     private function overlayBase(string $lang_key = 'de'): string
     {
-        return $this->client_data_dir . '/lang/components/ILIAS/Language/tests/ComponentTranslation/'
-            . basename($this->fixture_directory) . '/' . self::MODULE . '_' . $lang_key;
+        return MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, $lang_key);
     }
 
     private function overlayPo(): TranslationCatalog
@@ -531,7 +532,7 @@ class MigratedLanguageFileSyncTest extends TestCase
     public function testAnOverlayMoWithoutItsPoThrowsInsteadOfBeingTreatedAsAbsent(): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
-        MigratedPoFixture::writeMo($this->overlayBase() . '.mo', MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
+        MigratedPoFixture::writeOverlayRevision($this->overlayBase(), MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageMatches('/has no/');
@@ -545,7 +546,7 @@ class MigratedLanguageFileSyncTest extends TestCase
     public function testLoadLocalChangesThrowsForAnOverlayMoWithoutItsPo(): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
-        MigratedPoFixture::writeMo($this->overlayBase() . '.mo', MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
+        MigratedPoFixture::writeOverlayRevision($this->overlayBase(), MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
 
         $this->expectException(RuntimeException::class);
         MigratedLanguageFileSync::loadLocalChanges($this->manager, 'de', self::MODULE, $this->client_data_dir);
@@ -572,7 +573,7 @@ class MigratedLanguageFileSyncTest extends TestCase
     public function testSyncThrowsForAnOverlayMoWithoutItsPoInsteadOfRemovingOrRebuildingIt(): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
-        MigratedPoFixture::writeMo($this->overlayBase() . '.mo', MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
+        MigratedPoFixture::writeOverlayRevision($this->overlayBase(), MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
 
         $this->expectException(RuntimeException::class);
         $this->sync(['greeting' => 'Hallo']);
@@ -594,8 +595,8 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync(['greeting' => 'Hallo', 'farewell' => 'Tschüss'], $refresh);
 
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.lock');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayLock($this->overlayBase()));
         $this->assertDirectoryDoesNotExist(dirname($this->overlayBase()));
         $this->assertSame($shipped_before, file_get_contents($this->shippedPo()), 'the shipped .po is never written');
     }
@@ -751,7 +752,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         // Adapted to the delta overlay: the shipped value again is no local change - the entry, and
         // with it the whole (now empty) overlay, is removed
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
         $this->assertFalse(MigratedLanguageFileSync::loadModuleTranslations(
             $this->manager,
             'de',
@@ -952,7 +953,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync(['greeting' => 'Servus']);
 
         $this->assertSame(['greeting'], $this->overlayIdentifiers());
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -967,8 +968,8 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync([]);
 
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
-        $this->assertFileExists($this->overlayBase() . '.lock', 'the lock file is only removed on uninstall');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
+        $this->assertFileExists(MigratedPoFixture::overlayLock($this->overlayBase()), 'the lock file is only removed on uninstall');
         $this->assertNotNull(MigratedPoFixture::readPo($this->shippedPo())->find(self::MODULE, 'greeting'));
     }
 
@@ -1015,10 +1016,10 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->sync(['greeting' => 'Servus']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
-        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        $mo_before = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
         $po_inode = fileinode($this->overlayBase() . '.po');
-        $mo_inode = fileinode($this->overlayBase() . '.mo');
-        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $mo_inode = fileinode(MigratedPoFixture::overlayMo($this->overlayBase()));
+        $cache = new ReflectionProperty(\ILIAS\Language\ComponentTranslation\MigratedTranslations::class, 'states');
         $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'cached']]);
 
         try {
@@ -1030,9 +1031,9 @@ class MigratedLanguageFileSyncTest extends TestCase
         }
         clearstatcache();
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
-        $this->assertSame($mo_before, file_get_contents($this->overlayBase() . '.mo'));
+        $this->assertSame($mo_before, file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase())));
         $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the .po was not replaced');
-        $this->assertSame($mo_inode, fileinode($this->overlayBase() . '.mo'), 'the .mo was not replaced');
+        $this->assertSame($mo_inode, fileinode(MigratedPoFixture::overlayMo($this->overlayBase())), 'the .mo was not replaced');
     }
 
     public function testAMissingMoIsRecompiledEvenWhenThePoIsUnchanged(): void
@@ -1041,17 +1042,17 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->sync(['greeting' => 'Servus']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
-        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        $mo_before = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
         $po_inode = fileinode($this->overlayBase() . '.po');
-        unlink($this->overlayBase() . '.mo');
+        unlink(MigratedPoFixture::overlayMo($this->overlayBase()));
 
         $this->sync(['greeting' => 'Servus']);
 
         clearstatcache();
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
         $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the unchanged .po is not rewritten');
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
-        $this->assertSame($mo_before, file_get_contents($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
+        $this->assertSame($mo_before, file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -1067,9 +1068,9 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync(['greeting' => 'Servus', 'farewell' => 'Tschüss']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
         $po_inode = fileinode($this->overlayBase() . '.po');
-        $mo_before = file_get_contents($this->overlayBase() . '.mo');
-        file_put_contents($this->overlayBase() . '.mo', $stale_content($mo_before));
-        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $mo_before = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
+        file_put_contents(MigratedPoFixture::overlayMo($this->overlayBase()), $stale_content($mo_before));
+        $cache = new ReflectionProperty(\ILIAS\Language\ComponentTranslation\MigratedTranslations::class, 'states');
         $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'stale']]);
 
         try {
@@ -1081,11 +1082,11 @@ class MigratedLanguageFileSyncTest extends TestCase
         }
 
         clearstatcache();
-        $mo_after = file_get_contents($this->overlayBase() . '.mo');
+        $mo_after = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
         $this->assertSame($mo_before, $mo_after);
-        $this->assertSame(MigratedPoFixture::readPo($this->overlayBase() . '.po')->toMoString(), $mo_after);
+        $this->assertSame(\ILIAS\Language\ComponentTranslation\ShippedTranslations::compileCatalog(MigratedPoFixture::readPo($this->overlayBase() . '.po'), self::MODULE, false)['mo'], $mo_after);
         // Adapted to the delta overlay: "farewell" carries the shipped value and is not in it
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
         $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the unchanged .po is not rewritten');
     }
@@ -1110,17 +1111,44 @@ class MigratedLanguageFileSyncTest extends TestCase
         // Adapted to the delta overlay: a first local change creates the overlay to start from
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->sync(['greeting' => 'Moin']);
-        file_put_contents($this->overlayBase() . '.mo', 'SENTINEL');
+        file_put_contents(MigratedPoFixture::overlayMo($this->overlayBase()), 'SENTINEL');
 
         $this->sync(['greeting' => 'Servus']);
 
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
+    }
+
+    /**
+     * An entry that enters the overlay with a write that knows when it was changed locally (setup
+     * update: lng_data.local_change) keeps that time - not the time of the write. An entry already in
+     * the overlay keeps its own bookkeeping.
+     */
+    public function testANewOverlayEntryTakesItsLocalChangeDateFromTheGivenDates(): void
+    {
+        $this->seedShipped(['greeting' => 'Hallo', 'farewell' => 'Tschüss']);
+
+        MigratedLanguageFileSync::sync(
+            $this->manager,
+            ILIAS_ABSOLUTE_PATH,
+            'de',
+            self::MODULE,
+            ['greeting' => 'Servus', 'farewell' => 'Pfiat di'],
+            $this->client_data_dir,
+            true,
+            null,
+            null,
+            ['greeting' => '2026-10-02 09:36:30', 'farewell' => 'not a timestamp']
+        );
+
+        $this->assertSame('2026-10-02T09:36:30Z', LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'greeting')));
+        $this->assertNotNull(LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'farewell')), 'an unreadable date: the time of the write');
+        $this->assertNotSame('2026-10-02T09:36:30Z', LocalChangeComments::getLocalChange($this->overlayPo()->find(null, 'farewell')));
     }
 
     public function testASyncInvalidatesTheIlLanguageReadCache(): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
-        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
+        $cache = new ReflectionProperty(\ILIAS\Language\ComponentTranslation\MigratedTranslations::class, 'states');
         $cache->setValue(null, [self::MODULE . '|de' => ['greeting' => 'stale'], 'other|de' => ['x' => 'y']]);
 
         try {
@@ -1150,19 +1178,19 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $po = file_get_contents($this->overlayBase() . '.po');
         $this->assertStringContainsString("msgid \"zero\"\nmsgstr \"0\"\n", $po);
-        $this->assertSame(['zero' => '0'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['zero' => '0'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
         $zero = $this->overlayPo()->find(null, 'zero');
         $this->assertSame('1', LocalChangeComments::getOriginal($zero));
         $this->assertNotNull(LocalChangeComments::getLocalChange($zero));
 
         $po_inode = fileinode($this->overlayBase() . '.po');
-        $mo_inode = fileinode($this->overlayBase() . '.mo');
+        $mo_inode = fileinode(MigratedPoFixture::overlayMo($this->overlayBase()));
         $this->sync(['zero' => '0', 'greeting' => 'Hallo'], true);
         $this->sync(['zero' => '0', 'greeting' => 'Hallo']);
 
         clearstatcache();
         $this->assertSame($po_inode, fileinode($this->overlayBase() . '.po'), 'the .po was not replaced');
-        $this->assertSame($mo_inode, fileinode($this->overlayBase() . '.mo'), 'the .mo was not replaced');
+        $this->assertSame($mo_inode, fileinode(MigratedPoFixture::overlayMo($this->overlayBase())), 'the .mo was not replaced');
     }
 
     public function testAValueChangedToZeroIsALocalChangeAndServedAsZero(): void
@@ -1176,7 +1204,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->assertSame('0', $count?->getTranslation());
         $this->assertSame('1', LocalChangeComments::getOriginal($count));
         $this->assertNotNull(LocalChangeComments::getLocalChange($count));
-        $this->assertSame(['count' => '0'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['count' => '0'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     // ------------------------------------------------- multi-line originals
@@ -1294,7 +1322,7 @@ class MigratedLanguageFileSyncTest extends TestCase
      */
     private function sortedMo(): array
     {
-        $translations = MigratedPoFixture::readMo($this->overlayBase() . '.mo');
+        $translations = MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase()));
         ksort($translations);
 
         return $translations;
@@ -1337,13 +1365,13 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->seedShipped(['greeting' => 'Hello']);
         $this->seedOverlay(['greeting' => 'Hallo']);
         $po_before = file_get_contents($this->overlayBase() . '.po');
-        $mo_before = file_get_contents($this->overlayBase() . '.mo');
+        $mo_before = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
         unlink($this->shippedPo());
 
         $this->sync(['greeting' => 'Hallo']);
 
         $this->assertSame($po_before, file_get_contents($this->overlayBase() . '.po'));
-        $this->assertSame($mo_before, file_get_contents($this->overlayBase() . '.mo'));
+        $this->assertSame($mo_before, file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -1448,7 +1476,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $farewell = $overlay->find(null, 'farewell');
         $this->assertSame('Tschüss', LocalChangeComments::getOriginal($farewell));
         $this->assertNotNull(LocalChangeComments::getLocalChange($farewell));
-        $this->assertSame(['farewell' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['farewell' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -1468,7 +1496,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->assertSame('Servus', $greeting?->getTranslation());
         $this->assertSame('Hallo', LocalChangeComments::getOriginal($greeting));
         $this->assertNotNull(LocalChangeComments::getLocalChange($greeting));
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     public static function overlaysOnlyAStrictParserRejects(): array
@@ -1513,7 +1541,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         }
 
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
     }
 
     /**
@@ -1551,7 +1579,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->seedShipped(['greeting' => 'Hallo']);
         // a first sync creates the lock file (and the overlay) so its own permission can be revoked
         $this->sync(['greeting' => 'Servus']);
-        $lock_file = $this->overlayBase() . '.lock';
+        $lock_file = MigratedPoFixture::overlayLock($this->overlayBase());
         $this->assertFileExists($lock_file);
         chmod($lock_file, 0000);
 
@@ -1559,7 +1587,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         $this->sync(['greeting' => 'Nochmal geändert']);
 
         $this->assertStringContainsString('Could not open the lock file', $this->errorLog());
-        $this->assertSame(['greeting' => 'Nochmal geändert'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Nochmal geändert'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -1594,7 +1622,7 @@ class MigratedLanguageFileSyncTest extends TestCase
 
         $this->assertSame(
             // the lock file (see MigratedLanguageFileSync::withOverlayLock()) is never removed
-            ['stest_de.lock', 'stest_de.po'],
+            ['lock', 'stest_de.po'],
             array_values(array_diff(scandir(dirname($this->overlayBase())), ['.', '..'])),
             'neither a temporary file nor a .mo may be left behind'
         );
@@ -1617,7 +1645,7 @@ class MigratedLanguageFileSyncTest extends TestCase
             unlink($link);
         }
 
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     // -------------------------------------------------------- loadShippedModules
@@ -1903,13 +1931,12 @@ class MigratedLanguageFileSyncTest extends TestCase
         file_put_contents($this->client_data_dir . '/lang', 'not a directory');
 
         $this->assertSame([], $this->findUnwritable(['de']));
-        $this->assertSame([$this->overlayDirectory()], $this->findUnwritable(['de', 'en']));
+        $this->assertSame([$this->client_data_dir . '/lang/' . self::MODULE . '/en'], $this->findUnwritable(['de', 'en']));
     }
 
     /**
-     * The overlay directory is the same for every language of a module (the language is part of the
-     * file name) - it is reported once, and the overlay directories of several modules are all
-     * reported.
+     * Every module has an overlay directory per language (`lang/<module>/<lang>`) - each blocked one
+     * is reported once, for every language and module.
      */
     public function testEachUnwritableOverlayDirectoryIsReportedOnceAcrossLanguagesAndModules(): void
     {
@@ -1921,12 +1948,15 @@ class MigratedLanguageFileSyncTest extends TestCase
             $this->fixture_directory . '/sub/stwo_de.po',
             MigratedPoFixture::catalog('stwo', ['x' => 'y'])
         );
-        mkdir(dirname($this->overlayDirectory()), 0775, true);
-        file_put_contents($this->overlayDirectory(), 'not a directory');
+        file_put_contents($this->client_data_dir . '/lang', 'not a directory');
 
         $this->assertSame(
-            [$this->overlayDirectory(), $this->overlayDirectory() . '/sub'],
-            $this->findUnwritable(['de', 'en'], 'default', $manager)
+            [
+                $this->client_data_dir . '/lang/' . self::MODULE . '/de',
+                $this->client_data_dir . '/lang/stwo/de',
+                $this->client_data_dir . '/lang/' . self::MODULE . '/en',
+            ],
+            $this->findUnwritable(['de', 'en', 'de'], 'default', $manager)
         );
     }
 
@@ -1976,7 +2006,7 @@ class MigratedLanguageFileSyncTest extends TestCase
     {
         $this->seedShipped(['greeting' => 'Hallo']);
         $this->seedOverlay(['greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z']]);
-        unlink($this->overlayBase() . '.mo');
+        unlink(MigratedPoFixture::overlayMo($this->overlayBase()));
 
         $this->assertSame(
             ['value' => 'Servus', 'local_change' => true, 'local_change_date' => '2020-01-01 00:00:00', 'original' => 'Hallo'],
@@ -1999,7 +2029,7 @@ class MigratedLanguageFileSyncTest extends TestCase
     public function testAnOverlayMoWithoutItsPoIsUnreadableAndNotRemovedByAWrite(): void
     {
         $this->seedShipped(['greeting' => 'Hallo']);
-        MigratedPoFixture::writeMo($this->overlayBase() . '.mo', MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Stray']));
+        MigratedPoFixture::writeOverlayRevision($this->overlayBase(), MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Stray']));
 
         try {
             MigratedLanguageFileSync::loadModuleTranslations($this->manager, 'de', self::MODULE, $this->client_data_dir);
@@ -2013,7 +2043,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         } catch (RuntimeException) {
         }
 
-        $this->assertSame(['greeting' => 'Stray'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Stray'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     public function testGetMigratedModulesListsAModuleByItsShippedPoAloneIndependentOfAnyOverlay(): void
@@ -2049,7 +2079,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
 
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
         $this->assertSame($shipped_before, file_get_contents($this->shippedPo()));
     }
 
@@ -2061,7 +2091,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
 
         $this->assertFileExists($this->overlayBase('en') . '.po');
-        $this->assertFileExists($this->overlayBase('en') . '.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($this->overlayBase('en')));
     }
 
     public function testRemoveOverlayIsANoOpWithoutOverlayUnknownModuleOrClientDataDir(): void
@@ -2073,7 +2103,7 @@ class MigratedLanguageFileSyncTest extends TestCase
         MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, null);
 
         $this->assertFileExists($this->overlayBase() . '.po');
-        $this->assertFileExists($this->overlayBase() . '.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($this->overlayBase()));
     }
 
     public function testRemoveOverlayThrowsWhenAnOverlayFileCannotBeRemoved(): void
@@ -2128,7 +2158,7 @@ class MigratedLanguageFileSyncTest extends TestCase
             $this->assertStringContainsString('was created after', $e->getMessage());
         }
 
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
         $this->assertTrue(
             MigratedLanguageFileSync::loadModuleTranslations($this->manager, 'de', self::MODULE, $this->client_data_dir)['greeting']['local_change']
         );

@@ -99,7 +99,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
      * one from a completely different test class that got there first. This method therefore never
      * assumes exclusive ownership of CLIENT_DATA_DIR: it happily (re)uses whatever value is already
      * there - safe, because this class's own tearDown() only ever deletes its own uniquely-named
-     * fixture subdirectory (see overlayFixtureDirectory()), never CLIENT_DATA_DIR itself.
+     * fixture subdirectory (see overlayFixtureDirectories()), never CLIENT_DATA_DIR itself.
      */
     protected function setUp(): void
     {
@@ -156,10 +156,11 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
         // CLIENT_DATA_DIR this test itself created (tracked by $created_client_data_dir_root, set
         // exactly once by setUp() - see there); a foreign, pre-existing definition is left completely
         // untouched, still only ever having its own uniquely-named subdirectory (see
-        // overlayFixtureDirectory()) removed, exactly as before.
-        $overlay_fixture_dir = $this->overlayFixtureDirectory();
-        if ($overlay_fixture_dir !== null && is_dir($overlay_fixture_dir)) {
-            $this->removeDirectoryRecursively($overlay_fixture_dir);
+        // overlayFixtureDirectories()) removed, exactly as before.
+        foreach ($this->overlayFixtureDirectories() as $overlay_fixture_dir) {
+            if (is_dir($overlay_fixture_dir)) {
+                $this->removeDirectoryRecursively($overlay_fixture_dir);
+            }
         }
         if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
             $this->removeDirectoryRecursively(CLIENT_DATA_DIR);
@@ -169,19 +170,31 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * The one subdirectory under CLIENT_DATA_DIR this test method's fixture (if any) ever wrote to -
-     * see bootstrapOverlayFromShipped()/overlayDirectory(). Returns null when either CLIENT_DATA_DIR
-     * was never resolved/defined in this test, or no fixture was ever seeded, so tearDown() has
-     * nothing of its own to clean up.
+     * The overlay directories under CLIENT_DATA_DIR this test method's fixtures (if any) ever wrote
+     * to - one per seeded module, see bootstrapOverlayFromShipped()/overlayDirectory(). Empty when
+     * either CLIENT_DATA_DIR was never resolved/defined in this test, or no fixture was ever seeded,
+     * so tearDown() has nothing of its own to clean up.
+     *
+     * @return list<string>
      */
-    private function overlayFixtureDirectory(): ?string
+    private function overlayFixtureDirectories(): array
     {
         if (!isset($this->fixture_directory) || !defined('CLIENT_DATA_DIR')) {
-            return null;
+            return [];
         }
 
-        return rtrim($this->overlayDirectory(), '/');
+        return array_map(
+            static fn(string $module): string => rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module,
+            array_values($this->seeded_modules)
+        );
     }
+
+    /**
+     * The modules seedFixtureModule() seeded - their overlays (`lang/<module>/`) are this test's own.
+     *
+     * @var array<string, string>
+     */
+    private array $seeded_modules = [];
 
     private function removeDirectoryRecursively(string $dir): void
     {
@@ -208,6 +221,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
      */
     private function seedFixtureModule(string $module, string $lang_key, array $entries): LanguageFileDirectory
     {
+        $this->seeded_modules[$module] = $module;
         $this->fixture_directory ??= __DIR__ . '/tmp-clearmigrated-fixtures-' . bin2hex(random_bytes(4));
         if (!is_dir($this->fixture_directory)) {
             mkdir($this->fixture_directory, 0775, true);
@@ -259,7 +273,7 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
      */
     private function bootstrapOverlayFromShipped(string $module, string $lang_key): void
     {
-        $overlay_dir = $this->overlayDirectory();
+        $overlay_dir = $this->overlayDirectory($module, $lang_key);
         if (!is_dir($overlay_dir)) {
             mkdir($overlay_dir, 0775, true);
         }
@@ -267,13 +281,12 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
             $this->fixture_directory . '/' . $module . '_' . $lang_key . '.po',
             $overlay_dir . $module . '_' . $lang_key . '.po'
         );
-        MigratedPoFixture::writeMo($overlay_dir . $module . '_' . $lang_key . '.mo', MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po'));
+        MigratedPoFixture::writeOverlayRevision($overlay_dir . $module . '_' . $lang_key, MigratedPoFixture::readPo($this->fixture_directory . '/' . $module . '_' . $lang_key . '.po'));
     }
 
-    private function overlayDirectory(): string
+    private function overlayDirectory(string $module = 'dtest', string $lang_key = 'de'): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/';
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/';
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
@@ -291,12 +304,12 @@ class SyncMigratedFilesAfterDeleteModeImportTest extends ilLanguageBaseTestCase
 
     private function loadOverlayPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
     {
-        return MigratedPoFixture::readPo($this->overlayDirectory() . $module . '_' . $lang_key . '.po');
+        return MigratedPoFixture::readPo($this->overlayDirectory($module, $lang_key) . $module . '_' . $lang_key . '.po');
     }
 
     private function overlayMoExists(string $module, string $lang_key): bool
     {
-        return is_file($this->overlayDirectory() . $module . '_' . $lang_key . '.mo');
+        return is_file(MigratedPoFixture::overlayMo($this->overlayDirectory($module, $lang_key) . $module . '_' . $lang_key));
     }
 
     /**

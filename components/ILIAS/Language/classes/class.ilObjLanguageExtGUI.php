@@ -1401,7 +1401,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
      * success, with the shipped .po files written - what failed or was left out in one failure
      * message (setOnScreenMessage() keeps one message per type). Details are in the log.
      *
-     * @param array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_overlay: list<string>, unwritten_database: list<string>} $result
+     * @param array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_database: list<string>} $result
      */
     private function mergeMessages(array $result): void
     {
@@ -1429,9 +1429,6 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         if ($result['not_merged'] !== []) {
             // logged by ilObjLanguageExt, with the reason
             $failures[] = $this->lng->txt("form_input_not_valid") . ' ' . $escape(PlainLogText::keyList($result['not_merged']));
-        }
-        if ($result['unwritten_overlay'] !== []) {
-            $failures[] = $this->overlayNotWrittenMessage($result['unwritten_overlay']);
         }
         if ($result['unwritten_database'] !== []) {
             $failures[] = sprintf(

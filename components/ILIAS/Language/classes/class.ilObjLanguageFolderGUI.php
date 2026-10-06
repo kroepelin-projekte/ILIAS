@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Language\ComponentTranslation\MigratedTranslations;
+use ILIAS\Language\ComponentTranslation\NativeGettext;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
@@ -168,7 +170,61 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
             $this->toolbar->addComponent($toggleButton);
         }
 
-        $this->tpl->setContent($this->ui_renderer->render($table->withRequest($this->request)));
+        $this->tpl->setContent($this->ui_renderer->render([
+            ...$this->nativeGettextMessageBoxes(),
+            $table->withRequest($this->request)
+        ]));
+    }
+
+    /**
+     * Whether the language files of the migrated modules can be served through native gettext (see
+     * MigratedTranslations): a failure message box for a problem concerning every migrated module
+     * (native gettext not available, no build), an info message box for one concerning a single
+     * module, language or overlay, and an info message box in a thread-safe PHP (the locale settings
+     * native gettext needs apply to every thread of the process there). The problem is shown with
+     * relative paths only, the log has the full ones.
+     *
+     * @return list<\ILIAS\UI\Component\MessageBox\MessageBox>
+     */
+    private function nativeGettextMessageBoxes(): array
+    {
+        $boxes = [];
+        $problem = MigratedTranslations::getProblem(defined('CLIENT_DATA_DIR') ? (string) CLIENT_DATA_DIR : null);
+        if ($problem !== null && $problem['fatal']) {
+            $boxes[] = $this->ui_factory->messageBox()->failure(htmlspecialchars(str_replace(
+                '%s',
+                $problem['message'],
+                $this->textOrDefault(
+                    'lng_native_gettext_unavailable',
+                    'The modules maintained in PO files cannot be served, their texts are shown as "-identifier-": %s'
+                )
+            )));
+        } elseif ($problem !== null) {
+            $boxes[] = $this->ui_factory->messageBox()->info(htmlspecialchars(str_replace(
+                '%s',
+                $problem['message'],
+                $this->textOrDefault(
+                    'lng_native_gettext_problem',
+                    'A problem with the language files of the modules maintained in PO files: %s'
+                )
+            )));
+        }
+        if (NativeGettext::isThreadSafe()) {
+            $boxes[] = $this->ui_factory->messageBox()->info(htmlspecialchars($this->textOrDefault(
+                'lng_native_gettext_thread_safe',
+                'PHP runs thread-safe (ZTS): the locale settings for the language files of the modules maintained in PO files apply to every thread of the web server process.'
+            )));
+        }
+
+        return $boxes;
+    }
+
+    /**
+     * The text of $identifier - $default as long as the language files do not have it yet.
+     */
+    private function textOrDefault(string $identifier, string $default): string
+    {
+        return $this->lng->exists($identifier) ? $this->lng->txt($identifier) : $default;
     }
 
     protected function buildConfirmModal(array $ids, string $title, string $action, string $text, string $add_text = ''): ILIAS\UI\Implementation\Component\Modal\Interruptive

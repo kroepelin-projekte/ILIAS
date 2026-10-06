@@ -23,9 +23,13 @@ namespace ILIAS\Language\ComponentTranslation;
 /**
  * The single place that knows where the files of a module migrated to PO/MO live:
  *
- * - the shipped, git-tracked `.po`: <ILIAS root>/<directory path><module>_<lang>.po
- * - the per-installation overlay `.po`/`.mo`:
- *   <client data dir>/lang/<directory path><module>_<lang>.po|.mo
+ * - the shipped, git-tracked `.po`: <ILIAS root>/<directory path><shipped file name>.po
+ * - the build (see ShippedTranslationsBuild): `artifacts/language/current.json` naming the build
+ *   `artifacts/language/<build>/` with `messages/LC_MESSAGES/<module>.<lang>.mo`, `keys/<module>.php`
+ *   and `locale/`
+ * - the per-installation overlay (see MigratedLanguageFileSync):
+ *   <client data dir>/lang/<module>/<lang>/ with `<shipped file name>.po`, `lock`, `current` and
+ *   `r-<hash>/messages/LC_MESSAGES/<module>.<lang>.overlay.mo` plus `r-<hash>/keys.json`
  *
  * and how the client data directory itself is determined. Setup, the runtime read path
  * (ilLanguage), the administration write paths (ilObjLanguage/ilObjLanguageExt/ilPluginLanguage)
@@ -39,11 +43,17 @@ final class MigratedLanguageFilePaths
     private const string LANGUAGE_KEY_FORMAT = '/^[a-z]{2}\z/';
 
     /**
-     * A module name as it may become a file name of the compiled shipped state.
+     * A module name as it may become a file name and part of a gettext domain ("<module>.<lang>") -
+     * no ".", so a domain is never ambiguous.
      */
     private const string MODULE_FORMAT = '/^[A-Za-z0-9_-]+\z/';
 
     private const string SHIPPED_ARTIFACT_DIRECTORY = 'artifacts/language';
+    private const string BUILD_POINTER_FILE = 'current.json';
+    private const string BUILD_ID_FORMAT = '/^b-[0-9a-f]{16,64}\z/';
+    private const string OVERLAY_REVISION_FORMAT = '/^r-[0-9a-f]{16,64}\z/';
+
+    private static ?string $artifact_directory_for_tests = null;
 
     /**
      * The client data directory (CLIENT_DATA_DIR) of this installation, or `null` if it cannot be
@@ -186,8 +196,8 @@ final class MigratedLanguageFilePaths
     /**
      * The name of $directory's shipped `.po` of a language, without ".po" and with "%s" for the
      * language key: the directory's own pattern (NamesShippedLanguageFiles), otherwise
-     * "<prefix>_%s". Only the shipped file is named by it - the overlay and the build artifact are
-     * named by the module (the prefix).
+     * "<prefix>_%s". Only the shipped `.po` and the overlay `.po` are named by it - the directories
+     * and compiled catalogs are named by the module (the prefix).
      *
      * @throws \InvalidArgumentException see assertValidShippedFileNamePattern()
      */
@@ -217,46 +227,200 @@ final class MigratedLanguageFilePaths
     }
 
     /**
-     * The directory Setup's build compiles every shipped `.po` into (see ShippedTranslations),
-     * below the `artifacts/` directory of the installation (not tracked by git).
+     * The directory Setup's build writes into (see ShippedTranslationsBuild), below the `artifacts/`
+     * directory of the installation (not tracked by git).
      */
     public static function shippedArtifactDirectory(string $ilias_absolute_path): string
     {
-        return rtrim($ilias_absolute_path, '/') . '/' . self::SHIPPED_ARTIFACT_DIRECTORY;
+        return self::$artifact_directory_for_tests
+            ?? rtrim($ilias_absolute_path, '/') . '/' . self::SHIPPED_ARTIFACT_DIRECTORY;
     }
 
     /**
-     * The compiled shipped state of $directory's module for $lang_key:
-     * `artifacts/language/<lang_key>/<module>.mo`.
+     * Makes shippedArtifactDirectory() return $artifact_directory (`null`: the default again) - for
+     * tests only, so a test never builds into or reads from the artifacts of the installation.
      *
-     * @throws \InvalidArgumentException for a $lang_key that is not an ILIAS language key, or a
-     *         module (the directory's prefix) that is not a plain file name
+     * @internal
      */
-    public static function shippedArtifactFile(
-        string $ilias_absolute_path,
-        LanguageFileDirectory $directory,
-        string $lang_key
-    ): string {
-        self::assertValidLanguageKey($lang_key);
-        $module = $directory->getPrefix();
-        if (preg_match(self::MODULE_FORMAT, $module) !== 1) {
-            throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
+    public static function useArtifactDirectoryForTests(?string $artifact_directory): void
+    {
+        self::$artifact_directory_for_tests = $artifact_directory;
+    }
+
+    /**
+     * `artifacts/language/current.json`: names the build the runtime serves (see
+     * ShippedTranslationsBuild) - switched atomically once a build is complete.
+     */
+    public static function buildPointerFile(string $artifact_directory): string
+    {
+        return rtrim($artifact_directory, '/') . '/' . self::BUILD_POINTER_FILE;
+    }
+
+    /**
+     * `artifacts/language/<build>`: one complete build. Bound with bindtextdomain() as it is - the
+     * C library looks the catalogs up below it in `messages/LC_MESSAGES/` (see NativeGettext).
+     *
+     * @throws \InvalidArgumentException for a build id that is not a plain build name
+     */
+    public static function buildDirectory(string $artifact_directory, string $build_id): string
+    {
+        if (preg_match(self::BUILD_ID_FORMAT, $build_id) !== 1) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid build id.', $build_id));
         }
 
-        return self::shippedArtifactDirectory($ilias_absolute_path) . '/' . $lang_key . '/' . $module . '.mo';
+        return rtrim($artifact_directory, '/') . '/' . $build_id;
     }
 
     /**
-     * Without extension - append ".po" or ".mo".
-     *
-     * @throws \InvalidArgumentException see relativeBasePath()
+     * Whether $name is the name of a build directory (see buildDirectory()).
      */
-    public static function overlayBasePath(
-        string $client_data_dir,
-        LanguageFileDirectory $directory,
-        string $lang_key
-    ): string {
-        return rtrim($client_data_dir, '/') . '/lang/' . self::relativeBasePath($directory, $lang_key);
+    public static function isBuildId(string $name): bool
+    {
+        return preg_match(self::BUILD_ID_FORMAT, $name) === 1;
+    }
+
+    /**
+     * The compiled catalog of $module for $lang_key in the build $build_directory:
+     * `<build>/messages/LC_MESSAGES/<module>.<lang>.mo`, served as domain shippedDomain().
+     *
+     * @throws \InvalidArgumentException for an invalid module name or language key
+     */
+    public static function buildMoFile(string $build_directory, string $module, string $lang_key): string
+    {
+        return rtrim($build_directory, '/') . '/' . NativeGettext::CATALOG_DIRECTORY . '/' . self::shippedDomain($module, $lang_key) . '.mo';
+    }
+
+    /**
+     * The identifiers of $module in the build $build_directory, the same for every language:
+     * `<build>/keys/<module>.php` (a PHP file returning identifier => module, so the opcache keeps it).
+     *
+     * @throws \InvalidArgumentException for an invalid module name
+     */
+    public static function buildKeysFile(string $build_directory, string $module): string
+    {
+        self::assertValidModule($module);
+
+        return rtrim($build_directory, '/') . '/keys/' . $module . '.php';
+    }
+
+    /**
+     * The directory holding the locale NativeGettext activates (see NativeGettext::LOCALE_NAME):
+     * `<build>/locale`.
+     */
+    public static function buildLocaleDirectory(string $build_directory): string
+    {
+        return rtrim($build_directory, '/') . '/locale';
+    }
+
+    /**
+     * The gettext domain of the shipped state of $module for $lang_key: "<module>.<lang>".
+     *
+     * @throws \InvalidArgumentException for an invalid module name or language key
+     */
+    public static function shippedDomain(string $module, string $lang_key): string
+    {
+        self::assertValidModule($module);
+        self::assertValidLanguageKey($lang_key);
+
+        return $module . '.' . $lang_key;
+    }
+
+    /**
+     * The gettext domain of the overlay of $module for $lang_key: "<module>.<lang>.overlay".
+     *
+     * @throws \InvalidArgumentException for an invalid module name or language key
+     */
+    public static function overlayDomain(string $module, string $lang_key): string
+    {
+        return self::shippedDomain($module, $lang_key) . '.overlay';
+    }
+
+    /**
+     * The overlay of $module for $lang_key lives in `<client data dir>/lang/<module>/<lang>/`:
+     * the `.po` (see overlayPoFile()), `lock`, `current` and the compiled revisions `r-<hash>/`.
+     *
+     * @throws \InvalidArgumentException for an invalid module name or language key - the language
+     *         key becomes part of a file path, and some callers pass it through from public APIs
+     *         (e.g. ilLanguage::_lookupEntry())
+     */
+    public static function overlayDirectory(string $client_data_dir, string $module, string $lang_key): string
+    {
+        self::assertValidModule($module);
+        self::assertValidLanguageKey($lang_key);
+
+        return rtrim($client_data_dir, '/') . '/lang/' . $module . '/' . $lang_key;
+    }
+
+    /**
+     * The overlay `.po` of $directory's module for $lang_key (the delta with its bookkeeping), named
+     * like the shipped `.po` (see shippedFileNamePattern()).
+     *
+     * @throws \InvalidArgumentException see overlayDirectory() and shippedFileNamePattern()
+     */
+    public static function overlayPoFile(string $client_data_dir, LanguageFileDirectory $directory, string $lang_key): string
+    {
+        return self::overlayDirectory($client_data_dir, $directory->getPrefix(), $lang_key)
+            . '/' . sprintf(self::shippedFileNamePattern($directory), $lang_key) . '.po';
+    }
+
+    /**
+     * The lock file serializing the writes of the overlay in $overlay_directory.
+     */
+    public static function overlayLockFile(string $overlay_directory): string
+    {
+        return rtrim($overlay_directory, '/') . '/lock';
+    }
+
+    /**
+     * The file naming the revision (see overlayRevisionDirectory()) of the overlay in
+     * $overlay_directory the runtime serves - switched atomically.
+     */
+    public static function overlayCurrentFile(string $overlay_directory): string
+    {
+        return rtrim($overlay_directory, '/') . '/current';
+    }
+
+    /**
+     * One compiled revision of the overlay in $overlay_directory: `r-<hash>/`, bound with
+     * bindtextdomain() as it is (see buildDirectory()).
+     *
+     * @throws \InvalidArgumentException for a revision that is not a plain revision name
+     */
+    public static function overlayRevisionDirectory(string $overlay_directory, string $revision): string
+    {
+        if (!self::isOverlayRevision($revision)) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid overlay revision.', $revision));
+        }
+
+        return rtrim($overlay_directory, '/') . '/' . $revision;
+    }
+
+    /**
+     * Whether $name is the name of an overlay revision (see overlayRevisionDirectory()).
+     */
+    public static function isOverlayRevision(string $name): bool
+    {
+        return preg_match(self::OVERLAY_REVISION_FORMAT, $name) === 1;
+    }
+
+    /**
+     * The compiled overlay of $module for $lang_key in $revision_directory:
+     * `r-<hash>/messages/LC_MESSAGES/<module>.<lang>.overlay.mo`.
+     *
+     * @throws \InvalidArgumentException for an invalid module name or language key
+     */
+    public static function overlayMoFile(string $revision_directory, string $module, string $lang_key): string
+    {
+        return rtrim($revision_directory, '/') . '/' . NativeGettext::CATALOG_DIRECTORY . '/' . self::overlayDomain($module, $lang_key) . '.mo';
+    }
+
+    /**
+     * The identifiers the overlay revision $revision_directory has a value for: `r-<hash>/keys.json`
+     * (JSON, not PHP: the client data directory is writable by the web server).
+     */
+    public static function overlayKeysFile(string $revision_directory): string
+    {
+        return rtrim($revision_directory, '/') . '/keys.json';
     }
 
     /**
@@ -269,28 +433,40 @@ final class MigratedLanguageFilePaths
     public static function templateLockFile(string $client_data_dir, LanguageFileDirectory $directory): string
     {
         $module = $directory->getPrefix();
-        if (preg_match(self::MODULE_FORMAT, $module) !== 1) {
-            throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
-        }
+        self::assertValidModule($module);
 
-        return rtrim($client_data_dir, '/') . '/lang/' . ltrim($directory->getPath(), '/') . $module . '.pot.lock';
+        return rtrim($client_data_dir, '/') . '/lang/' . $module . '/template.lock';
     }
 
     /**
-     * @throws \InvalidArgumentException for a $lang_key that is not an ILIAS language key (two
-     *         lowercase letters) - it becomes part of a file path, and some callers pass it through
-     *         from public APIs (e.g. ilLanguage::_lookupEntry())
+     * Whether $module can be part of a file name and a gettext domain (see MODULE_FORMAT).
      */
-    private static function relativeBasePath(LanguageFileDirectory $directory, string $lang_key): string
+    public static function isValidModule(string $module): bool
     {
-        self::assertValidLanguageKey($lang_key);
+        return preg_match(self::MODULE_FORMAT, $module) === 1;
+    }
 
-        return ltrim($directory->getPath(), '/') . $directory->getPrefix() . '_' . $lang_key;
+    /**
+     * Whether $lang_key is an ILIAS language key (two lowercase letters).
+     */
+    public static function isValidLanguageKey(string $lang_key): bool
+    {
+        return preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) === 1;
+    }
+
+    /**
+     * @throws \InvalidArgumentException for a module name that cannot be part of a file name
+     */
+    private static function assertValidModule(string $module): void
+    {
+        if (!self::isValidModule($module)) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a valid module name.', $module));
+        }
     }
 
     private static function assertValidLanguageKey(string $lang_key): void
     {
-        if (preg_match(self::LANGUAGE_KEY_FORMAT, $lang_key) !== 1) {
+        if (!self::isValidLanguageKey($lang_key)) {
             throw new \InvalidArgumentException(sprintf('"%s" is not a valid language key.', $lang_key));
         }
     }

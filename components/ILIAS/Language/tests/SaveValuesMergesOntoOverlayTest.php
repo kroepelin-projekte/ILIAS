@@ -73,7 +73,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         }
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
     }
 
@@ -81,9 +81,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
     {
         if ($this->fixture_directory !== null) {
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
-            MigratedPoFixture::removeDirectory(
-                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            );
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang');
         }
         // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
         // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
@@ -120,9 +118,8 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         );
 
         if ($overlay_entries !== null) {
-            $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_path;
             MigratedPoFixture::writePair(
-                $overlay_dir . $module . '_de',
+                rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/de/' . $module . '_de',
                 MigratedPoFixture::catalog($module, $overlay_entries)
             );
         }
@@ -295,7 +292,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         // local changes), so the lng_data fallback is only reached with an unreadable overlay
         $directory = $this->seedShippedAndOverlay('ctest2', ['greeting' => 'Shipped'], ['greeting' => 'Lokal']);
         file_put_contents(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory . '/ctest2_de.po',
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/ctest2/de/ctest2_de.po',
             "msgid \"kaputt\n"
         );
         $this->registerDirectoryManager($directory);
@@ -361,8 +358,7 @@ class SaveValuesMergesOntoOverlayTest extends ilLanguageBaseTestCase
         // The overlay files stay readable (so currentModuleContent() above still sees "Lokal"), but
         // their directory is made non-writable, so AtomicFileWriter cannot create a temporary file to
         // rewrite them with - the write itself fails, not the read.
-        $overlay_directory = dirname(rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . $this->fixture_directory . '/ctest3_de.po');
+        $overlay_directory = rtrim(CLIENT_DATA_DIR, '/') . '/lang/ctest3/de';
         chmod($overlay_directory, 0555);
 
         set_error_handler(static fn(): bool => true, E_WARNING);

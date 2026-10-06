@@ -864,7 +864,12 @@ class LanguageInstallationManager
                 $remarks[(string) $module] = $keep_local_changes ? ($migrated_remarks[(string) $module] ?? null) : [];
             }
 
-            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir, $expected_overlays, $remarks);
+            // an entry that enters the overlay keeps the time of its local change
+            $local_change_dates = $keep_local_changes
+                ? $this->migratedLocalChangeDates($lang_key, array_map('strval', array_keys($shipped_migrated_modules)))
+                : [];
+
+            return $this->syncMigratedModules($lang_key, $lang_array, $client_data_dir, $expected_overlays, $remarks, $local_change_dates);
         } finally {
             chdir($working_dir);
         }
@@ -1157,6 +1162,22 @@ class LanguageInstallationManager
                 // reported by loadOverlay() - the sync keeps what the overlay holds
                 continue;
             }
+            // a remark "merge" took over is an extracted comment of the shipped entry now (see
+            // ShippedPoMerger) - it leaves the overlay like the database remark did
+            try {
+                $extracted_comments = isset($shipped_files[$module])
+                    ? MigratedLanguageFileSync::loadShippedExtractedComments($shipped_files[$module], $module)
+                    : [];
+            } catch (\Throwable) {
+                $extracted_comments = [];
+            }
+            foreach ($overlay_remarks as $identifier => $remark) {
+                $identifier = (string) $identifier;
+                $message = MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped_entries) ?? $identifier;
+                if (in_array(trim((string) $remark), $extracted_comments[$message] ?? [], true)) {
+                    unset($overlay_remarks[$identifier]);
+                }
+            }
             $module_remarks = [];
             foreach ([$database_remarks[$module] ?? [], $overlay_remarks, $customized_remarks[$module] ?? []] as $source) {
                 foreach ($source as $identifier => $remark) {
@@ -1171,11 +1192,42 @@ class LanguageInstallationManager
     }
 
     /**
+     * lng_data.local_change of every locally changed entry of $modules in $lang_key (as written by
+     * this run), module => identifier => database timestamp - for the overlay, see
+     * MigratedLanguageFileSync::sync().
+     *
+     * @param list<string> $modules
+     * @return array<string, array<string, string>>
+     */
+    private function migratedLocalChangeDates(string $lang_key, array $modules): array
+    {
+        if ($modules === []) {
+            return [];
+        }
+        $ilDB = $this->db();
+        $result = $ilDB->query(sprintf(
+            "SELECT module, identifier, local_change FROM lng_data WHERE lang_key = %s AND local_change IS NOT NULL AND %s",
+            $ilDB->quote($lang_key, "text"),
+            $ilDB->in('module', $modules, false, 'text')
+        ));
+        $dates = [];
+        while (is_array($row = $ilDB->fetchAssoc($result))) {
+            if (is_string($row['module'] ?? null) && is_string($row['identifier'] ?? null) && is_string($row['local_change'] ?? null)) {
+                $dates[$row['module']][$row['identifier']] = $row['local_change'];
+            }
+        }
+
+        return $dates;
+    }
+
+    /**
      * @param array<string, array<string, string>> $lang_array
      * @param array<string, bool|null> $expected_overlays module => $expected_overlay_exists of
      *        MigratedLanguageFileSync::sync()
      * @param array<string, array<string, string>|null> $remarks module => $remarks of
      *        MigratedLanguageFileSync::sync() (`null`/missing: keep the overlay's remarks)
+     * @param array<string, array<string, string>> $local_change_dates module => $local_change_dates
+     *        of MigratedLanguageFileSync::sync()
      * @return list<string> the modules whose overlay could not be written
      */
     private function syncMigratedModules(
@@ -1183,7 +1235,8 @@ class LanguageInstallationManager
         array $lang_array,
         ?string $client_data_dir,
         array $expected_overlays = [],
-        array $remarks = []
+        array $remarks = [],
+        array $local_change_dates = []
     ): array {
         $failed_modules = [];
         foreach ($lang_array as $module => $entries) {
@@ -1199,7 +1252,8 @@ class LanguageInstallationManager
                     // files, see MigratedLanguageFileSync::sync()
                     true,
                     $expected_overlays[(string) $module] ?? null,
-                    $remarks[(string) $module] ?? null
+                    $remarks[(string) $module] ?? null,
+                    $local_change_dates[(string) $module] ?? []
                 );
             } catch (\Throwable $t) {
                 // No injected logger here - this class also runs in Setup contexts before a

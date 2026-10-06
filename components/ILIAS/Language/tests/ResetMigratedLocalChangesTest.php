@@ -73,7 +73,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $db->method('query')->willReturn($this->createStub(ilDBStatement::class));
         $this->setGlobalVariable('ilDB', $db);
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
     }
 
     protected function tearDown(): void
@@ -109,7 +109,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
 
     private function overlayBase(string $module): string
     {
-        return $this->client_data_dir . '/lang/components/' . $module . '/lang/' . $module . '_de';
+        return $this->client_data_dir . '/lang/' . $module . '/de/' . $module . '_de';
     }
 
     private function languageObject(
@@ -178,8 +178,8 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         // Adapted to the delta overlay (was: overlay rebuilt from the shipped .po): no local change is
         // left, so the overlay is removed and the shipped state - fuzzy "hint" included - is served
         $this->assertFileDoesNotExist($this->overlayBase('rtest') . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase('rtest') . '.mo');
-        $this->assertFileExists($this->overlayBase('rtest') . '.lock', 'the lock file is only removed on uninstall');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase('rtest')));
+        $this->assertFileExists(MigratedPoFixture::overlayLock($this->overlayBase('rtest')), 'the lock file is only removed on uninstall');
         $this->assertSame('installed', $object->getDescription());
     }
 
@@ -206,8 +206,8 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $object->removeLocalChanges();
 
         // Adapted to the delta overlay: both overlays are removed (only shipped values are left)
-        $this->assertFileDoesNotExist($this->overlayBase('rone') . '.mo');
-        $this->assertFileDoesNotExist($this->overlayBase('rtwo') . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase('rone')));
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase('rtwo')));
     }
 
     /**
@@ -223,7 +223,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
 
         $this->assertTrue($object->removeLocalChanges());
 
-        $this->assertFileDoesNotExist($this->overlayBase('rtest') . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase('rtest')));
         $this->assertFileDoesNotExist($this->overlayBase('nopo') . '.po');
     }
 
@@ -247,7 +247,7 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $this->assertFalse($object->removeLocalChanges());
 
         $this->assertSame([], $this->queries);
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase('rtest') . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase('rtest'))));
     }
 
     /**
@@ -264,6 +264,6 @@ class ResetMigratedLocalChangesTest extends ilLanguageBaseTestCase
         $this->assertFalse($object->removeLocalChanges());
 
         $this->assertSame([], $this->queries);
-        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo($this->overlayBase('rtest') . '.mo'));
+        $this->assertSame(['greeting' => 'Servus'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase('rtest'))));
     }
 }

@@ -56,7 +56,7 @@ class SaveValuesOverlayRemarksTest extends ilLanguageBaseTestCase
         }
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
     }
 
@@ -64,9 +64,7 @@ class SaveValuesOverlayRemarksTest extends ilLanguageBaseTestCase
     {
         if ($this->fixture_directory !== null) {
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
-            MigratedPoFixture::removeDirectory(
-                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            );
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang');
         }
         if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
             MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);

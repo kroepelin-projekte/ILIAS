@@ -47,7 +47,7 @@ class NtxtTest extends ilLanguageBaseTestCase
         if (!defined('ILIAS_LOG_ENABLED')) {
             define('ILIAS_LOG_ENABLED', false);
         }
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
     }
 
     protected function tearDown(): void
@@ -77,14 +77,12 @@ class NtxtTest extends ilLanguageBaseTestCase
     private function contributeModule(string $module, TranslationCatalog $catalog, ?TranslationCatalog $overlay = null): LanguageFileDirectory
     {
         MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
-        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . 'tmp-ntxt-fixtures-' . bin2hex(random_bytes(4));
-        if (!is_dir($this->fixture_directory)) {
-            mkdir($this->fixture_directory, 0775, true);
-        }
+        $this->fixture_directory ??= __DIR__ . '/tmp-ntxt-fixtures-' . bin2hex(random_bytes(4));
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
-        MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $overlay ?? $catalog);
+        if ($overlay !== null) {
+            MigratedPoFixture::writePair(rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/de/' . $module . '_de', $overlay);
+        }
         MigratedPoFixture::writeShippedPo($relative_path, $module, 'de', $catalog);
 
         return MigratedPoFixture::directory($module, $relative_path);
@@ -119,6 +117,11 @@ class NtxtTest extends ilLanguageBaseTestCase
 
     private function buildLanguage(string $lang_key = 'de'): ilLanguage
     {
+        global $DIC;
+        // the runtime serves the build (see MigratedTranslations)
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            MigratedPoFixture::build($DIC[LanguageFileDirectoryManager::class], (string) ILIAS_ABSOLUTE_PATH);
+        }
         $language = (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
         $reflected = new ReflectionObject($language);
         $reflected->getProperty('lang_key')->setValue($language, $lang_key);

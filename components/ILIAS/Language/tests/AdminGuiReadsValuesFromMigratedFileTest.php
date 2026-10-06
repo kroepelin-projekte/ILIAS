@@ -93,12 +93,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
     protected function tearDown(): void
     {
         if (isset($this->fixture_directory)) {
-            $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-                . $this->fixture_directory;
-            if (is_dir($overlay_dir)) {
-                array_map('unlink', glob($overlay_dir . '/*') ?: []);
-                rmdir($overlay_dir);
-            }
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang');
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
         }
         // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
@@ -134,8 +129,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
         $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
         $this->fixture_directory ??= 'tmp-admingui-values-fixtures-' . bin2hex(random_bytes(4));
-        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . $this->fixture_directory;
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key;
         if (!is_dir($overlay_dir)) {
             mkdir($overlay_dir, 0775, true);
         }
@@ -161,7 +155,7 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
 
         $base_path = $overlay_dir . '/' . $module . '_' . $lang_key;
         MigratedPoFixture::writePo($base_path . '.po', $translations);
-        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
+        MigratedPoFixture::writeOverlayRevision($base_path, $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . $this->fixture_directory . '/';
         // only migrated (and therefore read from the overlay) while the shipped .po exists
@@ -201,8 +195,9 @@ class AdminGuiReadsValuesFromMigratedFileTest extends ilLanguageBaseTestCase
      */
     private function overlayFile(string $module, string $lang_key, string $extension): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . $this->fixture_directory . '/' . $module . '_' . $lang_key . '.' . $extension;
+        $base = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/' . $module . '_' . $lang_key;
+
+        return $extension === 'mo' ? MigratedPoFixture::overlayCurrent($base) : $base . '.' . $extension;
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void

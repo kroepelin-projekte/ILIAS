@@ -42,6 +42,8 @@ class ilLanguagesInstalledAndUpdatedObjectiveTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         // These tests deliberately manipulate $GLOBALS['ilDB'] - one replaces
         // it, one removes it - so it has to be restored afterwards. Tests run
         // in random order and other tests in this component do rely on the

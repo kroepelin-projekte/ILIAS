@@ -75,7 +75,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         // _lookupEntry() - itself static - doesn't re-parse a .mo file on every call. Within one
         // PHPUnit run, all test methods share that same process, so it must be reset here or a
         // result cached by one test (or a real page load) would silently leak into the next.
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
     }
 
     protected function tearDown(): void
@@ -138,20 +138,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     {
         $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
-        $shipped_po = ILIAS_ABSOLUTE_PATH . '/components/ILIAS/TermsOfService/lang/tos_de.po';
-        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/TermsOfService/lang';
-        $mo_path = $overlay_dir . '/tos_de.mo';
-        if (is_file($mo_path)) {
-            return;
-        }
-
-        if (!is_dir($overlay_dir)) {
-            mkdir($overlay_dir, 0775, true);
-        }
-
-        $translations = MigratedPoFixture::readPo($shipped_po);
-        MigratedPoFixture::writeMo($mo_path, $translations);
-        $this->created_real_tos_mo = $mo_path;
+        // the shipped state is served from the build (see buildLanguageWithoutRunningConstructor()
+        // and callLoadFromMigratedLanguageFile()), no overlay is needed
     }
 
     /**
@@ -167,15 +155,9 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     {
         $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
-        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . 'tmp-fixtures-' . bin2hex(random_bytes(4));
-        if (!is_dir($this->fixture_directory)) {
-            mkdir($this->fixture_directory, 0775, true);
-        }
+        $this->fixture_directory ??= __DIR__ . '/tmp-fixtures-' . bin2hex(random_bytes(4));
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
-        MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $translations);
-        // only migrated (and therefore read from the overlay) while the shipped .po exists
         MigratedPoFixture::writeShippedPo($relative_path, $module, 'de', $translations);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
@@ -218,14 +200,10 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
     ): LanguageFileDirectory {
         $created = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
         $this->created_client_data_dir_root = $this->created_client_data_dir_root || $created;
-        $this->fixture_directory ??= rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . 'tmp-fixtures-' . bin2hex(random_bytes(4));
-        if (!is_dir($this->fixture_directory)) {
-            mkdir($this->fixture_directory, 0775, true);
-        }
+        $this->fixture_directory ??= __DIR__ . '/tmp-fixtures-' . bin2hex(random_bytes(4));
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
-        MigratedPoFixture::writeMo($this->fixture_directory . '/' . $module . '_de.mo', $overlay);
+        MigratedPoFixture::writePair(rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/de/' . $module . '_de', $overlay);
         MigratedPoFixture::writeShippedPo($relative_path, $module, 'de', $shipped);
 
         return new class ($module, $relative_path) implements LanguageFileDirectory {
@@ -286,6 +264,11 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
 
     private function buildLanguageWithoutRunningConstructor(string $lang_key, ?string $lang_default = null): ilLanguage
     {
+        global $DIC;
+        // the runtime serves the build (see MigratedTranslations)
+        if ($DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            MigratedPoFixture::build($DIC[LanguageFileDirectoryManager::class], (string) ILIAS_ABSOLUTE_PATH);
+        }
         $language = (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
         $reflected = new ReflectionObject($language);
         $reflected->getProperty('lang_key')->setValue($language, $lang_key);
@@ -318,12 +301,12 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
     }
 
+    /**
+     * What the runtime serves for $module/$lang_key, see MigratedPoFixture::servedTexts().
+     */
     private function callLoadFromMigratedLanguageFile(string $module, string $lang_key): ?array
     {
-        $method = (new ReflectionClass(ilLanguage::class))->getMethod('loadFromMigratedLanguageFile');
-
-        // static since it's shared with _lookupEntry() - no ilLanguage instance to invoke it on
-        return $method->invoke(null, $module, $lang_key);
+        return MigratedPoFixture::servedTexts($module, $lang_key);
     }
 
     public function testFullyIntegratedThroughTheLoadLanguageModuleThatCallersActuallyUse(): void
@@ -548,113 +531,9 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         $this->assertSame('From the whole-language DB cache', $language->txt('some_topic'));
     }
 
-    /**
-     * A corrupt overlay `.mo` must never break a request: loadLanguageModule() falls back to the
-     * database (cached_modules/lng_modules), logs a warning via the "lang" logger once, and caches
-     * the failed read for the rest of the request.
-     */
-    public function testACorruptOverlayMoFallsBackToTheDatabaseAndWarnsOnce(): void
-    {
-        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
-        $directory = $this->contributeFixtureModule('broken', $catalog);
-        $mo_file = $this->fixture_directory . '/broken_de.mo';
-        file_put_contents($mo_file, substr((string) file_get_contents($mo_file), 0, 20));
 
-        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
-        $this->registerDirectoryManager($directory);
-        $logger = $this->createMock(ilLogger::class);
-        $logger->expects($this->once())
-            ->method('warning')
-            ->with($this->stringContains('broken_de.mo'));
-        $logger_factory = $this->createStub(ilLoggerFactory::class);
-        $logger_factory->method('getComponentLogger')->willReturn($logger);
-        $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
 
-        $language = $this->buildLanguageWithoutRunningConstructor('de');
-        (new ReflectionObject($language))->getProperty('cached_modules')->setValue(
-            $language,
-            ['broken' => ['greeting' => 'Aus der Datenbank']]
-        );
 
-        $language->loadLanguageModule('broken');
-        $this->assertSame('Aus der Datenbank', $language->txt('greeting'));
-
-        // repaired within the same request: the failed read stays cached (no second warning)
-        MigratedPoFixture::writeMo($mo_file, $catalog);
-        $second = $this->buildLanguageWithoutRunningConstructor('de');
-        (new ReflectionObject($second))->getProperty('cached_modules')->setValue(
-            $second,
-            ['broken' => ['greeting' => 'Aus der Datenbank']]
-        );
-        $second->loadLanguageModule('broken');
-        $this->assertSame('Aus der Datenbank', $second->txt('greeting'));
-    }
-
-    /**
-     * Without a usable DIC logger (e.g. early bootstrap) the problem goes to error_log() - still no
-     * exception.
-     */
-    public function testACorruptOverlayMoWithoutLoggerIsReportedViaErrorLog(): void
-    {
-        $this->expectErrorLog();
-        $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $catalog->add(MigratedPoFixture::entry('broken', 'greeting', 'Aus der MO-Datei'));
-        $directory = $this->contributeFixtureModule('broken', $catalog);
-        file_put_contents($this->fixture_directory . '/broken_de.mo', 'not a mo file at all, but long enough');
-
-        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
-        $this->registerDirectoryManager($directory);
-
-        $this->assertNull($this->callLoadFromMigratedLanguageFile('broken', 'de'));
-        $this->assertStringContainsString(
-            'falling back to the database',
-            (string) file_get_contents((string) ini_get('error_log'))
-        );
-    }
-
-    /**
-     * A `.mo` cut off anywhere - e.g., by a full disk or an interrupted copy - is never served
-     * partially: gettext/gettext's MoLoader alone would return silently shortened or missing messages,
-     * raise warnings or a TypeError for these; the adapter rejects them and ilLanguage falls back to
-     * the database with a logged problem.
-     *
-     * The data provider passes a plain string strategy name (see truncate()) rather than a \Closure:
-     * #[RunTestsInSeparateProcesses] on this class needs every provided data set to survive
-     * serialize() to hand it to the forked child process, which a \Closure never does.
-     */
-    #[DataProvider('truncatedMoContents')]
-    public function testATruncatedOverlayMoIsNeverServedPartially(string $truncation): void
-    {
-        $this->expectErrorLog();
-        $catalog = MigratedPoFixture::catalog('broken', ['alpha' => 'A', 'beta' => 'B', 'greeting' => 'Aus der MO-Datei']);
-        $directory = $this->contributeFixtureModule('broken', $catalog);
-        $mo_file = $this->fixture_directory . '/broken_de.mo';
-        file_put_contents($mo_file, self::truncate($truncation, (string) file_get_contents($mo_file)));
-
-        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
-        $this->registerDirectoryManager($directory);
-
-        $this->assertNull($this->callLoadFromMigratedLanguageFile('broken', 'de'));
-        $this->assertStringContainsString(
-            'falling back to the database',
-            (string) file_get_contents((string) ini_get('error_log'))
-        );
-    }
-
-    /**
-     * @return array<string, array{0: string}>
-     */
-    public static function truncatedMoContents(): array
-    {
-        return [
-            '10 bytes' => ['first_10_bytes'],
-            '40 bytes' => ['first_40_bytes'],
-            'half' => ['first_half'],
-            'last 3 bytes missing' => ['all_but_last_3_bytes'],
-            'empty' => ['empty'],
-        ];
-    }
 
     private static function truncate(string $strategy, string $mo): string
     {
@@ -679,9 +558,7 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
      */
     private function setInstalledLanguages(array $lang_keys): void
     {
-        $cache = (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache');
-        $constant = (new ReflectionClassConstant(ilLanguage::class, 'INSTALLED_LANGUAGES_CACHE_KEY'))->getValue();
-        $cache->setValue(null, $cache->getValue() + [$constant => $lang_keys]);
+        (new ReflectionProperty(ilLanguage::class, 'installed_languages'))->setValue(null, $lang_keys);
     }
 
     /**
@@ -779,108 +656,8 @@ class PoMigrationLoadLanguageModuleTest extends ilLanguageBaseTestCase
         );
     }
 
-    /**
-     * The special cache key ("\0installed_languages", a leading NUL byte and no "|") cannot collide
-     * with a "<module>|<lang_key>" entry, whatever the module/lang_key are: every such entry's key
-     * always contains a literal "|" the constant itself never contains. Proven for the most
-     * adversarial-looking case - a module named "" together with the literal lang_key
-     * "installed_languages" (i.e. an attacker deliberately trying to spell out the constant's
-     * payload around the concatenation).
-     */
-    public function testTheInstalledLanguagesCacheKeyNeverCollidesWithAModuleCacheKey(): void
-    {
-        $constant = (new ReflectionClassConstant(ilLanguage::class, 'INSTALLED_LANGUAGES_CACHE_KEY'))->getValue();
-        $module_style_key = '' . '|' . 'installed_languages';
 
-        $this->assertNotSame($constant, $module_style_key);
-        $this->assertStringNotContainsString('|', $constant);
 
-        // end-to-end: setting the installed-languages list and separately caching a (contrived)
-        // "<module>|<lang_key>" miss for the very same suffix must not disturb each other
-        $this->setInstalledLanguages(['de']);
-        $cache = (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache');
-        $cache->setValue(null, $cache->getValue() + [$module_style_key => ['unrelated' => 'value']]);
-
-        $this->assertSame(['de'], $cache->getValue()[$constant]);
-        $this->assertSame(['unrelated' => 'value'], $cache->getValue()[$module_style_key]);
-    }
-
-    /**
-     * Cross-module identifier collisions (FR "PO-Files for improving language handling", 2.4): two
-     * modules independently defining the same identifier used to overwrite each other silently in
-     * $this->text. Full structural exclusion isn't possible without changing txt()'s signature (see
-     * logCrossModuleKeyCollisions() docblock), but the collision is now at least logged instead of
-     * disappearing - proven here with two fixture modules that both define "shared_key".
-     */
-    public function testLogsACrossModuleKeyCollisionInsteadOfSilentlyOverwritingIt(): void
-    {
-        $alpha = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $alpha->add(MigratedPoFixture::entry('alpha', 'shared_key', 'Value from alpha'));
-
-        $beta = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $beta->add(MigratedPoFixture::entry('beta', 'shared_key', 'Value from beta'));
-
-        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
-        $this->registerDirectoryManager(
-            $this->contributeFixtureModule('alpha', $alpha),
-            $this->contributeFixtureModule('beta', $beta)
-        );
-
-        $logger = $this->createMock(ilLogger::class);
-        $logger->expects($this->once())
-            ->method('warning')
-            ->with($this->stringContains('shared_key'));
-
-        $language = $this->buildLanguageWithoutRunningConstructor('de');
-        (new ReflectionObject($language))->getProperty('log')->setValue($language, $logger);
-
-        $language->loadLanguageModule('alpha');
-        $language->loadLanguageModule('beta');
-
-        $this->assertSame('Value from beta', $language->txt('shared_key'));
-    }
-
-    /**
-     * One warning per pair of modules, not per identifier (cmix/lti share 75): it counts the
-     * colliding identifiers, names the first five and leaves out identifiers with the same value.
-     */
-    public function testLogsOneWarningPerModulePairListingTheCollidingIdentifiers(): void
-    {
-        $alpha = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        $beta = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
-        for ($i = 1; $i <= 6; $i++) {
-            $alpha->add(MigratedPoFixture::entry('alpha', 'key_' . $i, 'Alpha ' . $i));
-            $beta->add(MigratedPoFixture::entry('beta', 'key_' . $i, 'Beta ' . $i));
-        }
-        $alpha->add(MigratedPoFixture::entry('alpha', 'same_key', 'Same'));
-        $beta->add(MigratedPoFixture::entry('beta', 'same_key', 'Same'));
-
-        $this->setGlobalVariable('ilDB', $this->createStub(ilDBInterface::class));
-        $this->registerDirectoryManager(
-            $this->contributeFixtureModule('alpha', $alpha),
-            $this->contributeFixtureModule('beta', $beta)
-        );
-
-        $messages = [];
-        $logger = $this->createMock(ilLogger::class);
-        $logger->expects($this->once())
-            ->method('warning')
-            ->willReturnCallback(static function (string $message) use (&$messages): void {
-                $messages[] = $message;
-            });
-
-        $language = $this->buildLanguageWithoutRunningConstructor('de');
-        (new ReflectionObject($language))->getProperty('log')->setValue($language, $logger);
-
-        $language->loadLanguageModule('alpha');
-        $language->loadLanguageModule('beta');
-
-        $this->assertSame(
-            'Language key collision: modules "alpha" and "beta" define 6 identifier(s) with different values'
-            . ' - the values from "beta" now win for txt(): "key_1", "key_2", "key_3", "key_4", "key_5" … (+1).',
-            $messages[0]
-        );
-    }
 
     /**
      * A CLIENT_DATA_DIR that is not a test-owned temp directory (e.g. the real /var/iliasdata a

@@ -25,6 +25,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\MigratedTranslations;
 use ILIAS\Language\ComponentTranslation\ShippedPoMerger;
 use PHPUnit\Framework\TestCase;
 
@@ -50,6 +51,8 @@ class ShippedPoMergerTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -131,7 +134,7 @@ class ShippedPoMergerTest extends TestCase
 
     private function overlayBase(string $lang_key = self::LANG): string
     {
-        return MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, $lang_key);
+        return MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, $lang_key);
     }
 
     /**
@@ -180,7 +183,7 @@ class ShippedPoMergerTest extends TestCase
      * @return array{
      *     written: array<string, string>, skipped: array<string, string>,
      *     invalid_markup: array<string, array<string, list<string>>>, not_merged: array<string, list<string>>,
-     *     unwritten_overlay: list<string>, unwritten_database: array<string, string>, stale_artifacts: list<string>
+     *     unwritten_database: array<string, string>
      * }
      */
     private function merge(): array
@@ -205,13 +208,13 @@ class ShippedPoMergerTest extends TestCase
 
         $this->assertSame(['mtest' => $this->shippedPo()], $result['written']);
         $this->assertSame([], $result['skipped'] + $result['invalid_markup'] + $result['not_merged']);
-        $this->assertSame([], $result['unwritten_overlay']);
 
         $entry = $this->readShippedPo()->find(self::MODULE, 'greeting');
         $this->assertSame('Servus', $entry?->getTranslation());
         $this->assertFalse($entry->hasFlag('fuzzy'));
-        // the overlay now equals the shipped state - nothing left to keep
-        $this->assertFalse(is_file($this->overlayBase() . '.po'));
+        // the overlay is left as it is: the build (only "setup build") still holds the former value,
+        // "setup update" drops the entry once it equals the shipped one
+        $this->assertSame('Servus', MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'greeting')?->getTranslation());
     }
 
     public function testMergeBacksUpTheShippedPoByteForByteBeforeWriting(): void
@@ -237,7 +240,7 @@ class ShippedPoMergerTest extends TestCase
         $result = $this->merge();
 
         $this->assertSame(
-            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => [], 'stale_artifacts' => []],
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => []],
             $result
         );
         $this->assertSame($shipped_after_first_merge, file_get_contents($this->shippedPo()));
@@ -257,9 +260,10 @@ class ShippedPoMergerTest extends TestCase
 
         $result = $this->merge();
 
-        $this->assertSame(['mtest' => $this->shippedPo()], $result['written']);
+        // nothing new to take over: the shipped .po is not written at all
+        $this->assertSame([], $result['written']);
         $this->assertSame(['Old note'], $this->readShippedPo()->find(self::MODULE, 'farewell')?->getExtractedComments());
-        $this->assertFalse(is_file($this->overlayBase() . '.po'));
+        $this->assertTrue(is_file($this->overlayBase() . '.po'), 'the overlay is left as it is');
     }
 
     // ---------------------------------------------------------------- merge(): not taken over
@@ -618,35 +622,215 @@ class ShippedPoMergerTest extends TestCase
         }
     }
 
-    // ---------------------------------------------------------------- merge(): build artifact
+    // ---------------------------------------------------------------- merge(): no build
 
     /**
-     * A stale build artifact (older than the shipped .po it was compiled from, so a rebuild would
-     * still be picked up) is left as is - dating it back is only needed for one that is not older,
-     * i.e. would otherwise still be served (see ShippedTranslations::readCompiled()).
+     * @return array<string, string> path relative to $directory => hash of the content, of every file
      */
-    public function testMergeDatesBackACurrentBuildArtifactToBeforeTheShippedPo(): void
+    private static function snapshot(string $directory): array
     {
-        // "mtest" is not a real shipped module - shares artifacts/language/<lang>/ with real ones,
-        // so only the one file this test creates is ever removed again, never the directory itself
-        $artifact = MigratedLanguageFilePaths::shippedArtifactFile(ILIAS_ABSOLUTE_PATH, $this->directory, self::LANG);
-        if (!is_dir(dirname($artifact))) {
-            mkdir(dirname($artifact), 0775, true);
+        $files = [];
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS)) as $file) {
+            $files[substr($file->getPathname(), strlen($directory))] = (string) hash_file('sha256', $file->getPathname());
         }
-        file_put_contents($artifact, 'compiled');
+        ksort($files);
+
+        return $files;
+    }
+
+    /**
+     * The web server does not build: merge writes the shipped `.po`, but leaves the build and the
+     * overlay as they are - the runtime keeps serving the local change from the overlay until
+     * "setup build" and "setup update" ran.
+     */
+    public function testMergeNeitherBuildsNorTouchesTheOverlay(): void
+    {
+        $this->seedShipped(['aaa' => 'A']);
+        $this->seedOverlay(['aaa' => 'A (lokal)']);
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        $pointer_before = (string) file_get_contents(MigratedLanguageFilePaths::buildPointerFile(MigratedPoFixture::artifactDirectory()));
+        $overlay_before = (string) file_get_contents($this->overlayBase() . '.po');
+        $current_before = (string) file_get_contents(MigratedPoFixture::overlayCurrent($this->overlayBase()));
+        $artifacts_before = self::snapshot(MigratedPoFixture::artifactDirectory());
+        $overlay_before_tree = self::snapshot(dirname($this->overlayBase()));
+
+        $result = $this->merge();
+
+        $this->assertSame($artifacts_before, self::snapshot(MigratedPoFixture::artifactDirectory()), 'nothing written below artifacts/language');
+        $overlay_tree = self::snapshot(dirname($this->overlayBase()));
+        unset($overlay_tree['/mtest_de.po'], $overlay_before_tree['/mtest_de.po']);
+        $this->assertSame($overlay_before_tree, $overlay_tree, 'no new revision, nothing removed - only the .po gets the marks');
+        $this->assertSame(['mtest' => $this->shippedPo()], $result['written']);
+        $this->assertSame('A (lokal)', $this->readShippedPo()->find(self::MODULE, 'aaa')?->getTranslation(), 'the shipped .po was written');
+        $this->assertSame($pointer_before, (string) file_get_contents(MigratedLanguageFilePaths::buildPointerFile(MigratedPoFixture::artifactDirectory())));
+        $merged_entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'aaa');
+        $this->assertSame('A (lokal)', $merged_entry?->getTranslation(), 'the value stays in the overlay');
+        $this->assertTrue(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($merged_entry), 'marked as taken over');
+        $this->assertNotSame($overlay_before, (string) file_get_contents($this->overlayBase() . '.po'));
+        $this->assertSame($current_before, (string) file_get_contents(MigratedPoFixture::overlayCurrent($this->overlayBase())));
+        $this->assertSame(
+            'A (lokal)',
+            MigratedTranslations::text(self::MODULE, self::LANG, 'aaa', $this->client_data_dir),
+            'served from the overlay until the next setup build/update'
+        );
+    }
+
+    /**
+     * Another write of the module after merge but before "setup build" (here an admin edit of
+     * another key; the same holds for an import or "setup update" without build) must not drop the
+     * taken over entry: its value equals the new shipped one, but the build still serves the former
+     * `.po`. Only after "setup build" does the next reconciling write ("setup update") drop it - and
+     * the value then comes from the build.
+     */
+    public function testATakenOverValueStaysServedUntilTheBuildServesTheWrittenPo(): void
+    {
+        $this->seedShipped(['aaa' => 'A', 'bbb' => 'B']);
+        $this->seedOverlay(['aaa' => 'A (lokal)', 'bbb' => 'B']);
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+
+        $this->merge();
+        $this->seedOverlay(['aaa' => 'A (lokal)', 'bbb' => 'B (lokal)']);
+
+        $overlay = MigratedPoFixture::readPo($this->overlayBase() . '.po');
+        $this->assertSame('A (lokal)', $overlay->find(null, 'aaa')?->getTranslation(), 'kept although it equals the shipped value now');
+        $this->assertSame('A (lokal)', MigratedTranslations::text(self::MODULE, self::LANG, 'aaa', $this->client_data_dir));
+        $this->assertSame('B (lokal)', MigratedTranslations::text(self::MODULE, self::LANG, 'bbb', $this->client_data_dir));
+
+        // "setup build", then "setup update" (a reconciling write)
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        MigratedLanguageFileSync::sync(
+            $this->manager,
+            ILIAS_ABSOLUTE_PATH,
+            self::LANG,
+            self::MODULE,
+            ['aaa' => 'A (lokal)', 'bbb' => 'B (lokal)'],
+            $this->client_data_dir,
+            true
+        );
+
+        $overlay = MigratedPoFixture::readPo($this->overlayBase() . '.po');
+        $this->assertNull($overlay->find(null, 'aaa'), 'served by the build now');
+        $this->assertSame('B (lokal)', $overlay->find(null, 'bbb')?->getTranslation());
+        $this->assertSame('A (lokal)', MigratedTranslations::text(self::MODULE, self::LANG, 'aaa', $this->client_data_dir));
+    }
+
+    /**
+     * @param array<string, string> $entries
+     */
+    private function reconcile(array $entries): void
+    {
+        MigratedLanguageFileSync::sync($this->manager, ILIAS_ABSOLUTE_PATH, self::LANG, self::MODULE, $entries, $this->client_data_dir, true);
+    }
+
+    public function testATakenOverPluralMessageStaysServedUntilTheBuildServesTheWrittenPo(): void
+    {
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente']]);
+        $local = ['items [0]' => 'Ein Ding', 'items [1]' => 'Dinge'];
+        $this->seedOverlay($local);
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+
+        $this->merge();
+        $this->assertSame(['Ein Ding', 'Dinge'], $this->readShippedPo()->find(self::MODULE, 'items')?->getPluralTranslations(), 'precondition: taken over');
+        $this->reconcile($local);
+
+        $overlay_entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'items');
+        $this->assertNotNull($overlay_entry, 'kept although it equals the shipped message now');
+        $this->assertSame(['Ein Ding', 'Dinge'], $overlay_entry->getPluralTranslations());
+        $this->assertSame('Ein Ding', MigratedTranslations::pluralText(self::MODULE, self::LANG, 'items', 1, $this->client_data_dir));
+        $this->assertSame('Dinge', MigratedTranslations::pluralText(self::MODULE, self::LANG, 'items', 2, $this->client_data_dir));
+
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        $this->reconcile($local);
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'served by the build now, nothing left to keep');
+        $this->assertSame('Ein Ding', MigratedTranslations::pluralText(self::MODULE, self::LANG, 'items', 1, $this->client_data_dir));
+        $this->assertSame('Dinge', MigratedTranslations::pluralText(self::MODULE, self::LANG, 'items', 2, $this->client_data_dir));
+    }
+
+    public function testTheMarkOfAPluralMessageIsDroppedOnceTheBuildServesTheWrittenPoAndTheMessageIsChangedAgain(): void
+    {
+        $this->seedShippedPlural(['items' => ['Element', 'Elemente']]);
+        $this->seedOverlay(['items [0]' => 'Ein Ding', 'items [1]' => 'Dinge']);
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        $this->merge();
+        $this->assertTrue(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped(
+            MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'items')
+        ), 'precondition');
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+
+        $this->reconcile(['items [0]' => 'Ein Ding', 'items [1]' => 'Viele Dinge']);
+
+        $entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'items');
+        $this->assertSame(['Ein Ding', 'Viele Dinge'], $entry?->getPluralTranslations());
+        $this->assertFalse(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($entry));
+    }
+
+    /**
+     * The mark only keeps the value that was taken over: an administrator who changes it before the
+     * next build has a local change of his own - for good, not only until the build.
+     */
+    public function testAMarkedEntryChangedToAThirdValueBeforeTheBuildIsAPlainLocalChange(): void
+    {
+        $this->seedShipped(['aaa' => 'A']);
+        $this->seedOverlay(['aaa' => 'A (lokal)']);
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        $this->merge();
+
+        $this->reconcile(['aaa' => 'A (dritte)']);
+
+        $entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'aaa');
+        $this->assertSame('A (dritte)', $entry?->getTranslation());
+        $this->assertFalse(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($entry), 'a changed value is no taken over one any more - already before the build');
+        $this->assertSame('A (dritte)', MigratedTranslations::text(self::MODULE, self::LANG, 'aaa', $this->client_data_dir));
+
+        MigratedPoFixture::build($this->manager, ILIAS_ABSOLUTE_PATH);
+        $this->reconcile(['aaa' => 'A (dritte)']);
+
+        $entry = MigratedPoFixture::readPo($this->overlayBase() . '.po')->find(null, 'aaa');
+        $this->assertSame('A (dritte)', $entry?->getTranslation(), 'still a local change against the written shipped value');
+        $this->assertFalse(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($entry), 'the mark is gone once the build serves the written .po');
+        $this->assertSame('A (dritte)', MigratedTranslations::text(self::MODULE, self::LANG, 'aaa', $this->client_data_dir));
+    }
+
+    public function testMarkMergedIntoShippedMarksOnlyTheNamedEntriesAndChangesNothingServed(): void
+    {
+        $this->seedShipped(['aaa' => 'A', 'bbb' => 'B']);
+        $this->seedOverlay(['aaa' => 'A (lokal)', 'bbb' => 'B (lokal)']);
+        $revision_before = (string) file_get_contents(MigratedPoFixture::overlayCurrent($this->overlayBase()));
+
+        MigratedLanguageFileSync::markMergedIntoShipped($this->manager, self::LANG, self::MODULE, ['aaa', 'unknown'], $this->client_data_dir, ILIAS_ABSOLUTE_PATH);
+
+        $overlay = MigratedPoFixture::readPo($this->overlayBase() . '.po');
+        $this->assertTrue(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($overlay->find(null, 'aaa')));
+        $this->assertFalse(\ILIAS\Language\ComponentTranslation\LocalChangeComments::isMergedIntoShipped($overlay->find(null, 'bbb')));
+        $this->assertSame('B (lokal)', $overlay->find(null, 'bbb')?->getTranslation());
+        $this->assertSame($revision_before, (string) file_get_contents(MigratedPoFixture::overlayCurrent($this->overlayBase())), 'only the .po is written');
+    }
+
+    public function testMarkMergedIntoShippedWithoutAnOverlayWritesNothing(): void
+    {
+        $this->seedShipped(['aaa' => 'A']);
+
+        MigratedLanguageFileSync::markMergedIntoShipped($this->manager, self::LANG, self::MODULE, ['aaa'], $this->client_data_dir, ILIAS_ABSOLUTE_PATH);
+        MigratedLanguageFileSync::markMergedIntoShipped($this->manager, self::LANG, self::MODULE, ['aaa'], null, ILIAS_ABSOLUTE_PATH);
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $this->assertDirectoryDoesNotExist(dirname($this->overlayBase()), 'neither the overlay directory nor a lock file is created');
+    }
+
+    public function testMarkMergedIntoShippedWithAnUnreadableOverlayThrowsAndLeavesItAsItIs(): void
+    {
+        $this->seedShipped(['aaa' => 'A']);
+        $this->seedOverlay(['aaa' => 'A (lokal)']);
+        file_put_contents($this->overlayBase() . '.po', 'msgid "broken');
+
         try {
-            $this->seedShipped(['aaa' => 'A']);
-            touch($artifact, time() + 3600); // not older than the .po that is about to be written
-            $this->seedOverlay(['aaa' => 'A (lokal)']);
-
-            $result = $this->merge();
-
-            $this->assertSame([], $result['stale_artifacts']);
-            clearstatcache(true, $artifact);
-            $this->assertLessThan(filemtime($this->shippedPo()), filemtime($artifact));
-        } finally {
-            @unlink($artifact);
+            MigratedLanguageFileSync::markMergedIntoShipped($this->manager, self::LANG, self::MODULE, ['aaa'], $this->client_data_dir, ILIAS_ABSOLUTE_PATH);
+            $this->fail('an overlay that cannot be read must be reported');
+        } catch (\RuntimeException) {
         }
+
+        $this->assertSame('msgid "broken', file_get_contents($this->overlayBase() . '.po'));
     }
 
     // ---------------------------------------------------------------- merge(): symlinked directory

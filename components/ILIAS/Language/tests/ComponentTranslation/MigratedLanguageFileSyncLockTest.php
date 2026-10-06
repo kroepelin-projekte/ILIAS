@@ -41,6 +41,8 @@ class MigratedLanguageFileSyncLockTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -62,7 +64,7 @@ class MigratedLanguageFileSyncLockTest extends TestCase
 
     private function lockFile(): string
     {
-        return MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de') . '.lock';
+        return MigratedPoFixture::overlayLock(MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, 'de'));
     }
 
     /**
@@ -344,13 +346,13 @@ class MigratedLanguageFileSyncLockTest extends TestCase
      */
     public function testRemoveOverlayRunsAndRemovesTheLockFileWhenOnlyTheLockFileIsLeft(): void
     {
-        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de');
+        $overlay_base = MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, 'de');
         mkdir(dirname($overlay_base), 0775, true);
-        file_put_contents($overlay_base . '.lock', '');
+        file_put_contents(MigratedPoFixture::overlayLock($overlay_base), '');
 
         MigratedLanguageFileSync::removeOverlay($this->manager, 'de', self::MODULE, $this->client_data_dir);
 
-        $this->assertFileDoesNotExist($overlay_base . '.lock');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayLock($overlay_base));
     }
 
     /**
@@ -363,13 +365,13 @@ class MigratedLanguageFileSyncLockTest extends TestCase
      */
     public function testANestedRemoveOverlayInsideWithOverlayLockDoesNotDeleteTheLockFileOrRetry(): void
     {
-        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de');
+        $overlay_base = MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, 'de');
         mkdir(dirname($overlay_base), 0775, true);
         file_put_contents($overlay_base . '.po', 'PO');
-        file_put_contents($overlay_base . '.mo', 'MO');
-        file_put_contents($overlay_base . '.lock', '');
-        clearstatcache(true, $overlay_base . '.lock');
-        $lock_inode_before = lstat($overlay_base . '.lock')['ino'];
+        MigratedPoFixture::writeOverlayRevision($overlay_base, MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
+        file_put_contents(MigratedPoFixture::overlayLock($overlay_base), '');
+        clearstatcache(true, MigratedPoFixture::overlayLock($overlay_base));
+        $lock_inode_before = lstat(MigratedPoFixture::overlayLock($overlay_base))['ino'];
 
         // Run in a child process with a hard timeout: without the re-entrancy guard this scenario is
         // the very same same-process self-deadlock testANestedWithOverlayLockForTheSameModuleReturns...
@@ -381,19 +383,19 @@ class MigratedLanguageFileSyncLockTest extends TestCase
         $this->assertSame(0, $result['exit_code'], $result['output']);
 
         clearstatcache(true, $overlay_base . '.po');
-        clearstatcache(true, $overlay_base . '.mo');
-        clearstatcache(true, $overlay_base . '.lock');
+        clearstatcache(true, MigratedPoFixture::overlayMo($overlay_base));
+        clearstatcache(true, MigratedPoFixture::overlayLock($overlay_base));
         $this->assertFileDoesNotExist($overlay_base . '.po', 'the nested removeOverlay() must still actually remove the overlay files');
-        $this->assertFileDoesNotExist($overlay_base . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($overlay_base));
         $this->assertStringContainsString(
             'AFTER_NESTED:' . $lock_inode_before . "\n",
             $result['output'],
             'a removeOverlay() nested inside an already-held lock must NOT delete or replace the lock file - the outer caller still relies on it'
         );
-        $this->assertFileExists($overlay_base . '.lock');
+        $this->assertFileExists(MigratedPoFixture::overlayLock($overlay_base));
         $this->assertSame(
             $lock_inode_before,
-            lstat($overlay_base . '.lock')['ino'],
+            lstat(MigratedPoFixture::overlayLock($overlay_base))['ino'],
             'the lock file must stay the exact same one throughout - no retry/replace cycle for the nested call'
         );
     }
@@ -448,7 +450,7 @@ class MigratedLanguageFileSyncLockTest extends TestCase
                 function () use ($manager, $client_data_dir): void {
                     MigratedLanguageFileSync::removeOverlay($manager, 'de', 'stest', $client_data_dir);
                     clearstatcache();
-                    $lock = @lstat($client_data_dir . '/lang/x/stest_de.lock');
+                    $lock = @lstat($client_data_dir . '/lang/stest/de/lock');
                     echo 'AFTER_NESTED:' . ($lock === false ? 'missing' : $lock['ino']) . "\n";
                 }
             );
@@ -478,19 +480,19 @@ class MigratedLanguageFileSyncLockTest extends TestCase
         );
         $directory = MigratedPoFixture::directory(self::MODULE, $relative_path);
         $manager = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $directory);
-        $overlay_base = MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $directory, 'de');
+        $overlay_base = MigratedPoFixture::overlayBase($this->client_data_dir, $directory, 'de');
 
         try {
             // Adapted to the delta overlay: a local change - a shipped value writes no overlay, and
             // without overlay no lock file is kept
             MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Moin'], $this->client_data_dir);
-            $this->assertFileExists($overlay_base . '.lock', 'sync() must leave a .lock file behind for later callers to serialize on');
+            $this->assertFileExists(MigratedPoFixture::overlayLock($overlay_base), 'sync() must leave a .lock file behind for later callers to serialize on');
 
             MigratedLanguageFileSync::removeOverlay($manager, 'de', self::MODULE, $this->client_data_dir);
-            $this->assertFileDoesNotExist($overlay_base . '.lock', 'removeOverlay() (uninstall) must have removed it');
+            $this->assertFileDoesNotExist(MigratedPoFixture::overlayLock($overlay_base), 'removeOverlay() (uninstall) must have removed it');
 
             MigratedLanguageFileSync::sync($manager, ILIAS_ABSOLUTE_PATH, 'de', self::MODULE, ['greeting' => 'Servus'], $this->client_data_dir);
-            $this->assertFileExists($overlay_base . '.lock', 'a reinstall/resync must create a fresh .lock file');
+            $this->assertFileExists(MigratedPoFixture::overlayLock($overlay_base), 'a reinstall/resync must create a fresh .lock file');
         } finally {
             MigratedPoFixture::removeShippedDirectory($relative_path);
         }
@@ -657,7 +659,7 @@ class MigratedLanguageFileSyncLockTest extends TestCase
                         // the inode of the lock file held right now - the lock file itself is
                         // removed afterwards (no overlay exists here)
                         clearstatcache();
-                        $held = @lstat($client_data_dir . '/lang/x/stest_de.lock');
+                        $held = @lstat($client_data_dir . '/lang/stest/de/lock');
                         echo 'HELD:' . ($held === false ? '' : $held['ino']) . "\n";
 
                         return 'ok';

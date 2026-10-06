@@ -51,6 +51,8 @@ class InstallLanguagesRemovesOverlaysTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         $this->root = sys_get_temp_dir() . '/ilias_lim_overlay_test_' . bin2hex(random_bytes(6));
         mkdir($this->root . '/lang/customizing', 0775, true);
         mkdir($this->root . '/client-data', 0775, true);
@@ -64,7 +66,7 @@ class InstallLanguagesRemovesOverlaysTest extends TestCase
 
     private function overlayBase(string $lang_key): string
     {
-        return $this->root . '/client-data/lang/components/pilot/lang/pilot_' . $lang_key;
+        return $this->root . '/client-data/lang/pilot/' . $lang_key . '/pilot_' . $lang_key;
     }
 
     private function seedOverlay(string $lang_key): void
@@ -113,7 +115,7 @@ class InstallLanguagesRemovesOverlaysTest extends TestCase
     {
         $this->seedOverlay('de');
         $this->assertFileExists($this->overlayBase('de') . '.po');
-        $this->assertFileExists($this->overlayBase('de') . '.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($this->overlayBase('de')));
 
         $repository = $this->createStub(InstalledLanguageRepository::class);
         $repository->method('getAvailableLanguages')->willReturn([
@@ -129,7 +131,7 @@ class InstallLanguagesRemovesOverlaysTest extends TestCase
 
         $this->assertTrue($result);
         $this->assertFileDoesNotExist($this->overlayBase('de') . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase('de') . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase('de')));
     }
 
     /**
@@ -156,6 +158,6 @@ class InstallLanguagesRemovesOverlaysTest extends TestCase
 
         $this->assertTrue($result);
         $this->assertFileExists($this->overlayBase('de') . '.po');
-        $this->assertFileExists($this->overlayBase('de') . '.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($this->overlayBase('de')));
     }
 }

@@ -1504,7 +1504,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
         );
         // Adapted to the delta overlay: without overlay the shipped state is a readable base (no
         // local changes); only an unreadable overlay leads to the lng_modules/lng_data fallback
-        $overlay_dir = CLIENT_DATA_DIR . '/lang/components/ILIAS/Language/tests/Activities/' . basename($fixture_dir);
+        $overlay_dir = CLIENT_DATA_DIR . '/lang/common/de';
         mkdir($overlay_dir, 0775, true);
         file_put_contents($overlay_dir . '/common_de.po', "msgid \"kaputt\n");
 

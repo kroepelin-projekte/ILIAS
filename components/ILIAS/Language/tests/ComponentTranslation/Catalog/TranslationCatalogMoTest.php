@@ -29,11 +29,9 @@ use ReflectionMethod;
 use RuntimeException;
 
 /**
- * TranslationCatalog's `.mo` side: toMoString() (what MigratedLanguageFileSync writes and compares
- * byte for byte) and readMoTranslations() (what ilLanguage::txt() is served from). A corrupt file
- * must surface as RuntimeException - ilLanguage then falls back to the database - never as silently
- * shortened data, a PHP warning or a TypeError, which is what MoLoader alone produces for several
- * of the corruptions below.
+ * TranslationCatalog's `.mo` side: toMoString() (what the build and the overlay compile, see
+ * ShippedTranslations::compileCatalog()), read back with the test fixture's reader - the runtime
+ * reads a `.mo` through native gettext, the adapter has no reader of its own any more.
  */
 class TranslationCatalogMoTest extends TestCase
 {
@@ -80,10 +78,7 @@ class TranslationCatalogMoTest extends TestCase
      */
     private function read(string $mo): array
     {
-        $file = $this->directory . '/test.mo';
-        file_put_contents($file, $mo);
-
-        return TranslationCatalog::readMoTranslations($file);
+        return \MigratedPoFixture::readMoTranslations($mo);
     }
 
     /**
@@ -180,7 +175,7 @@ class TranslationCatalogMoTest extends TestCase
         $mo = $catalog->toMoString();
 
         $this->assertSame(['item' => 'Einträge'], $this->read($mo));
-        $this->assertSame(['item' => ['Eintrag', 'Einträge']], TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations());
+        $this->assertSame(['item' => ['Eintrag', 'Einträge']], \MigratedPoFixture::readMoPluralForms($mo));
         $this->assertSame(['', "mod\x04item\x00items"], self::originals($mo));
         $this->assertStringContainsString("Eintrag\x00Einträge\x00", $mo);
     }
@@ -201,7 +196,7 @@ class TranslationCatalogMoTest extends TestCase
         $mo = $catalog->toMoString();
 
         $this->assertSame(['item' => 'Eintrag'], $this->read($mo));
-        $this->assertSame([], TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations());
+        $this->assertSame([], \MigratedPoFixture::readMoPluralForms($mo));
     }
 
     /**
@@ -223,7 +218,7 @@ class TranslationCatalogMoTest extends TestCase
 
         $this->assertSame(
             ['item' => ['eins', '', 'viele']],
-            TranslationCatalog::readMoMessagesFromString($mo)->getPluralTranslations()
+            \MigratedPoFixture::readMoPluralForms($mo)
         );
         // the default form is the last one (index 2, count 3) - it is not empty here, so no fallback
         // search is even needed (see PluralFormsTest for that)
@@ -264,10 +259,8 @@ class TranslationCatalogMoTest extends TestCase
         );
 
         $mo = $catalog->toMoString();
-        $messages = TranslationCatalog::readMoMessagesFromString($mo);
-
-        $this->assertSame('nplurals=2; plural=(n != 1);', $messages->getPluralFormsHeader());
-        $this->assertSame(['item' => ['A', 'B']], $messages->getPluralTranslations(), 'the surplus form C is dropped');
+        $this->assertSame('nplurals=2; plural=(n != 1);', \MigratedPoFixture::moPluralFormsHeader($mo));
+        $this->assertSame(['item' => ['A', 'B']], \MigratedPoFixture::readMoPluralForms($mo), 'the surplus form C is dropped');
         $this->assertSame(['item' => 'B'], $this->read($mo));
     }
 
@@ -329,159 +322,6 @@ class TranslationCatalogMoTest extends TestCase
         $catalog->find('mod', 'zeta')?->translate('Y');
 
         $this->assertNotSame($mo, $catalog->toMoString());
-    }
-
-    public function testReadsABigEndianMo(): void
-    {
-        $little = self::sampleCatalog()->toMoString();
-        $words = 7 + 4 * unpack('V', $little, 8)[1];
-        $big = '';
-        foreach (unpack('V' . $words, $little) as $word) {
-            $big .= pack('N', $word);
-        }
-        $big .= substr($little, $words * 4);
-
-        $this->assertNotSame($little, $big);
-        $this->assertSame($this->read($little), $this->read($big));
-    }
-
-    // ------------------------------------------------------ corrupt files
-
-    #[DataProvider('corruptMo')]
-    public function testThrowsARuntimeExceptionForACorruptMo(\Closure $corrupt): void
-    {
-        $mo = $corrupt(self::sampleCatalog()->toMoString());
-
-        $this->expectException(RuntimeException::class);
-        $this->read($mo);
-    }
-
-    public static function corruptMo(): array
-    {
-        return [
-            'empty' => [static fn(string $mo): string => ''],
-            'garbage' => [static fn(string $mo): string => 'SENTINEL'],
-            'long garbage' => [static fn(string $mo): string => str_repeat('msgid "x"', 10)],
-            'a .po file' => [static fn(string $mo): string => self::sampleCatalog()->toPoString()],
-            'bad magic' => [static fn(string $mo): string => "\x00\x00\x00\x00" . substr($mo, 4)],
-            'truncated to 10 bytes' => [static fn(string $mo): string => substr($mo, 0, 10)],
-            'one byte short of the header' => [static fn(string $mo): string => substr($mo, 0, 27)],
-            'only the header' => [static fn(string $mo): string => substr($mo, 0, 28)],
-            'truncated to 40 bytes' => [static fn(string $mo): string => substr($mo, 0, 40)],
-            'truncated to half' => [static fn(string $mo): string => substr($mo, 0, intdiv(strlen($mo), 2))],
-            'last 3 bytes missing' => [static fn(string $mo): string => substr($mo, 0, -3)],
-            // The last byte is the NUL terminator, which is not part of the stored length
-            'last 2 bytes missing' => [static fn(string $mo): string => substr($mo, 0, -2)],
-            'count beyond the file size' => [
-                static fn(string $mo): string => substr($mo, 0, 8) . pack('V', 0x7fffffff) . substr($mo, 12),
-            ],
-            'originals index beyond the file size' => [
-                static fn(string $mo): string => substr($mo, 0, 12) . pack('V', 0xfffffff0) . substr($mo, 16),
-            ],
-            'translations index beyond the file size' => [
-                static fn(string $mo): string => substr($mo, 0, 16) . pack('V', strlen($mo)) . substr($mo, 20),
-            ],
-            // Entry 0 is the header - use entry 1's offset
-            'string offset beyond the file size' => [
-                static fn(string $mo): string => substr($mo, 0, 40) . pack('V', strlen($mo)) . substr($mo, 44),
-            ],
-            'string length beyond the file size' => [
-                static fn(string $mo): string => substr($mo, 0, 36) . pack('V', strlen($mo)) . substr($mo, 40),
-            ],
-        ];
-    }
-
-    /**
-     * Boundary: a string that ends exactly at the end of the file is valid (> not >=) - only the
-     * terminating NUL, which is not part of the stored length, is missing.
-     */
-    public function testAStringEndingExactlyAtTheEndOfTheFileIsValid(): void
-    {
-        $mo = self::sampleCatalog()->toMoString();
-
-        $this->assertSame($this->read($mo), $this->read(substr($mo, 0, -1)));
-    }
-
-    /**
-     * DoS guard: strings may overlap (several table entries pointing at the same bytes), so the
-     * per-entry "offset + length <= file size" check alone does not bound how much data a small file
-     * can make readMoStrings() copy out via substr() - the SUM of every entry's length is capped at
-     * 4x the file size instead. Crafted directly (not via sampleCatalog()): every one of 5 originals/
-     * 5 translations entries points at the same 90-byte region of a ~208 byte file, so each individual
-     * bound check passes but the sum (900) exceeds 4x the file size (832).
-     */
-    public function testRejectsAMoWhoseStringsSumToMoreThanFourTimesTheFileSize(): void
-    {
-        $count = 5;
-        $originals_offset = 28;
-        $translations_offset = $originals_offset + $count * 8;
-        $strings_offset = $translations_offset + $count * 8;
-        $size = $strings_offset + 100;
-
-        $mo = pack('V', 0x950412de) // magic
-            . pack('V', 0) // revision
-            . pack('V', $count)
-            . pack('V', $originals_offset)
-            . pack('V', $translations_offset)
-            . pack('V', 0) // hash size
-            . pack('V', 0); // hash offset
-        $entry = pack('V', 90) . pack('V', $strings_offset); // length, offset - same 90 bytes every time
-        $mo .= str_repeat($entry, $count); // originals table
-        $mo .= str_repeat($entry, $count); // translations table
-        $mo .= str_repeat('x', $size - strlen($mo));
-        $this->assertSame($size, strlen($mo), 'precondition: the crafted file has the intended size');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/strings exceed the file size/');
-        $this->read($mo);
-    }
-
-    public function testThrowsForAMissingFile(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Could not read MO file/');
-        TranslationCatalog::readMoTranslations($this->directory . '/missing.mo');
-    }
-
-    public function testThrowsForADirectory(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Could not read MO file/');
-        TranslationCatalog::readMoTranslations($this->directory);
-    }
-
-    public function testThrowsForAnUnreadableFile(): void
-    {
-        $file = $this->directory . '/unreadable.mo';
-        file_put_contents($file, self::sampleCatalog()->toMoString());
-        chmod($file, 0000);
-        if (is_readable($file)) {
-            $this->markTestSkipped('File permissions are not enforced for this user (root).');
-        }
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Could not read MO file/');
-        TranslationCatalog::readMoTranslations($file);
-    }
-
-    public function testTheErrorHandlerIsRestoredAfterReading(): void
-    {
-        $handler = static fn(): bool => false;
-        set_error_handler($handler);
-        try {
-            $this->read(self::sampleCatalog()->toMoString());
-            try {
-                $this->read(substr(self::sampleCatalog()->toMoString(), 0, -3));
-                $this->fail('Expected a RuntimeException');
-            } catch (RuntimeException) {
-            }
-
-            $current = set_error_handler(null);
-            restore_error_handler();
-            $this->assertSame($handler, $current);
-        } finally {
-            restore_error_handler();
-        }
     }
 
     // --------------------------------------------- library errors (private)

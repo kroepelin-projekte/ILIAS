@@ -58,7 +58,7 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
         }
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
     }
 
@@ -66,9 +66,7 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
     {
         if ($this->fixture_directory !== null) {
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
-            MigratedPoFixture::removeDirectory(
-                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            );
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . self::MODULE);
         }
         if ($this->created_client_data_dir_root && defined('CLIENT_DATA_DIR') && is_dir(CLIENT_DATA_DIR)) {
             MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
@@ -234,8 +232,7 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
 
         $this->assertSame([], $unwritten);
         $overlay = TranslationCatalog::fromPoFile(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-                . '/' . self::MODULE . '_' . self::LANG_KEY . '.po'
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . self::MODULE . '/' . self::LANG_KEY . '/' . self::MODULE . '_' . self::LANG_KEY . '.po'
         );
         $entry = $overlay->find(null, 'item');
         $this->assertNotNull($entry);
@@ -530,8 +527,7 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
             []
         );
         $overlay = TranslationCatalog::fromPoFile(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-                . '/' . self::MODULE . '_' . self::LANG_KEY . '.po'
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . self::MODULE . '/' . self::LANG_KEY . '/' . self::MODULE . '_' . self::LANG_KEY . '.po'
         );
         $this->assertNotNull($overlay->find(null, 'item'), 'precondition: the overlay holds the local change');
 
@@ -545,8 +541,7 @@ class SaveValuesWritesPluralFormsTest extends ilLanguageBaseTestCase
         $this->assertSame('Einträge', $item_calls[0][1]['value'], 'back to the shipped default form value');
         $this->assertNull($item_calls[0][1]['local_change']);
 
-        $overlay_after_path = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            . '/' . self::MODULE . '_' . self::LANG_KEY . '.po';
+        $overlay_after_path = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . self::MODULE . '/' . self::LANG_KEY . '/' . self::MODULE . '_' . self::LANG_KEY . '.po';
         $this->assertFalse(is_file($overlay_after_path), 'no local change left at all - the whole overlay is removed');
     }
 

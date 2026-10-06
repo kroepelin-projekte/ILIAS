@@ -102,7 +102,7 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             );
         }
         if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir_' . getmypid());
             $this->created_client_data_dir_root = true;
         }
     }
@@ -180,9 +180,9 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
             $translations->add($translation);
         }
 
-        $base_path = $this->fixture_directory . '/' . $module . '_' . $lang_key;
+        $base_path = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/' . $module . '_' . $lang_key;
         MigratedPoFixture::writePo($base_path . '.po', $translations);
-        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
+        MigratedPoFixture::writeOverlayRevision($base_path, $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
         // only migrated (and therefore read from the overlay) while the shipped .po exists
@@ -356,9 +356,9 @@ class PoLastLocalChangeTest extends ilLanguageBaseTestCase
         LocalChangeComments::refresh($foreign, 'Hallo', 'Hallo, geändert', new DateTimeImmutable('2026-09-21T10:00:00Z'));
         $translations->add($foreign);
 
-        $base_path = $this->fixture_directory . '/lctest_de';
+        $base_path = rtrim(CLIENT_DATA_DIR, '/') . '/lang/lctest/de/lctest_de';
         MigratedPoFixture::writePo($base_path . '.po', $translations);
-        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
+        MigratedPoFixture::writeOverlayRevision($base_path, $translations);
 
         $relative_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/';
         MigratedPoFixture::writeShippedPo($relative_path, 'lctest', 'de', $translations);

@@ -62,6 +62,7 @@ final class LocalChangeComments
     private const string LOCAL_CHANGE_PREFIX = 'local_change: ';
     private const string REMARK_PREFIX = 'remark: ';
     private const string ESCAPED_REMARK_PREFIX = 'remark_escaped: ';
+    private const string MERGED_COMMENT = 'merged_into_shipped';
 
     /**
      * Does not touch "local_change" - refresh() is always called right after and recomputes it
@@ -133,6 +134,24 @@ final class LocalChangeComments
             return;
         }
         self::setEscapable($entry, self::REMARK_PREFIX, self::ESCAPED_REMARK_PREFIX, $remark);
+    }
+
+    /**
+     * Marks $entry as taken over into the shipped `.po` by "merge" (see ShippedPoMerger) - or removes
+     * the mark. While the build does not serve that `.po` yet, MigratedLanguageFileSync::sync()
+     * keeps a marked entry in the overlay even though its value equals the shipped one.
+     */
+    public static function setMergedIntoShipped(TranslationEntry $entry, bool $merged): void
+    {
+        $entry->removeTranslatorCommentsStartingWith(self::MERGED_COMMENT);
+        if ($merged) {
+            $entry->addTranslatorComment(self::MERGED_COMMENT);
+        }
+    }
+
+    public static function isMergedIntoShipped(TranslationEntry $entry): bool
+    {
+        return in_array(self::MERGED_COMMENT, $entry->getTranslatorComments(), true);
     }
 
     /**

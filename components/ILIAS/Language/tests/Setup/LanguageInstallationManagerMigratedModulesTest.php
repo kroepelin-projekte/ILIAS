@@ -66,6 +66,8 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         $this->root = sys_get_temp_dir() . '/ilias_lim_test_' . bin2hex(random_bytes(6));
         mkdir($this->root . '/lang/customizing', 0775, true);
         mkdir($this->root . '/client-data', 0775, true);
@@ -163,7 +165,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
     private function overlayBase(): string
     {
-        return $this->root . '/client-data/lang/components/pilot/lang/pilot_de';
+        return $this->root . '/client-data/lang/pilot/de/pilot_de';
     }
 
     private function overlayPo(): TranslationCatalog
@@ -412,7 +414,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
     {
         $this->shipPo(['greeting' => 'Hallo']);
         $this->seedOverlay(['greeting' => ['value' => 'Servus', 'original' => 'Hallo', 'local_change' => '2020-01-01T00:00:00Z']]);
-        $lock_file = $this->overlayBase() . '.lock';
+        $lock_file = MigratedPoFixture::overlayLock($this->overlayBase());
         $held_locks = new ReflectionProperty(MigratedLanguageFileSync::class, 'held_locks');
 
         $observed = null;
@@ -450,11 +452,11 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             MigratedPoFixture::catalog('amod', ['greeting' => 'Hallo'])
         );
         MigratedPoFixture::writePair(
-            $this->root . '/client-data/lang/components/pilot/lang/zmod_de',
+            $this->root . '/client-data/lang/zmod/de/zmod_de',
             MigratedPoFixture::catalog('zmod', ['greeting' => ['value' => 'Servus', 'original' => 'Hallo']])
         );
         MigratedPoFixture::writePair(
-            $this->root . '/client-data/lang/components/pilot/lang/amod_de',
+            $this->root . '/client-data/lang/amod/de/amod_de',
             MigratedPoFixture::catalog('amod', ['greeting' => ['value' => 'Servus', 'original' => 'Hallo']])
         );
         $held_locks = new ReflectionProperty(MigratedLanguageFileSync::class, 'held_locks');
@@ -470,7 +472,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             fn(): string => $this->root . '/client-data',
             function () use (&$observed_order, $held_locks): void {
                 $observed_order = array_map(
-                    static fn(string $lock_file): string => basename($lock_file),
+                    static fn(string $lock_file): string => basename(dirname($lock_file, 2)) . '/' . basename($lock_file),
                     array_keys($held_locks->getValue())
                 );
             }
@@ -478,7 +480,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $manager->insertLanguageForInstallation('de');
 
-        $this->assertSame(['amod_de.lock', 'zmod_de.lock'], $observed_order);
+        $this->assertSame(['amod/lock', 'zmod/lock'], $observed_order);
     }
 
     /**
@@ -722,9 +724,9 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->writeLocalOverlay(['item [0]' => 'Eintrag', 'item [1]' => 'LOKAL-VIELE']);
         $this->shipPluralPo(['item' => ['Eintrag', 'Einträge-few', 'Einträge-viele']], self::THREE_FORMS);
 
-        $served = TranslationCatalog::readMoMessages($this->overlayBase() . '.mo');
-        $this->assertSame(self::TWO_FORMS, $served->getPluralFormsHeader());
-        $this->assertSame(['item' => ['Eintrag', 'LOKAL-VIELE']], $served->getPluralTranslations());
+        $served = (string) file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
+        $this->assertSame(self::TWO_FORMS, MigratedPoFixture::moPluralFormsHeader($served));
+        $this->assertSame(['item' => ['Eintrag', 'LOKAL-VIELE']], MigratedPoFixture::readMoPluralForms($served));
 
         $effective = $this->effective();
         $this->assertSame(['item [0]', 'item [1]', 'item [2]'], array_keys($effective));
@@ -754,9 +756,9 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertCount(3, $item->getPluralTranslations());
         $this->assertContains('LOKAL-VIELE', $item->getPluralTranslations(), 'the local value must not be lost');
         $this->assertSame('LOKAL-PLAIN', $overlay->find(null, 'plain')?->getTranslation());
-        $served = TranslationCatalog::readMoMessages($this->overlayBase() . '.mo');
-        $this->assertSame(self::THREE_FORMS, $served->getPluralFormsHeader());
-        $this->assertCount(3, $served->getPluralTranslations()['item']);
+        $served = (string) file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
+        $this->assertSame(self::THREE_FORMS, MigratedPoFixture::moPluralFormsHeader($served));
+        $this->assertCount(3, MigratedPoFixture::readMoPluralForms($served)['item']);
 
         $data = $this->lngData();
         $this->assertSame('LOKAL-PLAIN', $data['pilot|plain']['value']);
@@ -1005,7 +1007,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             'C' => ['value' => 'C_custom', 'original' => 'C1', 'local_change' => '2025-01-01T00:00:00Z'],
         ]);
         $po_before_the_gap = file_get_contents($this->overlayBase() . '.po');
-        $mo_before_the_gap = file_get_contents($this->overlayBase() . '.mo');
+        $mo_before_the_gap = file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase()));
         // no shipped `.po` for the whole gap: the module falls back to its plain `.lang` file, exactly
         // reflecting what is currently stored/overlaid
         $this->writeLang('components/pilot/lang/ilias_de.lang', ['A#:#A1', 'B#:#B1', 'C#:#C_custom']);
@@ -1023,7 +1025,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             'the DB no longer sees C as a local change while the module is not migrated'
         );
         $this->assertSame($po_before_the_gap, file_get_contents($this->overlayBase() . '.po'), 'the overlay is untouched during the gap');
-        $this->assertSame($mo_before_the_gap, file_get_contents($this->overlayBase() . '.mo'), 'the overlay is untouched during the gap');
+        $this->assertSame($mo_before_the_gap, file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase())), 'the overlay is untouched during the gap');
 
         // the module is migrated again - A's shipped value changed, B's did not, C is not shipped
         // with the (never-shipped) customized value at all
@@ -1078,7 +1080,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         // Adapted to the delta overlay: "remove local changes" leaves no local change - the overlay
         // is removed (was: rebuilt from the shipped .po)
         $this->assertFileDoesNotExist($this->overlayBase() . '.po');
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()));
         $effective = $this->effective();
         $this->assertSame(['greeting', 'farewell'], array_keys($effective), 'the locally added variable is gone');
         $this->assertSame('Hallo', $effective['greeting']['value']);
@@ -1267,7 +1269,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame(['greeting' => 'Hallo'], $this->lngModules()[self::MODULE]);
         // Adapted to the delta overlay: a shipped value writes no file - the sync still running is
         // visible from the removal of an outdated overlay
-        $this->assertFileDoesNotExist($this->overlayBase() . '.mo', 'the overlay sync still ran: it removed the outdated overlay');
+        $this->assertFileDoesNotExist(MigratedPoFixture::overlayMo($this->overlayBase()), 'the overlay sync still ran: it removed the outdated overlay');
         $this->assertStringContainsString('cache is down', $this->errorLog());
     }
 
@@ -1335,7 +1337,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
 
         $this->assertSame([], $this->manager()->$method('de'));
         // Adapted to the delta overlay: only a path that keeps the customizing value writes one
-        $this->assertSame($writes_overlay, is_file($this->overlayBase() . '.mo'));
+        $this->assertSame($writes_overlay, is_file(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     public static function writePaths(): array
@@ -1377,7 +1379,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame([], $manager->findUnwritableOverlayDirectories(['de']));
 
         $target = $blocked;
-        $this->assertSame([$blocked . '/lang/components/pilot/lang'], $manager->findUnwritableOverlayDirectories(['de']));
+        $this->assertSame([$blocked . '/lang/pilot/de'], $manager->findUnwritableOverlayDirectories(['de']));
         $this->assertSame([], $manager->findUnwritableOverlayDirectories(['en']), 'pilot is not migrated for en');
 
         $target = null;
@@ -1443,7 +1445,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame('Pfiat di', $overlay->find(null, 'farewell')->getTranslation());
         $this->assertSame('Tschüss', LocalChangeComments::getOriginal($overlay->find(null, 'farewell')));
         // Adapted to the delta overlay: "greeting" carries the shipped value and is not written
-        $this->assertSame(['farewell' => 'Pfiat di'], MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertSame(['farewell' => 'Pfiat di'], MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
         $this->assertStringContainsString('Could not read the overlay of migrated module "pilot"', $this->errorLog());
     }
 
@@ -1462,7 +1464,7 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->db_local_changes = [self::MODULE => ['greeting' => 'Servus']];
         $manager->insertLanguageForInstallation('de');
 
-        $this->assertFileExists($elsewhere . '/lang/components/pilot/lang/pilot_de.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($elsewhere . '/lang/pilot/de/pilot_de'));
         $this->assertDirectoryDoesNotExist($this->root . '/client-data/lang');
     }
 
@@ -1645,6 +1647,56 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Hallo']]);
 
         $this->assertArrayNotHasKey('greeting', $remarks[self::MODULE] ?? []);
+    }
+
+    /**
+     * A remark "merge" took over is an extracted comment (`#.`) of the shipped entry now: the overlay
+     * remark that equals it (trimmed) is no remark any more, one that differs is kept.
+     */
+    public function testMigratedModuleRemarksDropsAnOverlayRemarkTheShippedPoHasAsNoteNow(): void
+    {
+        $catalog = new TranslationCatalog();
+        foreach (['greeting' => 'Merk', 'other' => 'Notiz'] as $identifier => $note) {
+            $entry = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry(self::MODULE, $identifier);
+            $entry->translate('Wert');
+            $entry->addExtractedComment($note);
+            $catalog->add($entry);
+        }
+        MigratedPoFixture::writePo($this->root . '/components/pilot/lang/pilot_de.po', $catalog);
+        $overlay = MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Wert', 'other' => 'Wert']);
+        LocalChangeComments::setRemark($overlay->find(self::MODULE, 'greeting'), '  Merk ');
+        LocalChangeComments::setRemark($overlay->find(self::MODULE, 'other'), 'Eigene Bemerkung');
+        MigratedPoFixture::writePair($this->overlayBase(), $overlay);
+
+        $remarks = $this->callMigratedModuleRemarks([self::MODULE => ['greeting' => 'Wert', 'other' => 'Wert']]);
+
+        $this->assertSame(['other' => 'Eigene Bemerkung'], $remarks[self::MODULE]);
+    }
+
+    /**
+     * The whole way of a local change with a remark: merge takes value and remark over into the shipped
+     * `.po`, "setup build" builds it, "setup update" then leaves neither entry nor remark in the overlay
+     * (the overlay file is gone) - and the value and the note come from the shipped file.
+     */
+    public function testAMergedValueAndRemarkLeaveTheOverlayWithTheUpdateAfterTheBuild(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo']);
+        $directories = new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory(), $this->directory);
+        MigratedLanguageFileSync::sync($directories, $this->root, 'de', self::MODULE, ['greeting' => 'Servus'], $this->root . '/client-data', false, null, ['greeting' => 'Merk']);
+        $this->assertSame('Merk', MigratedLanguageFileSync::loadRemarks($directories, 'de', self::MODULE, $this->root . '/client-data', $this->root)['greeting'] ?? null, 'precondition');
+
+        mkdir($this->root . '/backup');
+        $result = \ILIAS\Language\ComponentTranslation\ShippedPoMerger::merge($directories, $this->root, 'de', $this->root . '/client-data', $this->root . '/backup');
+        $this->assertSame([], $result['skipped'], 'precondition');
+        MigratedPoFixture::build($directories, $this->root);
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po');
+        $shipped = MigratedPoFixture::readPo($this->root . '/components/pilot/lang/pilot_de.po')->find(self::MODULE, 'greeting');
+        $this->assertSame('Servus', $shipped?->getTranslation());
+        $this->assertContains('Merk', array_map('trim', $shipped->getExtractedComments()));
+        $this->assertSame('Servus', $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertSame('Servus', \ILIAS\Language\ComponentTranslation\MigratedTranslations::text(self::MODULE, 'de', 'greeting', $this->root . '/client-data'));
     }
 
     /**

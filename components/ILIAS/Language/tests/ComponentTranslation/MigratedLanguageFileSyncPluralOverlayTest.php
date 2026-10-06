@@ -44,6 +44,8 @@ class MigratedLanguageFileSyncPluralOverlayTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -79,8 +81,7 @@ class MigratedLanguageFileSyncPluralOverlayTest extends TestCase
 
     private function overlayBase(string $lang_key = 'de'): string
     {
-        return $this->client_data_dir . '/lang/components/ILIAS/Language/tests/ComponentTranslation/'
-            . basename($this->fixture_directory) . '/' . self::MODULE . '_' . $lang_key;
+        return MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, $lang_key);
     }
 
     private function overlayPo(): TranslationCatalog

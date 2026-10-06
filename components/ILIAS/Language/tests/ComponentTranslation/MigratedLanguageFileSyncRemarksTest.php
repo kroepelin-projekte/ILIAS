@@ -45,6 +45,8 @@ class MigratedLanguageFileSyncRemarksTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -80,8 +82,7 @@ class MigratedLanguageFileSyncRemarksTest extends TestCase
 
     private function overlayBase(string $lang_key = 'de'): string
     {
-        return $this->client_data_dir . '/lang/components/ILIAS/Language/tests/ComponentTranslation/'
-            . basename($this->fixture_directory) . '/' . self::MODULE . '_' . $lang_key;
+        return MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, $lang_key);
     }
 
     private function overlayPo(): TranslationCatalog
@@ -151,7 +152,7 @@ class MigratedLanguageFileSyncRemarksTest extends TestCase
         $this->assertNotNull($entry, 'the remark-only entry must be in the overlay .po');
         $this->assertSame('', $entry->getTranslation(), 'empty msgstr - the value itself is unchanged');
         $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
-        $this->assertArrayNotHasKey('greeting', MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertArrayNotHasKey('greeting', MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**
@@ -236,7 +237,7 @@ class MigratedLanguageFileSyncRemarksTest extends TestCase
         $this->assertNotNull($entry);
         $this->assertSame('Servus', $entry->getTranslation());
         $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
-        $this->assertSame('Servus', MigratedPoFixture::readMo($this->overlayBase() . '.mo')['greeting'] ?? null);
+        $this->assertSame('Servus', MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase()))['greeting'] ?? null);
     }
 
     /**
@@ -257,7 +258,7 @@ class MigratedLanguageFileSyncRemarksTest extends TestCase
         $this->assertTrue($entry->isPlural());
         $this->assertSame(['', ''], $entry->getPluralTranslations(), 'remark only - both forms stay empty');
         $this->assertSame('Bitte prüfen', LocalChangeComments::getRemark($entry));
-        $this->assertArrayNotHasKey('item', MigratedPoFixture::readMo($this->overlayBase() . '.mo'));
+        $this->assertArrayNotHasKey('item', MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())));
     }
 
     /**

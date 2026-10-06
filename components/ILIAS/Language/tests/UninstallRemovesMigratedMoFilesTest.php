@@ -96,7 +96,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../'));
         }
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
     }
 
     protected function tearDown(): void
@@ -134,8 +134,7 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             return null;
         }
 
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename($this->fixture_directory);
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang';
     }
 
     /**
@@ -243,15 +242,14 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
             $translations->add(MigratedPoFixture::entry($module, $identifier, $value));
         }
 
-        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/';
+        $overlay_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/';
         if (!is_dir($overlay_dir)) {
             mkdir($overlay_dir, 0775, true);
         }
 
         $base_path = $overlay_dir . $module . '_' . $lang_key;
         MigratedPoFixture::writePo($base_path . '.po', $translations);
-        MigratedPoFixture::writeMo($base_path . '.mo', $translations);
+        MigratedPoFixture::writeOverlayRevision($base_path, $translations);
     }
 
     private function registerDirectoryManager(LanguageFileDirectory ...$contributed): void
@@ -269,8 +267,13 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
 
     private function overlayPath(string $module, string $lang_key, string $extension): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/' . $module . '_' . $lang_key . '.' . $extension;
+        $base = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $module . '/' . $lang_key . '/' . $module . '_' . $lang_key;
+
+        return match ($extension) {
+            'mo' => MigratedPoFixture::overlayMo($base),
+            'lock' => MigratedPoFixture::overlayLock($base),
+            default => $base . '.' . $extension,
+        };
     }
 
     private function loadShippedPo(string $module, string $lang_key): \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog
@@ -290,17 +293,13 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * ilLanguage's own migrated-file cache is private static - invoked the same way
-     * PoMigrationLoadLanguageModuleTest::callLoadFromMigratedLanguageFile() invokes its sibling. Reads
-     * exclusively from the overlay (see ilLanguage::migratedOverlayMoFile()), never the shipped file.
+     * What the runtime serves for $module/$lang_key, see MigratedPoFixture::servedTexts().
      *
      * @return array<string, string>|null
      */
-    private function callLoadFromMigratedLanguageFile(string $module, string $lang_key): ?array
+    private function callLoadFromMigratedLanguageFile(string $module, string $lang_key, bool $build = true): ?array
     {
-        return (new ReflectionClass(ilLanguage::class))
-            ->getMethod('loadFromMigratedLanguageFile')
-            ->invoke(null, $module, $lang_key);
+        return MigratedPoFixture::servedTexts($module, $lang_key, $build);
     }
 
     public function testRemovesBothOverlayFilesButLeavesTheShippedPoUntouched(): void
@@ -413,22 +412,17 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         $this->registerDirectoryManager($directory);
         // "de" is installed (the list ilLanguage's constructor provides in a real request - the
         // migrated state is only served for installed languages)
-        $cache = new ReflectionProperty(ilLanguage::class, 'migrated_language_file_cache');
-        $cache->setValue(null, ["\0installed_languages" => ['de']]);
+        (new ReflectionProperty(ilLanguage::class, 'installed_languages'))->setValue(null, ['de']);
 
-        try {
-            // populates loadFromMigratedLanguageFile()'s static cache for 'utest'|'de'
-            $before = $this->callLoadFromMigratedLanguageFile('utest', 'de');
-            $this->assertSame(['greeting' => 'Hallo'], $before);
+        // reads (and keeps) what the runtime serves for 'utest'|'de'
+        $before = $this->callLoadFromMigratedLanguageFile('utest', 'de');
+        $this->assertSame(['greeting' => 'Hallo'], $before);
 
-            $this->callRemoveMigratedMoFiles('de');
+        $this->callRemoveMigratedMoFiles('de');
 
-            // the language is uninstalled - a stale cached hit from before the removal must not leak
-            // through, and no shipped value is served for a language that is not installed
-            $this->assertNull($this->callLoadFromMigratedLanguageFile('utest', 'de'));
-        } finally {
-            $cache->setValue(null, []);
-        }
+        // the language is uninstalled - a stale hit from before the removal must not leak through,
+        // and no shipped value is served for a language that is not installed
+        $this->assertNull($this->callLoadFromMigratedLanguageFile('utest', 'de', false));
     }
 
     /**
@@ -466,10 +460,9 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         MigratedPoFixture::writePo($shipped_readonly_dir . '/uone_de.po', $shipped_translations);
 
         $relative_readonly_path = 'components/ILIAS/Language/tests/' . basename($this->fixture_directory) . '/readonly/';
-        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . $relative_readonly_path;
+        $overlay_readonly_dir = rtrim(CLIENT_DATA_DIR, '/') . '/lang/uone/de/';
         mkdir($overlay_readonly_dir, 0775, true);
-        MigratedPoFixture::writePo($overlay_readonly_dir . 'uone_de.po', $shipped_translations);
-        MigratedPoFixture::writeMo($overlay_readonly_dir . 'uone_de.mo', $shipped_translations);
+        MigratedPoFixture::writePair($overlay_readonly_dir . 'uone_de', $shipped_translations);
 
         $failing = new class ('uone', $relative_readonly_path) implements LanguageFileDirectory {
             public function __construct(private string $prefix, private string $path)
@@ -522,11 +515,11 @@ class UninstallRemovesMigratedMoFilesTest extends ilLanguageBaseTestCase
         }
 
         $this->assertCount(2, $warnings);
-        $this->assertStringContainsString('uone_de.lock', $warnings[0]);
+        $this->assertStringContainsString('uone/de/lock', $warnings[0]);
         $this->assertStringContainsString('uone', $warnings[1]);
 
         // the failing module's overlay was never actually removed
-        $this->assertFileExists($overlay_readonly_dir . 'uone_de.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($overlay_readonly_dir . 'uone_de'));
         $this->assertFileExists($overlay_readonly_dir . 'uone_de.po');
 
         // the other, unaffected module's overlay was still removed despite the first module's failure

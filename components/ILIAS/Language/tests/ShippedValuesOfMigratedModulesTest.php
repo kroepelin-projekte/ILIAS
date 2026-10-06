@@ -100,7 +100,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
 
         $this->fixture_directory = __DIR__ . '/tmp-shipped-values-fixtures-' . bin2hex(random_bytes(4));
         $shipped = MigratedPoFixture::catalog('itest', [
@@ -166,8 +166,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
     private function seedOverlay(array $entries): void
     {
         MigratedPoFixture::writePair(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/itest_' . self::LANG,
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/itest/' . self::LANG . '/itest_' . self::LANG,
             MigratedPoFixture::catalog('itest', $entries)
         );
     }
@@ -506,7 +505,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         // not a real local change of a migrated module) - ShippedPoMerger has nothing to merge for
         // it, so it is neither written nor reported as skipped.
         $this->assertSame(
-            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []],
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => []],
             $result
         );
         $this->assertSame(
@@ -534,7 +533,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         ];
 
         $this->assertSame(
-            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_overlay' => [], 'unwritten_database' => []],
+            ['written' => [], 'skipped' => [], 'invalid_markup' => [], 'not_merged' => [], 'unwritten_database' => []],
             $this->languageObject()->mergeLocalChangesIntoGlobalLanguageFile()
         );
         $this->assertSame(
@@ -560,8 +559,7 @@ class ShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCase
         $overlay = MigratedPoFixture::catalog('itest', ['greeting' => 'Lokal geändert']);
         LocalChangeComments::setRemark($overlay->find('itest', 'greeting'), 'lokale Bemerkung');
         MigratedPoFixture::writePair(
-            rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/'
-            . basename((string) $this->fixture_directory) . '/itest_' . self::LANG,
+            rtrim(CLIENT_DATA_DIR, '/') . '/lang/itest/' . self::LANG . '/itest_' . self::LANG,
             $overlay
         );
         $logger = $this->createStub(ilLogger::class);

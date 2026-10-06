@@ -21,7 +21,14 @@ declare(strict_types=1);
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LocalChangeComments;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\MigratedTranslations;
+use ILIAS\Language\ComponentTranslation\NativeGettext;
+use ILIAS\Language\ComponentTranslation\PluralForms;
+use ILIAS\Language\ComponentTranslation\ShippedTranslations;
+use ILIAS\Language\ComponentTranslation\ShippedTranslationsBuild;
 
 /**
  * Shared fixture helpers for the tests of modules migrated to PO/MO. Builds shipped/overlay files
@@ -31,6 +38,20 @@ use ILIAS\Language\ComponentTranslation\LocalChangeComments;
  */
 final class MigratedPoFixture
 {
+    private static bool $artifact_cleanup_registered = false;
+
+    /**
+     * The C library never forgets a catalog path it has looked at in a process - not even one that
+     * was missing or damaged then. Every resetRuntime() therefore gets a directory of its own, as
+     * every state of a real installation does (a build id, an overlay revision).
+     */
+    private static int $artifact_generation = 0;
+
+    /**
+     * @var list<string>
+     */
+    private static array $artifact_directories = [];
+
     /**
      * @param array<string, string|array{value: string, context?: string, original?: string,
      *        local_change?: string, fuzzy?: bool}> $entries identifier => value or details.
@@ -81,12 +102,79 @@ final class MigratedPoFixture
     }
 
     /**
-     * Writes "<base>.po" and "<base>.mo" with the same content.
+     * Writes the overlay of $catalog: "<base>.po" and - like MigratedLanguageFileSync::sync() - its
+     * compiled revision named by `current` next to it. $base_path is an overlay base, see
+     * overlayBase().
      */
     public static function writePair(string $base_path, TranslationCatalog $catalog): void
     {
         self::writePo($base_path . '.po', $catalog);
-        self::writeMo($base_path . '.mo', $catalog);
+        self::writeOverlayRevision($base_path, $catalog);
+    }
+
+    /**
+     * Compiles $catalog into a revision of the overlay $base_path (see overlayBase()) and points
+     * `current` to it - exactly as MigratedLanguageFileSync::sync() does, without the `.po`.
+     */
+    public static function writeOverlayRevision(string $base_path, TranslationCatalog $catalog): void
+    {
+        $overlay_directory = dirname($base_path);
+        $lang_key = basename($overlay_directory);
+        $module = basename(dirname($overlay_directory));
+        $compiled = ShippedTranslations::compileCatalog($catalog, $module, false);
+        $keys_json = json_encode(array_map('strval', array_keys($compiled['values'])), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+        $revision = 'r-' . substr(hash('sha256', $compiled['mo'] . "\0" . $keys_json), 0, 32);
+        $revision_directory = MigratedLanguageFilePaths::overlayRevisionDirectory($overlay_directory, $revision);
+        $mo_file = MigratedLanguageFilePaths::overlayMoFile($revision_directory, $module, $lang_key);
+        self::ensureDirectory(dirname($mo_file));
+        file_put_contents($mo_file, $compiled['mo']);
+        file_put_contents(MigratedLanguageFilePaths::overlayKeysFile($revision_directory), $keys_json);
+        file_put_contents(MigratedLanguageFilePaths::overlayCurrentFile($overlay_directory), $revision . "\n");
+    }
+
+    /**
+     * The overlay of $directory's module for $lang_key without the extension of its `.po`:
+     * "<base>.po" is the overlay `.po`, see overlayMo() and overlayLock() for the other files.
+     */
+    public static function overlayBase(string $client_data_dir, LanguageFileDirectory $directory, string $lang_key): string
+    {
+        return substr(MigratedLanguageFilePaths::overlayPoFile($client_data_dir, $directory, $lang_key), 0, -strlen('.po'));
+    }
+
+    /**
+     * The compiled catalog of the revision `current` of the overlay $base_path names - a path that
+     * does not exist if there is none.
+     */
+    public static function overlayMo(string $base_path): string
+    {
+        $overlay_directory = dirname($base_path);
+        $current = MigratedLanguageFilePaths::overlayCurrentFile($overlay_directory);
+        $revision = is_file($current) ? trim((string) file_get_contents($current)) : '';
+        if (!MigratedLanguageFilePaths::isOverlayRevision($revision)) {
+            return $overlay_directory . '/no-current-revision.mo';
+        }
+
+        return MigratedLanguageFilePaths::overlayMoFile(
+            MigratedLanguageFilePaths::overlayRevisionDirectory($overlay_directory, $revision),
+            basename(dirname($overlay_directory)),
+            basename($overlay_directory)
+        );
+    }
+
+    /**
+     * The `current` file of the overlay $base_path.
+     */
+    public static function overlayCurrent(string $base_path): string
+    {
+        return MigratedLanguageFilePaths::overlayCurrentFile(dirname($base_path));
+    }
+
+    /**
+     * The lock file of the overlay $base_path.
+     */
+    public static function overlayLock(string $base_path): string
+    {
+        return MigratedLanguageFilePaths::overlayLockFile(dirname($base_path));
     }
 
     public static function readPo(string $file): TranslationCatalog
@@ -95,11 +183,200 @@ final class MigratedPoFixture
     }
 
     /**
-     * @return array<string, string> identifier => translation, exactly what ilLanguage serves
+     * @return array<string, string> identifier => translation of every message without context of
+     *         the `.mo` $file - exactly what native gettext serves for txt() (a plural message under
+     *         its identifier with the value of its default form)
      */
     public static function readMo(string $file): array
     {
-        return TranslationCatalog::readMoTranslations($file);
+        $result = [];
+        foreach (self::moStrings((string) file_get_contents($file)) as [$original, $translated]) {
+            if ($original === '' || str_contains($original, "\x04")) {
+                continue;
+            }
+            $result[explode("\0", $original, 2)[0]] = explode("\0", $translated, 2)[0];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Every message of the `.mo` $data as it is - [original, translated], the header included (the
+     * original ""): "<context>\x04<msgid>", "<msgid>\0<msgid_plural>" and the forms separated by NUL.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    public static function moStrings(string $data): array
+    {
+        $format = unpack('V', $data)[1] === 0x950412de ? 'V' : 'N';
+        ['count' => $count, 'originals' => $originals, 'translations' => $translations] = unpack(
+            $format . 'count/' . $format . 'originals/' . $format . 'translations',
+            $data,
+            8
+        );
+        $strings = [];
+        for ($i = 0; $i < $count; $i++) {
+            ['length' => $length, 'offset' => $offset] = unpack($format . 'length/' . $format . 'offset', $data, $originals + $i * 8);
+            $original = substr($data, $offset, $length);
+            ['length' => $length, 'offset' => $offset] = unpack($format . 'length/' . $format . 'offset', $data, $translations + $i * 8);
+            $strings[] = [$original, substr($data, $offset, $length)];
+        }
+
+        return $strings;
+    }
+
+    /**
+     * The messages of the `.mo` $data compiled by TranslationCatalog::toMoString() (contexts dropped)
+     * by identifier, a plural message with the value of its default form (PluralForms, with the rule
+     * of the "Plural-Forms" header of $data).
+     *
+     * @return array<string, string>
+     */
+    public static function readMoTranslations(string $data): array
+    {
+        $plural_forms = PluralForms::fromHeaderOrGermanic(self::moPluralFormsHeader($data));
+        $result = [];
+        foreach (self::moStrings($data) as [$original, $translated]) {
+            if ($original === '') {
+                continue;
+            }
+            $id_and_plural = explode("\0", explode("\x04", $original, 2)[1] ?? $original, 2);
+            $result[$id_and_plural[0]] = isset($id_and_plural[1])
+                ? $plural_forms->defaultValueOf(explode("\0", $translated))
+                : explode("\0", $translated, 2)[0];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Every form of the plural messages of the `.mo` $data by identifier (contexts dropped).
+     *
+     * @return array<string, list<string>>
+     */
+    public static function readMoPluralForms(string $data): array
+    {
+        $result = [];
+        foreach (self::moStrings($data) as [$original, $translated]) {
+            $id_and_plural = explode("\0", explode("\x04", $original, 2)[1] ?? $original, 2);
+            if ($original !== '' && isset($id_and_plural[1])) {
+                $result[$id_and_plural[0]] = explode("\0", $translated);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * The "Plural-Forms" header of the `.mo` $data, `null` without.
+     */
+    public static function moPluralFormsHeader(string $data): ?string
+    {
+        foreach (self::moStrings($data) as [$original, $translated]) {
+            if ($original === '' && preg_match('/^Plural-Forms:\s*(.*)$/mi', $translated, $matches) === 1) {
+                return trim($matches[1]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The temporary artifact directory of the tests, see resetRuntime().
+     */
+    public static function artifactDirectory(): string
+    {
+        // per process: two PHPUnit runs at once (e.g. PHP 8.4 and 8.5 on one host) must not empty each
+        // other's build while it is written
+        return sys_get_temp_dir() . '/ilias_lang_test_artifacts_' . getmypid() . '_' . self::$artifact_generation;
+    }
+
+    /**
+     * Forgets what the runtime read path (ilLanguage, MigratedTranslations, NativeGettext) holds in
+     * static state, and points the build and the runtime at $artifact_directory (the temporary
+     * artifactDirectory() by default, emptied) - never at the artifacts of the installation.
+     */
+    public static function resetRuntime(?string $artifact_directory = null): void
+    {
+        if ($artifact_directory === null) {
+            self::removeDirectory(self::artifactDirectory());
+            self::$artifact_generation++;
+            self::$artifact_directories[] = self::artifactDirectory();
+            if (!self::$artifact_cleanup_registered) {
+                self::$artifact_cleanup_registered = true;
+                register_shutdown_function(static function (): void {
+                    array_map(self::removeDirectory(...), self::$artifact_directories);
+                });
+            }
+        }
+        (new ReflectionProperty(ilLanguage::class, 'installed_languages'))->setValue(null, null);
+        (new ReflectionProperty(ilLanguage::class, 'shipped_without_build'))->setValue(null, []);
+        MigratedLanguageFilePaths::useArtifactDirectoryForTests($artifact_directory ?? self::artifactDirectory());
+        MigratedTranslations::resetForTests();
+        NativeGettext::resetForTests();
+    }
+
+    /**
+     * Moves what resetRuntime() set up (the builds) to a directory the process has not looked at yet:
+     * for a test that damages a build file in place after the build was checked through native
+     * gettext - the C library keeps what it read from a path (mapped, not copied), so a damaged
+     * file must not be one this process has read.
+     */
+    public static function moveArtifactsToFreshDirectory(): void
+    {
+        $old = self::artifactDirectory();
+        self::$artifact_generation++;
+        $new = self::artifactDirectory();
+        self::$artifact_directories[] = $new;
+        if (!rename($old, $new)) {
+            throw new RuntimeException('Cannot move "' . $old . '" to "' . $new . '".');
+        }
+        MigratedLanguageFilePaths::useArtifactDirectoryForTests($new);
+        MigratedTranslations::resetForTests();
+    }
+
+    /**
+     * What the runtime serves for $module/$lang_key (identifier => value, see ilLanguage and
+     * MigratedTranslations), `null` if the module is not migrated for it - after building the shipped
+     * `.po` files of the LanguageFileDirectoryManager in $DIC below ILIAS_ABSOLUTE_PATH (into the
+     * artifact directory of resetRuntime()) with $build.
+     *
+     * @return array<string, string>|null
+     */
+    public static function servedTexts(string $module, string $lang_key, bool $build = true): ?array
+    {
+        global $DIC;
+        if ($build && isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            self::build($DIC[LanguageFileDirectoryManager::class], (string) ILIAS_ABSOLUTE_PATH);
+        }
+        $keys = (new ReflectionMethod(ilLanguage::class, 'migratedKeysOf'))->invoke(null, $module, $lang_key);
+        if ($keys === null) {
+            return null;
+        }
+        $texts = [];
+        foreach (array_keys($keys) as $key) {
+            $value = MigratedTranslations::text($module, $lang_key, (string) $key, defined('CLIENT_DATA_DIR') ? (string) CLIENT_DATA_DIR : null);
+            if ($value !== null) {
+                $texts[(string) $key] = $value;
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * Builds the shipped `.po` files of $manager below $ilias_absolute_path into the artifact
+     * directory resetRuntime() set (see ShippedTranslationsBuild).
+     *
+     * @return array{build: ?string, compiled: int, unchanged: bool, removed: int, warnings: list<string>, collisions: list<string>}
+     */
+    public static function build(LanguageFileDirectoryManager $manager, string $ilias_absolute_path): array
+    {
+        $result = (new ShippedTranslationsBuild($manager, $ilias_absolute_path))->run(static function (string $message): void {
+        });
+        MigratedTranslations::resetForTests();
+
+        return $result;
     }
 
     public static function directory(string $prefix, string $path, bool $local = false): LanguageFileDirectory
@@ -187,7 +464,7 @@ final class MigratedPoFixture
             );
         }
         if (!defined('CLIENT_DATA_DIR')) {
-            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir');
+            define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_lang_test_client_data_dir_' . getmypid());
             return true;
         }
         return false;

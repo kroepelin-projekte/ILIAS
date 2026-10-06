@@ -1080,7 +1080,6 @@ class ilObjLanguageExtGUITest extends TestCase
             'skipped' => ['pilot', 'tos'],
             'invalid_markup' => [],
             'not_merged' => [],
-            'unwritten_overlay' => [],
             'unwritten_database' => [],
         ]);
         $messages = [];
@@ -1101,7 +1100,6 @@ class ilObjLanguageExtGUITest extends TestCase
             'skipped' => [],
             'invalid_markup' => [],
             'not_merged' => [],
-            'unwritten_overlay' => [],
             'unwritten_database' => [],
         ]);
         $messages = [];

@@ -33,7 +33,8 @@ use Throwable;
 
 /**
  * An in-memory gettext catalog (the header block of a `.po`/`.mo` file plus its messages) and the
- * only place of the language component that reads or writes the gettext file formats.
+ * only place of the language component that reads or writes the gettext file formats - except for
+ * reading a `.mo` at runtime, which native gettext does (see NativeGettext).
  *
  * Narrow adapter around the gettext/gettext library (Gettext\Translations, Loader\StrictPoLoader,
  * Generator\PoGenerator, Generator\MoGenerator): no other class of the component
@@ -55,17 +56,12 @@ use Throwable;
  * - The value "0": PoGenerator and MoGenerator treat a translation as absent when it is falsy, so
  *   "0" would be written as an empty `msgstr` and left out of the `.mo`. Both generators are fed
  *   "0\0" instead: PoGenerator strips the NUL while encoding (the `.po` holds exactly `"0"`), the
- *   `.mo` holds the C string "0" (the NUL is where C gettext ends the string anyway, and
- *   readMoTranslations() cuts there as well). A context or `msgid_plural` of "" or "0" cannot be
+ *   `.mo` holds the C string "0" (the NUL is where C gettext ends the string anyway). A context or
+ *   `msgid_plural` of "" or "0" cannot be
  *   represented by the library at all; generating such a catalog throws instead of silently
  *   dropping it.
  * - Header values are escaped for the `.po` (PoGenerator writes them verbatim, so a quote or
  *   backslash would corrupt the file).
- * - A `.mo` is read by this class itself (the format is a table of string offsets), after checking
- *   it is structurally sound (magic number, every index table and every string within the file).
- *   The library's MoLoader is not used: it silently clamps out-of-range reads of a truncated file
- *   into shortened or missing messages, and it drops empty plural forms, which shifts every later
- *   form to the wrong index.
  * - Plural messages: in a `.mo`, a plural message gets exactly as many forms as the "Plural-Forms"
  *   header declares (missing ones empty, surplus ones dropped; with a single form it is compiled as
  *   a singular message). A plural message whose msgstr[0] is empty while another form is not cannot
@@ -79,8 +75,6 @@ use Throwable;
 final class TranslationCatalog
 {
     private const string UTF8_BOM = "\xEF\xBB\xBF";
-    private const int MO_MAGIC = 0x950412de;
-    private const int MO_HEADER_SIZE = 28;
 
     private Translations $translations;
 
@@ -160,94 +154,6 @@ final class TranslationCatalog
         $catalog->translations = $translations;
 
         return $catalog;
-    }
-
-    /**
-     * The translations of a `.mo` file, keyed by message id - for a plural message the value of its
-     * default form (see PluralForms::defaultValueOf(), with the rule of the file's "Plural-Forms"
-     * header). The context is dropped: a migrated module's `.mo` only ever holds messages of that one
-     * module, and ILIAS' txt() looks messages up by identifier alone.
-     *
-     * @return array<string, string>
-     * @throws RuntimeException if $file cannot be read or is not a valid `.mo` file
-     */
-    public static function readMoTranslations(string $file): array
-    {
-        return self::readMoMessages($file)->getTranslations();
-    }
-
-    /**
-     * readMoTranslations() for `.mo` data already in memory, e.g. what toMoString() just compiled.
-     *
-     * @param string $name how the data is referred to in an exception message
-     * @return array<string, string>
-     * @throws RuntimeException if $data is not valid `.mo` data
-     */
-    public static function readMoTranslationsFromString(string $data, string $name = 'MO data'): array
-    {
-        return self::readMoMessagesFromString($data, $name)->getTranslations();
-    }
-
-    /**
-     * readMoTranslations() plus every form of the plural messages and the "Plural-Forms" header.
-     *
-     * @throws RuntimeException if $file cannot be read or is not a valid `.mo` file
-     */
-    public static function readMoMessages(string $file): CompiledTranslations
-    {
-        $data = is_file($file) && is_readable($file) ? @file_get_contents($file) : false;
-        if ($data === false) {
-            throw new RuntimeException(sprintf('Could not read MO file "%s".', $file));
-        }
-
-        return self::readMoMessagesFromString($data, $file);
-    }
-
-    /**
-     * readMoMessages() for `.mo` data already in memory.
-     *
-     * @param string $name how the data is referred to in an exception message
-     * @throws RuntimeException if $data is not valid `.mo` data
-     */
-    public static function readMoMessagesFromString(string $data, string $name = 'MO data'): CompiledTranslations
-    {
-        $messages = self::readMoStrings($data, $name);
-
-        $plural_forms_header = null;
-        foreach ($messages as [$original, $translated]) {
-            if ($original !== '') {
-                continue;
-            }
-            foreach (explode("\n", $translated) as $line) {
-                if (preg_match('/\APlural-Forms:\s*(.*)\z/i', $line, $matches) === 1) {
-                    $plural_forms_header = trim($matches[1]);
-                }
-            }
-        }
-        $plural_forms = PluralForms::fromHeaderOrGermanic($plural_forms_header);
-
-        $translations = [];
-        $plural_translations = [];
-        foreach ($messages as [$original, $translated]) {
-            if ($original === '') {
-                continue;
-            }
-            // "<context>\x04<msgid>" and "<msgid>\0<msgid_plural>"
-            $id = explode("\x04", $original, 2)[1] ?? $original;
-            $id_and_plural_id = explode("\0", $id, 2);
-            $id = $id_and_plural_id[0];
-            if (!isset($id_and_plural_id[1])) {
-                // cut at the NUL - see the value "0" in the class docblock
-                $translations[$id] = explode("\0", $translated, 2)[0];
-                unset($plural_translations[$id]);
-                continue;
-            }
-            $forms = explode("\0", $translated);
-            $translations[$id] = $plural_forms->defaultValueOf($forms);
-            $plural_translations[$id] = $forms;
-        }
-
-        return new CompiledTranslations($translations, $plural_translations, $plural_forms_header);
     }
 
     /**
@@ -428,60 +334,6 @@ final class TranslationCatalog
                 $translation->getOriginal()
             ));
         }
-    }
-
-    /**
-     * The original and translated string of every message of the `.mo` $data (the header block is
-     * the message with the original ""), after checking the file is structurally sound - see
-     * https://www.gnu.org/software/gettext/manual/html_node/MO-Files.html
-     *
-     * @return list<array{0: string, 1: string}>
-     * @throws RuntimeException if $data is not valid `.mo` data
-     */
-    private static function readMoStrings(string $data, string $file): array
-    {
-        $size = strlen($data);
-        $format = match (true) {
-            $size < self::MO_HEADER_SIZE => null,
-            unpack('V', $data)[1] === self::MO_MAGIC => 'V',
-            unpack('N', $data)[1] === self::MO_MAGIC => 'N',
-            default => null,
-        };
-        if ($format === null) {
-            throw new RuntimeException(sprintf('"%s" is not a valid MO file.', $file));
-        }
-
-        [
-            'count' => $count,
-            'originals' => $originals_offset,
-            'translations' => $translations_offset
-        ] = unpack($format . 'count/' . $format . 'originals/' . $format . 'translations', $data, 8);
-        $strings = [];
-        // Strings may overlap: without a limit, a small file could make this read many times its size
-        $total_length = 0;
-        $max_total_length = 4 * $size;
-        foreach ([$originals_offset, $translations_offset] as $table => $table_offset) {
-            if ($table_offset + $count * 8 > $size) {
-                throw new RuntimeException(sprintf('"%s" is not a valid MO file (index out of bounds).', $file));
-            }
-            for ($i = 0; $i < $count; $i++) {
-                ['length' => $length, 'offset' => $offset] = unpack(
-                    $format . 'length/' . $format . 'offset',
-                    $data,
-                    $table_offset + $i * 8
-                );
-                if ($offset + $length > $size) {
-                    throw new RuntimeException(sprintf('"%s" is not a valid MO file (string out of bounds).', $file));
-                }
-                $total_length += $length;
-                if ($total_length > $max_total_length) {
-                    throw new RuntimeException(sprintf('"%s" is not a valid MO file (strings exceed the file size).', $file));
-                }
-                $strings[$i][$table] = substr($data, $offset, $length);
-            }
-        }
-
-        return $strings;
     }
 
     /**

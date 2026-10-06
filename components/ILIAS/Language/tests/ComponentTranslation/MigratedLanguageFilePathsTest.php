@@ -40,6 +40,8 @@ class MigratedLanguageFilePathsTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         $this->root = sys_get_temp_dir() . '/ilias_mlfp_test_' . bin2hex(random_bytes(6));
         mkdir($this->root, 0775, true);
     }
@@ -196,7 +198,7 @@ class MigratedLanguageFilePathsTest extends TestCase
 
     // -------------------------------------------------- base paths
 
-    public function testShippedAndOverlayBasePathsShareTheRelativePart(): void
+    public function testTheOverlayPoIsNamedLikeTheShippedPoBelowLangModuleLanguage(): void
     {
         $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
 
@@ -205,8 +207,8 @@ class MigratedLanguageFilePathsTest extends TestCase
             MigratedLanguageFilePaths::shippedBasePath('/srv/ilias/', $directory, 'de')
         );
         $this->assertSame(
-            '/var/iliasdata/default/lang/components/ILIAS/TermsOfService/lang/tos_de',
-            MigratedLanguageFilePaths::overlayBasePath('/var/iliasdata/default/', $directory, 'de')
+            '/var/iliasdata/default/lang/tos/de/tos_de.po',
+            MigratedLanguageFilePaths::overlayPoFile('/var/iliasdata/default/', $directory, 'de')
         );
     }
 
@@ -219,8 +221,8 @@ class MigratedLanguageFilePathsTest extends TestCase
             MigratedLanguageFilePaths::shippedBasePath('/srv/ilias', $directory, 'en')
         );
         $this->assertSame(
-            '/data/client/lang/components/ILIAS/TermsOfService/lang/tos_en',
-            MigratedLanguageFilePaths::overlayBasePath('/data/client', $directory, 'en')
+            '/data/client/lang/tos/en/tos_en.po',
+            MigratedLanguageFilePaths::overlayPoFile('/data/client', $directory, 'en')
         );
     }
 
@@ -268,6 +270,8 @@ class MigratedLanguageFilePathsTest extends TestCase
 
     public function testShippedArtifactDirectoryIsBelowArtifactsLanguageOfTheRoot(): void
     {
+        MigratedLanguageFilePaths::useArtifactDirectoryForTests(null);
+
         $this->assertSame(
             '/srv/ilias/artifacts/language',
             MigratedLanguageFilePaths::shippedArtifactDirectory('/srv/ilias/')
@@ -278,29 +282,26 @@ class MigratedLanguageFilePathsTest extends TestCase
         );
     }
 
-    public function testShippedArtifactFileComposesLangAndModuleBelowTheArtifactDirectory(): void
+    public function testBuildPathsComposeModuleAndLanguageBelowTheBuild(): void
     {
-        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
+        $build = MigratedLanguageFilePaths::buildDirectory('/srv/ilias/artifacts/language', 'b-0123456789abcdef');
 
-        $this->assertSame(
-            '/srv/ilias/artifacts/language/de/tos.mo',
-            MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, 'de')
-        );
+        $this->assertSame('/srv/ilias/artifacts/language/b-0123456789abcdef', $build);
+        $this->assertSame($build . '/messages/LC_MESSAGES/tos.de.mo', MigratedLanguageFilePaths::buildMoFile($build, 'tos', 'de'));
+        $this->assertSame($build . '/keys/tos.php', MigratedLanguageFilePaths::buildKeysFile($build, 'tos'));
+        $this->assertSame('tos.de.overlay', MigratedLanguageFilePaths::overlayDomain('tos', 'de'));
     }
 
     /**
-     * The module (the directory's prefix) becomes part of a file name below the artifact directory -
-     * a prefix that is not a plain file name (path traversal, a path separator) must be rejected
-     * rather than silently building a path outside the intended `<lang>/` subdirectory.
+     * The module becomes part of a file name and a gettext domain - a prefix that is not a plain
+     * file name (path traversal, a path separator) must be rejected.
      */
     #[DataProvider('unsafeModuleNames')]
-    public function testShippedArtifactFileRejectsAModuleThatIsNotAPlainFileName(string $module): void
+    public function testBuildMoFileRejectsAModuleThatIsNotAPlainFileName(string $module): void
     {
-        $directory = MigratedPoFixture::directory($module, 'somewhere/');
-
         $this->expectException(\InvalidArgumentException::class);
 
-        MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, 'de');
+        MigratedLanguageFilePaths::buildMoFile('/srv/ilias/artifacts/language/b-0123456789abcdef', $module, 'de');
     }
 
     /**
@@ -314,21 +315,16 @@ class MigratedLanguageFilePathsTest extends TestCase
             'backslash' => ['tos\\evil'],
             'nul byte' => ["tos\0evil"],
             'empty' => [''],
+            'dot' => ['tos.de'],
         ];
     }
 
-    /**
-     * Regression coverage mirroring testShippedBasePathRejectsAMalformedLangKey(): the artifact path
-     * is just as much a path-traversal-relevant sink as the shipped base path.
-     */
     #[DataProvider('invalidLangKeys')]
-    public function testShippedArtifactFileRejectsAMalformedLangKey(string $lang_key): void
+    public function testOverlayDirectoryRejectsAMalformedLangKey(string $lang_key): void
     {
-        $directory = MigratedPoFixture::directory('tos', 'components/ILIAS/TermsOfService/lang/');
-
         $this->expectException(\InvalidArgumentException::class);
 
-        MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias/', $directory, $lang_key);
+        MigratedLanguageFilePaths::overlayDirectory('/data/client', 'tos', $lang_key);
     }
 
     // -------------------------------------------------- shipped file name pattern
@@ -440,20 +436,16 @@ class MigratedLanguageFilePathsTest extends TestCase
     }
 
     /**
-     * Overlay and build-artifact paths stay purely module-based (the prefix) even for a directory
-     * with the "ilias_%s" shipped pattern - only the shipped `.po` itself moves.
+     * The overlay directory stays module-based (the prefix) even for a directory with the "ilias_%s"
+     * shipped pattern - only the name of the `.po` follows the pattern.
      */
-    public function testOverlayAndArtifactPathsStayModuleBasedEvenWithTheIliasSchema(): void
+    public function testTheOverlayDirectoryStaysModuleBasedEvenWithTheIliasSchema(): void
     {
         $directory = $this->directoryWithPattern('tos', 'components/ILIAS/TermsOfService/lang/', 'ilias_%s');
 
         $this->assertSame(
-            '/data/client/lang/components/ILIAS/TermsOfService/lang/tos_de',
-            MigratedLanguageFilePaths::overlayBasePath('/data/client', $directory, 'de')
-        );
-        $this->assertSame(
-            '/srv/ilias/artifacts/language/de/tos.mo',
-            MigratedLanguageFilePaths::shippedArtifactFile('/srv/ilias', $directory, 'de')
+            '/data/client/lang/tos/de/ilias_de.po',
+            MigratedLanguageFilePaths::overlayPoFile('/data/client', $directory, 'de')
         );
     }
 

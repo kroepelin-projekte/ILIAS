@@ -511,7 +511,6 @@ class TranslationCatalogPoTest extends TestCase
     {
         $files = glob(self::TOS_LANG_DIRECTORY . '/*.{po,pot}', GLOB_BRACE) ?: [];
         $this->assertNotSame([], $files, 'the shipped tos files were not found');
-        $mo_file = $this->temporaryDirectory() . '/tos.mo';
 
         foreach ($files as $file) {
             $catalog = TranslationCatalog::fromPoFile($file);
@@ -525,8 +524,7 @@ class TranslationCatalogPoTest extends TestCase
                     $expected[$entry->getId()] = $entry->getTranslation();
                 }
             }
-            file_put_contents($mo_file, $catalog->toMoString());
-            $actual = TranslationCatalog::readMoTranslations($mo_file);
+            $actual = \MigratedPoFixture::readMoTranslations($catalog->toMoString());
             ksort($expected, SORT_STRING);
             ksort($actual, SORT_STRING);
             $this->assertSame($expected, $actual, basename($file));

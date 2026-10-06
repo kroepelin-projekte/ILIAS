@@ -99,7 +99,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
 
         $this->fixture_directory = __DIR__ . '/tmp-import-fixtures-' . bin2hex(random_bytes(4));
         MigratedPoFixture::writePo(
@@ -132,9 +132,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         // (see the property's own docblock) - nothing was written anywhere in that case.
         if ($this->fixture_directory !== null) {
             MigratedPoFixture::removeDirectory($this->fixture_directory);
-            MigratedPoFixture::removeDirectory(
-                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . basename($this->fixture_directory)
-            );
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang');
         }
         // Only this test's own, freshly generated CLIENT_DATA_DIR root is removed here - never a
         // pre-existing, foreign one (see ensureClientDataDirDefinedOrSkip()'s own docblock and
@@ -302,7 +300,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
 
     private function overlayDirectory(): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . basename($this->fixture_directory);
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/itest/' . self::LANG;
     }
 
     /**
@@ -398,7 +396,7 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         $this->seedGlobalLanguageFile([]);
 
         $this->assertSame([], ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Servus', 'common#:#yes' => 'Ja']));
-        $this->assertFileExists($this->overlayDirectory() . '/itest_' . self::LANG . '.mo');
+        $this->assertFileExists(MigratedPoFixture::overlayMo($this->overlayDirectory() . '/itest_' . self::LANG));
     }
 
     /**

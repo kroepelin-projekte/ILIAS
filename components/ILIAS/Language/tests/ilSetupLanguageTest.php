@@ -36,6 +36,8 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
 
     protected function setUp(): void
     {
+        // per process: two PHPUnit runs at once must not share (and delete) the same directory
+        $this->tempComponentDir .= '_' . getmypid();
         $this->newLangSetupDe = new ilSetupLanguage('de');
         $this->newLangSetupEs = new ilSetupLanguage('es');
 
@@ -475,7 +477,7 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
             $setup_language->setClientDataDir($client_data_dir);
 
             $this->assertSame(
-                [$client_data_dir . '/lang/components/ILIAS/Language/tests/' . $fixture],
+                [$client_data_dir . '/lang/stest/de'],
                 $setup_language->findUnwritableOverlayDirectories(['de'])
             );
             $this->assertSame([], $setup_language->findUnwritableOverlayDirectories(['en']));

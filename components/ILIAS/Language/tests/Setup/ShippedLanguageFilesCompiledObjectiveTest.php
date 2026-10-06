@@ -20,16 +20,17 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\ShippedTranslationsBuild;
 use ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective;
 use ILIAS\Setup\AdminInteraction;
 use ILIAS\Setup\Environment;
 use PHPUnit\Framework\TestCase;
 
 /**
- * ShippedLanguageFilesCompiledObjective: Setup's build step compiling every shipped `.po` into
- * `artifacts/language/<lang>/<module>.mo` (Konzept Entscheidung 1) - incremental via a hash index,
- * removing orphaned artifacts, warning (without aborting) about markup that had to be cleaned or a
- * `.po` that could not be compiled, and never writing outside the artifact directory.
+ * ShippedLanguageFilesCompiledObjective: Setup's build step building every shipped `.po` for native
+ * gettext (see ShippedTranslationsBuild) - an unchanged intact build is kept, a damaged one rebuilt,
+ * obsolete files removed, warning (without aborting) about markup that had to be cleaned or a `.po`
+ * that could not be compiled, and never writing outside the artifact directory.
  */
 class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
 {
@@ -37,6 +38,8 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         $this->root = sys_get_temp_dir() . '/ilias_shipped_build_' . bin2hex(random_bytes(6));
         mkdir($this->root, 0775, true);
     }
@@ -82,9 +85,19 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $objective->achieve($environment);
     }
 
+    /**
+     * The catalog of $module/$lang_key in the build current.json names - a path that does not exist
+     * without one.
+     */
     private function artifactPath(string $lang_key, string $module): string
     {
-        return MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/' . $lang_key . '/' . $module . '.mo';
+        $artifact_directory = MigratedLanguageFilePaths::shippedArtifactDirectory($this->root);
+        $build = ShippedTranslationsBuild::readPointer($artifact_directory)['build'] ?? null;
+        if ($build === null) {
+            return $artifact_directory . '/no-build.mo';
+        }
+
+        return MigratedLanguageFilePaths::buildMoFile(MigratedLanguageFilePaths::buildDirectory($artifact_directory, $build), $module, $lang_key);
     }
 
     public function testCompilesAShippedPoIntoAnArtifact(): void
@@ -97,7 +110,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->assertFileExists($this->artifactPath('de', 'itest'));
         $this->assertSame(
             ['greeting' => 'Hallo'],
-            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+            MigratedPoFixture::readMo($this->artifactPath('de', 'itest'))
         );
     }
 
@@ -114,7 +127,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($this->directoryManager($directory), $io);
 
-        $this->assertStringContainsString('0 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString('no migrated module, 0 compiled', $messages[array_key_last($messages)]);
     }
 
     /**
@@ -133,15 +146,15 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('0 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString('unchanged, 0 compiled', $messages[array_key_last($messages)]);
         $this->assertSame($first_mtime, filemtime($this->artifactPath('de', 'itest')));
     }
 
     /**
-     * Only the changed `.po` is recompiled - a second, untouched module's artifact is left as is
-     * (still reported unchanged) - the essence of "incremental".
+     * A changed `.po` gives a new build (every `.po` compiled into a new directory - a running
+     * process never reloads a catalog file it has read), the previous build is kept.
      */
-    public function testOnlyRecompilesTheChangedPoNotAnUntouchedOne(): void
+    public function testAChangedPoGivesANewBuildAndKeepsThePreviousOne(): void
     {
         $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
         $this->writeShippedPo('utest/', 'utest', 'de', ['greeting' => 'Servus']);
@@ -150,7 +163,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
             MigratedPoFixture::directory('utest', 'utest/')
         );
         $this->achieve($manager);
-        $unchanged_mtime = filemtime($this->artifactPath('de', 'utest'));
+        $previous = dirname($this->artifactPath('de', 'utest'), 3);
 
         // change only "itest"'s shipped .po - the incremental decision is by content hash, not mtime
         $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo geändert']);
@@ -158,11 +171,12 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('1 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
-        $this->assertSame($unchanged_mtime, filemtime($this->artifactPath('de', 'utest')));
+        $this->assertStringContainsString('2 compiled', $messages[array_key_last($messages)]);
+        $this->assertNotSame($previous, dirname($this->artifactPath('de', 'utest'), 3));
+        $this->assertDirectoryExists($previous, 'the previous build is kept');
         $this->assertSame(
             ['greeting' => 'Hallo geändert'],
-            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+            MigratedPoFixture::readMo($this->artifactPath('de', 'itest'))
         );
     }
 
@@ -183,7 +197,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->achieve($manager, $io);
 
         $this->assertFileDoesNotExist($this->artifactPath('de', 'itest'));
-        $this->assertStringContainsString('0 compiled, 0 unchanged, 1 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString('no migrated module, 0 compiled', $messages[array_key_last($messages)]);
     }
 
     /**
@@ -204,7 +218,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->assertStringContainsString('itest', $warning);
         $this->assertStringContainsString('greeting', $warning);
         $this->assertFileExists($this->artifactPath('de', 'itest'));
-        $translations = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'));
+        $translations = MigratedPoFixture::readMo($this->artifactPath('de', 'itest'));
         $this->assertStringNotContainsString('<script', $translations['greeting']);
     }
 
@@ -299,6 +313,8 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->achieve($manager);
 
         // simulate a crash that left a truncated artifact behind - same source .po, damaged artifact
+        // (not the file this process has just read through native gettext, see the fixture)
+        MigratedPoFixture::moveArtifactsToFreshDirectory();
         $full = (string) file_get_contents($this->artifactPath('de', 'itest'));
         file_put_contents($this->artifactPath('de', 'itest'), substr($full, 0, 10));
 
@@ -306,10 +322,10 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString(', 1 compiled', $messages[array_key_last($messages)]);
         $this->assertSame(
             ['greeting' => 'Hallo'],
-            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+            MigratedPoFixture::readMo($this->artifactPath('de', 'itest'))
         );
     }
 
@@ -324,6 +340,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $manager = $this->directoryManager($directory);
         $this->achieve($manager);
 
+        MigratedPoFixture::moveArtifactsToFreshDirectory();
         $original = (string) file_get_contents($this->artifactPath('de', 'itest'));
         $tampered = substr($original, 0, -1) . ($original[-1] === "\x00" ? "\x01" : "\x00");
         file_put_contents($this->artifactPath('de', 'itest'), $tampered);
@@ -333,39 +350,33 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString(', 1 compiled', $messages[array_key_last($messages)]);
     }
 
     /**
-     * The index also carries a fingerprint over the code that determines the compiled output (see
-     * FORMAT_VERSION/fingerprint()) - an index written under a DIFFERENT fingerprint (e.g. an older
-     * ILIAS version's build, or code that changed) must never be trusted: everything is rebuilt.
+     * A build whose manifest cannot be read is never trusted: it is rebuilt.
      */
-    public function testAnIndexWithADifferentFingerprintCausesAFullRebuild(): void
+    public function testABrokenManifestCausesARebuild(): void
     {
         $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
         $directory = MigratedPoFixture::directory('itest', 'itest/');
         $manager = $this->directoryManager($directory);
         $this->achieve($manager);
 
-        $index_file = MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/index.json';
-        $index = json_decode((string) file_get_contents($index_file), true);
-        $index['fingerprint'] = 'not-the-real-fingerprint';
-        file_put_contents($index_file, json_encode($index));
+        file_put_contents(dirname($this->artifactPath('de', 'itest'), 3) . '/manifest.json', '{not valid json');
 
         $messages = [];
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString(', 1 compiled', $messages[array_key_last($messages)]);
     }
 
     /**
-     * A syntactically broken index.json (e.g. a build interrupted while writing it, before
-     * AtomicFileWriter existed, or manual corruption) must not abort the build either - it is simply
-     * treated as "no previous index", so everything is rebuilt from scratch.
+     * The index.json of the former layout (here even a broken one) does not abort the build - it is
+     * removed as obsolete.
      */
-    public function testABrokenIndexJsonCausesAFullRebuildWithoutAborting(): void
+    public function testAnIndexJsonOfTheFormerLayoutIsRemoved(): void
     {
         $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
         $directory = MigratedPoFixture::directory('itest', 'itest/');
@@ -376,17 +387,16 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($this->directoryManager($directory), $io);
 
-        $this->assertStringContainsString('1 compiled, 0 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString(', 1 compiled', $messages[array_key_last($messages)]);
         $this->assertFileExists($this->artifactPath('de', 'itest'));
+        $this->assertFileDoesNotExist(MigratedLanguageFilePaths::shippedArtifactDirectory($this->root) . '/index.json');
     }
 
     /**
-     * The "touch" branch: identical content (same source, same hash, intact artifact) but the .po's
-     * mtime is newer than the artifact's (e.g. a checkout that reset only the .po's mtime) - the
-     * artifact is not rewritten, only its mtime is bumped, so ilLanguage/ShippedTranslations::read()
-     * does not needlessly re-compile the .po on every request. Still reported as "unchanged".
+     * Identical content but a newer .po (e.g. a checkout reset its mtime): the build is decided by
+     * content, it stays unchanged and is not rewritten.
      */
-    public function testATouchedButOtherwiseIdenticalPoOnlyBumpsTheArtifactsMtimeInsteadOfRewritingIt(): void
+    public function testATouchedButOtherwiseIdenticalPoKeepsTheBuild(): void
     {
         $this->writeShippedPo('itest/', 'itest', 'de', ['greeting' => 'Hallo']);
         $directory = MigratedPoFixture::directory('itest', 'itest/');
@@ -403,13 +413,9 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $io = $this->informer($messages);
         $this->achieve($manager, $io);
 
-        $this->assertStringContainsString('0 compiled, 1 unchanged, 0 removed.', $messages[array_key_last($messages)]);
+        $this->assertStringContainsString('unchanged, 0 compiled', $messages[array_key_last($messages)]);
         clearstatcache(true, $this->artifactPath('de', 'itest'));
-        $this->assertSame($artifact_inode_before, fileinode($this->artifactPath('de', 'itest')), 'the artifact must be touched, not rewritten (same inode)');
-        $this->assertGreaterThanOrEqual(
-            filemtime($this->root . '/itest/itest_de.po'),
-            filemtime($this->artifactPath('de', 'itest'))
-        );
+        $this->assertSame($artifact_inode_before, fileinode($this->artifactPath('de', 'itest')), 'the artifact is not rewritten (same inode)');
     }
 
     // ------------------------------------------------------------ Round 2: robustness
@@ -568,7 +574,7 @@ class ShippedLanguageFilesCompiledObjectiveTest extends TestCase
         $this->assertFileExists($this->artifactPath('de', 'itest'));
         $this->assertSame(
             ['greeting' => 'Hallo'],
-            \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::readMoTranslations($this->artifactPath('de', 'itest'))
+            MigratedPoFixture::readMo($this->artifactPath('de', 'itest'))
         );
     }
 

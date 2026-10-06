@@ -47,32 +47,42 @@ A component may ship a module as gettext files instead of `.lang` lines: it cont
 `TermsOfService`, module `tos`, and `Poll`, module `poll`). For such a module the shipped `.po` is
 the only source of its shipped values - its lines in `lang/ilias_<lang>.lang` are ignored when installing/updating and are
 not the default the administration GUI compares with. Each installation keeps only its local
-changes in files (the "overlay", `<client data dir>/lang/...po|.mo`): the entries whose value
+changes in files (the "overlay", `<client data dir>/lang/<module>/<lang>/`: the `.po` with the
+bookkeeping, `current` naming the compiled revision `r-<hash>/` served at runtime): the entries whose value
 differs from the shipped `.po` or whose key it does not ship (customizing values, "add new
 variable"), with their `original`/`local_change` bookkeeping. An entry set back to the shipped
 value (or to an empty value) leaves the overlay, an empty overlay is deleted; installing a language
 without local changes writes no file. An overlay of an earlier version holding every entry shrinks
 to this delta with the next update or reinstall. Every write path maintains the overlay; the
-database tables are still written as a rollback-safe fallback. At runtime `ilLanguage` serves the
-shipped state with the overlay applied on top (an overlay value wins) - for installed languages
+database tables are still written as a rollback-safe fallback. At runtime `ilLanguage` serves a
+migrated module only through native gettext (PHP extension `gettext`, see
+`ILIAS\Language\ComponentTranslation\MigratedTranslations` and `NativeGettext`): the build with
+the overlay on top (an overlay value wins), never from the database - for installed languages
 only; for a language that is not installed it falls back to `lng_modules` like for a module that
-is not migrated.
+is not migrated. If native gettext is not available, the texts of migrated modules are shown as
+`-identifier-`, the problem is logged and shown in the language administration.
 
-The shipped state is compiled by Setup's build (`php cli/setup.php build`, run by `composer install`
-and `composer dump-autoload`) to `artifacts/language/<lang>/<module>.mo`
-(`ILIAS\Language\Setup\ShippedLanguageFilesCompiledObjective`, incremental via
-`artifacts/language/index.json`). If an artifact is missing (logged once per request as a notice)
-or older than its `.po`, `ilLanguage` compiles the `.po` itself, with the same result
-(`ILIAS\Language\ComponentTranslation\ShippedTranslations`).
+The shipped state is built by Setup's build (`php cli/setup.php build`, run by `composer install`
+and `composer dump-autoload`, `ILIAS\Language\ComponentTranslation\ShippedTranslationsBuild`):
+`artifacts/language/current.json` names the build `artifacts/language/<build>/` with
+`messages/LC_MESSAGES/<module>.<lang>.mo`, `keys/<module>.php` and its own locale (a copy of the C
+library's `C.utf8`, so no system locale per language is needed). The build checks native gettext
+with a real lookup and **aborts if the extension `gettext` or `C.utf8` is missing**; it switches
+`current.json` only once the new build is complete and keeps the previous build. The check runs in
+the CLI process only: the web server needs the extension `gettext` as well and the same C library
+(glibc with `C.utf8`; musl ignores `LOCPATH`). Only Setup builds - the web server never writes
+`artifacts/`, "merge" in the translation mode only writes the shipped `.po` (its values stay in the
+overlay until `setup build` and `setup update` ran).
+
+Behaviour change against the `.lang`/database path: an identifier the migrated module loaded last
+does not translate for the language gives `-identifier-`, not the value of a module loaded before.
 
 **Deployment requirement: run `php cli/setup.php build` after every change of a shipped `.po`**
-(`composer install`/`composer dump-autoload` do so). Whether an artifact is current is decided by
-comparing modification times in seconds: a deployment that preserves them (`rsync -a`, `tar`,
-`cp -p`) can make a changed `.po` look older than the existing artifact, which is then served
-stale until the next build.
+(`composer install`/`composer dump-autoload` do so). The runtime never compiles a `.po` itself: a
+language file that is not in the build is not served (`-identifier-`).
 
-The `.po`/`.mo` files are read and written with the library `gettext/gettext`, which MUST only be
-used through the adapter in `src/ComponentTranslation/Catalog/`
+Except for the runtime lookups, the `.po`/`.mo` files are read and written with the library
+`gettext/gettext`, which MUST only be used through the adapter in `src/ComponentTranslation/Catalog/`
 (`ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog`/`TranslationEntry`): only these
 two classes import from `Gettext\...`, and the library's `Scanner` is not used, so a change of the
 library version stays local and the adapter's safeguards always apply.
@@ -135,7 +145,9 @@ Further rules of the pilot:
   flush.)
 * Shipped `.po` files are generated with `tools/po-migration/convert_module_to_po.php
   [--pattern=<pattern>] [--skip-unmigratable-keys] [--remove-from-lang] <module> [referenceLanguage]
-  [outputDir]` (never by hand; it fails if a language has keys the reference language lacks, an empty
+  [outputDir]` (never by hand; the reference language, `en` by default, gives the msgids and the
+  `.pot`, and a language that lacks one of its keys or has it empty gets the reference value, flagged
+  `#, fuzzy`; it fails if a language has keys the reference language lacks, an empty
   key or a duplicate key - with `--skip-unmigratable-keys` such keys are left out and exact duplicate
   lines (same value and comment) collapsed, with a warning each - and verifies every written entry;
   `--remove-from-lang` removes the module's lines from `lang/ilias_*.lang` after a fully successful

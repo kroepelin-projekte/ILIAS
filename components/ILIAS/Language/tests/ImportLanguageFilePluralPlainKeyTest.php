@@ -66,7 +66,7 @@ class ImportLanguageFilePluralPlainKeyTest extends ilLanguageBaseTestCase
         }
         $this->created_client_data_dir_root = MigratedPoFixture::ensureClientDataDirDefinedOrSkip($this);
 
-        (new ReflectionClass(ilLanguage::class))->getProperty('migrated_language_file_cache')->setValue(null, []);
+        MigratedPoFixture::resetRuntime();
         (new ReflectionClass(ilCachedLanguage::class))->getProperty('instances')->setValue(null, []);
         (new ReflectionClass(ilLanguageFile::class))->getProperty('global_file_objects')->setValue(null, []);
     }
@@ -75,9 +75,7 @@ class ImportLanguageFilePluralPlainKeyTest extends ilLanguageBaseTestCase
     {
         if ($this->fixture_directory !== null) {
             MigratedPoFixture::removeShippedDirectory('components/ILIAS/Language/tests/' . $this->fixture_directory);
-            MigratedPoFixture::removeDirectory(
-                rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            );
+            MigratedPoFixture::removeDirectory(rtrim(CLIENT_DATA_DIR, '/') . '/lang');
         }
         if ($this->upload_file !== null && is_file($this->upload_file)) {
             unlink($this->upload_file);
@@ -197,8 +195,7 @@ class ImportLanguageFilePluralPlainKeyTest extends ilLanguageBaseTestCase
 
     private function overlayPoPath(): string
     {
-        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/components/ILIAS/Language/tests/' . $this->fixture_directory
-            . '/' . self::MODULE . '_' . self::LANG_KEY . '.po';
+        return rtrim(CLIENT_DATA_DIR, '/') . '/lang/' . self::MODULE . '/' . self::LANG_KEY . '/' . self::MODULE . '_' . self::LANG_KEY . '.po';
     }
 
     private function writeUploadFile(string $content): string

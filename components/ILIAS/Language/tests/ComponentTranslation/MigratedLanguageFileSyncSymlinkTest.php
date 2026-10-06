@@ -48,6 +48,8 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
 
     protected function setUp(): void
     {
+        // never the build of the installation, see MigratedPoFixture::resetRuntime()
+        MigratedPoFixture::resetRuntime();
         parent::setUp();
 
         if (!defined('ILIAS_ABSOLUTE_PATH')) {
@@ -95,12 +97,12 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
 
     private function overlayBase(): string
     {
-        return MigratedLanguageFilePaths::overlayBasePath($this->client_data_dir, $this->directory, 'de');
+        return MigratedPoFixture::overlayBase($this->client_data_dir, $this->directory, 'de');
     }
 
     private function lockFile(): string
     {
-        return $this->overlayBase() . '.lock';
+        return MigratedPoFixture::overlayLock($this->overlayBase());
     }
 
     private function sync(array $entries = ['greeting' => 'Hallo']): void
@@ -179,13 +181,13 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
      * removed - exercised with a missing `.po` (a fresh overlay) so this is specifically the `.mo`
      * check, not the `.po` one, that rejects the write.
      */
-    public function testASymlinkedOverlayMoIsRejectedAndItsTargetIsLeftUntouched(): void
+    public function testASymlinkedOverlayCurrentFileIsRejectedAndItsTargetIsLeftUntouched(): void
     {
         $this->seedShipped();
         mkdir(dirname($this->overlayBase()), 0775, true);
         $decoy = $this->decoy_directory . '/decoy.mo';
         file_put_contents($decoy, 'DECOY');
-        symlink($decoy, $this->overlayBase() . '.mo');
+        symlink($decoy, MigratedPoFixture::overlayCurrent($this->overlayBase()));
 
         try {
             $this->sync();
@@ -195,7 +197,7 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
         }
 
         $this->assertSame('DECOY', file_get_contents($decoy));
-        $this->assertSame($decoy, readlink($this->overlayBase() . '.mo'));
+        $this->assertSame($decoy, readlink(MigratedPoFixture::overlayCurrent($this->overlayBase())));
         $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'the .po must not have been written either');
     }
 
@@ -225,7 +227,7 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
         $this->assertSame($decoy, readlink($this->lockFile()), 'the symlink itself must not be replaced');
         $this->assertSame(
             ['greeting' => 'Servus'],
-            MigratedPoFixture::readMo($this->overlayBase() . '.mo'),
+            MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())),
             'the overlay write itself must still succeed even though no lock could be taken'
         );
     }
@@ -240,7 +242,8 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
     {
         $overlay_dir = dirname($this->overlayBase());
         mkdir($overlay_dir, 0775, true);
-        file_put_contents($this->overlayBase() . '.mo', 'REAL MO');
+        MigratedPoFixture::writeOverlayRevision($this->overlayBase(), MigratedPoFixture::catalog(self::MODULE, ['greeting' => 'Servus']));
+        file_put_contents(MigratedPoFixture::overlayMo($this->overlayBase()), 'REAL MO');
         $decoy = $this->decoy_directory . '/decoy.po';
         file_put_contents($decoy, 'DECOY');
         symlink($decoy, $this->overlayBase() . '.po');
@@ -254,7 +257,7 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
 
         $this->assertSame('DECOY', file_get_contents($decoy));
         $this->assertSame($decoy, readlink($this->overlayBase() . '.po'), 'the symlink must not have been unlinked');
-        $this->assertSame('REAL MO', file_get_contents($this->overlayBase() . '.mo'), 'the .mo must not have been removed either');
+        $this->assertSame('REAL MO', file_get_contents(MigratedPoFixture::overlayMo($this->overlayBase())), 'the .mo must not have been removed either');
     }
 
     // -------------------------------------------------- allowed: the root itself
@@ -276,7 +279,7 @@ class MigratedLanguageFileSyncSymlinkTest extends TestCase
 
         $this->assertSame(
             ['greeting' => 'Servus'],
-            MigratedPoFixture::readMo($this->overlayBase() . '.mo'),
+            MigratedPoFixture::readMo(MigratedPoFixture::overlayMo($this->overlayBase())),
             'the write must go through the symlinked root into the real directory'
         );
 

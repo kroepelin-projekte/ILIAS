@@ -21,24 +21,25 @@ rationale").
 
 | Abweichung | Begründung |
 |---|---|
-| Kein natives `gettext()`, sondern `gettext/gettext` | Natives gettext braucht Extension und OS-Locales pro Sprache (Root-Rechte, auf vielen Hostings nicht vorhanden); Locale/Domain sind globaler Prozesszustand, `ilLanguage` liest aber mehrere Sprachen pro Request (`txtlng()`, Mails); gettext cacht `.mo` pro Prozess, GUI-Änderungen würden erst nach FPM-Neustart sichtbar. Das Format bleibt Standard-PO/MO. Details: "Natives PHP-`gettext()`". |
+| Laufzeit über natives `gettext()` (seit 2026-10-06), Verwaltung über `gettext/gettext` | Gelesen wird zur Laufzeit nur noch nativ (PHP-Extension `gettext`), ohne OS-Locales pro Sprache: der Build liefert eine eigene Locale mit, die Sprache steckt im Domainnamen, jeder neue Stand bekommt ein eigenes Verzeichnis (gettext lädt eine Datei pro Prozess nur einmal). `gettext/gettext` bleibt für Sprachverwaltung, Abgleich, merge und das Kompilieren. Details: "Natives PHP-`gettext()`". |
 | Weder Variante A (`msgctxt`) noch B (`modul.key`), sondern eine Datei pro Modul, `msgid` = Key, kein `msgctxt` | Die Datei legt das Modul fest, `msgctxt` = Modul wäre redundant; Variante B würde jeden Key und damit jeden `txt()`-Aufruf ändern (widerspricht FR 2.5); ohne Kontext bleibt eine Datei bei Umbenennung des Moduls gültig. Details: "Dateinamen und Kontext", "Uniqueness". |
 | GUI schreibt nicht in die Shipped-`.po`, sondern in ein Delta-Overlay im Client-Datenverzeichnis | Sonst Schreibrechte des Webservers im Code-Verzeichnis, Verlust lokaler Änderungen bei jedem Update und als geändert markierte versionierte Dateien. Details: "Overlay". |
 | `.mo` als Build-Artefakt statt versioniert | Binärdateien sind nicht reviewbar und veralten gegenüber der `.po`; `setup build` erzeugt sie reproduzierbar. Details: "Build-Artefakt". |
 | DB-Tabellen werden im Übergang mitgeschrieben (Dual-Write) | Rollback-Pfad nach FR 2.3; nicht migrierte Module, Plugins und zwei externe `lng_data`-Zugriffe hängen noch daran. Abschaltung erst nach vollständiger Migration. Details: "Rollback", "Bekannte Grenzen". |
 | Zentrale Markup-Allowlist | Umsetzung von FR 4.4 (keine Skripte über die GUI). Details: "Markup-Prüfung". |
-| Pluralformen mit eigener Auswertung der `Plural-Forms`-Formel, neue Methode `ntxt()` statt `ngettext()` | Kein `eval`, keine Abhängigkeit auf `Gettext\Translator`; `txt()` bleibt für jeden bestehenden Aufrufer unverändert (Plural-Eintrag → Standardform). Die Datenbank hält pro Key weiter genau einen Wert. Details: "Pluralformen". |
+| Pluralformen: neue Methode `ntxt()` (intern `dngettext()`), Formel wird beim Kompilieren geprüft | `txt()` bleibt für jeden bestehenden Aufrufer unverändert (Plural-Eintrag → Standardform). Die Formel prüft `PluralForms` beim Kompilieren (kein `eval`), ausgewertet wird sie zur Laufzeit von gettext. Die Datenbank hält pro Key weiter genau einen Wert. Details: "Pluralformen". |
 
 ## Überblick: Datenstände pro migriertem Modul
 
 | Stand | Ort | Geschrieben von |
 |---|---|---|
 | Shipped-`.po` (versioniert, maßgebliche Auslieferung) | `components/ILIAS/TermsOfService/lang/tos_<lang>.po`, `tos.pot` (Dateiname nach Namensschema, siehe unten) | `convert_module_to_po.php`; zur Laufzeit nur die Wartungsaktion „merge" im Übersetzungsmodus (siehe „merge in die Shipped-`.po`") |
-| Build-Artefakt `.mo` (kompilierter, bereinigter Shipped-Stand, gitignored) | `artifacts/language/<lang>/<modul>.mo`, Index `artifacts/language/index.json` | `php cli/setup.php build` (`ShippedLanguageFilesCompiledObjective`), läuft bei `composer install`/`composer du` |
-| Overlay `.po`+`.mo` (pro Installation, **nur das Delta** = lokale Änderungen) | `<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.po/.mo` (+ `.lock`) | Admin-Edits, Customizing-Werte bei Install/Update, "Lokale Änderungen anwenden" |
+| Build (kompilierter, bereinigter Shipped-Stand, gitignored) | `artifacts/language/current.json` → `artifacts/language/<build>/` mit `messages/LC_MESSAGES/<modul>.<lang>.mo`, `keys/<modul>.php`, `locale/ilias_messages/`, `manifest.json` | `php cli/setup.php build` (`ShippedLanguageFilesCompiledObjective` → `ShippedTranslationsBuild`), läuft bei `composer install`/`composer du`; nach „merge" |
+| Overlay (pro Installation, **nur das Delta** = lokale Änderungen) | `<client_data_dir>/lang/<modul>/<lang>/`: `<Dateiname der Shipped-.po>.po`, `lock`, `current`, `r-<hash>/messages/LC_MESSAGES/<modul>.<lang>.overlay.mo`, `r-<hash>/keys.json` | Admin-Edits, Customizing-Werte bei Install/Update, "Lokale Änderungen anwenden" |
 | `lng_data`/`lng_modules` (Fallback, Dual-Write) | Datenbank | dieselben Schreibpfade wie bisher; für migrierte Module mit den **bereinigten** Shipped-Werten |
 
-Zur Laufzeit gilt: **Text eines Moduls = Shipped-Stand + Overlay** (`array_replace`, Overlay gewinnt).
+Zur Laufzeit gilt: **Text eines Moduls = Build + Overlay** (ein Key des Overlays wird in dessen
+Domain nachgeschlagen, jeder andere in der des Builds), gelesen über natives gettext.
 Eine Sprache zu installieren schreibt für migrierte Module **keine Datei** mehr.
 
 Alle Pfade setzt `ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths` zusammen; kein
@@ -47,11 +48,12 @@ anderer Code baut sie selbst.
 ## Das Konvertierungswerkzeug: `convert_module_to_po.php`
 
 ```bash
-php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php tos de components/ILIAS/TermsOfService/lang
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php tos en components/ILIAS/TermsOfService/lang
 ```
 
 Aufruf: `convert_module_to_po.php [--pattern=<schema>] [--skip-unmigratable-keys] [--remove-from-lang]
-<modul> [referenzSprache] [ausgabeOrdner]`. Ohne drittes Argument landet die Ausgabe in
+<modul> [referenzSprache] [ausgabeOrdner]`; die Referenzsprache ist standardmäßig `en` (siehe
+„Englisch als Vorlage"). Ohne drittes Argument landet die Ausgabe in
 `tools/po-migration/output/<modul>/` (der Ordner wird erst angelegt, wenn alle Prüfungen bestanden
 sind). Unbekannte Optionen (alles mit führendem `-`) brechen ab, damit ein Tippfehler nicht als
 Modulname oder Ausgabeordner gelesen wird. Modulname und Referenzsprache dürfen nur aus
@@ -74,7 +76,8 @@ mit `gettext/gettext` (siehe "Gettext-Bibliothek"):
 
 Es schreibt **keine `.mo`** und nichts in die Datenbank. Anschließend liest es jede geschriebene
 `.po` mit `TranslationCatalog::fromPoFile()` (`StrictPoLoader`) wieder ein und vergleicht jeden Wert
-mit der Quelle (Exit-Code 1 bei Abweichung); bei Plural-Einträgen zusätzlich `msgid_plural`, jede Form
+mit der Quelle (Exit-Code 1 bei Abweichung; ein aus der Referenz aufgefüllter Eintrag muss den
+Referenzwert haben und fuzzy sein); bei Plural-Einträgen zusätzlich `msgid_plural`, jede Form
 und dass die Standardform (siehe "Pluralformen") dem bisherigen Wert entspricht. Doppelte Identifier
 eines Moduls in einer `.lang`-Datei (Ausnahme: exakte Doppelzeilen mit `--skip-unmigratable-keys`,
 siehe unten), eine Plural-Definition, deren Key oder Singular-Key im Modul
@@ -98,14 +101,42 @@ Ein Modul ohne eine einzige Zeile in `lang/ilias_*.lang` (schon migriert und mit
 zu schreiben; vorhandene `.po`/`.pot` bleiben unverändert. Hat nur die Referenzsprache keine
 (übernehmbaren) Einträge, nennt die Meldung die Sprachen, die Zeilen haben.
 
+### Englisch als Vorlage: Auffüllen aus der Referenzsprache
+
+Die Referenzsprache (Standard `en`, als zweites Argument überschreibbar) ist die Vorlage aller
+Sprachen: Aus ihr kommen die `msgid`s, ihre Reihenfolge und die `.pot`. Fehlt einer Sprache ein Key
+der Referenz (keine Zeile) oder ist ihr Wert leer, schreibt der Konverter den Wert der Referenz und
+markiert den Eintrag `#, fuzzy` – statt einer leeren Übersetzung (die zur Laufzeit `-key-` ergäbe).
+Ein leerer Wert der Zielsprache wird also genau wie ein fehlender behandelt (Referenzwert + fuzzy).
+Ein `###`-Kommentar der leeren Zeile bleibt erhalten (Marker → fuzzy, Notiz → `#.`). Bei
+Plural-Einträgen werden die aufgefüllten Werte wie vorhandene verteilt (auch ein aufgefüllter
+Singular-Key als `msgstr[0]`), der Eintrag ist fuzzy. Ein leerer Referenzwert füllt nichts auf.
+Fuzzy-Einträge werden in die `.mo` mitkompiliert (siehe „Design-Entscheidungen"). Keys, die nur
+andere Sprachen haben, sind gegenüber der Referenz nicht übernehmbar (Abbruch bzw.
+`--skip-unmigratable-keys`, siehe unten).
+
+Die Statistik auf stdout zeigt je Sprache `entries` (eigene Zeilen des Moduls), `fuzzy` (davon mit
+„new variable"-Marker), `filled` (aus der Referenz aufgefüllt, fuzzy) und `po_ok`; die Schlusszeile
+nennt die Summe der aufgefüllten Einträge.
+
+Probelauf 2026-10-06 über alle 154 Module (Referenz `en`, ohne `--remove-from-lang`, nur in ein
+Scratch-Verzeichnis): ohne `--skip-unmigratable-keys` laufen 129 Module durch (3305 aufgefüllt), mit
+der Option alle 154 (6519 aufgefüllt: 6438 fehlende Zeilen + 81 leere Werte). `tos` bleibt
+byte-identisch; `poll` bräuchte mit `en` `--skip-unmigratable-keys` (`poll_import` fehlt in `en`)
+und verlöre dann `poll_import` in `.pot` und allen 31 `.po` – die ausgelieferten `poll`-Dateien sind
+deshalb weiter die mit Referenz `de` erzeugten (mit der neuen Logik bekämen dort `en`, `ja`, `pt`
+`poll_import` = „Abstimmung importieren", fuzzy).
+
 ### `--skip-unmigratable-keys`: Altlasten überspringen statt abbrechen
 
 Ohne die Option bricht der Konverter ab, bevor er etwas schreibt, wenn eine Sprache Keys hat, die
 der Referenzsprache fehlen, wenn ein Key leer ist (`modul#:##:#…`; `msgid ""` wäre der PO-Header)
-oder wenn ein Key in einer Sprache doppelt vorkommt. Stand 2026-10 betrifft das 22 von 154 Modulen
-(u. a. verwaiste oder falsch einsortierte Keys, der leere Key in `badge`/`en`, der Tippfehler-Key
-`obj_cpad#_desc` in `common`, die Doppelzeilen mit gleichem Wert `rbac_select_roles` in `fa` und
-`svy_categories` in `nl`).
+oder wenn ein Key in einer Sprache doppelt vorkommt. Stand 2026-10-06 (Referenz `en`) betrifft das
+25 von 154 Modulen mit 115 Keys, die `en` nicht hat (die meisten in `dcl` 32, `survey` 23, `log` 9,
+`rbac` 6, `meta` 5; 55 davon hat `de`; u. a. verwaiste oder falsch einsortierte Keys,
+`poll_import` in `poll`), dazu der leere Key in `badge` und die Doppelzeilen mit gleichem Wert
+`rbac_select_roles` in `fa` und `svy_categories` in `nl`. Der Tippfehler-Key `obj_cpad#_desc` in
+`common` (nur `en`) wird mit `en` als Referenz übernommen und in den anderen Sprachen aufgefüllt.
 
 Mit der Option:
 
@@ -122,7 +153,7 @@ Die übersprungenen Keys gehen nicht verloren, solange die `.lang`-Zeilen bleibe
 anderes Modul gehören oder weg können, ist ein eigenes Thema (Key-Bereinigung, ROADMAP).
 
 ```bash
-php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys <modul> de components/ILIAS/<Komponente>/lang
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys <modul> en components/ILIAS/<Komponente>/lang
 ```
 
 ### `--remove-from-lang`: Modulzeilen aus den `.lang`-Dateien entfernen
@@ -166,7 +197,7 @@ zeigen die `.lang`-Dateien so, was noch übrig ist.
   migrated already" ab und lässt die `.po`/`.pot` unverändert.
 
 ```bash
-php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys --remove-from-lang <modul> de components/ILIAS/<Komponente>/lang
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php --skip-unmigratable-keys --remove-from-lang <modul> en components/ILIAS/<Komponente>/lang
 ```
 
 **Folgen:**
@@ -255,14 +286,11 @@ Die Bibliothek ist hinter einem schmalen Adapter gekapselt; kein anderer Code de
 importiert etwas aus `Gettext\`, ein Versionswechsel bleibt also lokal:
 
 - `TranslationCatalog` — Katalog (Header + Einträge) und einziger Ort, der die Dateiformate liest
-  und schreibt (`fromPoFile()`/`fromPoString()`, `toPoString()`, `toMoString()`,
-  `readMoTranslations()`, `readMoTranslationsFromString()`, `readMoMessages()`,
-  `readMoMessagesFromString()`). `clone` erzeugt eine unabhängige Kopie
+  und schreibt (`fromPoFile()`/`fromPoString()`, `toPoString()`, `toMoString()`); eine `.mo` liest
+  seit 2026-10-06 nur noch natives gettext zur Laufzeit (`NativeGettext`). `clone` erzeugt eine unabhängige Kopie
   (`__clone()` klont die gettext-Einträge und Header mit),
 - `TranslationEntry` — ein Eintrag (Kontext, ID, Übersetzung, `msgid_plural` und alle Formen:
   `getPluralId()`, `isPlural()`, `getPluralTranslations()`, `setPlural()`, `#`-/`#.`-Kommentare, Flags),
-- `CompiledTranslations` — Ergebnis von `readMoMessages()`: ID → Wert (Plural: Standardform), ID →
-  alle Formen, `Plural-Forms`-Header der `.mo`,
 - `AtomicFileWriter` — keine gettext-Funktionalität: Tempdatei im selben Verzeichnis + `rename()`;
   mit `$flush_to_disk = true` (Standard) vorher `fsync()`, für Build-Artefakte `false`.
 
@@ -282,20 +310,14 @@ Was die Bibliothek selbst leistet und was der Adapter absichert:
 - **Der Wert `"0"`.** `PoGenerator` und `MoGenerator` halten eine Übersetzung `"0"` für leer (würde
   als `msgstr ""` geschrieben bzw. aus der `.mo` weggelassen; in den `.lang`-Dateien kommt `"0"` real
   vor). Der Adapter übergibt stattdessen `"0\0"`: `PoGenerator` entfernt das NUL beim Kodieren (die
-  `.po` enthält exakt `"0"`), die `.mo` enthält den C-String `"0"`, `readMoTranslations()` schneidet
-  am NUL ab. Kontext bzw. `msgid_plural` `""`/`"0"` kann die Bibliothek gar nicht schreiben — der
+  `.po` enthält exakt `"0"`), die `.mo` enthält den C-String `"0"` (gettext endet am NUL). Kontext bzw. `msgid_plural` `""`/`"0"` kann die Bibliothek gar nicht schreiben — der
   Adapter wirft dann, statt still zu verfälschen.
 - **Header** schreibt `PoGenerator` unkodiert; der Adapter kodiert die Werte vorher. Einen Wert mit
   Zeilenumbruch lehnt `setHeader()` ab (`InvalidArgumentException`), eine geladene Datei mit einem
   solchen Wert (escaptes `\r`) gilt als kaputt (`RuntimeException`). Ein escaptes `\n` im Header-Block
   behandelt die Bibliothek als Fortsetzungszeile und zieht den Wert zusammen (`a\nb` → `ab`).
-- **`.mo` liest der Adapter selbst** (das Format ist eine Offset-Tabelle), nach der Prüfung von Magic
-  Number, Index-Tabellen und allen String-Bereichen gegen die Dateigröße (`RuntimeException`); die
-  Summe aller String-Längen darf das Vierfache der Dateigröße nicht überschreiten (überlappende
-  Strings würden sonst ein Vielfaches der Datei in den Speicher holen).
-  `MoLoader` wird nicht mehr verwendet: Er wirft nur bei falscher Magic Number (eine abgeschnittene
-  Datei liefert still gekürzte/fehlende Einträge, Warnings oder einen `TypeError`) und verwirft
-  leere Pluralformen (`array_filter`), wodurch alle folgenden Formen auf den falschen Index rutschen.
+- **`.mo` liest der Adapter nicht mehr** (seit 2026-10-06; vorher ein eigener, geprüfter Leser statt
+  `MoLoader`). Zur Laufzeit liest natives gettext, beschädigte Builds erkennt das Manifest.
 - **Plural in der `.mo`:** Vor dem Kompilieren bekommt jeder Plural-Eintrag genau so viele Formen,
   wie `PluralForms` für den Header ergibt — dieselbe Regel wie zur Laufzeit, also höchstens 10 und
   germanisch bei fehlendem/ungültigem Header (fehlende leer, überzählige entfallen; bei `nplurals=1`
@@ -317,40 +339,50 @@ Was die Bibliothek selbst leistet und was der Adapter absichert:
 
 ## Build-Artefakt: kompilierter Shipped-Stand
 
-`ShippedLanguageFilesCompiledObjective` (über `ilLanguageSetupAgent::getBuildObjective()`, vorher
-`NullObjective`) kompiliert jede Shipped-`.po` aller kontribuierten Verzeichnisse nach
-`artifacts/language/<lang>/<modul>.mo`. `ShippedTranslations::compile()` ist dabei derselbe
-Kompilierweg wie der Laufzeit-Fallback.
+`ShippedLanguageFilesCompiledObjective` (über `ilLanguageSetupAgent::getBuildObjective()`) ruft
+`ShippedTranslationsBuild` auf – nur über `setup build` (CLI); der Webserver schreibt nicht in
+`artifacts/` (entschieden 2026-10-06, auch „merge" baut nicht).
+Seit 2026-10-06 (natives gettext):
 
-- Der Fingerprint umfasst auch `MigratedLanguageFileSync` (dort liegt die Kontext-Regel),
-  `PluralForms` und `PluralFormKey`, aktuell `FORMAT_VERSION` 3 (seit den Pluralformen).
-- Jede Form eines Plural-Eintrags wird einzeln bereinigt (Warnung mit dem Formschlüssel, z. B.
-  `poll_population [0]`). Hat ein Modul Plural-Einträge, aber einen fehlenden oder ungültigen
-  `Plural-Forms`-Header, meldet der Build das als Warnung (es gilt dann die germanische Regel).
-- **Inkrementell:** Index `artifacts/language/index.json` mit Hash der `.po` sowie Größe und Hash
-  des Artefakts; ein Fingerprint des Kompiliercodes (`FORMAT_VERSION` plus Quelldateien von
-  Policy/ShippedTranslations/Catalog/Entry) erzwingt bei Codeänderungen einen Vollbau. Ein
-  abgeschnittenes oder verändertes Artefakt wird neu gebaut, ein defekter Index führt zum Vollbau.
-- **Schreiben:** atomar (temp + `rename`) **ohne fsync** — das Artefakt ist jederzeit reproduzierbar.
-  Scheitert `touch()` (fremder Eigentümer), wird das Artefakt neu geschrieben.
-- **Aufräumen:** verwaiste Artefakte (keine `.po` mehr) und liegengebliebene Temp-Dateien werden
-  entfernt; gelöscht wird nur, wenn `realpath(dirname)` das Zielverzeichnis oder ein direktes
-  Unterverzeichnis ist (kein Löschen über Symlinks).
-- **Markup:** Unzulässiges Markup (`TranslationMarkupPolicy`, siehe unten) wird beim Kompilieren
-  entfernt und bei jedem Build als Warnung gemeldet; Steuerzeichen im Log werden ersetzt
-  (`PlainLogText::of()`). **Der Build bricht nicht ab**, auch nicht bei Fehlern in einzelnen Dateien
-  (`\Throwable` pro Datei).
-- **Gemessen:** 31 `tos`-Dateien voll 0,014 s, inkrementell 0,002 s; synthetisch alle
-  4.774 Module×Sprachen aus den Root-`.lang` voll 4,3 s, inkrementell 0,11 s.
-- Die Artefakt-Ablage in einem eigenen Unterverzeichnis mit Index weicht vom üblichen Schema
-  `artifacts/<md5(Klasse)>.php` ab; mit den Setup-Maintainern noch abzustimmen.
+- **Aufbau:** `artifacts/language/current.json` nennt den gültigen Build (`build`, `previous`,
+  `modules` = Modul → gebaute Sprachen, `hashes` = Modul → Sprache → SHA-256 der gebauten `.po`,
+  Warnungen, Kollisionen). Ein Build liegt in
+  `artifacts/language/<build>/`: `messages/LC_MESSAGES/<modul>.<lang>.mo` (Domain `<modul>.<lang>`),
+  `keys/<modul>.php` (`return [key => '<modul>', …]`, sprachunabhängig: Vereinigung aller Sprachen
+  und der `.pot`; PHP für den Opcache), `locale/ilias_messages/` (Kopie von `C.utf8` der C-Bibliothek)
+  und `manifest.json` (Größe und Hash jeder Datei, Prüfwert, Warnungen).
+- **Inhalt einer `.mo`** (`ShippedTranslations::compileCatalog()`): jeder Eintrag ohne Kontext unter
+  seinem Key; ein Plural-Eintrag zusätzlich mit allen Formen unter dem Kontext `ilias-plural`
+  (`dngettext()` mit `"ilias-plural\x04<key>"`), ohne Kontext steht seine Standardform. Ein Wert, der
+  gleich seinem Key ist, bekommt den Marker `ilias-identity\x04<key>` = `1` (gettext antwortet bei
+  fehlender Übersetzung mit dem Key). Header: immer `charset=UTF-8`, `Plural-Forms` so, wie
+  `PluralForms` ihn liest (ungültig → germanische Regel), damit gettext und `PluralForms` gleich zählen.
+- **Build-ID** = Fingerprint über `FORMAT_VERSION` (aktuell 4), den Code (u. a. `ShippedTranslations`,
+  Policy, Catalog/Entry, `MigratedLanguageFileSync`, `MigratedLanguageFilePaths`, `PluralForms`,
+  `NativeGettext`), alle Shipped-`.po`/`.pot` und die Locale-Dateien. Ein intakter Build gleicher ID
+  (Manifest) bleibt; sonst wird in ein temporäres Verzeichnis gebaut und umbenannt.
+- **Prüfung:** Vor dem Umschalten fragt der Build über natives gettext einen echten Wert ab
+  (`manifest.json` `sample`). Fehlt `ext-gettext`, `C.utf8` oder übersetzt gettext nicht, **bricht
+  `setup build` ab** (`UnachievableException`), `current.json` bleibt unverändert.
+- **Grenze der Prüfung:** Die Locale wird aus der glibc des Hosts kopiert, auf dem `setup build`
+  läuft, und geprüft wird nur im CLI-Prozess. Getrennte CLI- und Webserver-Images (andere glibc,
+  fehlende Extension im FPM) oder ein musl-System (ignoriert `LOCPATH`, bräuchte `MUSL_LOCPATH`)
+  bestehen die Prüfung womöglich trotzdem; zur Laufzeit gibt es dann `-key-`, Log und den Hinweis in
+  der Sprachverwaltung. Voraussetzung: `ext-gettext` für CLI **und** Webserver, glibc mit `C.utf8`,
+  dieselbe glibc für Build und Webserver.
+- **Umschalten:** `current.json` atomar (mit fsync), erst nach vollständigem, geprüftem Build; der
+  vorige Build bleibt (laufende Requests), ältere und der frühere Aufbau (`<lang>/<modul>.mo`,
+  `index.json`) werden entfernt. Builds sind über `artifacts/language/build.lock` serialisiert.
+  Gelöscht wird nur unterhalb des Artefaktverzeichnisses, ohne Symlinks zu folgen.
+- **Warnungen** (bei jedem Build wiederholt, auch bei unverändertem Build): unzulässiges Markup
+  (`TranslationMarkupPolicy`, Wert wird bereinigt kompiliert), eine nicht kompilierbare `.po` (das
+  Modul wird für die Sprache nicht ausgeliefert, kein Abbruch), Keys mit unterschiedlichen Werten in
+  mehreren migrierten Modulen (Liste; ersetzt die frühere Laufzeit-Warnung). Steuerzeichen im Log
+  werden ersetzt (`PlainLogText::of()`).
 
-**Deploy-Voraussetzung:** Nach jeder Änderung einer Shipped-`.po` sollte `setup build` laufen. Funktional
-nötig ist es nicht: bis dahin kompiliert die Laufzeit die neuere `.po` pro Request selbst (~1 ms pro
-Modul). „merge" datiert das Artefakt zusätzlich zurück (siehe „merge in die Shipped-`.po`"). Die
-Aktualität wird über mtime in Sekunden entschieden; ein Deploy, das mtimes erhält (`rsync -a`,
-`tar`, `cp -p`), kann eine geänderte `.po` älter aussehen lassen als das vorhandene Artefakt, das
-dann veraltet ausgeliefert wird.
+**Deploy-Voraussetzung:** Nach jeder Änderung einer Shipped-`.po` muss `setup build` laufen – die
+Laufzeit kompiliert nicht mehr selbst. Ein Modul, dessen `.po` für eine Sprache nicht im Build ist,
+liefert dort `-key-` (Log-Eintrag und Hinweis in der Sprachverwaltung), nie Werte aus der DB.
 
 ## Markup-Prüfung (`TranslationMarkupPolicy`)
 
@@ -409,15 +441,24 @@ Pflege der Sprachdateien in `SHIPPED_MARKUP_VIOLATIONS.md` aufgelistet.
 **Grundsatz:** Shipped-Dateien werden zur Laufzeit nie geschrieben – einzige Ausnahme ist die
 Wartungsaktion „merge" im Übersetzungsmodus (LANGMODE), wie bisher für `lang/ilias_<lang>.lang`
 (siehe „merge in die Shipped-`.po`"). Der git-getrackte `lang/`-Ordner einer Komponente wird sonst
-zur Laufzeit nie beschrieben. Lokale
-Änderungen landen in einem `.po`+`.mo`-Paar unterhalb des Client-Datenverzeichnisses, das den Pfad
-der Directory spiegelt:
+zur Laufzeit nie beschrieben. Lokale Änderungen landen unterhalb des Client-Datenverzeichnisses
+(seit 2026-10-06; der frühere Ort `<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.*` wird
+nicht mehr gelesen, eine Migration gibt es nicht):
 
 ```
-<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.po
-<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.mo
-<client_data_dir>/lang/<Pfad der Directory><modul>_<lang>.lock
+<client_data_dir>/lang/<modul>/<lang>/<Dateiname der Shipped-.po>.po   Delta mit Buchführung
+<client_data_dir>/lang/<modul>/<lang>/lock                              Schreib-Lock
+<client_data_dir>/lang/<modul>/<lang>/current                           Name der gültigen Revision
+<client_data_dir>/lang/<modul>/<lang>/r-<hash>/messages/LC_MESSAGES/<modul>.<lang>.overlay.mo
+<client_data_dir>/lang/<modul>/<lang>/r-<hash>/keys.json                Keys mit Wert (JSON, kein PHP)
+<client_data_dir>/lang/<modul>/template.lock                            Lock der .pot (merge)
 ```
+
+Jede Änderung schreibt die `.po`, kompiliert eine neue Revision (`compileCatalog()` ohne
+Markup-Bereinigung, `r-<hash>` = Inhalts-Hash) und stellt `current` atomar um; höchstens die aktuelle
+und die vorige Revision bleiben (gettext lädt eine Datei pro Prozess nur einmal, eine Revision wird
+deshalb nie überschrieben). Ein leeres Overlay entfernt `current`, `.po` und die Revisionen
+(ein laufender Request, der eine Revision schon geladen hat, liest sie weiter).
 
 Damit bleiben lokale Anpassungen — wie früher in `lng_data` — Instanz-Zustand und markieren keine
 versionierte Datei als geändert.
@@ -432,27 +473,26 @@ versionierte Datei als geändert.
   DB (`ilObjLanguageExt::saveValues()` schreibt dann den Shipped-Wert mit `local_change` `NULL`).
   Umzustellen ist nur `resolveLocalValue()`. Ein leerer Wert für einen nicht mitgelieferten Key
   bleibt leer.
-- **Wert == shipped** → Eintrag raus; **Delta leer** → `.po` und `.mo` werden unter Lock gelöscht.
-  Die `.lock`-Datei bleibt (entfernt nur `removeOverlay()` bei der Deinstallation), damit Wartende
+- **Wert == shipped** → Eintrag raus; **Delta leer** → `current` und `.po` werden unter Lock gelöscht.
+  Die `lock`-Datei bleibt (entfernt nur `removeOverlay()` bei der Deinstallation), damit Wartende
   nicht ihre Lock-Versuche aufbrauchen.
 - **Leeres Delta und kein Overlay** → nichts wird geschrieben oder gelockt. Eine Sprache ohne lokale
   Änderungen hat kein Overlay.
 - **Altbestand:** Volle Overlays früherer Stände schrumpfen beim nächsten abgleichenden Schreiben
   (Setup-Update, Neuinstallation) auf das Delta; eine eigene Migration gibt es nicht. In der
   Dev-Instanz blieb nach dem Update nur `tos_de` mit seiner einen lokalen Änderung.
-- **`.mo` ohne `.po`** (die `.po` trägt die Buchführung) oder ein Overlay-Pfad, der keine reguläre
-  Datei ist: Lesen und Schreiben werfen eine `RuntimeException`, nichts wird ersetzt oder gelöscht;
-  die Aufrufer fallen auf `lng_modules`/`lng_data` zurück. Eine lokale Änderung geht so nicht still
-  verloren.
+- **`current` ohne `.po`** (die `.po` trägt die Buchführung) oder ein Overlay-Pfad, der keine
+  reguläre Datei ist: Lesen und Schreiben werfen eine `RuntimeException`, nichts wird ersetzt oder
+  gelöscht. Eine lokale Änderung geht so nicht still verloren.
 - Overlay-Einträge werden **ohne `msgctxt`** geschrieben. Altbestand mit `msgctxt` = Modul wird
   gelesen und beim nächsten Schreiben ohne Kontext übernommen (`TranslationEntry::withContext(null)`;
   Werte, Kommentare, Flags, `original` und `local_change` bleiben erhalten).
 - Eine nicht parsebare Overlay-`.po` (bei vorhandener `.po`) wird beim nächsten Schreiben neu
   aufgebaut; dabei gehen nur die bisherigen `local_change`-Zeitstempel verloren.
-- Beide Dateien werden atomar mit fsync geschrieben (erst `.po`, dann `.mo`): die `.po` nur, wenn
-  sich ihr Inhalt geändert hat, die `.mo` immer dann, wenn sie nicht byte-genau dem entspricht, was
-  `TranslationCatalog::toMoString()` erzeugt. Eine fehlende, abgeschnittene oder veraltete `.mo`
-  neben einer unveränderten `.po` wird so beim nächsten Schreiben repariert.
+- Alle Dateien werden atomar mit fsync geschrieben (erst `.po`, dann Revision, dann `current`): die
+  `.po` nur, wenn sich ihr Inhalt geändert hat, eine neue Revision immer dann, wenn die von `current`
+  genannte nicht byte-genau dem entspricht, was `compileCatalog()` erzeugt. Eine fehlende oder
+  beschädigte Revision neben einer unveränderten `.po` wird so beim nächsten Schreiben ersetzt.
 - Ohne DB ist das Overlay die einzige Stelle lokaler Änderungen — deshalb bleibt fsync hier, anders
   als beim Build-Artefakt.
 
@@ -514,31 +554,40 @@ zu schreiben.
 
 ## Laufzeit-Integration in `ilLanguage`
 
-`ilLanguage` findet die kontribuierte Directory über `$DIC[LanguageFileDirectoryManager::class]`
-(Bridge in `AllModernComponents.php`) anhand von `getPrefix() === $modul`. **Ein Modul gilt für eine
-Sprache als migriert, sobald die Shipped-`.po` existiert** (vorher: sobald eine Overlay-`.mo`
-existierte).
+Seit 2026-10-06 liest `ilLanguage` migrierte Module ausschließlich über natives gettext
+(`MigratedTranslations`, Prozesszustand in `NativeGettext`) – nie über `gettext/gettext` und nie aus
+`lng_modules`/`lng_data`. **Ein Modul gilt für eine Sprache als migriert, wenn der Build in
+`current.json` es für die Sprache enthält.** Liefert eine kontribuierte Directory eine `.po`, die nicht
+im Build ist, gilt das Modul ebenfalls als migriert, aber ohne Keys (`-key-`, Problem wird gemeldet).
+Nur wenn `CLIENT_DATA_DIR` definiert ist — vorher (z. B. in Setup-Objectives erzeugte
+`ilLanguage`-Instanzen) ist `lng_modules` die richtige Quelle; nur für installierte Sprachen.
 
-Geliefert wird der Shipped-Stand (`ShippedTranslations::read()`: das Build-Artefakt; ist die `.po`
-neuer (mtime) oder fehlt das Artefakt, wird die `.po` direkt kompiliert, mit identischem Ergebnis)
-mit der Overlay-`.mo` darüber (`array_replace`, Overlay gewinnt). Das geschieht **nur, wenn
-`CLIENT_DATA_DIR` definiert ist** — vorher (z. B. in Setup-Objectives erzeugte
-`ilLanguage`-Instanzen) ist `lng_modules` die richtige Quelle.
-
-Zwei Lesepfade, gemeinsam über `loadFromMigratedLanguageFile()` (mit Request-Cache pro
-`<modul>|<sprache>`):
-
-- **`loadLanguageModule()`** — der zentrale Pfad hinter `txt()`,
-- **`_lookupEntry()`** — hinter `txtlng()` und dem Fallback-Modul-Parameter von `txt()`.
-
-Ohne kontribuierte Directory oder ohne Shipped-`.po` für die Sprache greifen unverändert
-`lng_modules`/`lng_data`.
-
-**Robustheit:** Ein defektes oder unlesbares Overlay-`.mo` oder eine nicht kompilierbare
-Shipped-`.po` erzeugt eine Warnung im Log (Komponenten-Logger `lang`, sonst `error_log()`), und der
-Request fällt auf `lng_modules` zurück — kein Absturz. Ein defektes Artefakt ist eine Warnung, ein
-fehlendes eine Notice (einmal pro Request); in beiden Fällen wird die `.po` direkt kompiliert
-(gemessen ~1 ms pro Modul).
+- **Aktivierung** (beim ersten migrierten Modul eines Requests): `LOCPATH=<build>/locale`,
+  `setlocale(LC_MESSAGES, 'ilias_messages')`, `LOCPATH` sofort wieder entfernt, `LANGUAGE=messages`.
+  Zurückgesetzt wird am Request-Ende von PHP selbst (siehe „Natives PHP-`gettext()`"). Ändert anderer
+  Code `LC_MESSAGES` oder `LANGUAGE` (z. B. `ilInitialisation::initLocale()`, unter ZTS das
+  Request-Ende eines anderen Threads), wird beim nächsten Fehltreffer neu aktiviert; gelingt das
+  nicht, gibt es `-key-` statt eines rohen Keys.
+- **`loadLanguageModule()`:** bindet `<modul>.<lang>` an den Build und ggf. `<modul>.<lang>.overlay`
+  an die Revision aus `current` (jede Domain mit Codeset UTF-8, geprüft über den Header) und trägt die
+  Keys aus `keys/<modul>.php` und `keys.json` in die Zuordnung Key → Modul
+  (`$migrated_key_modules`) ein. Später Geladenes überschreibt; ein später geladenes **nicht**
+  migriertes Modul entfernt seine Keys aus der Zuordnung, damit „zuletzt geladen gewinnt" exakt
+  bleibt. Migrierte Werte landen nicht mehr in `$text`.
+- **`txt()`/`exists()`/`ntxt()`/`txtlng()`/`_lookupEntry()`:** über die Zuordnung → Overlay-Domain
+  (nur für Keys aus `keys.json`) → Build-Domain; nicht migrierte Module unverändert über `$text`/DB.
+  Ist ein Key im zuständigen (zuletzt geladenen) migrierten Modul für die Sprache nicht übersetzt,
+  liefert `txt()` `-key-` (ohne Log) – **bewusste Verhaltensänderung** gegenüber `.lang`+DB, wo
+  `array_merge()` den Wert eines früher geladenen Moduls behielt (entschieden 2026-10-06; bei
+  Kollisionen bedeutet derselbe Key meist etwas anderes, ein falscher Text fällt schwerer auf als
+  `-key-`). Das gilt auch, wenn das frühere Modul nicht migriert ist; nur das vom Aufrufer genannte
+  Fallback-Modul (`txt($key, $modul)`) greift weiter. Das Usage-Log nutzt die Zuordnung.
+- **Ausfall** (Extension fehlt, Locale nicht aktivierbar, Katalog nicht lesbar, kein Build): `-key-`,
+  ein Log-Eintrag pro Problem und Request (mit vollen Pfaden), und `MigratedTranslations::getProblem()`
+  für die Sprachverwaltung: Fehler-Box für Probleme aller migrierten Module (natives gettext, kein
+  Build), Info-Box für ein Modul/eine Sprache/ein Overlay; Pfade dort relativ. Ein nicht lesbares
+  Overlay (auch mit Symlink in `lang/<modul>/<lang>/`, `current` wird höchstens 128 Byte gelesen) wird
+  geloggt und ausgelassen (Shipped-Werte werden geliefert).
 
 **Entschiedene Randfälle** (2026-09-25):
 
@@ -546,7 +595,7 @@ fehlendes eine Notice (einmal pro Request); in beiden Fällen wird die `.po` dir
   installierte Sprache fällt `ilLanguage` wie bei nicht migrierten Modulen zurück (in der Regel
   `-key-`), damit eine deinstallierte Sprache nicht teilweise weiter ausgeliefert wird und keine
   gemischte Ausgabe entsteht (Option B; die Liste installierter Sprachen ist gecacht).
-- Ein lokal **leerer Wert** ist im Overlay nicht darstellbar (`toMoString()` lässt leere Werte weg);
+- Ein lokal **leerer Wert** ist im Overlay nicht darstellbar (leere Werte werden nicht kompiliert);
   deshalb die Regel "leer = zurück auf shipped" (siehe Overlay).
 
 ## Cache-Verhalten
@@ -557,24 +606,25 @@ deshalb unabhängig vom Cache-Zustand; ein manueller Cache-Flush ist für die An
 nicht nötig. Für nicht migrierte Module (und den Fallback) greift der Cache wie bisher; nach einem
 Schreiben von `lng_modules` invalidiert ihn der `LanguageInstallationManager` selbst.
 
-Nach jedem Overlay-Schreiben leert `ilLanguage::invalidateMigratedLanguageFileCache()` den
-Request-Cache für das Modul/die Sprache.
+Nach jedem Overlay-Schreiben verwirft `ilLanguage::invalidateMigratedLanguageFileCache()`
+(→ `MigratedTranslations::invalidate()`) den Stand des Moduls/der Sprache; der nächste Zugriff bindet
+die neue Revision. Keys, die eine laufende `ilLanguage`-Instanz schon zugeordnet hat, bleiben.
 
 `MigratedLanguageFileSync::readShippedPo()` hält geparste Shipped-`.po` pro Request (Schlüssel:
 Inhalts-Hash, max. 512 Einträge) und leert den Cache beim Wechsel der Sprache (Speicher bei
 `setup update` über viele Sprachen). Nur `sync()` bekommt einen Klon; lesende Aufrufer kopieren die
 Werte in Arrays.
 
-**Prüfen, dass wirklich das Overlay gelesen wird:** einen Wert nur im Overlay ändern (`.po` und
-`.mo` neu erzeugen, DB unangetastet) und die Seite neu laden — oder umgekehrt nur die DB-Zeile
-ändern; angezeigt wird der Overlay-Wert.
+**Prüfen, dass wirklich das Overlay gelesen wird:** nur die DB-Zeile ändern und die Seite neu laden;
+angezeigt wird weiter der Wert aus Build/Overlay.
 
 ## Uniqueness: Kollisionen zwischen Modulen
 
 Auf Dateiebene gibt es keine Kollisionen: jedes Modul hat eigene Dateien (Shipped-`.po`, Artefakt,
 Overlay), der `msgctxt` wird dafür nicht gebraucht. `txt($topic)` nimmt aber weiterhin nur ein Topic
-entgegen (die Module werden zur Laufzeit flach zusammengeführt); `ilLanguage::logCrossModuleKeyCollisions()` loggt deshalb, wenn zwei migrierte
-Module denselben Identifier mit unterschiedlichem Wert liefern. Kollisionen zwischen einem migrierten
+entgegen (die Module werden zur Laufzeit flach zusammengeführt); `setup build` listet deshalb seit
+2026-10-06 die Identifier, die zwei migrierte Module mit unterschiedlichem Wert liefern (vorher eine
+Laufzeit-Warnung pro Request). Kollisionen zwischen einem migrierten
 und einem nicht migrierten Modul werden nicht erkannt (der Legacy-Pfad führt keine
 Pro-Topic-Modulzuordnung).
 
@@ -586,10 +636,8 @@ anders übersetzt. Am häufigsten sind `cmix` + `lti` (75), `assessment` + `surv
 Ladereihenfolge, gleiches `array_merge`). Für den Rollout gilt aber:
 
 - Schon heute unerkannt: `poll` (migriert) und `rbac` (nicht migriert) teilen `poll_copy`.
-- Sind beide Module eines Paars migriert, schreibt jeder Request, der beide lädt, **eine** WARNING
-  für das Paar (seit 2026-09-30, vorher eine pro Identifier). Sie nennt die Zahl der Identifier mit
-  abweichendem Wert in der aktuellen Sprache und die ersten fünf davon. Reine
-  Übersetzungsunterschiede zählen mit.
+- Sind beide Module eines Paars migriert, nennt `setup build` jeden betroffenen Identifier mit den
+  Modulen und Sprachen. Reine Übersetzungsunterschiede zählen mit.
 - Beheben lässt sich eine Kollision nur durch Umbenennen eines Keys samt Aufrufern (FR 2.5 schließt
   eine Signaturänderung von `txt()` aus). Die Aufrufer liegen meist in anderen Komponenten.
 
@@ -612,7 +660,7 @@ dynamisch zusammengesetzten Keys).
   Kategorie; entschieden 2026-09-28). Ist sie leer, gilt die letzte nicht leere Form davor; sind
   alle leer, gilt der Eintrag als nicht geshippt. Die Regel steht an genau einer Stelle
   (`PluralForms::defaultFormIndex()`/`defaultValueOf()`) und gilt ebenso für `txtlng()`,
-  `readMoTranslations*()`, den DB-Dual-Write samt `local_change`, alte Einzelwerte
+  den Eintrag ohne Kontext im Build, den DB-Dual-Write samt `local_change`, alte Einzelwerte
   (`mapLegacyPluralValues()`), „Neue Variable hinzufügen", die Admin-GUI und die
   Plugin-`.po`-Brücke. Für `poll_population` ist das der bisherige Wert von `poll_population`.
   `msgstr[1]` wäre falsch, weil es in vielen Sprachen eine Sonderform ist:
@@ -643,8 +691,10 @@ Kein `eval`, kein `create_function`, kein `Gettext\Translator`. Validierung beim
 `nplurals=<1..10>; plural=<Ausdruck>;`, Länge ≤ 512, Schachtelung ≤ 64, und für n = 0…200 sowie
 einige große Werte (1000, 1000000, …) muss der Index in 0…nplurals−1 liegen. Ein fehlender oder
 ungültiger Header ergibt die germanische Regel `nplurals=2; plural=(n != 1);` plus Warnung
-(Laufzeit: Logger `lang`, einmal pro Modul/Sprache und Request; Build: Warnung im Index; Plugin:
-Logger). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform (letzte
+(Build: Warnung, der kompilierte Header ist dann die germanische Regel; Plugin: Logger). Seit
+2026-10-06 wertet zur Laufzeit gettext die (geprüfte) Formel aus; der Parser bleibt für die Prüfung
+beim Kompilieren, `TranslationCatalog::toMoString()`, den Abgleich und den Konverter
+(`isOneSingularOtherPlural()`). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform (letzte
 Form).
 
 ### Kanonische Tabelle und Konverter (`plurals.json`)
@@ -662,7 +712,8 @@ Form).
   (beides optional, `msgid_plural` sonst `<key>_plural`, Label nach dem Beispiel des FR). Für `poll`:
   `poll_population` (Singular `poll_population_singular`) und `poll_vote_error_multi`.
 
-Der Konverter erfindet keine Texte, er verteilt nur vorhandene Werte:
+Der Konverter erfindet keine Texte, er verteilt nur vorhandene Werte (ein aus der Referenzsprache
+aufgefüllter Wert gilt als vorhanden, siehe „Englisch als Vorlage"; der Eintrag ist dann fuzzy):
 
 - Sprachen mit der Regel „n == 1 → Form 0, sonst Form 1" (geprüft über die Auswertung, nicht über
   den Formeltext; aktuell bg, da, de, el, en, et, hu, ka, nl, sq, sv, tr): `msgstr[0]` = Wert des
@@ -713,10 +764,9 @@ Key ein Plural-Eintrag ist (shipped oder im Overlay).
   und Leerzeichen kodiert (`_POSTLBRACKET_`/`_POSTRBRACKET_`), sonst würde PHP `[0]` als Array-Index
   lesen. Der Identifier-Filter und die Seitenübersetzung finden die Formen über den Key.
   „Neue Variable hinzufügen" mit dem Key eines Plural-Eintrags setzt dessen Standardform.
-- **Laufzeit:** `ShippedTranslations::readCompiled()` bzw. `TranslationCatalog::readMoMessages()`
-  liefern Standardwerte und Formen; das Overlay ersetzt einen Eintrag ganz (ein Singular-Eintrag im
-  Overlay verdrängt auch die geshippten Formen). Die Formen liegen im selben Request-Cache wie die
-  Texte (`"\0plurals|<modul>|<sprache>"`).
+- **Laufzeit:** `ntxt()` fragt `dngettext()` mit `"ilias-plural\x04<key>"` ab, gettext wertet die
+  Formel aus (für alle 31 Sprachen identisch zu `PluralForms::formIndexFor()`). Das Overlay ersetzt
+  einen Eintrag ganz (ein Singular-Eintrag im Overlay verdrängt auch die geshippten Formen).
 - **Plugins:** Die Plugin-`.po`-Brücke schreibt für Plural-Einträge nur die Standardform in die
   Datenbank und loggt das; `ntxt()` fällt für Plugins auf `txt()` zurück.
 
@@ -838,7 +888,8 @@ Shipped-`.po` eines migrierten Moduls nicht parsebar ist.
 
 **Leere Übersetzungen gelten als nicht geshippt** (seit 2026-09-28): Ein Eintrag mit leerem `msgstr`
 (bzw. ein Plural-Eintrag, dessen Formen alle leer sind, z. B. `poll_import` in `poll_en.po`, weil
-`lang/ilias_en.lang` den Key nicht hat) fehlt in der `.mo`, und ebenso in den Shipped-Werten
+`lang/ilias_en.lang` den Key nicht hat; der Konverter schreibt seit 2026-10-06 statt leerer Werte den
+Referenzwert als fuzzy, siehe „Englisch als Vorlage") fehlt in der `.mo`, und ebenso in den Shipped-Werten
 (`loadShippedModuleEntries()`, `loadShippedModules()`, `loadModuleTranslations()`): keine
 `lng_data`-Zeile mit `''`, keine Admin-GUI-Zeile, `txt()` liefert wie vor der Migration `-key-`.
 Eine lokale Änderung eines solchen Keys wird wie die eines nicht geshippten Keys behandelt.
@@ -953,18 +1004,22 @@ PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem
    (überschreibt eine frühere Sicherung, wie bei `.lang`), `.pot`, dann `.po`, jeweils atomar mit
    fsync (`AtomicFileWriter`). Die `.pot` gehört allen Sprachen: Sie wird unter einem eigenen Lock
    gelesen und geschrieben (`MigratedLanguageFileSync::withTemplateLock()`, Lock-Datei
-   `<client_data_dir>/lang/<Pfad der Directory><modul>.pot.lock`, immer **nach** dem Overlay-Lock),
+   `<client_data_dir>/lang/<modul>/template.lock`, immer **nach** dem Overlay-Lock),
    damit ein gleichzeitiger merge einer anderen Sprache keinen neuen Key verliert. Danach wird das
-   Build-Artefakt der Sprache eine Sekunde vor die `.po` datiert (sonst gewänne ein in derselben
-   Sekunde gebautes Artefakt, `readCompiled()` vergleicht mit `>=`), ersatzweise gelöscht; gelingt
-   beides nicht, steht eine Warnung im Log. **Eigentümer:** Die geschriebenen Dateien gehören danach
+   **kein** Build erzeugt (der Webserver schreibt nicht in `artifacts/`, entschieden 2026-10-06). **Eigentümer:** Die geschriebenen Dateien gehören danach
    dem Webserver-Nutzer (neue Datei per `rename`, Rechte der alten Datei werden übernommen, Eigentümer
    und Gruppe nicht) – im Log vermerkt; für einen Commit aus dem Arbeitsverzeichnis ggf. `chown`.
-4. **Abgleichen:** `sync(..., $refresh_original_from_shipped = true, remarks: die nicht übernommenen)`:
-   übernommene Einträge entsprechen jetzt dem Shipped-Stand und fallen aus dem Delta, übernommene
-   Bemerkungen aus dem Overlay; ein leeres Overlay wird entfernt (`.lock` bleibt). Der Parse-Cache
-   (`readShippedPo()`, Inhalts-Hash) erkennt die neue Datei selbst, der Request-Cache von
-   `ilLanguage` wird invalidiert. **Datenbank:** `lng_data.local_change` der übernommenen Keys wird
+4. **Overlay bleibt** (seit 2026-10-06): Die Laufzeit liefert den Build, der bis zum nächsten
+   `setup build` die alten Shipped-Werte hat – das Overlay liefert die übernommenen Werte weiter.
+   merge markiert sie (`# merged_into_shipped`, `LocalChangeComments::setMergedIntoShipped()`); jedes
+   andere Schreiben des Moduls (Admin-Edit, Import, `setup update` ohne vorheriges `setup build`)
+   behält markierte Einträge, solange der Build nicht genau diese `.po` ausliefert (Hash der gebauten
+   `.po` in `current.json`, `ShippedTranslationsBuild::servesShippedPo()`). Erst `setup build` und
+   danach `setup update` (Drei-Wege-Abgleich: lokaler Wert == neuer Shipped-Wert → Eintrag verlässt das
+   Overlay, Marker entfällt) räumen sie weg; eine Overlay-Bemerkung, die jetzt als `#.` in der
+   Shipped-`.po` steht, verwirft `setup update` ebenfalls (`migratedModuleRemarks()`). Ein zweites
+   merge ohne neue Änderung schreibt nichts.
+   **Datenbank:** `lng_data.local_change` der übernommenen Keys wird
    `NULL`, `lng_data.remarks` der übernommenen Bemerkungen ebenfalls (wie nach einer Neuinstallation,
    bei der eine `#.`-Notiz keine Bemerkung ist); `lng_modules` bleibt (die Werte ändern sich nicht).
    **Abweichung von trunk:** trunk lässt `local_change` nach merge stehen. Für ein PO-Modul würde ein
@@ -1082,19 +1137,31 @@ Umbenennung oder das neue Verzeichnis übernimmt vorerst den alten Namen.
 
 ## Natives PHP-`gettext()`
 
-Wird bewusst **nicht** genutzt:
+Seit 2026-10-06 der einzige Laufzeit-Lesepfad migrierter Module (vorher bewusst nicht genutzt). Die
+früheren Einwände sind so gelöst (verifiziert mit glibc 2.36/PHP 8.4 im Container und glibc
+2.43/PHP 8.5):
 
-- Natives gettext braucht die PHP-Extension **und** generierte OS-Locales pro Sprache
-  (`setlocale()`/`bindtextdomain()`). Locales zu generieren erfordert i. d. R. Root-Rechte, die auf
-  vielen ILIAS-Hostings nicht vorhanden sind (in der Docker-Entwicklungsumgebung fehlen sowohl die
-  Extension als auch die Locales).
-- Locale/Domain sind globaler Prozesszustand, während `ilLanguage` pro Request mehrere Module und
-  Sprachen (`txtlng()`) liest.
-
-Der PHP-Pfad über `gettext/gettext` (siehe oben) braucht weder Extension noch Locale. Falls native
-gettext später als Beschleunigung gewünscht ist, dann nur optional, pro Sprache laufzeitgeprüft
-(`function_exists('gettext')` + `setlocale()`-Test) mit Fallback auf den PHP-Pfad — sinnvoll nur bei
-einem gemessenen Performance-Problem.
+- **Keine OS-Locales pro Sprache:** Der Build kopiert `C.utf8` der C-Bibliothek als
+  `locale/ilias_messages`; `NativeGettext::activate()` lädt sie per `LOCPATH` und entfernt `LOCPATH`
+  sofort wieder. `LANGUAGE=messages` macht den Katalogordner unabhängig von der Locale
+  (`<gebundenes Verzeichnis>/messages/LC_MESSAGES/<domain>.mo`). `C`/`C.UTF-8` selbst übersetzen nicht.
+- **Mehrere Sprachen pro Request:** Die Sprache steckt im Domainnamen (`<modul>.<lang>`); ein
+  Wechsel über `LANGUAGE` wirkte wegen des glibc-Caches nicht.
+- **`.mo` pro Prozess gecacht:** Jeder neue Stand bekommt ein neues Verzeichnis (Build-ID,
+  Overlay-Revision); `bindtextdomain()` auf das neue Verzeichnis lädt ihn. Alte Builds/Revisionen
+  bleiben im Speicher langlebiger FPM-Worker, bis diese neu starten.
+- **Prozesszustand:** PHP setzt am Request-Ende selbst zurück (ext/standard, Request-Shutdown: mit
+  `putenv()` gesetzte Variablen bekommen ihren alten Wert, eine mit `setlocale()` geänderte Locale
+  wird auf `C` gesetzt). Geprüft am 2026-10-06 in FPM (`pm = dynamic`): ein Testskript setzte
+  `LANGUAGE`, `LOCPATH` und `LC_MESSAGES` ohne Rücksetzung; der nächste Request desselben Workers
+  (gleiche PID, 6 Requests je Worker) begann jeweils mit `LC_MESSAGES=C` und ohne `LANGUAGE`/`LOCPATH`.
+  Eine eigene Shutdown-Funktion gibt es deshalb nicht mehr; `NativeGettext::restore()` bleibt nur für
+  langlaufende Prozesse (Setup nach der Build-Prüfung). Kindprozesse (`exec()`) erben
+  `LANGUAGE=messages` (harmlos: ein C-Programm beachtet es nur mit einer Locale ungleich `C`).
+- **Voraussetzung:** PHP-Extension `gettext` (CLI und Webserver) und `C.utf8` unter
+  `/usr/lib/locale` bzw. `/usr/lib64/locale`, dieselbe glibc für Build und Webserver; sonst bricht
+  `setup build` ab bzw. die Laufzeit liefert `-key-` (siehe „Build-Artefakt"). Unter ZTS gelten
+  Locale/`LANGUAGE` für alle Threads (Hinweis in der Sprachverwaltung).
 
 ## Rollback
 
@@ -1110,15 +1177,16 @@ zurückschreiben".
    siehe „`--remove-from-lang`"). Für `poll` hält die DB
    die Standardform der Plural-Einträge, also den bisherigen Wert; lokale Änderungen einzelner
    Formen außer der Standardform gehen beim Rollback verloren (sie stehen nur im Overlay).
-2. **Pro Sprache:** die Shipped-`.po` der Sprache entfernen; dann liest `ilLanguage` `lng_modules`.
+2. **Pro Sprache:** die Shipped-`.po` der Sprache entfernen und `setup build` ausführen; dann liest
+   `ilLanguage` `lng_modules`.
    (Nur die Overlay-Dateien zu löschen, genügt nicht: dann wird der Shipped-Stand ohne lokale
    Änderungen geliefert.)
    **Nach einem „merge"** stehen die übernommenen Werte nur noch in der Shipped-`.po` (Overlay und
    `lng_data.local_change` sind bereinigt, der Wert steht weiter in `lng_data`); die `.lang`-Zeilen
    des Moduls sind veraltet. Ein Rollback auf `.lang` verliert sie mit dem nächsten Update, solange
    sie nicht in die `.lang` nachgetragen werden.
-3. **Build-Artefakte:** `artifacts/language/` kann jederzeit gelöscht werden; `ilLanguage` kompiliert
-   dann die `.po` direkt, der nächste `setup build` legt die Artefakte neu an.
+3. **Build:** `artifacts/language/` kann gelöscht und mit `setup build` neu angelegt werden; bis dahin
+   liefern migrierte Module `-key-` (kein Rückfall auf die DB).
 4. **Gesamter Mechanismus:** den Lesepfad in `ilLanguage` und `ilObjLanguageExt` zurücknehmen und
    `ilLanguageSetupAgent::getBuildObjective()` wieder auf `NullObjective` setzen. Ein bereits
    geschrumpftes Overlay enthält weiterhin alle lokalen Änderungen, die DB ist vollständig.
@@ -1126,7 +1194,8 @@ zurückschreiben".
 ## Deinstallation entfernt die Overlay-Dateien
 
 `ilObjLanguage::uninstall()` ruft nach `flush()` `removeMigratedMoFiles()` auf, das für jedes
-kontribuierte Modul `MigratedLanguageFileSync::removeOverlay()` (`.po`, `.mo` und `.lock`) ausführt.
+kontribuierte Modul `MigratedLanguageFileSync::removeOverlay()` ausführt (`current`, `.po`, alle
+Revisionen, `lock` und das leere Verzeichnis `lang/<modul>/<lang>`).
 `ilPluginLanguage::uninstall()` tut dasselbe für das (validierte) Plugin-Präfix (derzeit folgenlos,
 da kein Plugin eine Directory kontribuiert). Fehler werden pro Modul/Sprache geloggt und
 verschluckt. Eine deinstallierte Sprache wird danach auch für migrierte Module nicht mehr
@@ -1222,11 +1291,12 @@ Relevante Tests liegen unter `components/ILIAS/Language/tests/`, u. a.
 `ComponentTranslation/MigratedLanguageFilePathsTest.php`, `ComponentTranslation/LocalChangeCommentsTest.php`,
 `Setup/ShippedLanguageFilesCompiledObjectiveTest.php`, `Setup/LanguageInstallationManagerMigratedModulesTest.php`,
 `Setup/ilLanguagesInstalledAndUpdatedObjectiveTest.php`, `PoMigrationLoadLanguageModuleTest.php`,
-`PoMigrationWriteBackTest.php`, `ShippedArtifactProblemLoggingTest.php`, `ToJSMapTest.php`,
+`PoMigrationWriteBackTest.php`, `ToJSMapTest.php`,
 `ImportUsesShippedValuesOfMigratedModulesTest.php`, `Activities/AddLanguageEntryTest.php`,
 `AdminGuiReadsValuesFromMigratedFileTest.php`, `UninstallRemovesMigratedMoFilesTest.php`,
 `UninstallRemovesPluginMigratedMoFilesTest.php`, `ComponentTranslation/Catalog/TranslationCatalogPoTest.php`,
-`ComponentTranslation/Catalog/TranslationCatalogMoTest.php` (Standardform eines Plural-Eintrags),
+`ComponentTranslation/Catalog/TranslationCatalogMoTest.php` (Kompilat, gelesen mit dem Leser des
+Fixtures `MigratedPoFixture`; die Laufzeit liest nativ),
 `ConvertModuleToPoToolTest.php`.
 
 Pluralformen und merge (Stand 2026-09-30):
@@ -1248,6 +1318,40 @@ Pluralformen und merge (Stand 2026-09-30):
   `MigratedLanguageFilePaths::templateFileName()`: `ComponentTranslation/MigratedLanguageFilePathsTest.php`.
 
 ## Änderungshistorie
+
+### 2026-10-06: Konverter – Englisch als Vorlage
+
+- Standard-Referenzsprache `en` statt `de` (überschreibbar); `.pot` und `msgid`-Liste kommen aus ihr.
+- Fehlt einer Sprache ein Key der Referenz oder ist er leer: Referenzwert, `#, fuzzy` (Plural
+  sinngemäß); Roundtrip-Prüfung erwartet den Referenzwert und das Flag; Statistik-Spalte `filled`.
+- Ausgelieferte `tos`/`poll`-Dateien nicht neu erzeugt (`tos` unverändert, `poll` siehe „Englisch
+  als Vorlage"); `ConvertModuleToPoToolTest`: `tos` mit `en`, `poll` weiter mit `de` und den drei
+  aufgefüllten `poll_import`-Einträgen als einzigem Unterschied, zwei neue Tests zum Auffüllen.
+
+### 2026-10-06: Laufzeit über natives gettext
+
+- Lesepfad migrierter Module nur noch nativ (`MigratedTranslations`, `NativeGettext`), kein Rückfall
+  auf `lng_modules` und keiner auf `gettext/gettext`; entfallen sind `ShippedTranslations::read()`/
+  `readCompiled()` (Kompilieren zur Laufzeit), `TranslationCatalog::readMo*()`,
+  `CompiledTranslations`, der Plural-Cache und `ilLanguage::logCrossModuleKeyCollisions()`.
+- Build neu (`ShippedTranslationsBuild`, siehe „Build-Artefakt"): `current.json` + Build-Verzeichnis,
+  Prüfung über natives gettext, Kollisionsliste; `index.json` und `<lang>/<modul>.mo` entfallen.
+- Overlay neu unter `<client_data_dir>/lang/<modul>/<lang>/` mit Revisionen; der alte Ort wird nicht
+  mehr gelesen (keine Migration).
+- „merge" schreibt nur die Shipped-`.po` (kein Build, kein Zurückdatieren); die übernommenen
+  Einträge bleiben markiert im Overlay, bis der Build die `.po` ausliefert (Hash pro Modul/Sprache in
+  `current.json`) und `setup update` lief; der Webserver schreibt nicht in `artifacts/`.
+- Kein Rückfall auf früher geladene Module: ein im zuständigen migrierten Modul nicht übersetzter
+  Key ergibt `-key-` (bewusste Verhaltensänderung, siehe „Laufzeit-Integration").
+- Kein eigenes Zurücksetzen am Request-Ende: PHP setzt `putenv()`/`setlocale()` selbst zurück
+  (in FPM geprüft); `reactivateIfLost()` prüft `LC_MESSAGES` und `LANGUAGE`.
+- Leeres Overlay entfernt seine Revisionen sofort; der Lesepfad des Overlays folgt keinen Symlinks.
+- Sprachverwaltung zeigt eine MessageBox, wenn natives gettext nicht verfügbar ist (Texte mit
+  englischem Fallback, bis die Keys `lng_native_gettext_unavailable`/`lng_native_gettext_thread_safe`
+  in `lang/ilias_*.lang` stehen).
+- Tests: `ShippedArtifactProblemLoggingTest.php` entfernt (Verhalten entfallen); Leser-Robustheitstests
+  in `TranslationCatalogMoTest.php` entfernt; übrige Tests auf das neue Layout umgestellt
+  (`MigratedPoFixture::resetRuntime()` lenkt Builds in ein temporäres Artefaktverzeichnis).
 
 ### 2026-09-24/25: Build-Artefakt, Delta-Overlay, Markup-Prüfung, Plugin-`.po`
 
