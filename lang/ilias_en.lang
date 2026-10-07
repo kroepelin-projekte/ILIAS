@@ -591,6 +591,7 @@ assessment#:#concatenation#:#Concatenation
 assessment#:#conf_delete_pass#:#Are you sure you want to delete your existing answers?
 assessment#:#confirm_log_deletion#:#Are you sure, you want to delete the selected log entries? You will not be able to recover the deleted entries.
 assessment#:#confirm_sync_questions#:#The question you changed is a copy which has been created for use with the active test. Do you want to change the original of the question too?
+assessment#:#contained_question_types#:#Contained Question Types
 assessment#:#coordinates#:#Coordinates
 assessment#:#copy_and_link_to_questionpool#:#Add to question pool
 assessment#:#copy_no_questions_selected#:#Please select at least one question to copy.
@@ -1382,7 +1383,7 @@ assessment#:#tst_answer_status_not_answered#:#Not answered###fau: testNav
 assessment#:#tst_answered_questions#:#Nr. of Answered Questions
 assessment#:#tst_answered_questions_of_total#:#%s of %s
 assessment#:#tst_answered_questions_test#:#Questions answered in this test
-assessment#:#tst_attached_xls_file#:#You can find the test results for this participant in the attached Excel file.
+assessment#:#tst_attached_xls_file#:#You can find the test results in the attached Excel file.
 assessment#:#tst_attempt#:#Attempt
 assessment#:#tst_attempt_limit_message#:#Your limit of test attempts is <b>%s</b>.
 assessment#:#tst_attempt_started#:#Attempt Started
@@ -1498,7 +1499,7 @@ assessment#:#tst_finish_confirm_cancel_button#:#No, go back to the previous ques
 assessment#:#tst_finish_confirmation_question#:#You are going to finish this test. You won’t be able to enter this test attempt again to change your answers. Do you really want to finish this test?
 assessment#:#tst_finish_confirmation_question_no_attempts_left#:#You are going to finish this test and reach the maximum number of allowed test attempts. You won’t be able to enter this test again to change your answers. Do you really want to finish the test?
 assessment#:#tst_finish_notification#:#Notification
-assessment#:#tst_finish_notification_advanced#:#Send complete test result
+assessment#:#tst_finish_notification_advanced#:#Send complete test result as excel file
 assessment#:#tst_finish_notification_content_type#:#Content of e-mail
 assessment#:#tst_finish_notification_desc#:#Sends an e-mail to the test owner for every user that has completed the test.
 assessment#:#tst_finish_notification_no#:#No e-mail
@@ -7161,7 +7162,7 @@ content#:#cont_standard#:#Standard
 content#:#cont_start#:#Start
 content#:#cont_start_file_set_to#:#%s has been set as start file.
 content#:#cont_start_value#:#Start Value
-content#:#cont_start_value_info#:#Enter start value as decimal number. Default is 1.
+content#:#cont_start_value_info#:#Enter start value as decimal number. Default is 1. If you use an own counter via ::before, the start value will only be used, if you use the internal 'list-item' counter.
 content#:#cont_startfile#:#Start File
 content#:#cont_status#:#Status
 content#:#cont_std_is_in_dir#:#Deletion not possible. Standard view file is in directory.
@@ -9441,7 +9442,7 @@ exc#:#exc_mandatory_info#:#Mandatory assignments must be passed to pass the whol
 exc#:#exc_mandatory_rand_determined#:#Randomly determined
 exc#:#exc_max_char_limit#:#Maximum number of characters
 exc#:#exc_max_file#:#Max Number of Files
-exc#:#exc_max_file_info#:#Participants will not be able to upload more files once the limit is reached. In team assignments the limit is also enforced per participant not team-wide.
+exc#:#exc_max_file_info#:#Participants will not be able to upload more files once the limit is reached.
 exc#:#exc_max_file_reached#:#You cannot upload more than %s files.
 exc#:#exc_max_file_tgl#:#Limit Uploads
 exc#:#exc_max_team_participants#:#Maximal Number
@@ -9616,6 +9617,7 @@ exc#:#exc_reminder_submit_setting#:#Remind Users to Submit
 exc#:#exc_reminder_submit_subject#:#Assignment "%s" was not finished
 exc#:#exc_reminders_cron#:#Reminders for Assignments
 exc#:#exc_reminders_cron_info#:#If enabled, 3 reminders will be active: Users to Submit, Tutors to Grade and Participants to Feedback.
+exc#:#exc_reminders_cron_not_active#:#Note: Notifications will not be sent until the 'Reminders for Assignments' cron job is activated. Currently the cron job is deactivated.
 exc#:#exc_request_deadline#:#Request Deadline
 exc#:#exc_requirement#:#Requirement
 exc#:#exc_review_anytime#:#Give Feedback Anytime
@@ -11603,6 +11605,7 @@ mail#:#mail_global_reply_to_addr#:#Reply-To
 mail#:#mail_global_reply_to_addr_info#:#Please enter the desired 'Reply-To' address.
 mail#:#mail_grp_roles#:#Send Mail to Group Roles
 mail#:#mail_hint_add_placeholder_x#:#Add the placeholder '%s' to the message body.
+mail#:#mail_inbox_external_delivery_only_info#:#Your account is configured to receive messages at an external email address.<br>You can only see mails in this inbox if your account is configured to (also) receive them locally.
 mail#:#mail_incoming#:#Incoming Mail
 mail#:#mail_incoming_both#:#Receive Mail Locally and Forward to:
 mail#:#mail_incoming_local#:#Receive Mail Locally Only
@@ -12932,7 +12935,6 @@ news#:#news_allow_shorter_periods#:#Allow Shorter Periods
 news#:#news_allow_shorter_periods_info#:#Users may select shorter news periods on the dashboard.
 news#:#news_attached_to#:#Attached to
 news#:#news_block_information#:#The <b>News</b> block lists all news that are related to your <b>Favourites</b>.
-news#:#news_block_news_for_context#:#News
 news#:#news_cache#:#News Cache (Minutes)
 news#:#news_cache_info#:#Update news blocks all x minutes. ‘0’ means every time. Higher values improve performance, but news may link to non-accessible items.
 news#:#news_default_visibility#:#Default Access
@@ -15094,7 +15096,7 @@ rep#:#rep_fav_intro1#:#You have not yet selected any favourites. To do so, there
 rep#:#rep_fav_intro2#:#Click on '%s' and select a learning object from those available, for example a learning module or a forum.
 rep#:#rep_fav_intro3#:#When you have found something that interests you, you can easily add it to your favourites. Select the desired item in the <i>Actions</i> menu and select "<i>Add to favourites</i>".
 rep#:#rep_favourites#:#Favourites
-rep#:#rep_favourites_info#:#Users can mark individual repository items as favourites. A 'Favourites' list can be activated for the dashboard and the main menu. 
+rep#:#rep_favourites_info#:#Users can mark individual repository items as favourites. A 'Favourites' list can be activated for the dashboard and the main menu.
 rep#:#rep_input_not_empty#:#This field must not be empty, please provide a value.
 rep#:#rep_intro#:#Welcome to the Repository!
 rep#:#rep_intro1#:#In this area you can create learning and working resources for all users. All resources are organised in categories. Categories can reflect the structure of your organisation (e.g. departments), a hierarchy of disciplines, or classes of a school.
@@ -15661,7 +15663,6 @@ sess#:#sess_registration_notification#:#Notification
 sess#:#sess_registration_notification_info#:#Shows column in tab 'Participants' to select users being notified about new or leaving participants
 sess#:#sess_section_reg#:#Registration Settings
 sess#:#sess_setting_header_presentation#:#Presentation
-sess#:#sess_show_members#:#Show Participants
 sess#:#sess_show_participants_info#:#If activated, session participants can access the participant gallery
 sess#:#sess_title#:#Title of Session
 sess#:#sess_users_added#:#Registered selected users for the session.
@@ -17272,7 +17273,7 @@ trac#:#trac_mode_lti_outcome_info#:#The Learning Progress will be evaluated from
 trac#:#trac_mode_manual#:#Users Monitor and Set Status Themselves (Complete Module)
 trac#:#trac_mode_manual_by_tutor#:#Tutors Monitor and Set Status
 trac#:#trac_mode_manual_by_tutor_info#:#Tutors decide if users have accomplished the object. Tutors manually set the overall status i.e. ‘Completed’ or ‘Failed’.
-trac#:#trac_mode_manual_info#:#Users decide themselves if they have accomplished the object. Once they are done, they have to set their status to ‘Completed’ on the 'Info'-tab.
+trac#:#trac_mode_manual_info#:#Users decide themselves if they have accomplished the object. Once they are done, they have to set their status to ‘Completed’ on the ‘Learning Progress’ tab.
 trac#:#trac_mode_objectives#:#Status is Determined by Learning Objectives
 trac#:#trac_mode_objectives_info#:#The learning progress will be automatically determined according to the number of passed learning objectives.
 trac#:#trac_mode_plugin#:#Plugin

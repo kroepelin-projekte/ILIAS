@@ -973,6 +973,12 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
     // as they don't have the possibility to use the multi-download-capability of the manage-tab
     public function enableMultiDownloadObject(): void
     {
+        if ($this->user->isAnonymous()) {
+            $this->tpl->setOnScreenMessage(ilGlobalTemplateInterface::MESSAGE_TYPE_FAILURE, $this->lng->txt('permission_denied'), true);
+            $this->ctrl->returnToParent($this);
+            return;
+        }
+
         $this->multi_download_enabled = true;
         $this->renderObject();
     }
@@ -1127,7 +1133,9 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
 
     public function downloadObject(): void
     {
-        if (in_array($this->user->getId(), [ANONYMOUS_USER_ID, 0], true)) {
+        if ($this->user->isAnonymous() || $this->user->getId() === 0) {
+            $this->tpl->setOnScreenMessage(ilGlobalTemplateInterface::MESSAGE_TYPE_FAILURE, $this->lng->txt('permission_denied'), true);
+            $this->ctrl->returnToParent($this);
             return;
         }
 
@@ -1531,12 +1539,14 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
                 $suffix = 's';
             }
 
-            $mbox = $ui->factory()->messageBox()->success(
-                $this->lng->txt('mgs_objects_linked_to_the_following_folders_' . $suffix)
-            )
-                       ->withLinks($links);
+            $list = $ui->factory()->listing()->unordered($links);
 
-            $this->tpl->setOnScreenMessage('success', $ui->renderer()->render($mbox), true);
+            $this->tpl->setOnScreenMessage(
+                'success',
+                $this->lng->txt('mgs_objects_linked_to_the_following_folders_' . $suffix) .
+                $ui->renderer()->render($list),
+                true
+            );
         } // END LINK
 
         // clear clipboard
@@ -1648,6 +1658,10 @@ class ilContainerGUI extends ilObjectGUI implements ilDesktopItemHandling
         $is_child = [];
         $not_allowed_subobject = [];
 
+        if (!$this->clipboard->hasEntries()) {
+            $ilCtrl->returnToParent($this);
+            return;
+        }
 
         if (!in_array($this->clipboard->getCmd(), ["cut", "link", "copy"])) {
             $message = get_class(

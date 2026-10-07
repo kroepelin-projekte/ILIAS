@@ -94,6 +94,12 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
         $test_question_properties = $this->testquestionsrepository
             ->getQuestionPropertiesForTest($this->object);
 
+        uasort(
+            $test_question_properties,
+            fn(TestQuestionProperties $a, TestQuestionProperties $b): int
+                => $a->getSequenceInformation()->getPlaceInSequence() <=> $b->getSequenceInformation()->getPlaceInSequence()
+        );
+
         if ($test_question_properties === []) {
             $this->tpl->setOnScreenMessage('info', $this->lng->txt('manscoring_questions_not_found'));
             return;
@@ -110,6 +116,8 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
         $question_id = $this->testrequest->getQuestionId();
         if ($question_id === 0) {
             $question_id = reset($test_question_properties)->getQuestionId();
+        } else {
+            $this->ctrl->setParameterByClass(self::class, 'q_id', $question_id);
         }
 
         $table = new ScoringByQuestionTable(
@@ -118,7 +126,7 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
             $this->action_parameter_token,
             $this->row_id_token,
             $this->ui_factory,
-            "scoring_by_qst_filter_id_{$question_id}"
+            $question_id
         );
 
         if ($this->testrequest->strVal($this->action_parameter_token->getName()) === ScoringByQuestionTable::ACTION_SCORING) {
@@ -253,9 +261,13 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
                 $this->lng->txt('tst_saved_manscoring_by_question_successfully'),
                 $question_gui->getObject()->getTitleForHTMLOutput(),
                 $attempt + 1
-            )
+            ),
+            true
         );
-        $this->showManScoringByQuestionParticipantsTable();
+        $this->ctrl->setParameterByClass(self::class, 'q_id', $question_id);
+        $this->ctrl->clearParameterByClass(self::class, 'active_id');
+        $this->ctrl->clearParameterByClass(self::class, 'pass_id');
+        $this->ctrl->redirectByClass(self::class, self::CMD_SHOW);
     }
 
     protected function getAnswerDetail(int $question_id, string $row_id): void
@@ -440,6 +452,8 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
         $reached_points_input->setDisabled($finalized);
         $reached_points_input->setValue((string) $reached_points);
         $reached_points_input->setClientSideValidation(true);
+        $reached_points_input->setRequired(!$finalized);
+
         $form->addItem($reached_points_input);
 
         $finalized_input = new \ilCheckboxInputGUI(
@@ -460,7 +474,7 @@ class TestScoringByQuestionGUI extends TestScoringByParticipantGUI
         $this->ctrl->setParameterByClass(self::class, 'q_id', $question_id);
         $this->ctrl->setParameterByClass(self::class, 'active_id', $active_id);
         $this->ctrl->setParameterByClass(self::class, 'pass_id', $attempt);
-        $target = $this->ctrl->getFormAction($this, self::CMD_SAVE);
+        $target = $this->ctrl->getFormAction($this, self::CMD_SHOW);
         $this->ctrl->clearParameterByClass(self::class, 'q_id');
         $this->ctrl->clearParameterByClass(self::class, 'active_id');
         $this->ctrl->clearParameterByClass(self::class, 'pass_id');

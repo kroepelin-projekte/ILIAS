@@ -761,6 +761,7 @@ class ilLMPresentationGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInt
     {
         $this->tpl->setTitle($this->getLMPresentationTitle());
         $this->tpl->setTitleIcon(ilUtil::getImagePath("standard/icon_lm.svg"));
+        $this->tpl->setDescription($this->lm->getLongDescription());
     }
 
     /**
@@ -997,11 +998,7 @@ class ilLMPresentationGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInt
         $ltiview = $DIC["lti"];
         $ilLocator = $this->locator;
 
-        if (empty($this->requested_obj_id)) {
-            $a_id = $this->lm_tree->getRootId();
-        } else {
-            $a_id = $this->requested_obj_id;
-        }
+        $a_id = $this->getLocatorObjectId();
 
         if (!$this->lm->cleanFrames()) {
             $frame_param = $this->requested_frame;
@@ -1065,6 +1062,11 @@ class ilLMPresentationGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInt
         }
 
         $this->tpl->setLocator();
+    }
+
+    protected function getLocatorObjectId(): int
+    {
+        return $this->getCurrentPageId() ?: $this->lm_tree->getRootId();
     }
 
     /**
@@ -1243,6 +1245,9 @@ class ilLMPresentationGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInt
         $ilCtrl = $this->ctrl;
 
         $term_gui = new ilGlossaryTermGUI($this->requested_obj_id);
+        if (!ilObject::_hasUntrashedReference($term_gui->term->getGlossaryId())) {
+            return;
+        }
 
         // content style
         $this->setContentStyles();
@@ -1359,8 +1364,7 @@ class ilLMPresentationGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInt
         $this->renderPageTitle();
 
         $this->tpl->loadStandardTemplate();
-        $this->tpl->setTitle($this->getLMPresentationTitle());
-        $this->tpl->setTitleIcon(ilUtil::getImagePath("standard/icon_lm.svg"));
+        $this->setHeader();
 
         $this->renderTabs($a_active_tab, 0);
 

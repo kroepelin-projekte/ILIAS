@@ -36,6 +36,7 @@
 <xsl:param name="pg_title"/>
 <xsl:param name="pg_title_class"/>
 <xsl:param name="pg_id"/>
+<xsl:param name="parent_type"/>
 <xsl:param name="ref_id"/>
 <xsl:param name="parent_id"/>
 <xsl:param name="link_params"/>
@@ -2840,7 +2841,7 @@
 		</xsl:when>
 		<xsl:otherwise>
 			<a href="#" style="float: right; width: auto; display:inline-block" target="_blank">
-			<xsl:attribute name="onclick">il.COPagePres.openFullScreenModal('<xsl:value-of select="$fullscreen_link"/>&amp;mob_id=<xsl:value-of select="substring-after($cmobid,'mob_')"/>&amp;pg_id=<xsl:value-of select="$pg_id"/>'); return false;</xsl:attribute>
+			<xsl:attribute name="onclick">il.COPagePres.openFullScreenModal('<xsl:value-of select="$fullscreen_link"/>&amp;mob_id=<xsl:value-of select="substring-after($cmobid,'mob_')"/>&amp;pg_id=<xsl:value-of select="$pg_id"/>','<xsl:value-of select="concat('-', $parent_type, '-', $pg_id)"/>'); return false;</xsl:attribute>
 			<img>
 			<xsl:attribute name="src"><xsl:value-of select="$enlarge_path"/></xsl:attribute>
 			</img>
@@ -3250,8 +3251,11 @@
 				<xsl:attribute name="style">margin-right: 0px; style="float:right;</xsl:attribute>
 			</xsl:if>
 			<figure>
-				<xsl:attribute name="style">width: <xsl:value-of select="./Layout[1]/@Width"/>px</xsl:attribute>
+				<xsl:attribute name="style">width: 100%;<xsl:if test="string-length(normalize-space(./Layout[1]/@Width)) &gt; 0"> max-width: <xsl:value-of select="./Layout[1]/@Width"/>px;</xsl:if><xsl:if test="string-length(normalize-space(./Layout[1]/@Height)) = 0"> aspect-ratio: 16 / 9;</xsl:if> margin: 0;</xsl:attribute>
 				<div class="ilc_Mob">
+					<xsl:if test="string-length(normalize-space(./Layout[1]/@Height)) = 0">
+						<xsl:attribute name="style">height: 100%;</xsl:attribute>
+					</xsl:if>
 					[[[[[Map;<xsl:value-of select="@Latitude"/>;<xsl:value-of select="@Longitude"/>;<xsl:value-of select="@Zoom"/>;<xsl:value-of select="./Layout[1]/@Width"/>;<xsl:value-of select="./Layout[1]/@Height"/>]]]]]
 					<xsl:call-template name="EditReturnAnchors"/>
 				</div>

@@ -188,7 +188,6 @@ il.TestPlayerQuestionEditControl = new function() {
         // Delayed start of timer functions
         // This gives question scripts some time to initialize
         setTimeout(startTimers, START_TIMERS_DELAY);
-
     };
 
     /**

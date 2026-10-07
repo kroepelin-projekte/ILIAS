@@ -109,7 +109,7 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $this->test_session = $testSessionFactory->getSession($this->testrequest->int('active_id'));
 
         $this->ensureExistingTestSession($this->test_session);
-        $this->checkTestSessionUser($this->test_session);
+        $this->test_session->checkAccess($this->object);
 
         $this->initProcessLocker($this->test_session->getActiveId());
 
@@ -281,13 +281,6 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         if (!$executable['executable']) {
             $this->tpl->setOnScreenMessage('info', $executable['errormessage'], true);
             $this->ctrl->redirectByClass([ilRepositoryGUI::class, ilObjTestGUI::class, TestScreenGUI::class]);
-        }
-    }
-
-    protected function checkTestSessionUser(ilTestSession $test_session): void
-    {
-        if ($test_session->getUserId() != $this->user->getId()) {
-            throw new ilTestException('active id given does not relate to current user!');
         }
     }
 
@@ -1839,14 +1832,17 @@ abstract class ilTestPlayerAbstractGUI extends ilTestServiceGUI
         $starting_time = $this->object->getStartingTimeOfUser($active_id);
         $working_time = new WorkingTime(
             $this->lng,
-            $this->ui_factory,
-            $this->ui_renderer,
             $starting_time,
             $this->object->getProcessingTimeInSeconds($active_id)
         );
 
         $this->tpl->setCurrentBlock('enableprocessingtime');
-        $this->tpl->setVariable('USER_WORKING_TIME_MESSAGE_BOX', $working_time->getMessageBox($verbose));
+        $this->tpl->setVariable(
+            'USER_WORKING_TIME_MESSAGE_BOX',
+            $this->ui_renderer->render(
+                $working_time->getMessageBox($this->ui_factory, $verbose)
+            )
+        );
         $this->tpl->parseCurrentBlock();
 
         $working_time_js_template = $working_time->prepareWorkingTimeJsTemplate(

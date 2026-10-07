@@ -117,6 +117,23 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
         'ilpublicuserprofilegui', 'ilobjportfoliogui'
     ];
 
+    private const QUESTION_FUNCTIONS_NEEDING_WRITE = [
+        'editQuestion',
+        'previewQuestion',
+        'save',
+        'saveReturn',
+        'uploadImage',
+        'removeImage',
+        'syncQuestion',
+        'syncQuestionReturn',
+        'suggestedsolution',
+        'uploadchoice',
+        'changeToPictures',
+        'uploadElementImage',
+        'uploadterms',
+        'uploaddefintions'
+    ];
+
     private const QUESTION_CREATION_POOL_SELECTION_NO_POOL = 1;
     private const QUESTION_CREATION_POOL_SELECTION_NEW_POOL = 2;
     private const QUESTION_CREATION_POOL_SELECTION_EXISTING_POOL = 3;
@@ -440,6 +457,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->ui_factory,
                     $this->ui_renderer,
                     $this->skills_service,
+                    $this->content_style,
                     $this->questionrepository,
                     $this->toplist_repository,
                     $this->testrequest,
@@ -776,16 +794,13 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $this->forwardCommandToQuestionPreview($cmd);
                 break;
             case 'ilassquestionpagegui':
+                if (!$this->access->checkAccess('write', '', $this->testrequest->getRefId())) {
+                    $this->redirectAfterMissingWrite();
+                }
                 if ($cmd === 'finishEditing') {
                     $this->prepareOutput();
                     $this->forwardCommandToQuestionPreview(ilAssQuestionPreviewGUI::CMD_SHOW);
                     break;
-                }
-                if ((!$this->access->checkAccess("read", "", $this->testrequest->getRefId()))) {
-                    $this->redirectAfterMissingRead();
-                }
-                if ($cmd === 'edit' && !$this->access->checkAccess('write', '', $this->testrequest->getRefId())) {
-                    $this->redirectAfterMissingWrite();
                 }
                 $this->prepareOutput();
                 $forwarder = new ilAssQuestionPageCommandForwarder(
@@ -793,7 +808,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $this->lng,
                     $this->ctrl,
                     $this->tpl,
-                    $this->questionrepository,
+                    $this->content_style,
                     $this->testrequest
                 );
                 $forwarder->forward();
@@ -972,8 +987,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 }
                 if (in_array(
                     $cmd,
-                    ['editQuestion', 'previewQuestion', 'save', 'saveReturn', 'uploadImage',
-                        'removeImage', 'syncQuestion', 'syncQuestionReturn', 'suggestedsolution']
+                    self::QUESTION_FUNCTIONS_NEEDING_WRITE
                 )
                     && !$this->access->checkAccess('write', '', $this->getTestObject()->getRefId())) {
                     $this->redirectAfterMissingWrite();
@@ -1176,6 +1190,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
 
     private function executeAfterQuestionSaveTasks(assQuestionGUI $question_gui): void
     {
+        $this->addQuestionTitleToObjectTitle($question_gui->getObject()->getTitle());
         if ($this->getTestObject()->getTestLogger()->isLoggingEnabled()) {
             $this->getTestObject()->getTestLogger()->logQuestionAdministrationInteraction(
                 $question_gui->getObject()->toQuestionAdministrationInteraction(
@@ -1902,12 +1917,15 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
         $this->tabs_manager->activateSubTab(TabsManager::SUBTAB_ID_QST_LIST_VIEW);
 
         $this->tpl->setCurrentBlock('adm_content');
-        $this->tpl->setVariable('ACTION_QUESTION_FORM', $this->ctrl->getFormAction($this));
+        $this->tpl->setVariable('TITLE', $this->lng->txt('list_of_questions'));
+
+        $table = $this->getTable();
         $this->tpl->setVariable(
             'QUESTIONBROWSER',
-            $this->ui_renderer->render(
-                $this->getTable()->getTableComponent()
-            )
+            $this->ui_renderer->render([
+                $table->getSummary(),
+                $table->getTableComponent()
+            ])
         );
         $this->tpl->parseCurrentBlock();
     }
@@ -2373,6 +2391,33 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
 
     public function addLocatorItems(): void
     {
+        $next_class = $this->ctrl->getNextClass();
+        $class_parents = class_exists($next_class)
+            ? get_parent_class($next_class)
+            : '';
+
+        if (in_array(
+            strtolower($next_class),
+            [
+                strtolower(ilAssQuestionPreviewGUI::class),
+                strtolower(ilTestQuestionBrowserTableGUI::class),
+                strtolower(ilAssQuestionPageGUI::class),
+                strtolower(ilAssQuestionFeedbackEditingGUI::class),
+                strtolower(ilAssQuestionHintsGUI::class)
+            ]
+        ) || $class_parents === assQuestionGUI::class) {
+            $this->locator->addItem(
+                $this->getTestObject()->getTitle(),
+                $this->ctrl->getLinkTargetByClass(
+                    self::class,
+                    self::SHOW_QUESTIONS_CMD
+                ),
+                '',
+                $this->testrequest->getRefId()
+            );
+            return;
+        }
+
         switch ($this->ctrl->getCmd()) {
             case "run":
             case "infoScreen":

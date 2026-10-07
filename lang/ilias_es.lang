@@ -594,6 +594,7 @@ assessment#:#concatenation#:#Concatenación
 assessment#:#conf_delete_pass#:#¿Está seguro de que desea eliminar sus respuestas existentes?
 assessment#:#confirm_log_deletion#:#¿Está seguro de que desea eliminar las entradas de registro seleccionadas? No podrá recuperar las entradas eliminadas.
 assessment#:#confirm_sync_questions#:#La pregunta que cambió es una copia que se creó para usarse en el examen activo. ¿Desea cambiar también la pregunta original?
+assessment#:#contained_question_types#:#Contained Question Types###06 10 2026 new variable
 assessment#:#coordinates#:#Coordenadas
 assessment#:#copy_and_link_to_questionpool#:#Agregar al banco de preguntas
 assessment#:#copy_no_questions_selected#:#Por favor, seleccione al menos una pregunta para copiar.
@@ -9444,7 +9445,7 @@ exc#:#exc_mandatory_info#:#Las tareas obligatorias deben ser aprobadas para apro
 exc#:#exc_mandatory_rand_determined#:#Determinado aleatoriamente
 exc#:#exc_max_char_limit#:#Número máximo de caracteres
 exc#:#exc_max_file#:#Número máximo de archivos
-exc#:#exc_max_file_info#:#Los participantes no podrán subir más archivos una vez que se alcance el límite. En las tareas de equipo, el límite también se aplica por participante, no a nivel de equipo.
+exc#:#exc_max_file_info#:#Los participantes no podrán subir más archivos una vez que se alcance el límite.
 exc#:#exc_max_file_reached#:#No puede subir más de %s archivos.
 exc#:#exc_max_file_tgl#:#Limitar subidas
 exc#:#exc_max_team_participants#:#Número máximo
@@ -9619,6 +9620,7 @@ exc#:#exc_reminder_submit_setting#:#Recordar a los usuarios que entreguen
 exc#:#exc_reminder_submit_subject#:#La tarea "%s" no se ha finalizado
 exc#:#exc_reminders_cron#:#Recordatorios para tareas
 exc#:#exc_reminders_cron_info#:#Si se activa, habrá 3 recordatorios activos: Usuarios para entregar, Tutores para calificar y Participantes para feedback.
+exc#:#exc_reminders_cron_not_active#:#Note: Notifications will not be sent until the 'Reminders for Assignments' cron job is activated. Currently the cron job is deactivated.###06 10 2026 new variable
 exc#:#exc_request_deadline#:#Solicitar fecha límite
 exc#:#exc_requirement#:#Requisito
 exc#:#exc_review_anytime#:#Dar feedback en cualquier momento
@@ -11606,6 +11608,7 @@ mail#:#mail_global_reply_to_addr#:#Responder a (Reply-To)
 mail#:#mail_global_reply_to_addr_info#:#Por favor, introduzca la dirección de 'Responder a' deseada.
 mail#:#mail_grp_roles#:#Enviar correo a roles de grupo
 mail#:#mail_hint_add_placeholder_x#:#Añadir el marcador de posición '%s' al cuerpo del mensaje.
+mail#:#mail_inbox_external_delivery_only_info#:#Your account is configured to receive messages at an external email address.<br>You can only see mails in this inbox if your account is configured to (also) receive them locally.###06 10 2026 new variable
 mail#:#mail_incoming#:#Correo entrante
 mail#:#mail_incoming_both#:#Recibir correo localmente y reenviar a:
 mail#:#mail_incoming_local#:#Recibir correo solo localmente
@@ -12935,7 +12938,6 @@ news#:#news_allow_shorter_periods#:#Permitir periodos más cortos
 news#:#news_allow_shorter_periods_info#:#Los usuarios pueden seleccionar periodos de noticias más cortos en el tablero.
 news#:#news_attached_to#:#Adjunto a
 news#:#news_block_information#:#El bloque de <b>Noticias</b> enumera todas las noticias relacionadas con sus <b>Favoritos</b>.
-news#:#news_block_news_for_context#:#Noticias
 news#:#news_cache#:#Caché de noticias (minutos)
 news#:#news_cache_info#:#Actualizar los bloques de noticias cada x minutos. '0' significa cada vez. Valores más altos mejoran el rendimiento, pero las noticias pueden enlazar a elementos no accesibles.
 news#:#news_default_visibility#:#Acceso predeterminado
@@ -15664,7 +15666,6 @@ sess#:#sess_registration_notification#:#Notificación
 sess#:#sess_registration_notification_info#:#Muestra una columna en la pestaña 'Participantes' para seleccionar a los usuarios que serán notificados sobre nuevos participantes o bajas
 sess#:#sess_section_reg#:#Ajustes de registro
 sess#:#sess_setting_header_presentation#:#Presentación
-sess#:#sess_show_members#:#Mostrar participantes
 sess#:#sess_show_participants_info#:#Si se activa, los participantes de la sesión pueden acceder a la galería de participantes
 sess#:#sess_title#:#Título de la sesión
 sess#:#sess_users_added#:#Usuarios seleccionados registrados para la sesión.
@@ -16995,7 +16996,7 @@ svy#:#svy_status_in_progress#:#En progreso
 svy#:#svy_status_invited#:#Añadido a tareas
 svy#:#svy_user_added_appraisee#:#Encuesta ‘%1’
 svy#:#svy_user_added_appraisee_close_mail#:#La encuesta ha sido cerrada para sus evaluadores.
-svy#:#svy_user_added_appraisee_mail#:#Se le ha añadido a la encuesta como persona evaluada.
+svy#:#svy_user_added_appraisee_mail#:#Se le ha añadido como persona evaluada a la siguiente encuesta. Para acceder a la encuesta, haga clic en el enlace que aparece a continuación.
 svy#:#svy_user_added_rater#:#Encuesta ‘%1’
 svy#:#svy_user_added_rater_mail#:#Se le ha añadido como evaluador a la encuesta.
 svy#:#svy_user_added_rater_reminder_mail#:#Por favor, no olvide evaluar a las siguientes personas:

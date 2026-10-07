@@ -591,6 +591,7 @@ assessment#:#concatenation#:#Verknüpfung
 assessment#:#conf_delete_pass#:#Durchgang wirklich löschen?
 assessment#:#confirm_log_deletion#:#Sind Sie sicher, dass Sie die ausgewählten Protokolleinträge löschen möchten? Die gelöschten Einträge werden unwiderruflich gelöscht.
 assessment#:#confirm_sync_questions#:#Die Frage, die Sie geändert haben, wurde mit dem Einfügen in den Test als Kopie eines Originals angelegt. Wollen Sie Ihre Änderungen jetzt auch auf die Originalfrage anwenden?
+assessment#:#contained_question_types#:#Enthaltene Fragentypen
 assessment#:#coordinates#:#Koordinaten
 assessment#:#copy_and_link_to_questionpool#:#Zu Fragenpool hinzufügen
 assessment#:#copy_no_questions_selected#:#Bitte wählen Sie mindestens eine Frage zum Kopieren aus.
@@ -1382,7 +1383,7 @@ assessment#:#tst_answer_status_not_answered#:#Nicht beantwortet
 assessment#:#tst_answered_questions#:#Beantwortete Fragen
 assessment#:#tst_answered_questions_of_total#:#%s von %s
 assessment#:#tst_answered_questions_test#:#In diesem Test beantwortete Fragen
-assessment#:#tst_attached_xls_file#:#Sie finden die Testergebnisse für diesen Teilnehmer in der angehängten Excel-Datei.
+assessment#:#tst_attached_xls_file#:#Sie finden die Testergebnisse in der angehängten Excel-Datei.
 assessment#:#tst_attempt#:#Versuch
 assessment#:#tst_attempt_limit_message#:#Ihr Limit für Testversuche beträgt <b>%s</b>.
 assessment#:#tst_attempt_started#:#Versuch gestartet
@@ -1498,7 +1499,7 @@ assessment#:#tst_finish_confirm_cancel_button#:#Nein, ich will zur letzten Antwo
 assessment#:#tst_finish_confirmation_question#:#Sie sind dabei, diesen Test zu beenden. Danach werden Sie nicht mehr in der Lage sein, den Test erneut aufzurufen, um Ihre Antworten zu ändern. Wollen Sie den Test wirklich beenden?
 assessment#:#tst_finish_confirmation_question_no_attempts_left#:#Sie sind dabei, diesen Test zu beenden und die maximale Anzahl erlaubter Testdurchläufe zu erreichen. Danach werden Sie nicht mehr in der Lage sein, den Test erneut aufzurufen, um Ihre Antworten zu ändern. Wollen Sie den Test wirklich beenden?
 assessment#:#tst_finish_notification#:#Benachrichtigung
-assessment#:#tst_finish_notification_advanced#:#Komplettes Testergebnis pro Benutzer
+assessment#:#tst_finish_notification_advanced#:#Komplettes Testergebnis als Excel-Datei
 assessment#:#tst_finish_notification_content_type#:#Inhalt der Benachrichtigung
 assessment#:#tst_finish_notification_desc#:#Für jede Person, die einen Test beendet, wird eine Mail an die Person die für den Test verantwortlich ist, versendet. Diese Person wird in dem Unterreiter „Im Besitz von“ des Reiters „Rechte“ aufgeführt.
 assessment#:#tst_finish_notification_no#:#Keine Benachrichtigung
@@ -7160,7 +7161,7 @@ content#:#cont_standard#:#Standard
 content#:#cont_start#:#Start
 content#:#cont_start_file_set_to#:#%s wurde als Startdatei festgelegt.
 content#:#cont_start_value#:#Startwert
-content#:#cont_start_value_info#:#Geben Sie eine Startwert als Dezimalzahl ein. Standardwert ist 1.
+content#:#cont_start_value_info#:#Geben Sie eine Startwert als Dezimalzahl ein. Standardwert ist 1. Falls Sie einen eigenen counter() über ::before nutzen, wirkt sich der Startwert nur aus, wenn Sie denn internen 'list-item' counter verwenden.
 content#:#cont_startfile#:#Startdatei
 content#:#cont_status#:#Status
 content#:#cont_std_is_in_dir#:#Löschen nicht möglich. Datei für Standardansicht liegt im Verzeichnis.
@@ -9440,7 +9441,7 @@ exc#:#exc_mandatory_info#:#Verpflichtende Übungseinheiten müssen bestanden wer
 exc#:#exc_mandatory_rand_determined#:#Zufällige Auswahl
 exc#:#exc_max_char_limit#:#Höchstanzahl Zeichen
 exc#:#exc_max_file#:#Maximale Dateianzahl
-exc#:#exc_max_file_info#:#Nach Erreichen des Limits können Teilnehmer keine weiteren Dateien hochladen. Auch in Team-Übungseinheiten wird das Limit pro Teilnehmer gewertet und nicht für das gesamte Team.
+exc#:#exc_max_file_info#:#Nach Erreichen des Limits können Teilnehmer keine weiteren Dateien hochladen.
 exc#:#exc_max_file_reached#:#Sie können maximal %s Dateien hochladen.
 exc#:#exc_max_file_tgl#:#Uploads begrenzen
 exc#:#exc_max_team_participants#:#Maximale Anzahl
@@ -9615,6 +9616,7 @@ exc#:#exc_reminder_submit_setting#:#Teilnehmer an Abgaben erinnern
 exc#:#exc_reminder_submit_subject#:#Übungseinheit „%s“ wurde noch nicht abgegeben
 exc#:#exc_reminders_cron#:#Erinnerungen für Übungseinheiten
 exc#:#exc_reminders_cron_info#:#Bei Aktivierung werden drei Erinnerungen versendet: Ausstehende Abgaben, ausstehende Bewertungen und ausstehende Peer-Feedbacks
+exc#:#exc_reminders_cron_not_active#:#Hinweis: Benachrichtigungen werden erst versendet, wenn der Cron-Job „Erinnerungen für Übungseinheiten“ aktiviert ist. Aktuell ist der Cron-Job deaktiviert.
 exc#:#exc_request_deadline#:#Abgabefrist anfragen
 exc#:#exc_requirement#:#Anforderung
 exc#:#exc_review_anytime#:#Jederzeit Feedback geben
@@ -11602,6 +11604,7 @@ mail#:#mail_global_reply_to_addr#:#Reply-To
 mail#:#mail_global_reply_to_addr_info#:#Bitte tragen Sie hier die gewünschte 'Reply-To'-E-Mail-Adresse ein.
 mail#:#mail_grp_roles#:#alle Personen mit folgenden lokalen Rollen. Label is now generalised for all components that support ‘mail to members‘
 mail#:#mail_hint_add_placeholder_x#:#Füge Platzhalter „%s“ in den Textkörper der Nachricht ein.
+mail#:#mail_inbox_external_delivery_only_info#:#Ihr Konto ist so konfiguriert, dass E-Mails an Ihre E-Mail-Adresse gesendet werden. <br>Sie können E-Mails in diesem Posteingang nur sehen, wenn Ihr Konto so konfiguriert ist, dass diese (auch) lokal empfangen werden.
 mail#:#mail_incoming#:#Maileingang
 mail#:#mail_incoming_both#:#Lokal und Weiterleitung an E-Mail
 mail#:#mail_incoming_local#:#Nur lokal empfangen
@@ -12931,7 +12934,6 @@ news#:#news_allow_shorter_periods#:#Kürzere Zeiträume zulassen
 news#:#news_allow_shorter_periods_info#:#Benutzer können kürzere Zeiträume für Neuigkeiten ihrer Favoriten auswählen.
 news#:#news_attached_to#:#Zugeordnet zu
 news#:#news_block_information#:#Der Block "Neuigkeiten" zeigt chronologisch alle <b>Neuigkeiten</b> zu Ihren Favoriten an.
-news#:#news_block_news_for_context#:#Neuigkeiten
 news#:#news_cache#:#Neuigkeiten-Cache (Minuten)
 news#:#news_cache_info#:#Aktualisierung des Blocks "Neuigkeiten" alle x-Minuten. '0' bedeutet jederzeit. Werte größer Null erhöhen die Performanz entsprechend. Allerdings können Links in Einzelfällen auf nicht mehr zugängliche Objekte verweisen.
 news#:#news_default_visibility#:#Voreinstellung Zugriff
@@ -15660,7 +15662,6 @@ sess#:#sess_registration_notification#:#Benachrichtigung
 sess#:#sess_registration_notification_info#:#Im Unterreiter „Verwalten“ können Anmeldekonten ausgewählt werden, die über An- oder Abmeldungen benachrichtigt werden.
 sess#:#sess_section_reg#:#Anmeldung durch Benutzer
 sess#:#sess_setting_header_presentation#:#Darstellung
-sess#:#sess_show_members#:#Teilnehmergalerie
 sess#:#sess_show_participants_info#:#Personen, die sich angemeldet oder an der Sitzung teilgenommen haben, sehen einander in der Galerie im Reiter „Teilnahmen“.
 sess#:#sess_title#:#Titel der Sitzung
 sess#:#sess_users_added#:#Die Benutzer wurden für die Sitzung angemeldet.
@@ -17271,7 +17272,7 @@ trac#:#trac_mode_lti_outcome_info#:#Der Lernfortschritt gilt als abgeschlossen, 
 trac#:#trac_mode_manual#:#Selbsteinschätzung für gesamtes Objekt
 trac#:#trac_mode_manual_by_tutor#:#Manuelle Bewertung
 trac#:#trac_mode_manual_by_tutor_info#:#Ob eine Person das Objekt erfolgreich bearbeitet hat, entscheiden Personen mit dem Recht „Mitglieder verwalten“ (zum Beispiel die Kurs- oder Gruppenadministration). Dazu muss der Status händisch auf „Bearbeitet“ gesetzt werden.
-trac#:#trac_mode_manual_info#:#Eine Person entscheidet selbst, ob sie das Objekt erfolgreich durchgearbeitet hat. Dazu setzt sie im Reiter „Info“ den Status auf „Bearbeitet“.
+trac#:#trac_mode_manual_info#:#Eine Person entscheidet selbst, ob sie das Objekt erfolgreich durchgearbeitet hat. Dazu setzt sie im Reiter „Lernfortschritt“ den Status auf „Bearbeitet“.
 trac#:#trac_mode_objectives#:#Lernziele
 trac#:#trac_mode_objectives_info#:#Der Lernfortschritt wird automatisch aus der Anzahl der erfüllten Lernziele ermittelt.
 trac#:#trac_mode_plugin#:#Plugin

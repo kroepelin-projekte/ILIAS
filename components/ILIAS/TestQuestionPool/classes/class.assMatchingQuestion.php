@@ -831,7 +831,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
     */
     public function deleteImagefile(string $filename): bool
     {
-        $deletename = $filename;
+        $deletename = basename($filename);
         try {
             $result = unlink($this->getImagePath() . $deletename)
                 && unlink($this->getImagePath() . $this->getThumbPrefix() . $deletename);
@@ -1391,8 +1391,8 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
     {
         $reducer = static function (array $c, assAnswerMatchingTerm|assAnswerMatchingDefinition $v): array {
             $c[$v->getIdentifier()] = $v->getText() !== ''
-                ? $v->getPicture()
-                : $v->getText();
+                ? $v->getText()
+                : $v->getPicture();
             return $c;
         };
 

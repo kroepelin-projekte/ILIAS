@@ -507,8 +507,9 @@ export default class ParagraphUI {
     );
     this.log(fc);
     if (fc) {
-      fc.firstChild.textContent = `${ddbtn.textContent} `;
-      fc.ariaLabel = `${il.Language.txt('copg_par_format_selection')}: ${ddbtn.textContent}`;
+      const characteristic = ddbtn ? ddbtn.textContent : i;
+      fc.firstChild.textContent = `${characteristic} `;
+      fc.ariaLabel = `${il.Language.txt('copg_par_format_selection')}: ${characteristic}`;
     }
     this.tinyWrapper.setParagraphClass(i);
   }
@@ -794,6 +795,11 @@ export default class ParagraphUI {
       }
     });
     wrapper.addCallback(TINY_CB.KEY_UP, () => {
+      if (pageModel.getCurrentPCName() === 'Paragraph') {
+        parUI.autoSave.handleAutoSaveKeyPressed();
+      }
+    });
+    wrapper.addCallback(TINY_CB.PASTE, () => {
       if (pageModel.getCurrentPCName() === 'Paragraph') {
         parUI.autoSave.handleAutoSaveKeyPressed();
       }
