@@ -28,7 +28,7 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * @ilCtrl_isCalledBy ilObjLearningSequenceConditionConfigurationGUI: ilObjLearningSequenceConditionsGUI
  */
-class ilObjLearningSequenceConditionConfigurationGUI
+class ilObjLearningSequenceConditionConfigurationGUI implements ilCtrlSecurityInterface
 {
     protected int $lso_ref_id;
     protected int $item_ref_id;
@@ -84,6 +84,22 @@ class ilObjLearningSequenceConditionConfigurationGUI
             default:
                 throw new ilException("ilObjLearningSequenceConditionGUI: Command not supported: $cmd");
         }
+    }
+
+    /**
+     * The configuration forms are submitted to a regular link target with
+     * cmd=createCondition, which ilCtrl treats as GET command.
+     */
+    public function getUnsafeGetCommands(): array
+    {
+        return [
+            self::CMD_CREATE_CONDITION,
+        ];
+    }
+
+    public function getSafePostCommands(): array
+    {
+        return [];
     }
 
     private function assertWriteAccess(): void

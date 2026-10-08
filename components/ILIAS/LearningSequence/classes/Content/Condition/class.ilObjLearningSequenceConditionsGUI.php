@@ -33,7 +33,7 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * @ilCtrl_isCalledBy ilObjLearningSequenceConditionsGUI: ilObjLearningSequenceContentGUI
  */
-class ilObjLearningSequenceConditionsGUI
+class ilObjLearningSequenceConditionsGUI implements ilCtrlSecurityInterface
 {
     public const string CMD_MANAGE_CONDITIONS = "manageConditions";
     public const string CMD_CONFIRM_DELETE_CONDITION = "confirmDeleteCondition";
@@ -104,6 +104,23 @@ class ilObjLearningSequenceConditionsGUI
                 }
                 break;
         }
+    }
+
+    /**
+     * Creating and deleting conditions is triggered by links (drilldown, interruptive
+     * modal action) and therefore needs to be protected by an ilCtrl CSRF token.
+     */
+    public function getUnsafeGetCommands(): array
+    {
+        return [
+            self::CMD_CREATE_CONDITION,
+            self::CMD_DELETE_CONDITION,
+        ];
+    }
+
+    public function getSafePostCommands(): array
+    {
+        return [];
     }
 
     private function assertWriteAccess(): void
