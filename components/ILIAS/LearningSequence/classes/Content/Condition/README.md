@@ -33,7 +33,7 @@ Real examples in this component:
 - [7. Creating an input condition](#7-creating-an-input-condition)
 - [8. Navigation-aware input conditions](#8-navigation-aware-input-conditions)
 - [9. Subtypes](#9-subtypes)
-- [10. Static misconfiguration: badge and popover support](#10-static-misconfiguration-badge-and-popover-support)
+- [10. Static misconfiguration: tag and popover support](#10-static-misconfiguration-tag-and-popover-support)
 - [11. Accrued-value conditions](#11-accrued-value-conditions)
 - [12. Import/export behavior](#12-importexport-behavior)
 - [13. Recommended implementation checklist](#13-recommended-implementation-checklist)
@@ -541,11 +541,11 @@ See:
 - `InputCondition/LogicGateInputCondition/LogicGateInputAwareCondition.php`
 - `OutputCondition/LearningProgressOutputConditions/LearningProgressOutputAwareCondition.php`
 
-## 10. Static misconfiguration: badge and popover support
+## 10. Static misconfiguration: tag and popover support
 
 This part applies to **input conditions**.
 
-The adaptive content table can show a **Misconfigured** badge and an issue popover. The logic is condition-owned.
+The adaptive content table can show a **Misconfigured** tag that opens an issue popover. The logic is condition-owned.
 
 The relevant API is:
 
@@ -590,7 +590,7 @@ That fallback creates a generic issue on the owning object.
 
 ### Preferred pattern: return explicit issues and details
 
-For better badge/popover output, implement `getStaticInputConfigurationIssues()` yourself.
+For better tag/popover output, implement `getStaticInputConfigurationIssues()` yourself.
 
 ```php
 public function getStaticInputConfigurationIssues(array $context = []): array
@@ -664,7 +664,7 @@ So if your condition discovers that **item A** is broken because **item B** refe
 
 - collects `getStaticInputConfigurationIssues()` from all input conditions
 - merges popover details by affected object
-- derives the set of misconfigured ref_ids for badge rendering
+- derives the set of misconfigured ref_ids for tag rendering
 - detects contradictory static constraints from `getStaticInputConditionConstraints()`
 
 ### Useful helper methods from `AbstractCondition`

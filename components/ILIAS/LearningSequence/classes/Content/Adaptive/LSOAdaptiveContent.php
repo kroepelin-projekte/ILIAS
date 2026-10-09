@@ -126,7 +126,6 @@ class LSOAdaptiveContent implements LSOContentController
         // objects can be created directly from the content management view.
         $this->parent_gui->showPossibleSubObjects();
 
-        $this->tpl->addCss("assets/css/alp_content_management_presentation.css");
         /** @var ilObjLearningSequence $lso */
         $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
         $items = $lso->getLSItems();
