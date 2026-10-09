@@ -71,7 +71,10 @@ class TranslationMarkupPolicyTest extends TestCase
             'list' => ['<ul><li>eins</li><li>zwei</li></ul>'],
             'ordered list' => ['<ol><li>eins</li></ol>'],
             'placeholder in href is a relative URL' => ['<a href="%1$s">Platzhalter</a>'],
-            'gap tag without attributes' => ['<gap>'],
+            'gap tag without attributes' => ['<gap></gap>'],
+            'b and i crossed (adoption agency, no surrounding element)' => ['<b><i>x</b></i>'],
+            'li without end tag (omitted per HTML5)' => ['<ul><li>eins<li>zwei</ul>'],
+            'p without end tag (omitted per HTML5)' => ['<p>Absatz eins<p>Absatz zwei'],
             'h3 heading' => ['<h3>Überschrift</h3>'],
             'sub and sup' => ['H<sub>2</sub>O und x<sup>2</sup>'],
             'code and pre' => ['<pre><code>echo 1;</code></pre>'],
@@ -124,6 +127,13 @@ class TranslationMarkupPolicyTest extends TestCase
             'broken closing tag becomes a comment' => ['</ i>', 'comment'],
             'unknown tag' => ['<blink>x</blink>', 'tag <blink>'],
             'disallowed attribute on allowed tag' => ['<b class="x">fett</b>', 'attribute "class" of <b>'],
+            'end tags without start tags' => ['</div></td></table><h3>Fake</h3>', 'unbalanced markup'],
+            'div closed inside li, li closed after it' => ['<li><div></li></div>', 'closes a surrounding <div>'],
+            'the same inside a list' => ['<ul><li><div></li></div></ul>', 'closes a surrounding <div>'],
+            'div closed inside span' => ['<span class="x"><div></span></div>', 'unclosed tag <span>'],
+            'unclosed a' => ['<a href="https://evil.example">Klick', 'unclosed tag <a>'],
+            'style with url()' => ['<span style="background-color:url(https://evil.example/x.png)">x</span>', 'style "background-color:url('],
+            'style with position' => ['<span style="position:fixed;color:red">x</span>', 'style "position:fixed'],
             'style on unstyled tag' => ['<p style="color:red">x</p>', 'attribute "style" of <p>'],
             // Round 1 fix: a value ending inside an unfinished tag - harmless in isolation, but a
             // browser completes it with whatever markup follows the value on the real page
@@ -142,6 +152,82 @@ class TranslationMarkupPolicyTest extends TestCase
                 '"<" in attribute "class" of <span>',
             ],
         ];
+    }
+
+    #[DataProvider('endTagsOfDisallowedTags')]
+    public function testAnEndTagOfATagThatIsNotAllowedIsAViolationAndSanitizeRemovesIt(string $value, string $expected_sanitized): void
+    {
+        $this->assertNotEmpty(array_filter(
+            $this->policy->findViolations($value),
+            static fn(string $violation): bool => str_contains($violation, 'of a tag that is not allowed')
+        ));
+        $this->assertFalse($this->policy->isAllowed($value));
+        $this->assertSame($expected_sanitized, $this->policy->sanitize($value));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function endTagsOfDisallowedTags(): array
+    {
+        return [
+            'form' => ['Speichern</form>', 'Speichern'],
+            'uppercase with whitespace' => ['x</FORM >y', 'xy'],
+            'section only' => ['</Section>', ''],
+            'th' => ['x</th>', 'x'],
+            'dl before an allowed element' => ['</dl><b>y</b>', '<b>y</b>'],
+        ];
+    }
+
+    #[DataProvider('valuesWithoutEndTagsOfDisallowedTags')]
+    public function testAllowedEndTagsAndNoEndTagsAreNotReportedAsEndTagsOfDisallowedTags(string $value): void
+    {
+        $this->assertSame([], array_values(array_filter(
+            $this->policy->findViolations($value),
+            static fn(string $violation): bool => str_contains($violation, 'of a tag that is not allowed')
+        )));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function valuesWithoutEndTagsOfDisallowedTags(): array
+    {
+        return [
+            'uppercase end tag of an allowed tag' => ['<b>x</B>'],
+            'p' => ['x</p>'],
+            'a' => ['x</a>'],
+            'not an end tag' => ['a </ b'],
+        ];
+    }
+
+    public function testAValueLongerThanTheCheckLimitWithMarkupIsOneViolationAndEscapedCompletely(): void
+    {
+        $value = '<b>' . str_repeat('a', 16384) . '</b>';
+
+        $violations = $this->policy->findViolations($value);
+
+        $this->assertCount(1, $violations);
+        $this->assertStringContainsString('value too long', $violations[0]);
+        $this->assertFalse($this->policy->isAllowed($value));
+        $this->assertStringNotContainsString('<', $this->policy->sanitize($value));
+    }
+
+    public function testALongValueWithoutMarkupIsNotAViolation(): void
+    {
+        $value = str_repeat('a', 16385);
+
+        $this->assertSame([], $this->policy->findViolations($value));
+        $this->assertSame($value, $this->policy->sanitize($value));
+    }
+
+    public function testDeeplyNestedMarkupWithinTheLimitIsHandledWithoutAnError(): void
+    {
+        $balanced = str_repeat('<b>', 2000) . 'x' . str_repeat('</b>', 2000);
+        $unclosed = str_repeat('<b>', 5000);
+
+        $this->assertSame([], $this->policy->findViolations($balanced));
+        $this->assertContains('unclosed tag <b>', $this->policy->findViolations($unclosed));
     }
 
     /**

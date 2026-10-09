@@ -24,7 +24,6 @@ use Dom\Comment;
 use Dom\Element;
 use Dom\HTMLDocument;
 use Dom\Node;
-use Dom\Text;
 
 /**
  * The HTML a translation value may contain - the one place that decides it, for the shipped files
@@ -33,9 +32,16 @@ use Dom\Text;
  *
  * Allowed are the tags listed in ALLOWED_ATTRIBUTES, each only with the attributes listed there
  * (attribute names case-insensitive), and `href`/`src` only with a URL that is relative (including
- * `#...`) or uses one of the schemes listed in URL_SCHEMES. An attribute value must not contain
- * "<". Comments, and a value ending inside an unfinished tag, count as a violation, too.
+ * `#...`) or uses one of the schemes listed in URL_SCHEMES, and `style` only with declarations of
+ * the properties listed in STYLE_PROPERTIES whose values use no function but those in
+ * STYLE_FUNCTIONS (no `url(`, `expression(`, ...), no CSS escapes and no comments. An attribute value
+ * must not contain "<". Comments, a value ending inside an unfinished tag, and unbalanced markup
+ * count as a violation, too: markup that leaves an element open (unless HTML5 allows to omit its end
+ * tag, e.g. for `<li>` or `<p>`) or closes an element around the value in the page it is inserted
+ * into (see collectUnbalancedMarkup()).
  * Text that is no tag to an HTML parser - `a <= b`, `<<` - stays allowed.
+ *
+ * A value with a "<" longer than MAX_CHECKED_LENGTH bytes is not parsed and never allowed.
  *
  * A value is checked, never rewritten: an allowed value is returned byte-identical by sanitize(),
  * no normalisation of `<br>`, entities or quoting takes place. Only a value with violations is
@@ -49,9 +55,13 @@ use Dom\Text;
  * content of a table (where every other start tag, including the table parts ignored in a body,
  * becomes an element). What either parse shows counts. Start tags ignored in both - `<head>`,
  * `<frame>`, `<frameset>` after content, `<!DOCTYPE>` - are ignored by a browser inside a page as
- * well and stay in an allowed value. Content inside
+ * well and stay in an allowed value. The balance of the markup is checked by a third parse, inside
+ * a chain of surrounding elements (see collectUnbalancedMarkup()). Content inside
  * raw-text contexts (`<textarea>`, `<script>`, ...) is text to a browser and therefore to this
  * check, too - the enclosing tag itself is a violation anyway.
+ *
+ * Every walk over a parsed tree is iterative, and every parsed tree belongs to a document (see
+ * parseInto()): a value nested arbitrarily deep must not exhaust the call stack.
  *
  * HTMLPurifier (vendor/ezyang) is deliberately not used: it always re-serialises its input, so an
  * allowed value could not be kept byte-identical, and its own lexer (DirectLex) does not tokenise
@@ -97,6 +107,59 @@ final class TranslationMarkupPolicy
         'src' => ['http', 'https'],
     ];
 
+    /**
+     * CSS properties a `style` attribute may set (lowercase)
+     */
+    private const array STYLE_PROPERTIES = [
+        'background-color',
+        'color',
+        'font-style',
+        'font-weight',
+        'text-align',
+        'text-decoration',
+    ];
+
+    /**
+     * CSS functions a value in a `style` attribute may use (lowercase), for colours
+     */
+    private const array STYLE_FUNCTIONS = ['rgb', 'rgba', 'hsl', 'hsla'];
+
+    /**
+     * Elements whose end tag HTML5 allows to omit ("optional tags"): one of them left open by a value
+     * is valid HTML and no imbalance (see collectUnbalancedMarkup())
+     */
+    private const array OPTIONAL_END_TAGS = [
+        'body', 'caption', 'colgroup', 'dd', 'dt', 'head', 'html', 'li', 'optgroup', 'option', 'p', 'rp', 'rt',
+        'tbody', 'td', 'tfoot', 'th', 'thead', 'tr',
+    ];
+
+    /**
+     * The elements collectUnbalancedMarkup() puts around a value, outermost first: an end tag in the
+     * value that closes one of them would close that element of the page. The table and block
+     * elements come first, then the special `<pre>` (a bare `<li>` in the value stops there instead
+     * of closing the surrounding `<li>`, as in a page), then the inline elements. Not included:
+     * `<p>` (every block start tag of the value would close it) and `<a>` (every link of the value
+     * would close it) - a stray `</p>` or `</a>` is not detected. End tags of tags that are not
+     * allowed at all (`</form>`, `</section>`, ...) are reported by collectEndTagsOfDisallowedTags().
+     */
+    private const array SURROUNDING_ELEMENTS = [
+        'table', 'tbody', 'tr', 'td', 'div', 'ol', 'li', 'ul', 'li', 'h3', 'pre',
+        'span', 'b', 'i', 'u', 's', 'strike', 'strong', 'em', 'small', 'sub', 'sup', 'code', 'bdo', 'gap',
+    ];
+
+    /**
+     * Marks the elements collectUnbalancedMarkup() puts around a value with their index in
+     * SURROUNDING_ELEMENTS (an attribute no allowed value can carry), and the element it puts after
+     * the value (a tag no allowed value contains)
+     */
+    private const string SURROUNDING_MARK = 'data-il-surrounding';
+    private const string END_MARK_TAG = 'il-value-end';
+
+    /**
+     * White space in a `style` attribute value and between the parts of a tag
+     */
+    private const string CSS_WHITESPACE = "\t\n\f\r ";
+
     private const string HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
     /**
@@ -105,6 +168,14 @@ final class TranslationMarkupPolicy
      * the text is kept.
      */
     private const int MAX_SANITIZE_ROUNDS = 3;
+
+    /**
+     * The longest value (in bytes) with a "<" that is parsed at all. Parsing deeply nested markup
+     * takes time quadratic in its length (e.g. 200000 nested `<div>` take minutes), so a longer
+     * value with a "<" is a violation without being parsed, and sanitize() escapes it completely.
+     * The longest shipped value has about 3 KB.
+     */
+    private const int MAX_CHECKED_LENGTH = 16384;
 
     /**
      * Appended to a value to detect markup left open at its end (see hasIncompleteTagAtEnd()): a
@@ -126,12 +197,18 @@ final class TranslationMarkupPolicy
             return [];
         }
 
+        if (strlen($value) > self::MAX_CHECKED_LENGTH) {
+            return [sprintf('value too long for the markup check (> %d bytes)', self::MAX_CHECKED_LENGTH)];
+        }
+
         $violations = [];
         $this->collectFromBodyParse($value, $violations);
         $this->collectFromTableParse($value, $violations);
         if ($this->hasIncompleteTagAtEnd($value)) {
             $violations['incomplete tag at the end'] = true;
         }
+        $this->collectUnbalancedMarkup($value, $violations);
+        $this->collectEndTagsOfDisallowedTags($value, $violations);
 
         return array_keys($violations);
     }
@@ -196,12 +273,19 @@ final class TranslationMarkupPolicy
      * not allowed: disallowed tags are removed but their text content stays (a `<template>` is
      * removed with its content, a browser never shows that), disallowed attributes and comments are
      * removed. The markup of such a value is re-serialised, so its allowed parts may change in form
-     * (e.g. `<br/>` becomes `<br>`, entities become characters), never in meaning.
+     * (e.g. `<br/>` becomes `<br>`, entities become characters), never in meaning. A value too long
+     * to be parsed (see MAX_CHECKED_LENGTH) is escaped completely instead: shown as text, with its
+     * markup visible.
      */
     public function sanitize(string $value): string
     {
         if ($this->isAllowed($value)) {
             return $value;
+        }
+        // Not parsed (see MAX_CHECKED_LENGTH): every character stays visible as text, no markup
+        // survives - escaping the value is the only result that needs no parse to be safe
+        if (strlen($value) > self::MAX_CHECKED_LENGTH) {
+            return htmlspecialchars($value, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
 
         $current = $value;
@@ -279,22 +363,110 @@ final class TranslationMarkupPolicy
             return true;
         }
 
-        $table = HTMLDocument::createEmpty()->createElement('table');
-        $table->innerHTML = $value . self::SENTINEL;
+        $table = $this->parseInto('table', $value . self::SENTINEL);
 
         return $this->countSentinelsInText($table) < $expected;
     }
 
-    private function countSentinelsInText(Node $parent): int
+    /**
+     * Unbalanced markup in $value, the way a browser parses it: $value is parsed inside the chain of
+     * SURROUNDING_ELEMENTS (each marked with SURROUNDING_MARK), followed by an element END_MARK_TAG.
+     * The value is balanced if that element ends up directly in the innermost surrounding element,
+     * or only inside elements of the value whose end tag may be omitted (OPTIONAL_END_TAGS).
+     * Otherwise:
+     * - an element of the value encloses it: `unclosed tag <x>` (the element extends over the
+     *   markup following the value in a page);
+     * - a surrounding element no longer encloses it: `unbalanced markup closes a surrounding <x>`
+     *   (an end tag of the value, also a misnested one like `<li><div></li></div>`, closes that
+     *   element of the page);
+     * - it is missing (e.g. inside an unclosed `<textarea>` or `<template>`): `unbalanced markup`.
+     *
+     * @param array<string, true> $violations
+     */
+    private function collectUnbalancedMarkup(string $value, array &$violations): void
     {
-        $count = 0;
-        foreach ($parent->childNodes as $child) {
-            $count += $child instanceof Text
-                ? substr_count($child->data, self::SENTINEL)
-                : $this->countSentinelsInText($child);
+        $open = '';
+        foreach (self::SURROUNDING_ELEMENTS as $index => $tag) {
+            $open .= sprintf('<%s %s="%d">', $tag, self::SURROUNDING_MARK, $index);
+        }
+        // Deliberately without the end tags of the surrounding elements: an end tag after an element
+        // the value leaves open (e.g. a `<p>`) moves that element (adoption agency algorithm) and
+        // with it the end mark
+        $document = HTMLDocument::createFromString(
+            '<!DOCTYPE html><html><head></head><body>' . $open . $value . '<' . self::END_MARK_TAG . '>',
+            LIBXML_NOERROR,
+            'UTF-8'
+        );
+        $end_marks = $document->getElementsByTagName(self::END_MARK_TAG);
+        $end_mark = $end_marks->item($end_marks->length - 1);
+        if ($end_mark === null) {
+            $violations['unbalanced markup'] = true;
+            return;
         }
 
-        return $count;
+        // The ancestors of the end mark, innermost first: those of the value it is in, then the
+        // surrounding elements (their index; a clone the parser made of one when reopening it
+        // carries the index of the original, too)
+        $surrounding = [];
+        $unclosed = [];
+        for ($ancestor = $end_mark->parentElement; $ancestor !== null; $ancestor = $ancestor->parentElement) {
+            if ($ancestor->hasAttribute(self::SURROUNDING_MARK)) {
+                $surrounding[] = (int) $ancestor->getAttribute(self::SURROUNDING_MARK);
+            } elseif ($surrounding === [] && !in_array($this->tagOf($ancestor), self::OPTIONAL_END_TAGS, true)) {
+                $unclosed[$this->tagOf($ancestor)] = true;
+            }
+        }
+        $surrounding = array_reverse($surrounding);
+        // Still enclosed by every surrounding element, in its order, without one closed and reopened
+        $kept = 0;
+        while ($kept < count($surrounding) && $surrounding[$kept] === $kept) {
+            $kept++;
+        }
+        if ($kept < count(self::SURROUNDING_ELEMENTS) || count($surrounding) !== $kept) {
+            $violations[sprintf(
+                'unbalanced markup closes a surrounding <%s>',
+                self::SURROUNDING_ELEMENTS[min($kept, count(self::SURROUNDING_ELEMENTS) - 1)]
+            )] = true;
+            return;
+        }
+        foreach (array_reverse(array_keys($unclosed)) as $tag) {
+            $violations[sprintf('unclosed tag <%s>', $tag)] = true;
+        }
+    }
+
+    /**
+     * Every end tag in $value whose tag is not allowed (see ALLOWED_ATTRIBUTES), e.g. `</form>`: a
+     * parser drops it if no such element is open - in the value alone always, so neither the other
+     * parses nor collectUnbalancedMarkup() (only SURROUNDING_ELEMENTS) see it - but in a page it closes
+     * that element around the value (`Speichern</form>` closes the page's form). An end tag starts
+     * with "</" and an ASCII letter; its name ends at white space, "/" or ">" (as for an HTML5
+     * tokenizer). "</" followed by anything else (`a </ b`) is no end tag. A match inside an
+     * attribute value, comment or raw text is no end tag to a browser, but each of these is a
+     * violation anyway ("<" in an attribute value, comment, disallowed tag).
+     *
+     * @param array<string, true> $violations
+     */
+    private function collectEndTagsOfDisallowedTags(string $value, array &$violations): void
+    {
+        $position = 0;
+        while (($position = strpos($value, '</', $position)) !== false) {
+            $position += 2;
+            if (!ctype_alpha($value[$position] ?? '')) {
+                continue;
+            }
+            $tag = strtolower(substr($value, $position, strcspn($value, self::CSS_WHITESPACE . '/>', $position)));
+            if (!array_key_exists($tag, self::ALLOWED_ATTRIBUTES)) {
+                $violations[sprintf('end tag </%s> of a tag that is not allowed', mb_strimwidth($tag, 0, 40, '...', 'UTF-8'))] = true;
+            }
+        }
+    }
+
+    /**
+     * The sentinels in the text of $parent (textContent: the Text nodes only, no comments)
+     */
+    private function countSentinelsInText(Node $parent): int
+    {
+        return substr_count($parent->textContent ?? '', self::SENTINEL);
     }
 
     /**
@@ -302,10 +474,7 @@ final class TranslationMarkupPolicy
      */
     private function collectFromTableParse(string $value, array &$violations): void
     {
-        $document = HTMLDocument::createEmpty();
-        $table = $document->createElement('table');
-        $table->innerHTML = $value;
-        $this->collectFromChildren($table, $violations);
+        $this->collectFromChildren($this->parseInto('table', $value), $violations);
     }
 
     /**
@@ -323,9 +492,7 @@ final class TranslationMarkupPolicy
      */
     private function collectFromChildren(Node $parent, array &$violations): void
     {
-        foreach ($parent->childNodes as $child) {
-            $this->collectFromNode($child, $violations);
-        }
+        $this->collectFromNodes(iterator_to_array($parent->childNodes, false), $violations);
     }
 
     /**
@@ -333,27 +500,42 @@ final class TranslationMarkupPolicy
      */
     private function collectFromNode(Node $node, array &$violations): void
     {
-        if ($node instanceof Comment) {
-            // Also what a browser makes of broken markup such as "</ i>" or "<?...>"
-            $violations[sprintf('comment "%s"', mb_strimwidth($node->data, 0, 40, '...', 'UTF-8'))] = true;
-            return;
-        }
-        if (!$node instanceof Element) {
-            return;
-        }
+        $this->collectFromNodes([$node], $violations);
+    }
 
-        $tag = $this->tagOf($node);
-        if (!$this->isAllowedTag($node)) {
-            $violations[sprintf('tag <%s>', $tag)] = true;
-        } else {
-            foreach ($node->attributes as $attribute) {
-                $violation = $this->attributeViolation($tag, strtolower($attribute->name), $attribute->value);
-                if ($violation !== null) {
-                    $violations[$violation] = true;
+    /**
+     * The violations in $nodes and their descendants, in document order - iteratively, see the class
+     * comment.
+     *
+     * @param list<Node> $nodes
+     * @param array<string, true> $violations
+     */
+    private function collectFromNodes(array $nodes, array &$violations): void
+    {
+        $pending = array_reverse($nodes);
+        while (($node = array_pop($pending)) !== null) {
+            if ($node instanceof Comment) {
+                // Also what a browser makes of broken markup such as "</ i>" or "<?...>"
+                $violations[sprintf('comment "%s"', mb_strimwidth($node->data, 0, 40, '...', 'UTF-8'))] = true;
+                continue;
+            }
+            if (!$node instanceof Element) {
+                continue;
+            }
+
+            $tag = $this->tagOf($node);
+            if (!$this->isAllowedTag($node)) {
+                $violations[sprintf('tag <%s>', $tag)] = true;
+            } else {
+                foreach ($node->attributes as $attribute) {
+                    $violation = $this->attributeViolation($tag, strtolower($attribute->name), $attribute->value);
+                    if ($violation !== null) {
+                        $violations[$violation] = true;
+                    }
                 }
             }
+            array_push($pending, ...array_reverse(iterator_to_array($node->childNodes, false)));
         }
-        $this->collectFromChildren($node, $violations);
     }
 
     private function tagOf(Element $element): string
@@ -376,7 +558,10 @@ final class TranslationMarkupPolicy
             return sprintf('attribute "%s" of <%s>', $attribute, $tag);
         }
         if (isset(self::URL_SCHEMES[$attribute]) && !$this->isAllowedUrl($value, self::URL_SCHEMES[$attribute])) {
-            return sprintf('URL "%s" in "%s" of <%s>', $value, $attribute, $tag);
+            return sprintf('URL "%s" in "%s" of <%s>', mb_strimwidth($value, 0, 60, '...', 'UTF-8'), $attribute, $tag);
+        }
+        if ($attribute === 'style' && !$this->isAllowedStyle($value)) {
+            return sprintf('style "%s" of <%s>', mb_strimwidth($value, 0, 60, '...', 'UTF-8'), $tag);
         }
         // Harmless in the attribute itself, but a value is also inserted where no attribute exists
         // for the parser: in raw text (`<title>`, `<textarea>`: `class="</title><img ...>"`) or a
@@ -408,6 +593,42 @@ final class TranslationMarkupPolicy
     }
 
     /**
+     * Whether every declaration of the `style` attribute value $style (as the parser decoded it) sets
+     * one of STYLE_PROPERTIES to a value of keywords, numbers, units, "#" colours, "!important" and
+     * the functions of STYLE_FUNCTIONS only. A backslash (CSS escape, e.g. `\75rl(`) or a "/" (CSS
+     * comment) is never allowed - either could hide a property or function name from this check.
+     */
+    private function isAllowedStyle(string $style): bool
+    {
+        if (strpbrk($style, '\\/') !== false) {
+            return false;
+        }
+        foreach (explode(';', $style) as $declaration) {
+            if (trim($declaration, self::CSS_WHITESPACE) === '') {
+                continue;
+            }
+            $parts = explode(':', $declaration, 2);
+            if (count($parts) !== 2) {
+                return false;
+            }
+            $property = strtolower(trim($parts[0], self::CSS_WHITESPACE));
+            $property_value = strtolower(trim($parts[1], self::CSS_WHITESPACE));
+            if (
+                !in_array($property, self::STYLE_PROPERTIES, true)
+                || preg_match('/^[a-z0-9#%.,()!\s-]*$/', $property_value) !== 1
+            ) {
+                return false;
+            }
+            preg_match_all('/([a-z-]*)\(/', $property_value, $functions);
+            if (array_diff($functions[1], self::STYLE_FUNCTIONS) !== []) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * One round of sanitize(): parsed as the content of a <div> (a start tag an HTML5 parser ignores
      * there, e.g. a stray <td>, is dropped by that alone), cleaned, serialised.
      */
@@ -421,50 +642,57 @@ final class TranslationMarkupPolicy
 
     private function parseIntoDiv(string $value): Element
     {
+        return $this->parseInto('div', $value);
+    }
+
+    /**
+     * $value parsed as the content of an element $tag. The element is the root of its document:
+     * PHP frees a detached element recursively, which crashes for deeply nested content (see the
+     * class comment) - a document is freed without recursion.
+     */
+    private function parseInto(string $tag, string $value): Element
+    {
         $document = HTMLDocument::createEmpty();
-        $container = $document->createElement('div');
+        $container = $document->createElement($tag);
+        $document->appendChild($container);
         $container->innerHTML = $value;
 
         return $container;
     }
 
+    /**
+     * Removes from the descendants of $parent everything that is not allowed (see sanitize()) -
+     * iteratively, see the class comment.
+     */
     private function cleanChildren(Node $parent): void
     {
-        // A snapshot: children are removed or replaced while iterating
-        foreach (iterator_to_array($parent->childNodes, false) as $child) {
-            $this->cleanNode($child);
-        }
-    }
-
-    private function cleanNode(Node $node): void
-    {
-        if ($node instanceof Comment) {
-            $node->remove();
-            return;
-        }
-        if (!$node instanceof Element) {
-            return;
-        }
-
-        if (!$this->isAllowedTag($node)) {
-            if ($this->tagOf($node) === 'template') {
+        // Snapshots: children are removed or replaced while iterating
+        $pending = array_reverse(iterator_to_array($parent->childNodes, false));
+        while (($node = array_pop($pending)) !== null) {
+            if ($node instanceof Comment) {
                 $node->remove();
-                return;
+                continue;
             }
-            $children = iterator_to_array($node->childNodes, false);
-            $node->replaceWith(...$children);
-            foreach ($children as $child) {
-                $this->cleanNode($child);
+            if (!$node instanceof Element) {
+                continue;
             }
-            return;
-        }
 
-        $tag = $this->tagOf($node);
-        foreach (iterator_to_array($node->attributes, false) as $attribute) {
-            if ($this->attributeViolation($tag, strtolower($attribute->name), $attribute->value) !== null) {
-                $node->removeAttributeNode($attribute);
+            $children = iterator_to_array($node->childNodes, false);
+            if (!$this->isAllowedTag($node)) {
+                if ($this->tagOf($node) === 'template') {
+                    $node->remove();
+                    continue;
+                }
+                $node->replaceWith(...$children);
+            } else {
+                $tag = $this->tagOf($node);
+                foreach (iterator_to_array($node->attributes, false) as $attribute) {
+                    if ($this->attributeViolation($tag, strtolower($attribute->name), $attribute->value) !== null) {
+                        $node->removeAttributeNode($attribute);
+                    }
+                }
             }
+            array_push($pending, ...array_reverse($children));
         }
-        $this->cleanChildren($node);
     }
 }
