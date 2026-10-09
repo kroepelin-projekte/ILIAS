@@ -49,6 +49,7 @@ anderer Code baut sie selbst.
 
 ```bash
 php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php tos en components/ILIAS/TermsOfService/lang
+php components/ILIAS/Language/tools/po-migration/convert_module_to_po.php poll en components/ILIAS/Poll/lang
 ```
 
 Aufruf: `convert_module_to_po.php [--pattern=<schema>] [--skip-unmigratable-keys] [--remove-from-lang]
@@ -122,19 +123,16 @@ nennt die Summe der aufgefüllten Einträge.
 Probelauf 2026-10-06 über alle 154 Module (Referenz `en`, ohne `--remove-from-lang`, nur in ein
 Scratch-Verzeichnis): ohne `--skip-unmigratable-keys` laufen 129 Module durch (3305 aufgefüllt), mit
 der Option alle 154 (6519 aufgefüllt: 6438 fehlende Zeilen + 81 leere Werte). `tos` bleibt
-byte-identisch; `poll` bräuchte mit `en` `--skip-unmigratable-keys` (`poll_import` fehlt in `en`)
-und verlöre dann `poll_import` in `.pot` und allen 31 `.po` – die ausgelieferten `poll`-Dateien sind
-deshalb weiter die mit Referenz `de` erzeugten (mit der neuen Logik bekämen dort `en`, `ja`, `pt`
-`poll_import` = „Abstimmung importieren", fuzzy).
+byte-identisch. `poll` wird seit 2026-10-09 ebenfalls mit Referenz `en` erzeugt (`poll_import` ist in
+`lang/ilias_en.lang` ergänzt).
 
 ### `--skip-unmigratable-keys`: Altlasten überspringen statt abbrechen
 
 Ohne die Option bricht der Konverter ab, bevor er etwas schreibt, wenn eine Sprache Keys hat, die
 der Referenzsprache fehlen, wenn ein Key leer ist (`modul#:##:#…`; `msgid ""` wäre der PO-Header)
 oder wenn ein Key in einer Sprache doppelt vorkommt. Stand 2026-10-06 (Referenz `en`) betrifft das
-25 von 154 Modulen mit 115 Keys, die `en` nicht hat (die meisten in `dcl` 32, `survey` 23, `log` 9,
-`rbac` 6, `meta` 5; 55 davon hat `de`; u. a. verwaiste oder falsch einsortierte Keys,
-`poll_import` in `poll`), dazu der leere Key in `badge` und die Doppelzeilen mit gleichem Wert
+24 von 154 Modulen mit 114 Keys, die `en` nicht hat (die meisten in `dcl` 32, `survey` 23, `log` 9,
+`rbac` 6, `meta` 5; u. a. verwaiste oder falsch einsortierte Keys), dazu der leere Key in `badge` und die Doppelzeilen mit gleichem Wert
 `rbac_select_roles` in `fa` und `svy_categories` in `nl`. Der Tippfehler-Key `obj_cpad#_desc` in
 `common` (nur `en`) wird mit `en` als Referenz übernommen und in den anderen Sprachen aufgefüllt.
 
@@ -397,10 +395,22 @@ serialisiert jede Eingabe neu, zulässige Werte blieben nicht byte-identisch.
   `span[class|style]`, `p|div[align]`, sonst keine. `href`: `http`, `https`, `mailto` oder relativ
   (inkl. `#…`); `src`: `http`, `https` oder relativ. Geprüft wird der dekodierte Wert (Entities,
   Whitespace/Steuerzeichen), `javascript:`/`data:` sind ausgeschlossen.
+- **`style`** (nur auf `span`): nur `background-color`, `color`, `font-style`, `font-weight`,
+  `text-align`, `text-decoration`; als Funktionen nur `rgb`/`rgba`/`hsl`/`hsla`, keine CSS-Escapes
+  und Kommentare.
 - **Weitere Verstöße:** Kommentare (auch kaputtes Markup wie `</ i>`), jedes `<` in einem
   Attributwert (Ausbruch aus `<title>`/`<textarea>`/`toJS()`), ein Wert, der in einem unfertigen Tag
   endet (Erkennung per Sentinel `U+E000`), und ein `<` als letztes Zeichen (sonst XSS durch direktes
   Aneinanderhängen zweier Werte).
+- **Tag-Balance:** per echtem Parser, der Wert eingebettet in eine Kette umgebender Elemente
+  (`collectUnbalancedMarkup()`): ein offen gelassenes Element oder ein End-Tag, das ein umgebendes
+  Element schließt, ist ein Verstoß. Optionale End-Tags (HTML5, z. B. `li`, `p`) sind erlaubt.
+  Zusätzlich ist jedes End-Tag eines nicht zulässigen Tags ein Verstoß (`</form>`, `</section>`, …,
+  `collectEndTagsOfDisallowedTags()`): Der Parser verwirft es im Wert allein, in der Seite schließt
+  es aber das umgebende Element (`Speichern</form>`). Einzige Lücke: ein überzähliges `</p>` oder
+  `</a>` (beides zulässige Tags, nicht in der Kette) wird nicht erkannt.
+- **Längengrenze:** Ein Wert mit `<` über 16 KiB wird nicht geparst und ist immer ein Verstoß;
+  `sanitize()` escaped ihn komplett.
 - **Doppelter Parse:** als Body-Inhalt (findet `<body>`/`<html>`-Attribute) und als Tabellen-Fragment
   (dort werden auch `td`/`tr`/`caption` zu Elementen).
 - Text wie `a <= b` oder `<<` ist kein Tag und bleibt zulässig; **zulässige Werte bleiben
@@ -430,7 +440,7 @@ Re-Import eines Exports. In den Import-Modi `keepall`/`keepnew` werden behaltene
 Meldungstexte verwenden den generischen Key `common#:#form_input_not_valid`, gefolgt von den
 betroffenen Keys (entschieden 2026-09-25: keine eigenen Sprach-Keys).
 
-Die mitgelieferten Verstöße in `lang/ilias_*.lang` (158 Werte in 42 Keys) sind als Hinweis an die
+Die mitgelieferten Verstöße in `lang/ilias_*.lang` (Stand 2026-10-09: 200 Werte in 58 Keys) sind als Hinweis an die
 Pflege der Sprachdateien in `SHIPPED_MARKUP_VIOLATIONS.md` aufgelistet.
 
 `ilLanguage::toJSMap()` kodiert Key und Wert zusätzlich mit
@@ -706,7 +716,7 @@ ungültiger Header ergibt die germanische Regel `nplurals=2; plural=(n != 1);` p
 (Build: Warnung, der kompilierte Header ist dann die germanische Regel; Plugin: Logger). Seit
 2026-10-06 wertet zur Laufzeit gettext die (geprüfte) Formel aus; der Parser bleibt für die Prüfung
 beim Kompilieren, `TranslationCatalog::toMoString()`, den Abgleich und den Konverter
-(`isOneSingularOtherPlural()`). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform (letzte
+(`formIndexFor()`). Scheitert die Formel für ein einzelnes n (z. B. Modulo 0), gilt die Standardform (letzte
 Form).
 
 ### Kanonische Tabelle und Konverter (`plurals.json`)
@@ -727,16 +737,20 @@ Form).
 Der Konverter erfindet keine Texte, er verteilt nur vorhandene Werte (ein aus der Referenzsprache
 aufgefüllter Wert gilt als vorhanden, siehe „Englisch als Vorlage"; der Eintrag ist dann fuzzy):
 
-- Sprachen mit der Regel „n == 1 → Form 0, sonst Form 1" (geprüft über die Auswertung, nicht über
-  den Formeltext; aktuell bg, da, de, el, en, et, hu, ka, nl, sq, sv, tr): `msgstr[0]` = Wert des
-  Singular-Keys (falls vorhanden und nicht leer), `msgstr[1]` = bisheriger Wert.
-- alle anderen Sprachen und Einträge ohne Singular-Key (`poll_vote_error_multi`, „%s answers"):
-  alle Formen = bisheriger Wert.
-- **Fuzzy**, wenn der bisherige Wert fuzzy ist, wenn der Wert eines fuzzy Singular-Keys als
-  `msgstr[0]` übernommen wurde (z. B. `da`, `tr`: englischer Platzhalter), **oder wenn der bisherige
-  Wert in mehr als eine Form kopiert wurde** (die Formen sind dann noch zu übersetzen; betrifft
-  z. B. `poll_vote_error_multi` auch in `de`/`en` und `poll_population` in allen Sprachen ohne
-  „n == 1"-Regel). Sprachen mit `nplurals=1` kopieren nie. Die `.mo` kompiliert Fuzzy weiter mit,
+- Der Wert des Singular-Keys kommt nur in die Form, die die Regel der Sprache **ausschließlich für
+  n = 1** wählt (geprüft über die Auswertung für n = 0…200 und einige große Werte, nicht über den
+  Formeltext; meist Form 0, `ar`: Form 1), und nur, wenn die Sprache den Singular-Key übersetzt hat
+  (nicht leer, nicht aus der Referenz aufgefüllt, kein „new variable"-Marker). Alle übrigen Formen =
+  bisheriger Wert.
+- Ohne solche Form oder ohne Singular-Key (`poll_vote_error_multi`, „%s answers"): alle Formen =
+  bisheriger Wert.
+- **Fuzzy**, wenn der bisherige Wert fuzzy ist **oder in mehr als eine Form kopiert wurde** (die
+  Formen sind dann noch zu übersetzen). Ausnahme: die Quellsprachen (Referenzsprache, `de`, `en`),
+  deren Originaltext in jeder Form als übersetzt gilt. Sprachen mit `nplurals=1` kopieren nie.
+- Der „new variable"-Marker wird an einer Stelle erkannt: `LegacyFuzzyMarker` (Konverter und
+  `LanguageInstallationManager`).
+- Keys mit ` [` (die Schreibweise einer Pluralform, `PluralFormKey`) sind nicht migrierbar: Abbruch
+  bzw. mit `--skip-unmigratable-keys` übersprungen. Die `.mo` kompiliert Fuzzy weiter mit,
   zur Laufzeit ändert sich dadurch nichts. Der Singular-Key bleibt als eigener Eintrag erhalten;
   in der `.pot` hat ein Plural-Eintrag `msgstr[0]`/`msgstr[1]` leer.
 
@@ -899,9 +913,8 @@ Zeilen für das Modul in der Customizing-Datei (`ilias_<sprache>.lang.local`) ge
 Shipped-`.po` eines migrierten Moduls nicht parsebar ist.
 
 **Leere Übersetzungen gelten als nicht geshippt** (seit 2026-09-28): Ein Eintrag mit leerem `msgstr`
-(bzw. ein Plural-Eintrag, dessen Formen alle leer sind, z. B. `poll_import` in `poll_en.po`, weil
-`lang/ilias_en.lang` den Key nicht hat; der Konverter schreibt seit 2026-10-06 statt leerer Werte den
-Referenzwert als fuzzy, siehe „Englisch als Vorlage") fehlt in der `.mo`, und ebenso in den Shipped-Werten
+(bzw. ein Plural-Eintrag, dessen Formen alle leer sind; der Konverter schreibt seit 2026-10-06 statt
+leerer Werte den Referenzwert als fuzzy, siehe „Englisch als Vorlage") fehlt in der `.mo`, und ebenso in den Shipped-Werten
 (`loadShippedModuleEntries()`, `loadShippedModules()`, `loadModuleTranslations()`): keine
 `lng_data`-Zeile mit `''`, keine Admin-GUI-Zeile, `txt()` liefert wie vor der Migration `-key-`.
 Eine lokale Änderung eines solchen Keys wird wie die eines nicht geshippten Keys behandelt.
@@ -980,6 +993,13 @@ nach `lang/customizing/ilias_<lang>.lang`), migrierte Module in ihre Shipped-`.p
 PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem Overlay-Lock
 (`withOverlayLock()`):
 
+0. **Nur bei genau einem Client:** Die Shipped-`.po` teilen sich alle Clients der Installation, merge
+   übernimmt aber nur die lokalen Änderungen und `lng_data` des aktuellen Clients.
+   `mergeLocalChangesIntoGlobalLanguageFile()` schreibt die PO-Module deshalb nur, wenn
+   `isSingleClientInstallation()` genau ein `client.ini.php` neben dem aktuellen Client findet (wie
+   `ilSoapAdministration`; ohne `CLIENT_WEB_DIR` nie). Sonst wird nur die `.lang` geschrieben, und
+   das Ergebnis nennt unter `not_single_client` die PO-Module mit Overlay; die GUI meldet sie mit
+   `lng_merge_po_not_single_client`. Der Infotext der Aktion warnt (`lng_merge_po_single_client_info`).
 1. **Prüfen:** Shipped-`.po` und ihr Verzeichnis, `lang/customizing/` und – nur bei neuen Keys – die
    `.pot` (Pfad `MigratedLanguageFilePaths::shippedTemplatePath()`, dieselbe Namensregel
    `templateFileName()` wie der Konverter) müssen beschreibbar sein, sonst wird das Modul ganz
@@ -1053,15 +1073,14 @@ PO-Modul der Sprache **mit Overlay**, nach Modulname sortiert, jeweils unter dem
 danach entfernt werden – sonst kommt der Wert beim nächsten Update erneut als lokale Änderung (bzw.
 die Bemerkung doppelt: als `#.` und im Overlay). Ein erneuter Lauf von `convert_module_to_po.php`
 erzeugt die `.po` aus den Root-`.lang` neu: per merge hinzugefügte Keys und `#.`-Zeilen gehen dabei
-verloren, solange sie nicht in die `.lang` nachgetragen sind. `lang/customizing/*.po` ist hier nur
-lokal per `.git/info/exclude` ausgeschlossen – Vorschlag für die Root-`.gitignore` (nicht geändert):
-`/lang/customizing/*.po`.
+verloren, solange sie nicht in die `.lang` nachgetragen sind. `lang/customizing/*.po` ist per Root-`.gitignore`
+(`/lang/customizing/*.po`) ausgeschlossen.
 
 **Build-Artefakt:** `setup build` ist funktional nicht nötig, aber empfohlen: bis dahin kompiliert die
 Laufzeit die `.po` pro Request selbst (das Artefakt ist zurückdatiert, siehe Schritt 3). **Rückweg:** Sicherung aus `lang/customizing/` zurückkopieren bzw. `git checkout` der
 Komponenten-Dateien (Entwicklungsumgebung) und die Werte ggf. neu eingeben – das Overlay enthält die
-übernommenen Werte nicht mehr. `lang/customizing/` ist in dieser Instanz per `.git/info/exclude`
-ausgeschlossen.
+übernommenen Werte nicht mehr. Die `.po`-Sicherungen in `lang/customizing/` schließt die
+Root-`.gitignore` aus.
 
 **Filter "Konflikte"** (Lokale und Update-Änderungen): vergleicht jetzt auch PO-Module, mit der
 Kopie ihrer Shipped-`.po`, die `save_dist` nach `<client_data_dir>/lang_data/` schreibt – analog zur
@@ -1132,8 +1151,9 @@ mitliefern.
   (wie bisher `###` auf diesem Weg). Eine kaputte `.po` überspringt nur diese Sprache.
 - Warnungen gehen über den Logger, ohne Logger (Setup-Kontext) an `error_log()`, Text über
   `PlainLogText::of()`.
-- Plugin-`.lang` wird ebenso bereinigt und gewarnt (`readLangFile()`, gemeinsamer Helfer
-  `cleanShippedValues()`), damit dasselbe Plugin unabhängig vom Format gleich abgesichert ist.
+- Plugin-`.lang` wird **nicht** bereinigt: unzulässiges Markup wird nur geloggt
+  (`logShippedViolations()`), der Wert unverändert übernommen – sonst verlören Drittanbieter-Plugins
+  ohne Vorwarnung Text. Bereinigt (`cleanShippedValues()`) wird nur eine Plugin-`.po`.
 - Unterschied beim Leerraum: `.lang`-Werte werden wie bisher getrimmt, `.po`-Werte nicht. Wer ein
   Plugin von `.lang` auf `.po` umstellt, sollte Werte mit führendem/abschließendem Leerraum prüfen.
 - `removeMigratedMoFiles()` validiert das Präfix (`^[A-Za-z0-9_]+$`), sonst Warnung und nichts tun.
@@ -1330,6 +1350,10 @@ Pluralformen und merge (Stand 2026-09-30):
   `MigratedLanguageFilePaths::templateFileName()`: `ComponentTranslation/MigratedLanguageFilePathsTest.php`.
 
 ## Änderungshistorie
+
+### 2026-10-09: `poll` mit Referenz `en`
+
+- `poll_import` in `lang/ilias_en.lang` ergänzt, `poll`-Dateien mit Referenz `en` neu erzeugt.
 
 ### 2026-10-06: Konverter – Englisch als Vorlage
 
