@@ -131,7 +131,7 @@ msgstr "Aktuell andel"
 #, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
-msgstr[0] "1 Participant"
+msgstr[0] "%s deltagare"
 msgstr[1] "%s deltagare"
 
 #, fuzzy

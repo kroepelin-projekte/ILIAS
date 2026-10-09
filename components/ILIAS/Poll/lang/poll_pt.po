@@ -72,8 +72,9 @@ msgstr "Edit Question"
 msgid "poll_image"
 msgstr "Imagem"
 
+#, fuzzy
 msgid "poll_import"
-msgstr ""
+msgstr "Import Poll"
 
 #, fuzzy
 msgid "poll_limit_not_below_answer_count"

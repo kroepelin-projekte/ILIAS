@@ -68,8 +68,9 @@ msgstr "問題編集を編集"
 msgid "poll_image"
 msgstr "イメージ"
 
+#, fuzzy
 msgid "poll_import"
-msgstr ""
+msgstr "Import Poll"
 
 msgid "poll_limit_not_below_answer_count"
 msgstr "回答期限は以下の回答可能な数字である必要があります。"

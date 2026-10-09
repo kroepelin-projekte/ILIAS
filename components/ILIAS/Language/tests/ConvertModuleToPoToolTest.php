@@ -199,10 +199,7 @@ class ConvertModuleToPoToolTest extends TestCase
      * key, or a language whose rule isn't that shape, gets its own value in every form
      * (poll_vote_error_multi, and poll_population itself in "ja", which has only one form).
      *
-     * Run with "de", the reference language the shipped files were converted with ("en" lacks
-     * poll_import, a key "en" cannot take over, see --skip-unmigratable-keys). The only difference:
-     * the languages without poll_import ("en", "ja", "pt") get the reference value, flagged fuzzy,
-     * instead of the empty translation they were shipped with.
+     * Run with "en", the reference language the shipped files were converted with.
      */
     public function testReconvertingPollReproducesTheShippedFilesByteForByteIncludingPluralForms(): void
     {
@@ -213,20 +210,14 @@ class ConvertModuleToPoToolTest extends TestCase
             file_put_contents($this->directory . '/out/' . $name, $content);
         }
 
-        [$exit_code, $stdout, $stderr] = $this->runTool('poll', 'de', $this->directory . '/out');
+        [$exit_code, $stdout, $stderr] = $this->runTool('poll', 'en', $this->directory . '/out');
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $this->assertSame('', $stderr, 'no warnings, notices or deprecations');
-        $this->assertStringContainsString('(3 entries filled from \'de\', flagged fuzzy)', $stdout);
+        $this->assertStringContainsString('(2 entries filled from \'en\', flagged fuzzy)', $stdout);
         $this->assertSame(array_keys($shipped), array_keys(self::files($this->directory . '/out')), 'no file added or lost');
         foreach (self::files($this->directory . '/out') as $name => $content) {
-            $expected = $shipped[$name];
-            if (in_array($name, ['poll_en.po', 'poll_ja.po', 'poll_pt.po'], true)) {
-                $empty = "msgid \"poll_import\"\nmsgstr \"\"\n";
-                $this->assertStringContainsString($empty, $expected, 'precondition: ' . $name);
-                $expected = str_replace($empty, "#, fuzzy\nmsgid \"poll_import\"\nmsgstr \"Abstimmung importieren\"\n", $expected);
-            }
-            $this->assertSame($expected, $content, $name);
+            $this->assertSame($shipped[$name], $content, $name);
         }
     }
 
@@ -363,8 +354,8 @@ class ConvertModuleToPoToolTest extends TestCase
     }
 
     /**
-     * A plural message (and its singular key) a language lacks gets the reference values, distributed
-     * like existing values, and is flagged fuzzy.
+     * A plural message (and its singular key) a language lacks gets the reference values and is flagged
+     * fuzzy; a singular key filled from the reference language is not taken over into a form.
      */
     public function testAMissingPluralMessageGetsTheReferenceValuesFlaggedFuzzy(): void
     {
@@ -382,8 +373,8 @@ class ConvertModuleToPoToolTest extends TestCase
 
         $this->assertSame(0, $exit_code, $stdout . $stderr);
         $de_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_de.po')->find(null, 'item');
-        $this->assertSame(['One entry', 'Eintraege'], $de_item?->getPluralTranslations(), 'msgstr[0] from the filled singular key');
-        $this->assertTrue($de_item->hasFlag('fuzzy'));
+        $this->assertSame(['Eintraege', 'Eintraege'], $de_item?->getPluralTranslations(), 'the singular key filled from the reference language is not taken over');
+        $this->assertFalse($de_item->hasFlag('fuzzy'), 'de: a source language, its own value is present');
         $fr_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')->find(null, 'item');
         $this->assertSame(['Entries', 'Entries'], $fr_item?->getPluralTranslations(), 'the en value in every form');
         $this->assertTrue($fr_item->hasFlag('fuzzy'));
@@ -391,12 +382,9 @@ class ConvertModuleToPoToolTest extends TestCase
     }
 
     /**
-     * A plural message whose configured singular key carries the dated "new variable" placeholder
-     * (is_fuzzy_marker(), see the test above) is itself marked "fuzzy" too - but only in a language
-     * whose rule actually uses the singular key's value as msgstr[0] (isOneSingularOtherPlural(), see
-     * PluralForms). In a language that does not (here: a single-form one, "zh") every form is the
-     * plural message's own value regardless of the singular key, so its own fuzziness must not leak
-     * in merely because the singular key happens to be marked fuzzy.
+     * A plural message whose configured singular key carries the dated "new variable" placeholder is
+     * not taken from it: every form is the message's own value (copied into several forms: fuzzy).
+     * A single-form language ("zh") copies nowhere, so it is not fuzzy.
      */
     public function testAPluralMessageIsMarkedFuzzyWhenItsSingularKeyIsButOnlyWhereTheSingularValueIsActuallyUsed(): void
     {
@@ -428,8 +416,8 @@ class ConvertModuleToPoToolTest extends TestCase
         $fr_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')
             ->find(null, 'item');
         $this->assertNotNull($fr_item);
-        $this->assertSame(['Une entree', 'Des entrees'], $fr_item->getPluralTranslations(), 'precondition: the singular value is msgstr[0]');
-        $this->assertTrue($fr_item->hasFlag('fuzzy'), 'fr: the singular key used as msgstr[0] is fuzzy');
+        $this->assertSame(['Des entrees', 'Des entrees'], $fr_item->getPluralTranslations(), 'a fuzzy singular key is not taken over');
+        $this->assertTrue($fr_item->hasFlag('fuzzy'), 'fr: the own value is copied into both forms');
 
         $zh_item = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_zh.po')
             ->find(null, 'item');
@@ -440,20 +428,18 @@ class ConvertModuleToPoToolTest extends TestCase
 
     /**
      * A plural message with NO configured singular key (real example: poll's "poll_vote_error_multi")
-     * has its own, single translated value copied into every form ($plural_forms_of() with no
-     * "singular" - decided 2026-09-28, see convert_module_to_po.php's docblock): copied into more than
-     * one form (nplurals > 1) is marked "fuzzy" - it still needs a translation per form, not just a
-     * duplicate of the one value that happened to exist before the module had plurals. A single-form
-     * language (nplurals=1: "zh") copies into exactly one form, so it is never marked fuzzy this way.
+     * has its own value copied into every form. That is fuzzy in a translation with several forms, not
+     * in a source language (de, en, the reference language) and not in a single-form language.
      */
-    public function testAPluralMessageWithoutASingularKeyIsFuzzyWhenItsValueIsCopiedIntoMoreThanOneForm(): void
+    public function testAPluralMessageWithoutASingularKeyIsFuzzyOnlyInATranslationWithSeveralForms(): void
     {
         $root = $this->buildFixtureRepo();
         $this->writeLangFile($root, 'de', "tst#:#multi#:#Mehrere Werte\n");
+        $this->writeLangFile($root, 'fr', "tst#:#multi#:#Plusieurs valeurs\n");
         $this->writeLangFile($root, 'zh', "tst#:#multi#:#Mehrere Werte ZH\n");
         $this->writePluralsConfig(
             $root,
-            ['de' => 'nplurals=2; plural=(n != 1);', 'zh' => 'nplurals=1; plural=0;'],
+            ['de' => 'nplurals=2; plural=(n != 1);', 'fr' => 'nplurals=2; plural=(n > 1);', 'zh' => 'nplurals=1; plural=0;'],
             ['tst' => ['multi' => []]]
         );
 
@@ -464,7 +450,11 @@ class ConvertModuleToPoToolTest extends TestCase
             ->find(null, 'multi');
         $this->assertNotNull($de_multi);
         $this->assertSame(['Mehrere Werte', 'Mehrere Werte'], $de_multi->getPluralTranslations());
-        $this->assertTrue($de_multi->hasFlag('fuzzy'), 'de: copied into 2 forms');
+        $this->assertFalse($de_multi->hasFlag('fuzzy'), 'de: a source language');
+        $fr_multi = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')
+            ->find(null, 'multi');
+        $this->assertSame(['Plusieurs valeurs', 'Plusieurs valeurs'], $fr_multi?->getPluralTranslations());
+        $this->assertTrue($fr_multi->hasFlag('fuzzy'), 'fr: copied into 2 forms');
 
         $zh_multi = \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog::fromPoFile($root . '/out/tst_zh.po')
             ->find(null, 'multi');
@@ -783,6 +773,67 @@ class ConvertModuleToPoToolTest extends TestCase
         $this->assertStringContainsString('WARNING', $stderr);
         $this->assertStringContainsString("  fr: x\n", $stderr);
         $this->assertSame(['a'], self::idsOf($root . '/out/tst_fr.po'));
+    }
+
+    public function testTheSingularKeyGoesToTheFormThatServesOnlyOneWhateverItsNumber(): void
+    {
+        $root = $this->buildFixtureRepo();
+        foreach (['de' => ['Eintraege', 'Ein Eintrag'], 'es' => ['Entradas', 'Una entrada'], 'ar' => ['AR viele', 'AR eins']] as $lang_key => [$plural, $singular]) {
+            $this->writeLangFile($root, $lang_key, "tst#:#item#:#$plural\ntst#:#item_singular#:#$singular\n");
+        }
+        $this->writePluralsConfig(
+            $root,
+            [
+                'de' => 'nplurals=2; plural=(n != 1);',
+                'es' => 'nplurals=3; plural=(n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2);',
+                'ar' => 'nplurals=6; plural=(n == 0) ? 0 : ((n == 1) ? 1 : ((n == 2) ? 2 : ((n % 100 >= 3 && n % 100 <= 10) ? 3 : ((n % 100 >= 11 && n % 100 <= 99) ? 4 : 5))));',
+            ],
+            ['tst' => ['item' => ['singular' => 'item_singular']]]
+        );
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $forms = static fn(string $lang_key): ?array => TranslationCatalog::fromPoFile($root . "/out/tst_$lang_key.po")->find(null, 'item')?->getPluralTranslations();
+        $this->assertSame(['Ein Eintrag', 'Eintraege'], $forms('de'));
+        $this->assertSame(['Una entrada', 'Entradas', 'Entradas'], $forms('es'));
+        $this->assertSame(['AR viele', 'AR eins', 'AR viele', 'AR viele', 'AR viele', 'AR viele'], $forms('ar'));
+    }
+
+    public function testATranslatedSingularEqualToTheOwnValueIsNotFuzzy(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#item#:#Eintraege\ntst#:#item_singular#:#Ein Eintrag\n");
+        $this->writeLangFile($root, 'fr', "tst#:#item#:#Photo\ntst#:#item_singular#:#Photo\n");
+        $this->writePluralsConfig(
+            $root,
+            ['de' => 'nplurals=2; plural=(n != 1);', 'fr' => 'nplurals=2; plural=(n != 1);'],
+            ['tst' => ['item' => ['singular' => 'item_singular']]]
+        );
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $item = TranslationCatalog::fromPoFile($root . '/out/tst_fr.po')->find(null, 'item');
+        $this->assertSame(['Photo', 'Photo'], $item?->getPluralTranslations());
+        $this->assertFalse($item->hasFlag('fuzzy'), 'both forms are translated, they just are equal');
+    }
+
+    public function testAKeyWithTheSyntaxOfAPluralFormIsRejectedOrLeftOut(): void
+    {
+        $root = $this->buildFixtureRepo();
+        $this->writeLangFile($root, 'de', "tst#:#a#:#A\ntst#:#item [0]#:#Form\n");
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), 'tst', 'de', $root . '/out');
+        $this->assertSame(1, $exit_code, $stdout . $stderr);
+        $this->assertStringContainsString('FAILURE', $stderr);
+        $this->assertStringContainsString('item [0]', $stderr);
+        $this->assertSame([], glob($root . '/out/*') ?: [], 'nothing was written');
+
+        [$exit_code, $stdout, $stderr] = $this->runToolAt($this->toolPathOf($root), '--skip-unmigratable-keys', 'tst', 'de', $root . '/out');
+        $this->assertSame(0, $exit_code, $stdout . $stderr);
+        $this->assertStringContainsString('item [0]', $stderr);
+        $this->assertSame(['a'], self::idsOf($root . '/out/tst_de.po'));
     }
 
     /**

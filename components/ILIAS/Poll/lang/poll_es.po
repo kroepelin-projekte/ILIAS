@@ -122,7 +122,7 @@ msgstr "Porcentaje Actual"
 #, fuzzy
 msgid "poll_population"
 msgid_plural "poll_population_plural"
-msgstr[0] "%s Participantes"
+msgstr[0] "1 Participante"
 msgstr[1] "%s Participantes"
 msgstr[2] "%s Participantes"
 

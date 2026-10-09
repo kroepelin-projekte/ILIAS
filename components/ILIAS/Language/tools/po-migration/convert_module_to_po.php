@@ -53,14 +53,17 @@ declare(strict_types=1);
  * languages have cannot be taken over (see --skip-unmigratable-keys).
  *
  * Plural messages (plurals.json, "modules"): the tool invents no text, it only distributes the
- * existing values (a value taken from the reference language, see above, counts as existing) - in a language whose rule is "n == 1 -> form 0, otherwise form 1", msgstr[0] is
- * the value of the configured singular key (if the language has it) and msgstr[1] the message's own
- * value; in every other language, and for a message without singular key, every form is the
- * message's own value. The msgid_plural is "<msgid>_plural" unless configured. The fuzzy flag
- * follows the message's own value - and the singular key's, where its value became msgstr[0] - (also
- * where that value was taken from the reference language), and is also set wherever the own value was copied into more than one form (those forms still need a
- * translation; a language with a single form never copies). The singular key stays an entry of
- * its own.
+ * existing values (a value taken from the reference language, see above, counts as existing) - in a
+ * language whose rule has a form for n = 1 and no other n (found by evaluating the rule: form 0 in
+ * en, de, but also e.g. es, it, cs, pl; form 1 in ar), that form is the value of the configured
+ * singular key - only if the language has translated it (not empty, not taken from the reference
+ * language, no "new variable" marker) - and every other form the message's own value; in every other
+ * case every form is the message's own value. The msgid_plural is "<msgid>_plural" unless
+ * configured. The fuzzy flag follows the message's own value (also where that value was taken from
+ * the reference language), and is also set wherever the own value was copied into more than one form
+ * (those forms still need a translation; a language with a single form never copies) - except in
+ * the source languages (the reference language, de and en), whose original text counts as
+ * translated in every form. The singular key stays an entry of its own.
  *
  * Deliberately declares no named classes or functions: this file lives inside the classmap-scanned
  * components/ tree, and anything named here would end up in Composer's autoload classmap (and be
@@ -71,7 +74,8 @@ declare(strict_types=1);
  *   --pattern  file name of a language without ".po", "%s" = language key (default "<module>_%s");
  *              must match the pattern of the module's ComponentLanguageFileDirectory
  *   --skip-unmigratable-keys  instead of failing: leave out (with a WARNING on stderr) every key the
- *              reference language does not have and the empty key, and use one occurrence of a key
+ *              reference language does not have, the empty key and every key containing " [" (the
+ *              syntax of a plural form, "<key> [<form>]"), and use one occurrence of a key
  *              that occurs more than once in a language with the same value and comment every time,
  *              as the installer reads them (other duplicates of a key left out anyway only warn,
  *              all others still fail); the left out keys are not part of the round-trip check
@@ -97,6 +101,7 @@ require dirname(__DIR__, 5) . '/vendor/composer/vendor/autoload.php';
 use ILIAS\Language\ComponentTranslation\AtomicFileWriter;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog;
 use ILIAS\Language\ComponentTranslation\Catalog\TranslationEntry;
+use ILIAS\Language\ComponentTranslation\LegacyFuzzyMarker;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\PluralForms;
 
@@ -273,52 +278,111 @@ $without_module_lines = static function (string $content, string $module): array
 };
 
 /**
- * Classifies a legacy `###`-comment as either a real developer/translator note (-> PO "#."
- * extracted comment) or an auto-generated "not translated yet" placeholder marker (-> PO
- * "#, fuzzy" flag). In most non-source languages, > 99% of comments are dated "new variable"
- * markers, not authored notes. Only that dated marker counts - an authored note merely
- * mentioning "new variable" stays a note.
+ * Whether a legacy `###`-comment is the dated "not translated yet" marker (-> PO "#, fuzzy" flag)
+ * rather than a real developer/translator note (-> PO "#." extracted comment) - decided in one place
+ * for the conversion and the installation, see LegacyFuzzyMarker.
  */
-$is_fuzzy_marker = static function (string $comment): bool {
-    return preg_match(
-        '/^\s*(\d{1,2}\s+\d{1,2}\s+\d{4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{4}-\d{1,2}-\d{1,2})\b.*\bnew variable\b/i',
-        $comment
-    ) === 1;
-};
+$is_fuzzy_marker = LegacyFuzzyMarker::matches(...);
 
 /**
- * The forms of the plural message $key in a language with the rule $plural_forms ($entries: the
- * language's entries of the module, see the file docblock).
+ * The form of $plural_forms that serves n = 1 - if it serves no other n, otherwise null. Checked by
+ * evaluating the rule (n = 0..200 and some large values, the samples PluralForms validates a rule
+ * with), not by its formula text: form 0 for "n == 1 -> 0, otherwise 1" (en, de) and e.g. the
+ * three-form rules of es, it, cs, sk, pl, ro; form 1 for ar; null where that form also serves 0
+ * (fr, pt), 21, 101 (ru, hr, sl) and in single-form languages.
+ */
+$singular_form_index = static function (PluralForms $plural_forms): ?int {
+    if ($plural_forms->getCount() < 2) {
+        return null;
+    }
+    $index = $plural_forms->formIndexFor(1);
+    foreach ([...range(0, 200), 1000, 1001, 1011, 100000, 1000000, 1000001, 2000000] as $n) {
+        if ($n !== 1 && $plural_forms->formIndexFor($n) === $index) {
+            return null;
+        }
+    }
+
+    return $index;
+};
+/**
+ * The form of the plural message $key that gets the configured singular key's value in a language
+ * with the rule $plural_forms, or null: only a singular key that is translated in the language - not
+ * empty, not taken from the reference language ($filled_keys), no "new variable" marker - and only
+ * where the rule has a form for n = 1 alone (see $singular_form_index). Otherwise every form keeps the
+ * message's own value: an untranslated placeholder must not replace a translated form.
+ *
+ * @param array<string, array{value: string, comment: ?string}> $entries the language's entries of the module
+ * @param array{singular?: string, plural_id?: string} $definition
+ * @param array<string, true> $filled_keys keys whose value was taken from the reference language
+ */
+$singular_form_of = static function (
+    string $key,
+    array $definition,
+    array $entries,
+    PluralForms $plural_forms,
+    array $filled_keys
+) use ($singular_form_index, $is_fuzzy_marker): ?int {
+    $singular_key = $definition['singular'] ?? null;
+    if (
+        ($entries[$key]['value'] ?? '') === ''
+        || $singular_key === null
+        || ($entries[$singular_key]['value'] ?? '') === ''
+        || isset($filled_keys[$singular_key])
+    ) {
+        return null;
+    }
+    $singular_comment = $entries[$singular_key]['comment'] ?? null;
+    if ($singular_comment !== null && $is_fuzzy_marker($singular_comment)) {
+        return null;
+    }
+
+    return $singular_form_index($plural_forms);
+};
+/**
+ * The forms of the plural message $key: the singular key's value in the form $singular_form_of names,
+ * every other form the message's own value.
  *
  * @param array<string, array{value: string, comment: ?string}> $entries
  * @param array{singular?: string, plural_id?: string} $definition
+ * @param array<string, true> $filled_keys
  * @return list<string>
  */
-$takes_singular = static function (string $key, array $definition, array $entries, PluralForms $plural_forms): bool {
-    $value = $entries[$key]['value'] ?? '';
-    $singular = isset($definition['singular']) ? ($entries[$definition['singular']]['value'] ?? null) : null;
-
-    return $value !== '' && $singular !== null && $singular !== '' && $plural_forms->isOneSingularOtherPlural();
-};
-$plural_forms_of = static function (string $key, array $definition, array $entries, PluralForms $plural_forms) use ($takes_singular): array {
-    $value = $entries[$key]['value'] ?? '';
-    if ($takes_singular($key, $definition, $entries, $plural_forms)) {
-        return [$entries[$definition['singular']]['value'], $value];
+$plural_forms_of = static function (
+    string $key,
+    array $definition,
+    array $entries,
+    PluralForms $plural_forms,
+    array $filled_keys
+) use ($singular_form_of): array {
+    $forms = array_fill(0, $plural_forms->getCount(), $entries[$key]['value'] ?? '');
+    $singular_form = $singular_form_of($key, $definition, $entries, $plural_forms, $filled_keys);
+    if ($singular_form !== null) {
+        $forms[$singular_form] = $entries[$definition['singular']]['value'];
     }
 
-    return array_fill(0, $plural_forms->getCount(), $value);
+    return $forms;
 };
 /**
  * Whether the own value of the plural message $key was copied into more than one form (see the
- * file docblock) - such a message is flagged fuzzy.
+ * file docblock) - such a message is flagged fuzzy, except in a source language.
  *
  * @param array<string, array{value: string, comment: ?string}> $entries
  * @param array{singular?: string, plural_id?: string} $definition
+ * @param array<string, true> $filled_keys
  */
-$copies_own_value = static function (string $key, array $definition, array $entries, PluralForms $plural_forms) use ($takes_singular): bool {
-    return ($entries[$key]['value'] ?? '') !== ''
-        && $plural_forms->getCount() > 1
-        && !$takes_singular($key, $definition, $entries, $plural_forms);
+$copies_own_value = static function (
+    string $key,
+    array $definition,
+    array $entries,
+    PluralForms $plural_forms,
+    array $filled_keys
+) use ($singular_form_of): bool {
+    // the forms that hold the own value: all but the one holding the singular key's value (counted by
+    // position, not by value - a singular equal to the own value is no copy)
+    $own_forms = $plural_forms->getCount()
+        - ($singular_form_of($key, $definition, $entries, $plural_forms, $filled_keys) === null ? 0 : 1);
+
+    return ($entries[$key]['value'] ?? '') !== '' && $own_forms > 1;
 };
 
 /**
@@ -328,6 +392,8 @@ $copies_own_value = static function (string $key, array $definition, array $entr
  * @param array<string, array{singular?: string, plural_id?: string}> $plural_definitions msgid => definition
  * @param string|null $language_name English name of the language, null => keep an existing "Language-Team"
  * @param array<string, true> $filled_keys keys whose value was taken from the reference language (-> fuzzy)
+ * @param bool $is_source_language a language whose values are the original texts (see $source_lang_keys):
+ *        a plural value copied into several forms is not flagged fuzzy there
  */
 $build_catalog = static function (
     string $module,
@@ -338,7 +404,8 @@ $build_catalog = static function (
     ?PluralForms $plural_forms,
     array $plural_definitions,
     ?string $language_name = null,
-    array $filled_keys = []
+    array $filled_keys = [],
+    bool $is_source_language = false
 ) use ($is_fuzzy_marker, $plural_forms_of, $copies_own_value): TranslationCatalog {
     $is_template = $translation_entries === null;
     $catalog = new TranslationCatalog();
@@ -370,7 +437,7 @@ $build_catalog = static function (
         if ($plural_definition !== null) {
             $entry->setPlural(
                 $plural_definition['plural_id'] ?? $key . '_plural',
-                $is_template ? ['', ''] : $plural_forms_of((string) $key, $plural_definition, $translation_entries, $plural_forms)
+                $is_template ? ['', ''] : $plural_forms_of((string) $key, $plural_definition, $translation_entries, $plural_forms, $filled_keys)
             );
         }
 
@@ -391,18 +458,9 @@ $build_catalog = static function (
             } elseif ($own_comment !== null) {
                 $comment = $own_comment;
             }
-            // msgstr[0] taken from a singular key that is not translated yet: the message is not either
-            $singular_key = $plural_definition['singular'] ?? null;
-            $singular_comment = $singular_key === null ? null : ($translation_entries[$singular_key]['comment'] ?? null);
-            if (
-                $singular_key !== null
-                && (($singular_comment !== null && $is_fuzzy_marker($singular_comment)) || isset($filled_keys[$singular_key]))
-                && $entry->getPluralTranslations()[0] !== ($own['value'] ?? '')
-            ) {
-                $entry->addFlag('fuzzy');
-            }
-            // the own value copied into several forms: they still need a translation
-            if ($plural_definition !== null && $copies_own_value((string) $key, $plural_definition, $translation_entries, $plural_forms)) {
+            // the own value copied into several forms: they still need a translation - except in a
+            // source language, whose original text counts as translated in every form
+            if (!$is_source_language && $plural_definition !== null && $copies_own_value((string) $key, $plural_definition, $translation_entries, $plural_forms, $filled_keys)) {
                 $entry->addFlag('fuzzy');
             }
         }
@@ -655,7 +713,7 @@ $duplicate_report = [];
 $identical_duplicate_report = [];
 foreach ($duplicates as $lang_key => $keys) {
     foreach ($keys as $key => $identical) {
-        $left_out = (string) $key === '' || !in_array((string) $key, $reference_keys, true);
+        $left_out = (string) $key === '' || str_contains((string) $key, ' [') || !in_array((string) $key, $reference_keys, true);
         if ($skip_unmigratable_keys && ($identical || $left_out)) {
             $identical_duplicate_report[$lang_key][] = $key;
         } else {
@@ -682,19 +740,24 @@ if ($identical_duplicate_report !== []) {
 
 // The catalogs are built from the reference keys, so every language's keys must be a subset of the
 // reference language's - a key only another language has would otherwise be dropped silently. The
-// empty key can never be migrated (msgid "" is the PO header), in no language.
+// empty key can never be migrated (msgid "" is the PO header), in no language; nor can a key
+// containing " [": "<key> [<form>]" is how the language component addresses a form of a plural
+// message (PluralFormKey) - such a key would be taken for a form.
 $unmigratable_keys = [];
 foreach ($per_language as $lang_key => $entries) {
-    $unmigratable = array_values(array_diff(array_map('strval', array_keys($entries)), $reference_keys));
+    $keys = array_map('strval', array_keys($entries));
+    $unmigratable = array_values(array_diff($keys, $reference_keys));
     if (isset($entries[''])) {
         $unmigratable = array_values(array_unique(['', ...$unmigratable]));
     }
+    $form_like = array_filter($keys, static fn(string $key): bool => str_contains($key, ' ['));
+    $unmigratable = array_values(array_unique([...$unmigratable, ...$form_like]));
     if ($unmigratable !== []) {
         $unmigratable_keys[$lang_key] = $unmigratable;
     }
 }
 if ($unmigratable_keys !== [] && !$skip_unmigratable_keys) {
-    fwrite(STDERR, "FAILURE: module '$module' has keys that the reference language '$reference_lang_key' does not have, or the empty key (nothing was written):\n");
+    fwrite(STDERR, "FAILURE: module '$module' has keys that the reference language '$reference_lang_key' does not have, the empty key, or a key containing \" [\" (the syntax of a plural form) (nothing was written):\n");
     foreach ($unmigratable_keys as $lang_key => $keys) {
         fwrite(STDERR, "  $lang_key: " . $format_keys($keys) . "\n");
     }
@@ -702,7 +765,7 @@ if ($unmigratable_keys !== [] && !$skip_unmigratable_keys) {
     exit(1);
 }
 if ($unmigratable_keys !== []) {
-    fwrite(STDERR, "WARNING: module '$module' has keys that the reference language '$reference_lang_key' does not have, or the empty key - left out (--skip-unmigratable-keys):\n");
+    fwrite(STDERR, "WARNING: module '$module' has keys that the reference language '$reference_lang_key' does not have, the empty key, or a key containing \" [\" (the syntax of a plural form) - left out (--skip-unmigratable-keys):\n");
     foreach ($unmigratable_keys as $lang_key => $keys) {
         fwrite(STDERR, "  $lang_key: " . $format_keys($keys) . "\n");
         foreach ($keys as $key) {
@@ -712,6 +775,10 @@ if ($unmigratable_keys !== []) {
 }
 
 $reference_entries = $per_language[$reference_lang_key];
+// The languages whose values are the original texts, not translations: the reference language (the
+// template) and the languages ILIAS developers write every new key in (the mandatory languages of
+// AddLanguageEntry) - a plural value copied into several forms is not flagged fuzzy there
+$source_lang_keys = array_values(array_unique([$reference_lang_key, 'de', 'en']));
 if ($reference_entries === []) {
     $languages_with_lines = array_keys(array_filter($read_files, static fn(array $read): bool => $read['lines'] > 0));
     fwrite(STDERR, "FAILURE: module '$module' has no (migratable) entries in the reference language '$reference_lang_key',"
@@ -813,7 +880,8 @@ foreach ($per_language as $lang_key => $entries) {
             $plural_rules[$lang_key] ?? null,
             $plural_definitions,
             $language_names[$lang_key] ?? null,
-            $filled[$lang_key] ?? []
+            $filled[$lang_key] ?? [],
+            in_array($lang_key, $source_lang_keys, true)
         )->toPoString()
     );
 
@@ -847,7 +915,7 @@ foreach ($per_language as $lang_key => $entries) {
         }
         // a plural message: its plural id and every form, each form one of the existing values
         $rule = $plural_rules[$lang_key];
-        $expected_forms = $plural_forms_of($key, $plural_definition, $entries, $rule);
+        $expected_forms = $plural_forms_of($key, $plural_definition, $entries, $rule, $filled[$lang_key] ?? []);
         $parsed_forms = array_pad(array_slice($parsed_entry?->getPluralTranslations() ?? [], 0, $rule->getCount()), $rule->getCount(), '');
         if (
             $parsed_entry?->getPluralId() !== ($plural_definition['plural_id'] ?? $key . '_plural')

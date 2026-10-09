@@ -13498,6 +13498,7 @@ poll#:#poll_delete_votes_sure#:#Are you sure you want to delete the votes of all
 poll#:#poll_edit#:#Edit Poll
 poll#:#poll_edit_question#:#Edit Question
 poll#:#poll_image#:#Image
+poll#:#poll_import#:#Import Poll
 poll#:#poll_limit_not_below_answer_count#:#The maximum number of selectable answer options must be smaller than the total number of possible answers.
 poll#:#poll_limit_number_of_answers#:#Limit Number of Answers Selectable
 poll#:#poll_max_number_of_answers#:#Maximum Selectable per Participant
