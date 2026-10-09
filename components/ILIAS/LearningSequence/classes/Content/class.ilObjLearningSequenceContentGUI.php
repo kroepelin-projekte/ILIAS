@@ -45,7 +45,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * @ilCtrl_Calls ilObjLearningSequenceContentGUI: ilObjLearningSequenceConditionsGUI
  */
-class ilObjLearningSequenceContentGUI
+class ilObjLearningSequenceContentGUI implements ilCtrlSecurityInterface
 {
     public const string CMD_MANAGE_CONTENT = "manageContent";
     public const string CMD_SAVE = "save";
@@ -180,13 +180,56 @@ class ilObjLearningSequenceContentGUI
     }
 
     /**
+     * All commands modifying the learning sequence or its items. They are
+     * reached by links (dropdown entries, table actions) and therefore need
+     * to be protected by an ilCtrl CSRF token.
+     *
+     * @inheritDoc
+     */
+    public function getUnsafeGetCommands(): array
+    {
+        return [
+            self::CMD_DELETE,
+            self::CMD_REORDER,
+            self::CMD_SET_ONLINE,
+            self::CMD_SET_OFFLINE,
+            self::CMD_SET_START_OBJECT,
+            self::CMD_UNSET_START_OBJECT,
+            self::CMD_SET_END_OBJECT,
+            self::CMD_UNSET_END_OBJECT,
+            self::CMD_SET_CONDITION_ALWAYS,
+            self::CMD_SET_CONDITION_LP,
+        ];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getSafePostCommands(): array
+    {
+        return [];
+    }
+
+    /**
      * Determines the command to run, resolving the aliases used by the
      * ordering table and the generic "cancel"/"view" commands.
+     *
+     * The ordering table's actions carry their command in the query parameter
+     * "lso_content_seq_cmd" and target the table's form action (cmd=post with
+     * fallback command "reorder"). ilCtrl only resolves "reorder" for such a
+     * request if the CSRF token is valid, so the table command is only accepted
+     * in that case. Otherwise the token check could be bypassed.
      */
     private function resolveCommand(): string
     {
         $query_params = $this->request->getQueryParams();
-        $cmd = $query_params['lso_content_seq_cmd'] ?? $this->ctrl->getCmd();
+        $ctrl_cmd = $this->ctrl->getCmd();
+        $table_cmd = $query_params['lso_content_seq_cmd'] ?? null;
+
+        $cmd = $ctrl_cmd;
+        if (is_string($table_cmd) && $ctrl_cmd === self::CMD_REORDER) {
+            $cmd = $table_cmd;
+        }
 
         if ($cmd === self::CMD_CANCEL) {
             $this->ctrl->redirect($this, self::CMD_MANAGE_CONTENT);
