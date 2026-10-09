@@ -820,6 +820,36 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
+     * Without a component repository ($DIC is no container or has none) the default re-applying of
+     * the plugin language files does nothing - and does not fail.
+     */
+    #[DataProvider('dicWithoutComponentRepository')]
+    public function testTheDefaultPluginRefreshDoesNothingWithoutAComponentRepository(\Closure $dic): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld(['de' => []]);
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic();
+        try {
+            $result = $this->createActivity($lng_objects, $obj_language_factory)->perform(['language_keys' => ['de']]);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['removed_local_changes_language_keys']);
+    }
+
+    /**
+     * @return array<string, array{0: \Closure}>
+     */
+    public static function dicWithoutComponentRepository(): array
+    {
+        return [
+            'DIC is an array' => [static fn(): array => []],
+            'container without component.repository' => [static fn(): \ILIAS\DI\Container => new \ILIAS\DI\Container()],
+        ];
+    }
+
+    /**
      * Without a single language actually removed (all invalid/not installed), refresh_plugins() is
      * never called at all - not even with an empty list.
      */

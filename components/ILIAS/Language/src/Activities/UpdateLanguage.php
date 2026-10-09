@@ -29,14 +29,30 @@ class UpdateLanguage extends LanguageActivity
 {
     use DeclaresLanguageKeysOnlyInput;
 
+    private readonly \Closure $refresh_plugins;
+
+    /**
+     * @param \Closure|null $refresh_plugins (list<string> $lang_keys): void - re-applies the plugin
+     *        language files (the update flushes their rows as well); by default
+     *        ilObjLanguage::refreshPlugins(), a no-op without the component repository
+     */
     public function __construct(
         RefineryFactory $refinery,
         Language $language,
         \ilRbacSystem|\Closure $rbac_system,
         private readonly \ilSetupLanguage $setup_language,
         int|\Closure $language_folder_ref_id = 0,
+        ?\Closure $refresh_plugins = null,
     ) {
         parent::__construct($refinery, $language, $rbac_system, $language_folder_ref_id);
+        $this->refresh_plugins = $refresh_plugins
+            ?? static function (array $lang_keys): void {
+                global $DIC;
+                // not every context has a container (e.g. the Setup: an array)
+                if ($DIC instanceof \ILIAS\DI\Container && $DIC->offsetExists('component.repository')) {
+                    \ilObjLanguage::refreshPlugins($lang_keys);
+                }
+            };
     }
 
     public static function forSetup(\ilSetupLanguage $setup_language): self
@@ -48,7 +64,11 @@ class UpdateLanguage extends LanguageActivity
                 'RBAC is not available during Setup; '
                 . self::class . '::isAllowedToPerform() cannot be used here.'
             ),
-            $setup_language
+            $setup_language,
+            0,
+            // In the Setup the plugin language files are applied by the plugin objectives
+            static function (array $lang_keys): void {
+            }
         );
     }
 
@@ -58,8 +78,9 @@ class UpdateLanguage extends LanguageActivity
             <<<'MARKDOWN'
 Refreshes one or more already installed languages, re-seeding their base
 data (plus a customizing/local file if one exists) from the current
-language files. A language that is not installed is left completely
-untouched - use InstallLanguage to install it first.
+language files; the language files of the active plugins are applied again.
+A language that is not installed is left completely untouched - use
+InstallLanguage to install it first.
 MARKDOWN
         );
     }
@@ -136,6 +157,10 @@ MARKDOWN
                 }
                 $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
             }
+
+            // Plugin language files are re-applied only for the languages actually updated (their
+            // rows were flushed with the rest)
+            ($this->refresh_plugins)($to_update);
         }
 
         return [

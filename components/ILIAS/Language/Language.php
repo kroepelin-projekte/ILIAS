@@ -280,7 +280,9 @@ class Language implements Component\Component
                 $pull[\ILIAS\Refinery\Factory::class],
                 $internal[\ilSetupLanguage::class],
                 $internal[InstallLanguage::class],
-                $internal[UpdateLanguage::class],
+                // The Setup instance: it does not re-apply the plugin language files (the plugin
+                // objectives do that, and the Setup has no component repository in $DIC)
+                UpdateLanguage::forSetup($internal[\ilSetupLanguage::class]),
                 $internal[InstalledLanguageDatabaseRepository::class]
             );
 

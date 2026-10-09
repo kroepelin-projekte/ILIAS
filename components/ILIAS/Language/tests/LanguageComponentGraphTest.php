@@ -197,6 +197,31 @@ class LanguageComponentGraphTest extends TestCase
         self::assertInstanceOf(UserSettingsSettings::class, $contribute[\ILIAS\User\Settings\UserSettings::class . '_9']);
     }
 
+    /**
+     * The Setup agent gets the Setup instance of UpdateLanguage, not the one of the GUI: it does not
+     * re-apply plugin language files (the Setup has no component repository in $DIC).
+     */
+    public function testTheSetupAgentGetsTheSetupInstanceOfUpdateLanguage(): void
+    {
+        [, , , $contribute, , $provide] = $this->initComponent();
+        $agent = $contribute[\ILIAS\Setup\Agent::class . '_1'];
+
+        $update_language = (new ReflectionProperty(\ilLanguageSetupAgent::class, 'update_language'))->getValue($agent);
+        $refresh_plugins = (new ReflectionProperty(UpdateLanguage::class, 'refresh_plugins'));
+
+        self::assertNotSame($provide[UpdateLanguage::class], $update_language);
+        $dic = new \ILIAS\DI\Container();
+        $dic['component.repository'] = static fn(): never => throw new \LogicException('plugins must not be refreshed in the Setup');
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic;
+        try {
+            $refreshed = $refresh_plugins->getValue($update_language)(['de']);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+        self::assertNull($refreshed);
+    }
+
     public function testContributedActivitiesAreTheSameSingletonsAsTheProvidedInstances(): void
     {
         [, , , $contribute, , $provide] = $this->initComponent();

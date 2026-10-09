@@ -58,7 +58,7 @@ class RemoveLocalLanguageChanges extends LanguageActivity
         $this->refresh_plugins = $refresh_plugins
             ?? static function (array $lang_keys): void {
                 global $DIC;
-                if (isset($DIC) && $DIC->offsetExists('component.repository')) {
+                if ($DIC instanceof \ILIAS\DI\Container && $DIC->offsetExists('component.repository')) {
                     \ilObjLanguage::refreshPlugins($lang_keys);
                 }
             };

@@ -95,6 +95,84 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
+    /**
+     * The update flushes the plugin rows of the language as well: the plugin language files are
+     * applied again, for the languages actually updated and only once they are.
+     */
+    public function testReappliesThePluginLanguageFilesForTheUpdatedLanguagesOnly(): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de', 'fr']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $refreshed = [];
+        $refresh_plugins = static function (array $lang_keys) use (&$refreshed): void {
+            $refreshed[] = $lang_keys;
+        };
+
+        $this->createActivity($setup_language, null, null, $refresh_plugins)->perform(['language_keys' => 'de,fr,it']);
+        $this->assertSame([['de', 'fr']], $refreshed);
+
+        $refreshed = [];
+        $nothing_installed = $this->createSetupLanguageStub([], [], []);
+        $this->createActivity($nothing_installed, null, null, $refresh_plugins)->perform(['language_keys' => 'de']);
+        $this->assertSame([], $refreshed, 'nothing updated, nothing to re-apply');
+    }
+
+    /**
+     * Without a component repository (Setup: $DIC is no container or has none) the default re-applying
+     * of the plugin language files does nothing - and does not fail.
+     *
+     * @param \Closure(): mixed $dic
+     */
+    #[DataProvider('dicWithoutComponentRepository')]
+    public function testTheDefaultPluginRefreshDoesNothingWithoutAComponentRepository(\Closure $dic): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic();
+        try {
+            $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
+            $setup_result = UpdateLanguage::forSetup($setup_language)->perform(['language_keys' => 'de']);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['updated_language_keys']);
+        $this->assertSame(['de'], $setup_result['updated_language_keys']);
+    }
+
+    /**
+     * @return array<string, array{0: \Closure}>
+     */
+    public static function dicWithoutComponentRepository(): array
+    {
+        return [
+            'DIC is an array' => [static fn(): array => []],
+            'container without component.repository' => [static fn(): \ILIAS\DI\Container => new \ILIAS\DI\Container()],
+        ];
+    }
+
+    /**
+     * The Setup instance never re-applies the plugin language files (the plugin objectives do that),
+     * not even where $DIC offers a component repository.
+     */
+    public function testTheSetupInstanceNeverRefreshesPlugins(): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $dic = new \ILIAS\DI\Container();
+        $dic['component.repository'] = static fn(): never => throw new \LogicException('plugins must not be refreshed in the Setup');
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic;
+        try {
+            $result = UpdateLanguage::forSetup($setup_language)->perform(['language_keys' => 'de']);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['updated_language_keys']);
+    }
+
     public function testSingleAlreadyInstalledLanguageIsRefreshed(): void
     {
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
@@ -439,13 +517,16 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     private function createActivity(
         ilSetupLanguage $setup_language,
         ?\ilRbacSystem $rbac = null,
-        ?Language $language = null
+        ?Language $language = null,
+        ?\Closure $refresh_plugins = null
     ): UpdateLanguage {
         return new UpdateLanguage(
             $this->createStub(RefineryFactory::class),
             $language ?? $this->createStub(Language::class),
             $rbac ?? $this->createStub(\ilRbacSystem::class),
-            $setup_language
+            $setup_language,
+            0,
+            $refresh_plugins
         );
     }
 

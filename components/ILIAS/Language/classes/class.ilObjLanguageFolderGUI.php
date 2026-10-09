@@ -710,11 +710,6 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         }
         $value = $result->value();
 
-        // Plugin language files are refreshed only for the languages that
-        // were actually updated - a requested-but-not-installed language
-        // (see not_installed_language_keys below) has nothing to refresh.
-        ilObjLanguage::refreshPlugins($value['updated_language_keys']);
-
         if (($lang_updated = $value['updated_language_keys']) !== []) {
             $this->tpl->setOnScreenMessage(
                 'success',
