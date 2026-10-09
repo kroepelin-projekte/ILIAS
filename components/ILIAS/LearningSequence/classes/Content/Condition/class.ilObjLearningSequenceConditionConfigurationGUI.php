@@ -74,7 +74,9 @@ class ilObjLearningSequenceConditionConfigurationGUI implements ilCtrlSecurityIn
         $this->assertWriteAccess();
         $this->initBackTab();
 
-        $cmd = $this->ctrl->getCmd();
+        // ilCtrl returns no command if the CSRF validation fails, fall back
+        // to the configuration form in this case so it can be submitted again.
+        $cmd = $this->ctrl->getCmd(self::CMD_CONFIGURE_COMMAND);
 
         switch ($cmd) {
             case self::CMD_CONFIGURE_COMMAND:

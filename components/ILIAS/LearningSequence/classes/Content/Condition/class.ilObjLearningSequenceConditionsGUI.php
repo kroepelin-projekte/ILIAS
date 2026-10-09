@@ -74,7 +74,9 @@ class ilObjLearningSequenceConditionsGUI implements ilCtrlSecurityInterface
     {
         $this->assertWriteAccess();
 
-        $cmd = $this->ctrl->getCmd();
+        // ilCtrl returns no command if the CSRF validation fails, fall back
+        // to the conditions overview in this case.
+        $cmd = $this->ctrl->getCmd(self::CMD_MANAGE_CONDITIONS);
         $next_class = $this->ctrl->getNextClass();
 
         switch ($next_class) {
