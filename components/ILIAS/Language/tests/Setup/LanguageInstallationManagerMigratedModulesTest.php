@@ -1281,6 +1281,80 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
         $this->assertSame(['write', 'purge'], array_values(array_unique($statements)));
     }
 
+    // ------------------------------------------------- overlay entries merged into the shipped file
+
+    /**
+     * @param array<string, string> $entries identifier => local value (original "Hallo")
+     * @param list<string> $merged identifiers marked as merged into the shipped file
+     */
+    private function seedOverlayMarkedAsMerged(array $entries, array $merged): void
+    {
+        $details = [];
+        foreach ($entries as $identifier => $value) {
+            $details[$identifier] = ['value' => $value, 'original' => 'Hallo', 'local_change' => '2025-04-04T04:04:04Z'];
+        }
+        $catalog = MigratedPoFixture::catalog(self::MODULE, $details);
+        foreach ($merged as $identifier) {
+            LocalChangeComments::setMergedIntoShipped($catalog->find(self::MODULE, $identifier), true);
+        }
+        MigratedPoFixture::writePair($this->overlayBase(), $catalog);
+    }
+
+    /**
+     * An overlay entry marked as merged into the shipped file holds a value that is the shipped one
+     * now: a new shipped value wins, the entry is no local change and leaves the overlay.
+     */
+    public function testANewShippedValueWinsOverAnOverlayEntryMarkedAsMerged(): void
+    {
+        $this->shipPo(['greeting' => 'Grüß Gott']);
+        $this->seedOverlayMarkedAsMerged(['greeting' => 'Servus'], ['greeting']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(['value' => 'Grüß Gott', 'local_change' => null], $this->lngData()['pilot|greeting']);
+        $this->assertSame('Grüß Gott', $this->lngModules()[self::MODULE]['greeting']);
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'no overlay left');
+    }
+
+    public function testWithoutTheMarkTheLocalValueStaysALocalChange(): void
+    {
+        $this->shipPo(['greeting' => 'Grüß Gott']);
+        $this->seedOverlayMarkedAsMerged(['greeting' => 'Servus'], []);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame('Servus', $this->lngData()['pilot|greeting']['value']);
+        $this->assertNotNull($this->lngData()['pilot|greeting']['local_change']);
+    }
+
+    public function testAMarkedEntryEqualToTheShippedValueIsNoLocalChange(): void
+    {
+        $this->shipPo(['greeting' => 'Servus']);
+        $this->seedOverlayMarkedAsMerged(['greeting' => 'Servus'], ['greeting']);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(['value' => 'Servus', 'local_change' => null], $this->lngData()['pilot|greeting']);
+    }
+
+    /**
+     * The mark of a plural message holds for all its forms.
+     */
+    public function testNewShippedFormsWinOverAPluralMessageMarkedAsMerged(): void
+    {
+        $this->shipPluralPo(['item' => ['Eintrag', 'Einträge']], self::TWO_FORMS);
+        $this->writeLocalOverlay(['item [0]' => 'Servus-Eintrag', 'item [1]' => 'Servus-Einträge']);
+        $overlay = $this->overlayPo();
+        LocalChangeComments::setMergedIntoShipped($overlay->find(null, 'item') ?? $overlay->find(self::MODULE, 'item'), true);
+        MigratedPoFixture::writePair($this->overlayBase(), $overlay);
+        $this->shipPluralPo(['item' => ['Neu-Eintrag', 'Neu-Einträge']], self::TWO_FORMS);
+
+        $this->manager()->insertLanguageForInstallation('de');
+
+        $this->assertSame(['value' => 'Neu-Einträge', 'local_change' => null], $this->lngData()['pilot|item']);
+        $this->assertFileDoesNotExist($this->overlayBase() . '.po', 'no overlay left');
+    }
+
     // ------------------------------------------------- after the DB write
 
     public function testAModuleArrayThatCannotBeReadBackThrowsLanguageDataNotSaved(): void

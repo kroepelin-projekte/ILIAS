@@ -23,6 +23,7 @@ namespace ILIAS\Language\Setup;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\LegacyFuzzyMarker;
+use ILIAS\Language\ComponentTranslation\LocalChangeComments;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
@@ -1035,18 +1036,48 @@ class LanguageInstallationManager
      * An overlay `.mo` without its `.po` is reported here as unreadable, and its sync() fails
      * instead of removing it.
      *
+     * An entry "merge" took over into the shipped `.po` (and not changed since, see
+     * LocalChangeComments::isMergedIntoShipped()) gets its own value as "original": that value is
+     * the one shipped last, so resolveMigratedModule() treats it as L === O - a newer shipped value
+     * wins, the entry is no local change any more. Without this, its "original" would still be the
+     * value shipped before merge, and the taken over value would stay a local change for good.
+     *
      * @return array<string, array{value: string, local_change: bool, local_change_date: ?string, original: ?string}>|null
      */
     private function loadOverlay(string $lang_key, string $module, ?string $client_data_dir): ?array
     {
         try {
-            return MigratedLanguageFileSync::loadLocalChanges(
+            $overlay = MigratedLanguageFileSync::loadLocalChanges(
                 $this->language_file_directory_manager,
                 $lang_key,
                 $module,
                 $client_data_dir,
                 $this->absolute_path
             );
+            if ($overlay === null || $overlay === []) {
+                return $overlay;
+            }
+            $catalog = MigratedLanguageFileSync::readOverlayCatalog(
+                $this->language_file_directory_manager,
+                $lang_key,
+                $module,
+                $client_data_dir,
+                $this->absolute_path
+            );
+            $merged = [];
+            foreach ($catalog === null ? [] : MigratedLanguageFileSync::moduleEntries($catalog, $module) as $entry) {
+                if (LocalChangeComments::isMergedIntoShipped($entry)) {
+                    $merged[$entry->getId()] = true;
+                }
+            }
+            foreach ($overlay as $key => $state) {
+                // a form of a plural message (see PluralFormKey) belongs to the entry of its identifier
+                if (isset($merged[(string) $key]) || isset($merged[PluralFormKey::parse((string) $key)[0] ?? ''])) {
+                    $overlay[$key]['original'] = $state['value'];
+                }
+            }
+
+            return $overlay;
         } catch (\Throwable $t) {
             error_log(sprintf(
                 'Could not read the overlay of migrated module "%s", language "%s" - ignoring it: %s',
