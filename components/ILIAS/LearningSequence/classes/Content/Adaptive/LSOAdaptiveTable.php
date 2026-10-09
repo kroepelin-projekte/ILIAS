@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\LearningSequence\Content\Adaptive;
 
+use ILIAS\UI\Component\Button\Tag;
+
 /**
  * Renders the adaptive learning sequence content table.
  */
@@ -93,6 +95,8 @@ readonly class LSOAdaptiveTable
                 ->withLeadingSymbol($leading_icon)
                 ->withSubheadline($record->description)
                 ->withContent($content)
+                ->withFurtherFieldsHeadline($this->lng->txt('lso_adaptive_information'))
+                ->withFurtherFields($env['further_fields']($record))
                 ->withAction($actions);
         };
 
@@ -126,38 +130,35 @@ readonly class LSOAdaptiveTable
                 $this->ui_factory->link()->standard($record->title, $record->href)
             );
 
-            $badges_html = '';
+            $tags = [];
             if ($record->is_online) {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--online">'
-                    . $this->lng->txt('table_online') . '</span>';
+                $tags[] = $this->buildStatusTag('table_online', Tag::REL_LOW);
             } else {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--offline">'
-                    . $this->lng->txt('lso_adaptive_offline') . '</span>';
+                $tags[] = $this->buildStatusTag('lso_adaptive_offline', Tag::REL_MID);
             }
 
             if ($record->start_object !== '') {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--start">'
-                    . $this->lng->txt('lso_adaptive_start') . '</span>';
+                $tags[] = $this->buildStatusTag('lso_adaptive_start', Tag::REL_LOW);
             }
             if ($record->end_object !== '') {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--end">'
-                    . $this->lng->txt('lso_adaptive_end') . '</span>';
+                $tags[] = $this->buildStatusTag('lso_adaptive_end', Tag::REL_LOW);
             }
             if ($record->end_object === '' && !$record->has_structural_successor) {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--dead-end">'
-                    . $this->lng->txt('lso_adaptive_dead_end') . '</span>';
+                $tags[] = $this->buildStatusTag('lso_adaptive_dead_end', Tag::REL_HIGH);
             }
             if ($record->has_conflicting_input_configuration) {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--misconfigured">'
-                    . $this->lng->txt('lso_adaptive_misconfigured') . '</span>'
-                    . $this->renderMisconfigurationPopoverTrigger($record);
+                $tags = [...$tags, ...$this->buildMisconfigurationTag($record)];
             }
             if ($record->start_object === '' && !$record->has_structural_predecessor) {
-                $badges_html .= ' <span class="alp-cm-badge alp-cm-badge--entry-point">'
-                    . $this->lng->txt('lso_adaptive_entry_point') . '</span>';
+                $tags[] = $this->buildStatusTag('lso_adaptive_entry_point', Tag::REL_LOW);
             }
 
-            return $link_html . $badges_html;
+            $tags_html = array_map(
+                fn(\ILIAS\UI\Component\Component $tag): string => $this->ui_renderer->render($tag),
+                $tags
+            );
+
+            return $link_html . ' ' . implode(' ', $tags_html);
         };
 
         $actions = function (\ilObjLearningSequenceContentData $record) use (&$modals) {
@@ -166,7 +167,7 @@ readonly class LSOAdaptiveTable
             $ref_id = $lso->getRefId();
             $obj_id = $lso->getId();
 
-            $specific_actions = (new LSOAdaptiveContent(
+            $specific_actions = new LSOAdaptiveContent(
                 $this->parent_gui,
                 $this->ui_factory,
                 $this->ui_renderer,
@@ -176,7 +177,7 @@ readonly class LSOAdaptiveTable
                 $this->tpl,
                 $ref_id,
                 $obj_id
-            ))->getSpecificActions(
+            )->getSpecificActions(
                 $record->ref_id,
                 $this->start_ref_id,
                 $this->end_ref_id
@@ -214,48 +215,45 @@ readonly class LSOAdaptiveTable
         };
 
         $content = function (\ilObjLearningSequenceContentData $record) {
-            $input = $record->input_conditions;
-            $output = $record->output_conditions;
-            $previous_objects = trim($record->previous_objects);
-            $next_objects = trim($record->next_objects);
-
-            $html_conditions = '<div class="alp-cm-conditions">';
-            $html_conditions .= '<h4 class="alp-cm-conditions__title">'
-                . $this->lng->txt('input_conditions') . '</h4>';
-            $html_conditions .= $this->renderKeyValueList($input);
-            $html_conditions .= '<h4 class="alp-cm-conditions__title alp-cm-conditions__title--spaced">'
-                . $this->lng->txt('output_conditions') . '</h4>';
-            $html_conditions .= $this->renderKeyValueList($output);
-            $html_conditions .= '</div>';
-
-            $html_info = '<div class="alp-cm-info">';
-            $html_info .= '<h4 class="alp-cm-info__title">'
-                . $this->lng->txt('lso_adaptive_information') . '</h4>';
-            $html_info .= '<div class="alp-cm-info__item"><span class="alp-cm-info__label">'
-                . $this->lng->txt('lso_adaptive_previous_object') . ':</span> '
-                . $this->renderInfoValue($previous_objects) . '</div>';
-            $html_info .= '<div class="alp-cm-info__item"><span class="alp-cm-info__label">'
-                . $this->lng->txt('lso_adaptive_next_object') . ':</span> '
-                . $this->renderInfoValue($next_objects) . '</div>';
-            $html_info .= '</div>';
-
-            return $this->ui_factory->layout()->alignment()->horizontal()->evenlyDistributed(
-                $this->ui_factory->legacy()->content($html_conditions),
-                $this->ui_factory->legacy()->content($html_info)
-            );
+            return $this->ui_factory->listing()->descriptive([
+                $this->lng->txt('input_conditions') => $this->buildConditionListing($record->input_conditions),
+                $this->lng->txt('output_conditions') => $this->buildConditionListing($record->output_conditions),
+            ]);
         };
+
+        $further_fields = fn(\ilObjLearningSequenceContentData $record): array => [
+            $this->lng->txt('lso_adaptive_previous_object') . ':' => htmlspecialchars(trim($record->previous_objects)),
+            $this->lng->txt('lso_adaptive_next_object') . ':' => htmlspecialchars(trim($record->next_objects)),
+        ];
 
         return [
             'headline' => $headline,
             'actions' => $actions,
             'content' => $content,
+            'further_fields' => $further_fields,
         ];
     }
 
-    private function renderMisconfigurationPopoverTrigger(\ilObjLearningSequenceContentData $record): string
+    /**
+     * Builds a display-only status tag.
+     */
+    private function buildStatusTag(string $language_var, string $relevance): \ILIAS\UI\Component\Button\Button
+    {
+        return $this->ui_factory->button()
+            ->tag($this->lng->txt($language_var), '')
+            ->withRelevance($relevance)
+            ->withUnavailableAction();
+    }
+
+    /**
+     * Builds the misconfiguration tag. If issue details exist, the tag opens them in a popover.
+     *
+     * @return \ILIAS\UI\Component\Component[]
+     */
+    private function buildMisconfigurationTag(\ilObjLearningSequenceContentData $record): array
     {
         if ($record->static_input_configuration_issue_details === []) {
-            return '';
+            return [$this->buildStatusTag('lso_adaptive_misconfigured', Tag::REL_HIGH)];
         }
 
         $items = [];
@@ -281,13 +279,12 @@ readonly class LSOAdaptiveTable
             ->listing($items)
             ->withTitle($this->lng->txt('lso_adaptive_misconfigured'))
             ->withVerticalPosition();
-        $trigger = $this->ui_factory->button()
-            ->shy('', '')
-            ->withSymbol($this->ui_factory->symbol()->glyph()->help())
-            ->withAriaLabel($this->lng->txt('lso_adaptive_misconfigured_details'))
+        $tag = $this->ui_factory->button()
+            ->tag($this->lng->txt('lso_adaptive_misconfigured'), '')
+            ->withRelevance(Tag::REL_HIGH)
             ->withOnClick($popover->getShowSignal());
 
-        return ' ' . $this->ui_renderer->render([$popover, $trigger]);
+        return [$popover, $tag];
     }
 
     /**
@@ -365,55 +362,23 @@ readonly class LSOAdaptiveTable
     }
 
     /**
-     * Renders a list of condition titles and values.
+     * Builds a listing of condition titles and values.
      *
      * @param \ilObjLearningSequenceConditionData[] $conditions
      */
-    private function renderKeyValueList(array $conditions): string
+    private function buildConditionListing(array $conditions): string|\ILIAS\UI\Component\Listing\Property
     {
         if ($conditions === []) {
-            return '<div class="alp-cm-conditions__empty">'
-                . $this->lng->txt('no_conditions')
-                . '</div>';
+            return $this->lng->txt('no_conditions');
         }
 
-        $html = '<ul class="alp-cm-kv-list">';
+        $listing = $this->ui_factory->listing()->property();
         foreach ($conditions as $condition) {
-            $html .= '<li class="alp-cm-kv-list__item">'
-                . '<span class="alp-cm-kv-list__condition">'
-                . htmlspecialchars($condition->title)
-                . '</span>';
-
-            if ($condition->value !== '') {
-                $html .= '<span class="alp-cm-kv-list__separator">:</span>'
-                    . '<span class="alp-cm-kv-list__value">'
-                    . htmlspecialchars($condition->value)
-                    . '</span>';
-            }
-
-            $html .= '</li>';
-        }
-        $html .= '</ul>';
-        return $html;
-    }
-
-    private function renderInfoValue(string $value): string
-    {
-        $no_conditions = trim($this->lng->txt('no_conditions'));
-        if ($value !== $no_conditions) {
-            return '<span class="alp-cm-info__value">' . htmlspecialchars($value) . '</span>';
+            $listing = $condition->value === ''
+                ? $listing->withProperty($condition->title, $condition->title, false)
+                : $listing->withProperty($condition->title, $condition->value);
         }
 
-        if (!preg_match('/^([^\p{L}\p{N}]*)((?:[\p{L}\p{N}]+(?:\s+[\p{L}\p{N}]+)*)?)([^\p{L}\p{N}]*)$/u', $no_conditions, $matches)) {
-            return '<span class="alp-cm-info__value alp-cm-info__no-conditions">'
-                . htmlspecialchars($value)
-                . '</span>';
-        }
-
-        return '<span class="alp-cm-info__value">'
-            . htmlspecialchars($matches[1])
-            . '<span class="alp-cm-info__no-conditions">' . htmlspecialchars($matches[2]) . '</span>'
-            . htmlspecialchars($matches[3])
-            . '</span>';
+        return $listing;
     }
 }
