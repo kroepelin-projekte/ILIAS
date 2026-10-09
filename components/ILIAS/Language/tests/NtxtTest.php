@@ -187,6 +187,22 @@ class NtxtTest extends ilLanguageBaseTestCase
     }
 
     /**
+     * The fallback module of ntxt() is read without loadLanguageModule(), like txt() does - and gives
+     * the plural form, not the one default form lng_data holds.
+     */
+    public function testServesThePluralFormFromTheFallbackModuleWithoutLoadingIt(): void
+    {
+        $catalog = self::pluralCatalog('ntxt', 'nplurals=2; plural=(n != 1);', 'item', ['Eintrag', 'Einträge']);
+        $this->stubUsageLogDependencies();
+        $this->registerDirectoryManager($this->contributeModule('ntxt', $catalog));
+
+        $language = $this->buildLanguage();
+
+        $this->assertSame('Eintrag', $language->ntxt('item', 1, 'ntxt'));
+        $this->assertSame('Einträge', $language->ntxt('item', 5, 'ntxt'));
+    }
+
+    /**
      * No "Plural-Forms" header at all: PluralForms::fromHeaderOrGermanic() falls back to the Germanic
      * rule (n==1 -> form 0, else form 1) instead of failing loadLanguageModule() or throwing out of
      * ntxt().

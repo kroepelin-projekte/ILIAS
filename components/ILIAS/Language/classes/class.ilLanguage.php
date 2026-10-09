@@ -285,10 +285,18 @@ class ilLanguage implements \ILIAS\Language\Language
      * not migrated, a plugin, an identifier without plural forms, a form that is empty - exactly what
      * txt($a_topic, $a_default_lang_fallback_mod) returns. The quantity is not inserted into the
      * text; callers do that, e.g. with sprintf().
+     *
+     * If txt() would serve $a_topic from $a_default_lang_fallback_mod (no loaded module has a value
+     * for it), the fallback module is read like translate() reads a LanguageIdentifier: no
+     * loadLanguageModule() needed, a module migrated for the language gives the plural form, the
+     * language of this instance first and then the default language (#13467).
      */
     public function ntxt(string $a_topic, int $a_n, string $a_default_lang_fallback_mod = ""): string
     {
         $module = $a_topic === '' ? null : ($this->migrated_key_modules[$a_topic] ?? null);
+        if ($module === null && $a_default_lang_fallback_mod !== '' && ($this->text[$a_topic] ?? '') === '') {
+            return $this->translateInModule($a_default_lang_fallback_mod, $a_topic, $a_n, $this->migratedLangKey());
+        }
         $value = $module === null
             ? null
             : MigratedTranslations::pluralText($module, $this->migratedLangKey(), $a_topic, $a_n, self::clientDataDir());
