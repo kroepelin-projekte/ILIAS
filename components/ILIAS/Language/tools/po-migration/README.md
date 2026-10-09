@@ -582,6 +582,16 @@ Nur wenn `CLIENT_DATA_DIR` definiert ist — vorher (z. B. in Setup-Objectives e
   Kollisionen bedeutet derselbe Key meist etwas anderes, ein falscher Text fällt schwerer auf als
   `-key-`). Das gilt auch, wenn das frühere Modul nicht migriert ist; nur das vom Aufrufer genannte
   Fallback-Modul (`txt($key, $modul)`) greift weiter. Das Usage-Log nutzt die Zuordnung.
+- **`translate(string|LanguageIdentifier $key, ?int $n = null, ?string $lang = null)`** (seit 2026-10-06,
+  nicht im Interface): Mit einem `ILIAS\Language\LanguageIdentifier` (generiertes Enum pro Modul,
+  `tools/language-identifier-enum/`) wird der Key direkt in der Domain **seines** Moduls nachgeschlagen –
+  ohne Zuordnung, ohne vorheriges `loadLanguageModule()`, also ohne Kollision. Von einem nicht
+  migrierten Modul werden für die aktuelle Sprache die Werte gelesen (Cache bzw. `lng_modules`, im
+  Request zwischengespeichert) und sein eigener Wert geliefert – ohne Seiteneffekt auf `txt()` (nicht
+  in `$text`, nicht in die geladenen Module, Zuordnung unverändert); für andere Sprachen aus `lng_data`; ohne Text
+  Rückfall auf die Standardsprache, sonst `-key-`. Mit einem String ohne `$lang` exakt
+  `txt()`/`ntxt()`; mit anderer `$lang` genau eine Abfrage im Modul, aus dem `txt()` den Key liefert
+  (Zuordnung, sonst das zuletzt geladene Modul, das ihn enthält), ohne Standardsprachen-Rückfall.
 - **Ausfall** (Extension fehlt, Locale nicht aktivierbar, Katalog nicht lesbar, kein Build): `-key-`,
   ein Log-Eintrag pro Problem und Request (mit vollen Pfaden), und `MigratedTranslations::getProblem()`
   für die Sprachverwaltung: Fehler-Box für Probleme aller migrierten Module (natives gettext, kein
@@ -638,8 +648,10 @@ Ladereihenfolge, gleiches `array_merge`). Für den Rollout gilt aber:
 - Schon heute unerkannt: `poll` (migriert) und `rbac` (nicht migriert) teilen `poll_copy`.
 - Sind beide Module eines Paars migriert, nennt `setup build` jeden betroffenen Identifier mit den
   Modulen und Sprachen. Reine Übersetzungsunterschiede zählen mit.
-- Beheben lässt sich eine Kollision nur durch Umbenennen eines Keys samt Aufrufern (FR 2.5 schließt
-  eine Signaturänderung von `txt()` aus). Die Aufrufer liegen meist in anderen Komponenten.
+- Beheben lässt sich eine Kollision über `txt()` nur durch Umbenennen eines Keys samt Aufrufern
+  (FR 2.5 schließt eine Signaturänderung von `txt()` aus). Die Aufrufer liegen meist in anderen
+  Komponenten. Ohne Umbenennen: Aufrufer auf `translate(<Modul>LanguageIdentifier::<KEY>)` umstellen – das
+  Enum nennt das Modul, der Wert kommt immer aus diesem (seit 2026-10-06).
 
 ## Pluralformen
 

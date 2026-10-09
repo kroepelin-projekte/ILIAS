@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\LanguageIdentifier;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
@@ -181,6 +182,17 @@ class ilSetupLanguage extends ilLanguage
         }
 
         return $translation;
+    }
+
+    /**
+     * Exactly txt() of the identifier ($key itself, or the value of a LanguageIdentifier): Setup needs
+     * English at most and translates nothing beyond what txt() of this class does, so $n and $lang
+     * have no effect, the module of a LanguageIdentifier is not used, and nothing is added to what
+     * txt() returns or logs.
+     */
+    public function translate(string|LanguageIdentifier $key, ?int $n = null, ?string $lang = null): string
+    {
+        return $this->txt($key instanceof LanguageIdentifier ? (string) $key->value : $key);
     }
 
     /**

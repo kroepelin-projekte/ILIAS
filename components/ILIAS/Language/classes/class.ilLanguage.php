@@ -22,6 +22,7 @@ use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedTranslations;
+use ILIAS\Language\LanguageIdentifier;
 
 /**
  * language handling
@@ -40,6 +41,9 @@ use ILIAS\Language\ComponentTranslation\MigratedTranslations;
  * its identifiers in $migrated_key_modules, and txt() looks them up when asked. The DB path exists
  * to be fully replaced and eventually removed as more modules migrate onto the file-based one, not
  * to be maintained forever alongside it.
+ *
+ * translate() reads an identifier given as LanguageIdentifier (enum case of a module) from exactly its
+ * module, in both backends, without loadLanguageModule() beforehand - see there.
  *
  * @author Peter Gabriel <pgabriel@databay.de>
  * @version $Id$
@@ -87,6 +91,16 @@ class ilLanguage implements \ILIAS\Language\Language
      * @var array<string, bool>
      */
     private static array $shipped_without_build = [];
+
+    /**
+     * Identifier => value per module that is not migrated, for the language of this instance - read
+     * by loadLanguageModule() or by translate() (see moduleTexts()), so translate() serves the value
+     * of the module a LanguageIdentifier names, not the one of the module loaded last ($text). Holds the
+     * same arrays as cached_modules or $text was merged from (copy-on-write, no copy).
+     *
+     * @var array<string, array<string|int, mixed>>
+     */
+    private array $module_texts = [];
     protected array $cached_modules = array();
     protected array $map_modules_txt = array();
     protected bool $usage_log_enabled = false;
@@ -303,13 +317,188 @@ class ilLanguage implements \ILIAS\Language\Language
     }
 
     /**
-     * Load language module
+     * The text of $key, optionally for the quantity $n (plural form, see ntxt()) and in the language
+     * $lang (default: the language of this instance). The successor of txt(), ntxt() and txtlng():
+     *
+     * - A LanguageIdentifier (an enum case of a module, see LanguageIdentifier) is read from exactly its module -
+     *   no loadLanguageModule() beforehand and no dependency on which module was loaded last. A
+     *   module migrated for the language is looked up directly in its build and overlay (see
+     *   MigratedTranslations); of a module that is not migrated, the values for the language of this
+     *   instance are read (from the cache of lng_modules, else lng_modules) and kept for the request,
+     *   for any other language its entry is read from lng_data. Without side effect on txt() & Co.:
+     *   nothing goes into $text or the loaded modules, nothing changes which module is responsible
+     *   for an identifier (as a migrated module is never loaded here either). If the module has no
+     *   (non-empty) text for the language, the one of the default language is served (like txt() with
+     *   a fallback module, #13467), otherwise "-identifier-".
+     * - A string without $lang behaves exactly like txt($key) (without $n) or ntxt($key, $n) - the
+     *   modules loaded so far decide, the one loaded last wins. With a $lang other than the language of
+     *   this instance, the module responsible for $key in this instance is read in $lang - exactly one
+     *   lookup: the migrated module the identifier is assigned to (see txt()), else the module loaded
+     *   last whose values contain the identifier. No fallback to the default language there (as with
+     *   txtlng()) - "-identifier-" if that module has no text in $lang or no module is responsible.
+     *
+     * A $lang that is no language key (two lower case letters) is treated like a language without
+     * texts: nothing is looked up for it. An empty identifier (as for txt(): also "0") gives "".
+     *
+     * $n only selects a plural form of a plural message of a migrated module; everywhere else it is
+     * ignored. The quantity is not inserted into the text; callers do that, e.g. with sprintf().
      */
-    public function loadLanguageModule(string $a_module): void
+    public function translate(string|LanguageIdentifier $key, ?int $n = null, ?string $lang = null): string
+    {
+        if ($key instanceof LanguageIdentifier) {
+            return $this->translateInModule($key->module(), (string) $key->value, $n, $lang ?? $this->migratedLangKey());
+        }
+        if ($lang === null || $lang === $this->migratedLangKey()) {
+            return $n === null ? $this->txt($key) : $this->ntxt($key, $n);
+        }
+
+        return $this->translateInLanguage($key, $n, $lang);
+    }
+
+    /**
+     * translate() for an identifier of a known module, see there.
+     */
+    private function translateInModule(string $module, string $a_topic, ?int $n, string $lang_key): string
+    {
+        // like txt(""): never the header of a catalog
+        if (empty($a_topic)) {
+            return '';
+        }
+        self::$used_topics[$a_topic] = $a_topic;
+
+        $translation = $this->moduleText($module, $a_topic, $n, $lang_key);
+        $default_lang_key = $this->getDefaultLanguage();
+        if ($translation === null && $lang_key !== $default_lang_key) {
+            $translation = $this->moduleText($module, $a_topic, $n, $default_lang_key);
+        }
+
+        return $translation ?? $this->missingText($a_topic, $lang_key);
+    }
+
+    /**
+     * translate() for an identifier given as string in a language other than the one of this
+     * instance, see there.
+     */
+    private function translateInLanguage(string $a_topic, ?int $n, string $lang_key): string
+    {
+        if (empty($a_topic)) {
+            return '';
+        }
+        self::$used_topics[$a_topic] = $a_topic;
+
+        $module = $this->responsibleModule($a_topic);
+
+        return ($module === null ? null : $this->moduleText($module, $a_topic, $n, $lang_key))
+            ?? $this->missingText($a_topic, $lang_key);
+    }
+
+    /**
+     * The module txt() serves $a_topic from in this instance: the migrated module it is assigned to,
+     * else the module loaded last (not migrated) whose values contain it - `null` if none.
+     */
+    private function responsibleModule(string $a_topic): ?string
+    {
+        $module = $this->migrated_key_modules[$a_topic] ?? null;
+        if ($module !== null) {
+            return $module;
+        }
+        foreach (array_reverse($this->loaded_modules) as $loaded_module) {
+            if (array_key_exists($a_topic, $this->module_texts[$loaded_module] ?? [])) {
+                return (string) $loaded_module;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The non-empty text of $a_topic in $module for $lang_key (the plural form for $n, if $n is given
+     * and $module is migrated and has one), `null` if there is none. Records the usage of a text found.
+     */
+    private function moduleText(string $module, string $a_topic, ?int $n, string $lang_key): ?string
+    {
+        if (!MigratedLanguageFilePaths::isValidLanguageKey($lang_key)) {
+            return null;
+        }
+        if (self::migratedKeysOf($module, $lang_key) !== null) {
+            $translation = $n === null
+                ? null
+                : MigratedTranslations::pluralText($module, $lang_key, $a_topic, $n, self::clientDataDir());
+            if ($translation === null || $translation === '') {
+                $translation = MigratedTranslations::text($module, $lang_key, $a_topic, self::clientDataDir());
+            }
+        } elseif ($lang_key === $this->migratedLangKey()) {
+            $translation = $this->moduleTexts($module, $lang_key)[$a_topic] ?? null;
+        } else {
+            $translation = self::lookupDatabaseEntry($lang_key, $module, $a_topic);
+        }
+        if (!is_string($translation) || $translation === '') {
+            return null;
+        }
+
+        self::$used_modules[$module] = $module;
+        if ($this->usage_log_enabled) {
+            self::logUsage($module, $a_topic);
+        }
+
+        return $translation;
+    }
+
+    /**
+     * The values of $module (not migrated) for $lang_key, the language of this instance: as
+     * loadLanguageModule() read them, else from cached_modules or lng_modules - without loading the
+     * module (see translate()). Empty if it has none.
+     *
+     * @return array<string|int, mixed>
+     */
+    private function moduleTexts(string $module, string $lang_key): array
+    {
+        if (!isset($this->module_texts[$module])) {
+            $cached = $this->cached_modules[$module] ?? null;
+            $this->module_texts[$module] = is_array($cached) ? $cached : (self::readModuleTexts($module, $lang_key) ?? []);
+        }
+
+        return $this->module_texts[$module];
+    }
+
+    /**
+     * The values of $module for $lang_key from lng_modules, `null` if there is no (valid) row.
+     *
+     * @return array<string|int, mixed>|null
+     */
+    private static function readModuleTexts(string $module, string $lang_key): ?array
     {
         global $DIC;
         $ilDB = $DIC->database();
 
+        $q = "SELECT lang_array FROM lng_modules " .
+                "WHERE lang_key = " . $ilDB->quote($lang_key, "text") . " AND module = " .
+                $ilDB->quote($module, "text");
+        $r = $ilDB->query($q);
+        $row = $r->fetchRow(ilDBConstants::FETCHMODE_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+        $texts = unserialize($row["lang_array"], ["allowed_classes" => false]);
+
+        return is_array($texts) ? $texts : null;
+    }
+
+    private function missingText(string $a_topic, string $lang_key): string
+    {
+        if (ILIAS_LOG_ENABLED && is_object($this->log)) {
+            $lang_key = MigratedLanguageFilePaths::isValidLanguageKey($lang_key) ? $lang_key : 'invalid language key';
+            $this->log->debug("Language (" . $lang_key . "): topic -" . $a_topic . "- not present");
+        }
+
+        return "-" . $a_topic . "-";
+    }
+
+    /**
+     * Load language module
+     */
+    public function loadLanguageModule(string $a_module): void
+    {
         if (in_array($a_module, $this->loaded_modules, true)) {
             return;
         }
@@ -340,6 +529,7 @@ class ilLanguage implements \ILIAS\Language\Language
         }
 
         if (isset($this->cached_modules[$a_module]) && is_array($this->cached_modules[$a_module])) {
+            $this->module_texts[$a_module] = $this->cached_modules[$a_module];
             $this->text = array_merge($this->text, $this->cached_modules[$a_module]);
             $this->forgetMigratedKeys($this->cached_modules[$a_module]);
 
@@ -352,18 +542,9 @@ class ilLanguage implements \ILIAS\Language\Language
             return;
         }
 
-        $q = "SELECT lang_array FROM lng_modules " .
-                "WHERE lang_key = " . $ilDB->quote($lang_key, "text") . " AND module = " .
-                $ilDB->quote($a_module, "text");
-        $r = $ilDB->query($q);
-        $row = $r->fetchRow(ilDBConstants::FETCHMODE_ASSOC);
-
-        if ($row === false) {
-            return;
-        }
-
-        $new_text = unserialize($row["lang_array"], ["allowed_classes" => false]);
-        if (is_array($new_text)) {
+        $new_text = self::readModuleTexts($a_module, $lang_key);
+        if ($new_text !== null) {
+            $this->module_texts[$a_module] = $new_text;
             $this->text = array_merge($this->text, $new_text);
             $this->forgetMigratedKeys($new_text);
 
@@ -581,19 +762,8 @@ class ilLanguage implements \ILIAS\Language\Language
             return $value;
         }
 
-        global $DIC;
-        $ilDB = $DIC->database();
-
-        $set = $ilDB->query($q = sprintf(
-            "SELECT value FROM lng_data WHERE module = %s " .
-            "AND lang_key = %s AND identifier = %s",
-            $ilDB->quote($a_mod, "text"),
-            $ilDB->quote($a_lang_key, "text"),
-            $ilDB->quote($a_id, "text")
-        ));
-        $rec = $ilDB->fetchAssoc($set);
-
-        if (isset($rec["value"]) && $rec["value"] != "") {
+        $value = self::lookupDatabaseEntry($a_lang_key, $a_mod, $a_id);
+        if ($value !== null) {
             // remember the used topics
             self::$used_topics[$a_id] = $a_id;
             self::$used_modules[$a_mod] = $a_mod;
@@ -602,10 +772,31 @@ class ilLanguage implements \ILIAS\Language\Language
                 self::logUsage($a_mod, $a_id);
             }
 
-            return $rec["value"];
+            return $value;
         }
 
         return "-" . $a_id . "-";
+    }
+
+    /**
+     * The value of $a_id in $a_mod for $a_lang_key from lng_data, `null` if there is none or it is
+     * empty.
+     */
+    private static function lookupDatabaseEntry(string $a_lang_key, string $a_mod, string $a_id): ?string
+    {
+        global $DIC;
+        $ilDB = $DIC->database();
+
+        $set = $ilDB->query(sprintf(
+            "SELECT value FROM lng_data WHERE module = %s " .
+            "AND lang_key = %s AND identifier = %s",
+            $ilDB->quote($a_mod, "text"),
+            $ilDB->quote($a_lang_key, "text"),
+            $ilDB->quote($a_id, "text")
+        ));
+        $rec = $ilDB->fetchAssoc($set);
+
+        return isset($rec["value"]) && $rec["value"] != "" ? (string) $rec["value"] : null;
     }
 
     /**

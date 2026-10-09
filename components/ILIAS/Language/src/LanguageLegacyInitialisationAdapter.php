@@ -30,6 +30,25 @@ class LanguageLegacyInitialisationAdapter implements Language
         return $this->getLegacyLanguageInstance()->txt($a_topic, $a_default_lang_fallback_mod);
     }
 
+    /**
+     * See \ilLanguage::translate() - not (yet) part of the interface Language, so other
+     * implementations of it do not break; for one without translate() the identifier is looked up
+     * with txt() (after loading the module of a LanguageIdentifier), $n and $lang have no effect then.
+     */
+    public function translate(string|LanguageIdentifier $key, ?int $n = null, ?string $lang = null): string
+    {
+        $language = $this->getLegacyLanguageInstance();
+        if ($language instanceof \ilLanguage) {
+            return $language->translate($key, $n, $lang);
+        }
+        if ($key instanceof LanguageIdentifier) {
+            $language->loadLanguageModule($key->module());
+            return $language->txt((string) $key->value);
+        }
+
+        return $language->txt($key);
+    }
+
     public function loadLanguageModule(string $a_module): void
     {
         $this->getLegacyLanguageInstance()->loadLanguageModule($a_module);
