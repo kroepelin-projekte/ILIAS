@@ -383,13 +383,17 @@ class ilObjLanguageExt extends ilObjLanguage
      *     skipped: list<string>,
      *     invalid_markup: array<string, list<string>>,
      *     not_merged: list<string>,
-     *     unwritten_database: list<string>
+     *     unwritten_database: list<string>,
+     *     not_single_client: list<string>
      * } for the modules maintained in PO files: written - the shipped .po files written (relative to
      *   the ILIAS directory); skipped - the modules left out as a whole (e.g. not writable, logged
      *   with the reason); invalid_markup - module.separator.identifier => violations of values not
      *   taken over because of markup that is not allowed; not_merged - module.separator.identifier of
      *   entries that could not be taken over (see ShippedPoMerger, logged); unwritten_database - modules whose lng_data
-     *   rows could not be updated (logged; their files are written)
+     *   rows could not be updated (logged; their files are written); not_single_client - the modules
+     *   maintained in PO files with local changes (an overlay) left out because the installation does
+     *   not have exactly one client: their shipped .po are shared by every client (see
+     *   isSingleClientInstallation()), the global language file is written regardless
      */
     public function mergeLocalChangesIntoGlobalLanguageFile(): array
     {
@@ -411,11 +415,69 @@ class ilObjLanguageExt extends ilObjLanguage
         )));
         $global_file_obj->write();
 
+        if (!self::isSingleClientInstallation()) {
+            return [
+                'written' => [],
+                'skipped' => [],
+                'invalid_markup' => [],
+                'not_merged' => [],
+                'unwritten_database' => [],
+                'not_single_client' => $this->modulesWithOverlay($po_modules),
+            ];
+        }
         $result = $this->mergeLocalChangesIntoShippedPoFiles();
         // the shipped values read so far are outdated now
         $this->shipped_migrated_modules = null;
 
-        return $result;
+        return $result + ['not_single_client' => []];
+    }
+
+    /**
+     * The modules of $modules (maintained in PO files) with local changes - an overlay, the modules
+     * ShippedPoMerger::merge() takes over.
+     *
+     * @param list<string> $modules
+     * @return list<string>
+     */
+    private function modulesWithOverlay(array $modules): array
+    {
+        global $DIC;
+
+        if (!$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return [];
+        }
+        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH);
+        if ($client_data_dir === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $modules,
+            fn(string $module): bool => MigratedLanguageFileSync::hasOverlay(
+                $DIC[LanguageFileDirectoryManager::class],
+                $this->key,
+                $module,
+                $client_data_dir
+            )
+        ));
+    }
+
+    /**
+     * Whether this installation has exactly one client - a client directory with a client.ini.php
+     * next to the one of the current client, found like ilSoapAdministration::getInstallationInfoXML()
+     * does. The shipped files (the global language file, the shipped .po of the modules maintained in
+     * PO files) are shared by every client, but a merge only takes over the local changes of the
+     * current client and updates only its database: with more than one client the others no longer
+     * match their shipped files. `false` if the client directory is not known (e.g. no web request).
+     */
+    public static function isSingleClientInstallation(): bool
+    {
+        if (!defined('CLIENT_WEB_DIR')) {
+            return false;
+        }
+        $client_ini_files = glob(dirname(rtrim((string) CLIENT_WEB_DIR, '/')) . '/*/client.ini.php');
+
+        return is_array($client_ini_files) && count($client_ini_files) === 1;
     }
 
     /**
@@ -1243,8 +1305,11 @@ class ilObjLanguageExt extends ilObjLanguage
             ilLanguageFile::_getGlobalLanguageFile($a_lang_key),
             $shipped_migrated
         );
-        $db_values = self::_getValues($a_lang_key);
-        $db_comments = self::_getRemarks($a_lang_key);
+        // A "delete"-mode import wiped lng_data before: every entry is written anew. For a module
+        // maintained in PO files _getValues()/_getRemarks() would still read its files and overlay,
+        // an entry equal to them would then not be written and miss in lng_data
+        $db_values = $merge_onto_current_content ? self::_getValues($a_lang_key) : [];
+        $db_comments = $merge_onto_current_content ? self::_getRemarks($a_lang_key) : [];
         $global_values = array_merge($db_values, $file_values);
         $global_comments = array_merge($db_comments, $file_comments);
 
@@ -1300,30 +1365,43 @@ class ilObjLanguageExt extends ilObjLanguage
                 }
             }
             $save_array[$module][$topic] = $value;
+            $is_po_module = in_array($module, $shipped_migrated['modules'], true);
 
             // A module maintained in PO files keeps its remarks in its overlay, too - see below
-            $is_remark_changed = in_array($module, $shipped_migrated['modules'], true)
+            $is_remark_changed = $is_po_module
                 && array_key_exists($key, $a_remarks)
                 && (string) $a_remarks[$key] !== (string) ($db_comments[$key] ?? '');
             if ($is_remark_changed) {
                 $remark_changes[$module][$topic] = (string) $a_remarks[$key];
             }
 
-            $are_comments_set = array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
+            // A module maintained in PO files: its remark is compared with the stored one only
+            // ($is_remark_changed). The `#.` note of its shipped .po is no remark (the table does not
+            // show it), comparing with it would turn every unchanged entry with a note into a local
+            // change
+            $are_comments_set = !$is_po_module && array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
             $is_comment_changed = $are_comments_set ? $global_comments[$key] != $a_remarks[$key] : $are_comments_set;
             $are_changes_made = (isset($global_values[$key]) ? $global_values[$key] != $value : true) || (isset($db_values[$key]) ? $db_values[$key] != $value : true);
             if (!$are_changes_made && !$is_comment_changed && $is_remark_changed) {
                 // only the remark changed: lng_data gets it as well (dual write), the value stays
                 self::updateRemark($module, $topic, $a_lang_key, (string) $a_remarks[$key]);
             } elseif ($are_changes_made || $is_comment_changed) {
-                $local_change = (isset($db_values[$key]) ? $db_values[$key] == $value : true) || (isset($global_values[$key]) ? $global_values[$key] != $value : true) ? $save_date : null;
+                if ($is_po_module) {
+                    // a local change exactly if the value differs from the shipped one, like
+                    // writePluralRows() - the next update compares it with the shipped value
+                    $local_change = !isset($file_values[$key]) || (string) $file_values[$key] !== (string) $value
+                        ? $save_date
+                        : null;
+                } else {
+                    $local_change = (isset($db_values[$key]) ? $db_values[$key] == $value : true) || (isset($global_values[$key]) ? $global_values[$key] != $value : true) ? $save_date : null;
+                }
                 ilObjLanguage::replaceLangEntry(
                     $module,
                     $topic,
                     $a_lang_key,
                     // a migrated module's shipped value as the build serves it (database fallback),
                     // see MigratedLanguageFileSync::databaseValues()
-                    in_array($module, $shipped_migrated['modules'], true)
+                    $is_po_module
                         ? MigratedLanguageFileSync::databaseValues([$key => $value], $shipped_migrated['values'])[$key]
                         : $value,
                     $local_change,

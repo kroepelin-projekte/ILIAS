@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -264,6 +265,86 @@ class ImportUsesShippedValuesOfMigratedModulesTest extends ilLanguageBaseTestCas
         ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Veraltet in lang/']);
 
         $this->assertNotNull($this->local_changes['itest#:#greeting']);
+    }
+
+    /**
+     * The table sends no `#.` note of the shipped .po as remark: saving an unchanged entry that has
+     * one is no local change (the next shipped update would keep the old value), a changed value is.
+     */
+    public function testSavingAnUnchangedEntryWithAShippedNoteIsNoLocalChange(): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        $catalog = MigratedPoFixture::catalog('itest', ['greeting' => 'Aus der PO']);
+        $catalog->find('itest', 'greeting')?->addExtractedComment('Notiz des Entwicklers');
+        MigratedPoFixture::writePo($this->fixture_directory . '/itest_' . self::LANG . '.po', $catalog);
+
+        ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Aus der PO'], ['itest#:#greeting' => '']);
+        $this->assertArrayNotHasKey('itest#:#greeting', $this->local_changes, 'unchanged value and remark: nothing written');
+
+        ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Geändert'], ['itest#:#greeting' => '']);
+        $this->assertNotNull($this->local_changes['itest#:#greeting'], 'a changed value');
+    }
+
+    /**
+     * A locally changed value set back to the shipped one is no local change any more, and its
+     * overlay delta is gone.
+     */
+    public function testSavingALocallyChangedValueBackToTheShippedOneEndsTheLocalChange(): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        MigratedPoFixture::writePair(
+            $this->overlayDirectory() . '/itest_' . self::LANG,
+            MigratedPoFixture::catalog('itest', ['greeting' => 'Lokal'])
+        );
+        $manager = $GLOBALS['DIC'][LanguageFileDirectoryManager::class];
+        $this->assertTrue(MigratedLanguageFileSync::hasOverlay($manager, self::LANG, 'itest', CLIENT_DATA_DIR), 'precondition');
+
+        ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Aus der PO'], ['itest#:#greeting' => '']);
+
+        $this->assertArrayHasKey('itest#:#greeting', $this->local_changes);
+        $this->assertNull($this->local_changes['itest#:#greeting']);
+        $this->assertFalse(MigratedLanguageFileSync::hasOverlay($manager, self::LANG, 'itest', CLIENT_DATA_DIR), 'no delta left');
+    }
+
+    /**
+     * Only the remark of an entry with a shipped `#.` note changes: the remark is stored, the value
+     * is not written again and so is no local change.
+     */
+    public function testChangingOnlyTheRemarkOfAnEntryWithAShippedNoteIsNoLocalChange(): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        $catalog = MigratedPoFixture::catalog('itest', ['greeting' => 'Aus der PO']);
+        $catalog->find('itest', 'greeting')?->addExtractedComment('Notiz des Entwicklers');
+        MigratedPoFixture::writePo($this->fixture_directory . '/itest_' . self::LANG . '.po', $catalog);
+
+        ilObjLanguageExt::_saveValues(self::LANG, ['itest#:#greeting' => 'Aus der PO'], ['itest#:#greeting' => 'Eigene Bemerkung']);
+
+        $this->assertArrayNotHasKey('itest#:#greeting', $this->local_changes);
+        $this->assertNotEmpty(array_filter($this->writes, static fn(string $sql): bool => str_contains($sql, 'remarks') && str_contains($sql, 'Eigene Bemerkung')));
+    }
+
+    /**
+     * "Delete" mode wiped lng_data: every line of the file is written for a migrated module, too -
+     * also one equal to the shipped .po or to the overlay - and a deviation from the shipped value
+     * is a local change.
+     */
+    public function testDeleteModeImportWritesEveryRowOfAMigratedModule(): void
+    {
+        $this->seedGlobalLanguageFile([]);
+        MigratedPoFixture::writePair(
+            $this->overlayDirectory() . '/itest_' . self::LANG,
+            MigratedPoFixture::catalog('itest', ['greeting' => 'Lokal'])
+        );
+        file_put_contents(
+            $this->upload_file,
+            "<!-- language file start -->\nitest#:#greeting#:#Lokal\nitest#:#farewell#:#Tschüss aus der PO\n"
+        );
+
+        $this->languageObject()->importLanguageFile($this->upload_file, 'delete');
+
+        $this->assertNotNull($this->local_changes['itest#:#greeting'] ?? null, 'differs from the shipped value');
+        $this->assertArrayHasKey('itest#:#farewell', $this->local_changes, 'equal to the shipped value, written anyway');
+        $this->assertNull($this->local_changes['itest#:#farewell']);
     }
 
     public static function importModes(): array

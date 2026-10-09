@@ -22,6 +22,7 @@ namespace ILIAS\Language\Setup;
 
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\LegacyFuzzyMarker;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\ComponentTranslation\PlainLogText;
@@ -474,8 +475,9 @@ class LanguageInstallationManager
      * @param bool $keep_local_changes whether local changes recorded only in a migrated module's
      *        overlay count as local changes (false for "remove local changes")
      * @param bool $delete_unchanged_migrated_rows whether the not locally changed lng_data rows of the
-     *        migrated modules are deleted before they are rewritten from the shipped `.po` - needed
-     *        where the caller did not flush the language first ("apply local changes")
+     *        migrated modules that are no longer written from the shipped `.po` are deleted after the
+     *        write (both under one lock of lng_data) - needed where the caller did not flush the
+     *        language first ("apply local changes")
      * @return list<string> the migrated modules whose overlay could not be written - the database
      *         write is not undone for them, see syncMigratedModules()
      */
@@ -785,34 +787,55 @@ class LanguageInstallationManager
                     unset($lang_array[$module]);
                 }
             }
+            // module => identifiers of the migrated modules written below
+            $written_migrated_identifiers = array_fill_keys(array_map('strval', array_keys($shipped_migrated_modules)), []);
             foreach ($migrated_rows as $module => $rows) {
                 foreach (self::databaseRowsOfMigratedModule($rows, $lang_array[$module] ?? [], $shipped_migrated_modules[$module], $migrated_remarks[$module] ?? []) as $identifier => [$value, $local_change, $remarks]) {
                     $sql_row((string) $module, (string) $identifier, $value, $local_change, $remarks);
+                    $written_migrated_identifiers[(string) $module][] = (string) $identifier;
                 }
             }
 
+            $write_rows = static function (\ilDBInterface $ilDB) use ($values_sql, $dropped_identifiers, $lang_key, $delete_unchanged_migrated_rows, $written_migrated_identifiers): void {
+                if ($values_sql !== []) {
+                    $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
+                        . implode(',', $values_sql)
+                        . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
+                    $ilDB->manipulate($query);
+                }
+
+                // Only after the rows are written: the not locally changed rows of a migrated
+                // module that are no longer in its shipped `.po` - an aborted write leaves the
+                // former rows instead of a gap
+                if ($delete_unchanged_migrated_rows) {
+                    foreach ($written_migrated_identifiers as $module => $identifiers) {
+                        $ilDB->manipulate(sprintf(
+                            "DELETE FROM lng_data WHERE lang_key = %s AND local_change IS NULL AND module = %s%s",
+                            $ilDB->quote($lang_key, "text"),
+                            $ilDB->quote((string) $module, "text"),
+                            $identifiers === [] ? '' : ' AND ' . $ilDB->in('identifier', $identifiers, true, 'text')
+                        ));
+                    }
+                }
+
+                foreach ($dropped_identifiers as $module => $identifiers) {
+                    $ilDB->manipulate(sprintf(
+                        "DELETE FROM lng_data WHERE lang_key = %s AND module = %s AND %s",
+                        $ilDB->quote($lang_key, "text"),
+                        $ilDB->quote((string) $module, "text"),
+                        $ilDB->in('identifier', $identifiers, false, 'text')
+                    ));
+                }
+            };
             if ($delete_unchanged_migrated_rows && $shipped_migrated_modules !== []) {
-                $ilDB->manipulate(sprintf(
-                    "DELETE FROM lng_data WHERE lang_key = %s AND local_change IS NULL AND %s",
-                    $ilDB->quote($lang_key, "text"),
-                    $ilDB->in('module', array_map('strval', array_keys($shipped_migrated_modules)), false, 'text')
-                ));
-            }
-
-            if ($values_sql !== []) {
-                $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES "
-                    . implode(',', $values_sql)
-                    . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks),local_change=VALUES(local_change);";
-                $ilDB->manipulate($query);
-            }
-
-            foreach ($dropped_identifiers as $module => $identifiers) {
-                $ilDB->manipulate(sprintf(
-                    "DELETE FROM lng_data WHERE lang_key = %s AND module = %s AND %s",
-                    $ilDB->quote($lang_key, "text"),
-                    $ilDB->quote((string) $module, "text"),
-                    $ilDB->in('identifier', $identifiers, false, 'text')
-                ));
+                // Written and purged under one table lock, so a parallel request does not see the
+                // state in between (no rollback: a lock, not a transaction)
+                $atom_query = $ilDB->buildAtomQuery();
+                $atom_query->addTableLock('lng_data');
+                $atom_query->addQueryCallable($write_rows);
+                $atom_query->run();
+            } else {
+                $write_rows($ilDB);
             }
 
             if ($lang_array === []) {
@@ -1089,12 +1112,6 @@ class LanguageInstallationManager
      *        "###" comment of the shipped `.lang` lines
      * @return array<string, array<string, string>>
      */
-    /**
-     * A dated "not translated yet" marker of the legacy `.lang` files ("28 08 2012 new variable"),
-     * the same pattern convert_module_to_po.php turns into "fuzzy".
-     */
-    private const string FUZZY_MARKER_PATTERN = '/^\s*(\d{1,2}\s+\d{1,2}\s+\d{4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{4}-\d{1,2}-\d{1,2})\b.*\bnew variable\b/i';
-
     private function migratedModuleRemarks(
         string $lang_key,
         array $shipped_migrated_modules,
@@ -1145,7 +1162,7 @@ class LanguageInstallationManager
                 ];
                 if (
                     in_array(trim($remark), array_map(static fn(?string $c): ?string => $c === null ? null : trim($c), $shipped_comments), true)
-                    || preg_match(self::FUZZY_MARKER_PATTERN, $remark) === 1
+                    || LegacyFuzzyMarker::matches($remark)
                 ) {
                     unset($database_remarks[$module][$identifier]);
                 }

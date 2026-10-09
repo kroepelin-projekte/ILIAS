@@ -92,8 +92,19 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
             return 'Q' . (count($this->quoted) - 1) . 'Q';
         });
         $db->method('in')->willReturnCallback(
-            static fn(string $field, array $values): string => $field . " IN ('" . implode("','", $values) . "')"
+            static fn(string $field, array $values, bool $negate = false): string =>
+                $field . ($negate ? " NOT IN ('" : " IN ('") . implode("','", $values) . "')"
         );
+        // the "apply local changes" write runs under a table lock: the callable runs right away
+        $db->method('buildAtomQuery')->willReturnCallback(function () use ($db): ilAtomQuery {
+            $atom_query = $this->createStub(ilAtomQuery::class);
+            $atom_query->method('addQueryCallable')->willReturnCallback(
+                static function (callable $query) use ($db): void {
+                    $query($db);
+                }
+            );
+            return $atom_query;
+        });
         $db->method('manipulate')->willReturnCallback(function (string $query): int {
             $this->queries[] = $query;
             return 1;
@@ -251,6 +262,24 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
      */
     private function applyLngDataDelete(string $query, array $rows): array
     {
+        // the purge after "apply local changes" wrote a migrated module: its unchanged rows that
+        // were not written
+        if (preg_match(
+            '/^DELETE FROM lng_data WHERE lang_key = Q\d+Q AND local_change IS NULL AND module = (Q\d+Q)(?: AND identifier NOT IN \(\'(.*)\'\))?$/',
+            $query,
+            $matches
+        ) === 1) {
+            $module = $this->resolveToken($matches[1]);
+            $written = isset($matches[2]) ? explode("','", $matches[2]) : [];
+            foreach ($rows as $key => $row) {
+                [$row_module, $identifier] = explode('|', $key, 2);
+                if ($row_module === $module && $row['local_change'] === null && !in_array($identifier, $written, true)) {
+                    unset($rows[$key]);
+                }
+            }
+            return $rows;
+        }
+
         if (preg_match(
             '/^DELETE FROM lng_data WHERE lang_key = Q\d+Q AND local_change IS NULL AND module IN \(\'(.*)\'\)$/',
             $query,
@@ -1222,10 +1251,34 @@ class LanguageInstallationManagerMigratedModulesTest extends TestCase
                 $this->queries,
                 static fn(string $q): bool => str_starts_with($q, 'DELETE FROM lng_data')
                     && str_contains($q, 'local_change IS NULL')
-                    && str_contains($q, "module IN ('pilot')")
+                    && str_contains($q, "identifier NOT IN ('")
             ),
             'the bulk delete of unchanged migrated rows was actually issued'
         );
+    }
+
+    /**
+     * Written first, purged after: an aborted write must leave the former rows, not a gap. Both
+     * happen under one table lock of lng_data.
+     */
+    public function testApplyingLocalChangesWritesTheRowsBeforeItPurgesTheStaleOnes(): void
+    {
+        $this->shipPo(['greeting' => 'Hallo', 'obsolete' => 'Alt']);
+        $this->manager()->insertLanguageForInstallation('de');
+        $this->shipPo(['greeting' => 'Servus']);
+        $already_recorded = count($this->queries);
+
+        $this->manager()->insertLanguageForApplyingLocalChanges('de');
+
+        $statements = [];
+        foreach (array_slice($this->queries, $already_recorded) as $query) {
+            if (str_starts_with($query, 'INSERT INTO lng_data')) {
+                $statements[] = 'write';
+            } elseif (str_starts_with($query, 'DELETE FROM lng_data') && str_contains($query, 'local_change IS NULL')) {
+                $statements[] = 'purge';
+            }
+        }
+        $this->assertSame(['write', 'purge'], array_values(array_unique($statements)));
     }
 
     // ------------------------------------------------- after the DB write

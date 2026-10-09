@@ -32,6 +32,7 @@
 /db_template_writer.php
 /components/ILIAS/Database/sql/dbupdate_custom.php
 /install_client.php
+/lang/customizing/*.po
 
 # Directories
 /public

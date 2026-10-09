@@ -696,7 +696,7 @@ class ilObjLanguageExtGUITest extends TestCase
      * table/collecting remarks etc. is not what saveObject() itself is about) so its call arguments -
      * the only externally observable trace of what saveObject() decided - can be captured.
      *
-     * @param array<string, string> $parsed_body
+     * @param array<string, string|list<string>> $parsed_body
      * @return ilObjLanguageExtGUI&MockObject
      */
     private function createGuiForSaveObjectWithParsedBody(array $parsed_body): ilObjLanguageExtGUI
@@ -793,8 +793,13 @@ class ilObjLanguageExtGUITest extends TestCase
                     && str_contains($message, '&lt;b&gt;')
                     && !str_contains($message, '<b>#:#x')
                     && !str_contains($message, 'alert(1)')
-                    && !str_contains($message, 'alert(2)');
-            })
+                    && !str_contains($message, 'alert(2)')
+                    // the reason is named, escaped
+                    && str_contains($message, 'tag &lt;script&gt;');
+            }),
+            // the input of the rejected save is shown again, not lost
+            $this->callback(static fn(array $values): bool => ($values['common#:#yes'] ?? null) === '<script>alert(1)</script>'),
+            $this->identicalTo(['common#:#yes' => '', 'other<b>#:#x' => ''])
         );
 
         $gui->saveObject();
@@ -858,6 +863,34 @@ class ilObjLanguageExtGUITest extends TestCase
         $gui->saveObject();
 
         $this->assertSame(['greeting' => '<b>x</b><br />'], $captured_lang_array);
+    }
+
+    /**
+     * A value or comment sent as array ("common#:#yes[]=x") is no value: ignored, without a warning.
+     */
+    public function testSaveObjectIgnoresAValueAndACommentSentAsArray(): void
+    {
+        $this->seedEmptyGlobalLanguageFile('de');
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilDB'] = fn() => $this->databaseThatMustNeverBeWrittenTo();
+        $GLOBALS['DIC']['lng'] = static fn() => (new ReflectionClass(ilLanguage::class))->newInstanceWithoutConstructor();
+        $gui = $this->createGuiForSaveObjectWithParsedBody([
+            'common#:#yes' => ['x'],
+            'common#:#yes#:#comment' => ['y'],
+        ]);
+        $gui->expects($this->once())->method('viewObject')->with(1, []);
+        $warnings = [];
+        set_error_handler(static function (int $number, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+            return true;
+        });
+        try {
+            $gui->saveObject();
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $warnings);
     }
 
     // -----------------------------------------------------------------
@@ -1101,12 +1134,34 @@ class ilObjLanguageExtGUITest extends TestCase
             'invalid_markup' => [],
             'not_merged' => [],
             'unwritten_database' => [],
+            'not_single_client' => [],
         ]);
         $messages = [];
 
         $this->runMaintenance('merge', $object, $messages);
 
         $this->assertSame([['success', 'language_merged_global']], $messages);
+    }
+
+    public function testMergeNamesTheModulesLeftOutBecauseTheInstallationHasSeveralClients(): void
+    {
+        $object = $this->maintenanceLanguageObject();
+        $object->expects($this->once())->method('mergeLocalChangesIntoGlobalLanguageFile')->willReturn([
+            'written' => [],
+            'skipped' => [],
+            'invalid_markup' => [],
+            'not_merged' => [],
+            'unwritten_database' => [],
+            'not_single_client' => ['pilot'],
+        ]);
+        $messages = [];
+
+        $this->runMaintenance('merge', $object, $messages);
+
+        $this->assertSame(
+            [['success', 'language_merged_global'], ['failure', 'lng_merge_po_not_single_client: pilot']],
+            $messages
+        );
     }
 
     /**

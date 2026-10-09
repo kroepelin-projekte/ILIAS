@@ -209,11 +209,16 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
      *        warning is shown for them instead of the plain success message
      * @param list<string> $additional_failure_messages HTML, shown together with the failure messages
      *        of this view (only one failure message is kept per request)
+     * @param array<string, string> $posted_values module.separator.topic => value shown instead of the
+     *        stored one (a rejected save, so the input is not lost)
+     * @param array<string, string> $posted_remarks module.separator.topic => remark, like $posted_values
      */
     public function viewObject(
         int $changesSuccessBool = 0,
         array $modules_with_unwritten_overlay = [],
-        array $additional_failure_messages = []
+        array $additional_failure_messages = [],
+        array $posted_values = [],
+        array $posted_remarks = []
     ): void {
         global $DIC;
         $tpl = $DIC["tpl"];
@@ -419,9 +424,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             $row["module"] = $keys[0];
             $row["topic"] = $keys[1];
             $row["name"] = $name;
-            $row["translation"] = $translation;
+            $row["translation"] = $posted_values[$name] ?? $translation;
             // a form of a plural message (see PluralFormKey) shows the remark of its identifier
-            $row["comment"] = $this->remarkOf($comments, (string) $name);
+            $row["comment"] = $posted_remarks[$name] ?? $this->remarkOf($comments, (string) $name);
             $row["default"] = $compare_content[$name] ?? "";
             $row["default_comment"] = $this->remarkOf($compare_comments, (string) $name);
 
@@ -589,16 +594,18 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             // example key of comment: 'common#:#access#:#comment'
             $keys = explode($this->lng->separator, ilUtil::stripSlashes($key));
 
-            if (count($keys) === 2) {
+            // only strings: a parameter sent as array (e.g. "common#:#access[]") is no value
+            if (count($keys) === 2 && is_string($value)) {
                 // avoid line breaks
-                $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", (string) $value);
+                $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", $value);
                 $value = str_replace("<<", "«", $value);
                 // Markup is checked below (TranslationMarkupPolicy), not stripped: a value with markup
                 // that is not allowed rejects the whole save
                 $save_array[$key] = $value;
 
                 // the comment has the key of the language with the suffix
-                $remarks_array[$key] = $post[$orginal_key . $this->lng->separator . "comment"];
+                $remark = $post[$orginal_key . $this->lng->separator . "comment"] ?? null;
+                $remarks_array[$key] = is_string($remark) ? $remark : null;
             }
         }
 
@@ -606,7 +613,17 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         // Only the values this save changes are checked (see findInvalidMarkupOfChangedValues())
         $invalid_values = ilObjLanguageExt::findInvalidMarkupOfChangedValues($this->object->key, $save_array);
         if ($invalid_values !== []) {
-            $this->viewObject(0, [], [$this->invalidMarkupMessage($invalid_values)]);
+            // shown again with the input of this save, so nothing typed in is lost
+            $this->viewObject(
+                0,
+                [],
+                [$this->invalidMarkupMessage($invalid_values)],
+                $save_array,
+                array_map(
+                    static fn(mixed $remark): string => (string) $remark,
+                    array_filter($remarks_array, static fn(mixed $remark): bool => $remark !== null)
+                )
+            );
             return;
         }
 
@@ -721,8 +738,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
 
     /**
      * The message naming the entries whose value has markup that is not allowed (see
-     * TranslationMarkupPolicy). The keys are client-supplied (form field names, file content), so
-     * they are escaped; the values themselves are not repeated.
+     * TranslationMarkupPolicy), each with what is not allowed (e.g. `tag <script>`). The keys are
+     * client-supplied (form field names, file content) and the violations quote parts of the value,
+     * so both are escaped; the values themselves are not repeated.
      *
      * @param array<string, list<string>> $invalid_values key => violations
      */
@@ -737,9 +755,17 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             implode(', ', $keys)
         )));
 
-        // The generic "invalid input" text followed by the keys - decided against a dedicated text
+        $entries = [];
+        foreach ($invalid_values as $key => $violations) {
+            $entries[] = $violations === []
+                ? (string) $key
+                : sprintf('%s (%s)', $key, implode('; ', array_map('strval', $violations)));
+        }
+
+        // The generic "invalid input" text followed by the keys and their violations - decided
+        // against a dedicated text
         return $this->lng->txt("form_input_not_valid") . ' '
-            . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::keyList($keys));
+            . $this->refinery->encode()->htmlSpecialCharsAsEntities()->transform(PlainLogText::of(PlainLogText::keyList($entries)));
     }
 
     /**
@@ -873,7 +899,12 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             $ro->setInfo(sprintf($this->lng->txt("language_remove_local_file_info"), $this->object->key));
             $rg->addOption($ro);
             $ro = new ilRadioOption($this->lng->txt("language_merge_local_changes"), "merge");
-            $ro->setInfo(sprintf($this->lng->txt("language_merge_local_changes_info"), $this->object->key));
+            // with the warning that the shipped .po of the modules maintained in PO files are shared
+            // by every client - they are only merged on an installation with a single client
+            $ro->setInfo(
+                sprintf($this->lng->txt("language_merge_local_changes_info"), $this->object->key)
+                . ' ' . $this->lng->txt("lng_merge_po_single_client_info")
+            );
             $rg->addOption($ro);
         }
         $ro = new ilRadioOption($this->lng->txt("language_save_dist"), "save_dist");
@@ -972,8 +1003,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
                     // save a copy of the global language file
                     @copy($orig_file, $copy_file);
 
-                    // Modify and write the new global file - and the shipped .po of every module
-                    // maintained in PO files with local changes (each backed up next to the copy)
+                    // Modify and write the new global file - and, on an installation with a single
+                    // client only, the shipped .po of every module maintained in PO files with local
+                    // changes (each backed up next to the copy): they are shared by every client
                     $this->mergeMessages($this->object->mergeLocalChangesIntoGlobalLanguageFile());
                 } else {
                     $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_error_write_global"), true);
@@ -1401,7 +1433,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
      * success, with the shipped .po files written - what failed or was left out in one failure
      * message (setOnScreenMessage() keeps one message per type). Details are in the log.
      *
-     * @param array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_database: list<string>} $result
+     * @param array{written: list<string>, skipped: list<string>, invalid_markup: array<string, list<string>>, not_merged: list<string>, unwritten_database: list<string>, not_single_client?: list<string>} $result
      */
     private function mergeMessages(array $result): void
     {
@@ -1416,6 +1448,13 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         $this->tpl->setOnScreenMessage('success', $success, true);
 
         $failures = [];
+        if (($result['not_single_client'] ?? []) !== []) {
+            // left out on purpose: the installation does not have exactly one client
+            $failures[] = sprintf(
+                $this->lng->txt("lng_merge_po_not_single_client"),
+                $escape(implode(', ', $result['not_single_client']))
+            );
+        }
         if ($result['skipped'] !== []) {
             // not written at all (e.g. no write permission) - an error, not an intended skip
             $failures[] = sprintf(
