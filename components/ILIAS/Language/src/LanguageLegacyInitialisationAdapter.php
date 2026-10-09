@@ -59,9 +59,9 @@ class LanguageLegacyInitialisationAdapter implements Language
         return $this->getLegacyLanguageInstance()->getLangKey();
     }
 
-    public function toJS($a_lang_key): void
+    public function toJS($key): void
     {
-        $this->getLegacyLanguageInstance()->toJS($a_lang_key);
+        $this->getLegacyLanguageInstance()->toJS($key);
     }
 
     protected function getLegacyLanguageInstance(): Language
