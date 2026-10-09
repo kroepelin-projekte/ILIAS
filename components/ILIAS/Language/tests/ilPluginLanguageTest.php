@@ -238,11 +238,10 @@ class ilPluginLanguageTest extends ilLanguageBaseTestCase
     }
 
     /**
-     * readLangFile() (the legacy `.lang` format) now goes through the same cleanShippedValues() as
-     * readPoFile(): a value with markup TranslationMarkupPolicy does not allow is sanitised, not
-     * rejected, and the cleaning is warned about.
+     * A plugin `.lang` is taken over unchanged: markup TranslationMarkupPolicy does not allow is only
+     * logged, not cleaned (unlike the values of a plugin `.po`).
      */
-    public function testDisallowedMarkupInALangFileIsSanitisedAndWarnedAboutNotRejected(): void
+    public function testDisallowedMarkupInALangFileIsTakenOverUnchangedAndWarnedAbout(): void
     {
         $plugin_language = new ilPluginLanguage($this->createPluginInfo('ptest'));
         file_put_contents(
@@ -257,8 +256,7 @@ class ilPluginLanguageTest extends ilLanguageBaseTestCase
         $plugin_language->updateLanguages(['de']);
 
         $value = $captured['comp_slot_ptest#:#comp_slot_ptest_greeting'];
-        $this->assertStringNotContainsString('<script', $value);
-        $this->assertStringContainsString('Hallo', $value);
+        $this->assertSame('<script>alert(1)</script>Hallo', $value);
         $this->assertNotEmpty(array_filter($warnings, static fn(string $w): bool => str_contains($w, 'Markup not allowed')));
     }
 

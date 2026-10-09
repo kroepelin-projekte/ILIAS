@@ -159,9 +159,9 @@ class ilPluginLanguage
     }
 
     /**
-     * The entries of a plugin `.lang` file, key (without the plugin prefix) => value. Like for a
-     * plugin `.po` (see readPoFile()), markup TranslationMarkupPolicy does not allow is cleaned and
-     * logged, not rejected - the values are shipped ones.
+     * The entries of a plugin `.lang` file, key (without the plugin prefix) => value. The values are
+     * taken over unchanged; markup TranslationMarkupPolicy does not allow is only logged (see
+     * logShippedViolations()) - unlike for a plugin `.po` (see readPoFile()), whose values are cleaned.
      *
      * @return array<string, string>
      */
@@ -178,7 +178,27 @@ class ilPluginLanguage
             }
         }
 
-        return $this->cleanShippedValues($file, $values);
+        $this->logShippedViolations($file, $values);
+
+        return $values;
+    }
+
+    /**
+     * Logs every value of $values with markup TranslationMarkupPolicy does not allow, with its
+     * violations - without changing anything.
+     *
+     * @param array<string, string> $values key => value
+     */
+    private function logShippedViolations(string $file, array $values): void
+    {
+        foreach ((new TranslationMarkupPolicy())->findInvalidValues($values) as $key => $violations) {
+            self::logWarning(sprintf(
+                'Markup not allowed in a language value, %s (key "%s"), taken over unchanged: %s',
+                $file,
+                $key,
+                implode(', ', $violations)
+            ));
+        }
     }
 
     /**
