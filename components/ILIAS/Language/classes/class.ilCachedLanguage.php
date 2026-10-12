@@ -64,6 +64,9 @@ class ilCachedLanguage implements Request
 
     /**
      * Return whether the global cache is active
+     *
+     * Always true, so cached_modules is always filled: ilLanguage::loadLanguageModule() must check the
+     * PO/MO overlay of a migrated module before cached_modules, or the DB cache hides the overlay.
      */
     public function isActive(): bool
     {
@@ -137,6 +140,17 @@ class ilCachedLanguage implements Request
             }
         }
         $this->setTranslations($translations);
+    }
+
+    /**
+     * deleteInCache() only where a global cache exists; CLI Setup and other early contexts have none.
+     */
+    public static function deleteInCacheIfAvailable(string $language_key): void
+    {
+        $dic = $GLOBALS['DIC'] ?? null;
+        if ($dic instanceof \ILIAS\DI\Container && $dic->offsetExists('global_cache')) {
+            self::getInstance($language_key)->deleteInCache();
+        }
     }
 
     public static function getInstance($key): self

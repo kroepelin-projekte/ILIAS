@@ -352,6 +352,19 @@ class LanguageComponentGraphTest extends TestCase
         );
     }
 
+    /** Activities write through an installation manager that invalidates the global language cache via ilCachedLanguage::deleteInCacheIfAvailable() (a no-op without cache). */
+    public function testTheRuntimeInstallationManagerHasALanguageCacheInvalidatorThatIsSafeWithoutGlobalCache(): void
+    {
+        [, , , , , $provide] = $this->initComponent();
+        $setup_language = self::readPrivateProperty($provide[InstallLanguage::class], 'setup_language');
+        $manager = (new \ReflectionMethod($setup_language, 'manager'))->invoke($setup_language);
+
+        $invalidator = self::readPrivateProperty($manager, 'language_cache_invalidator');
+
+        self::assertInstanceOf(\Closure::class, $invalidator);
+        $invalidator('de');
+    }
+
     private static function readPrivateProperty(object $object, string $property): mixed
     {
         return (new \ReflectionProperty($object, $property))->getValue($object);

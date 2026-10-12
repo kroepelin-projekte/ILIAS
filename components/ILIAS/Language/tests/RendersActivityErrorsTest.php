@@ -36,7 +36,7 @@ class RendersActivityErrorsTest extends TestCase
 
     private function languageMockReturningTopicAsIs(): \ilLanguage
     {
-        $lng = $this->createMock(\ilLanguage::class);
+        $lng = $this->createStub(\ilLanguage::class);
         $lng->method('txt')->willReturnArgument(0);
 
         return $lng;
@@ -180,7 +180,7 @@ class RendersActivityErrorsTest extends TestCase
         $outer = new \RuntimeException('database operation failed', 0, $middle);
 
         $logged = [];
-        $logger = $this->createMock(\ilLogger::class);
+        $logger = $this->createStub(\ilLogger::class);
         $logger->method('error')->willReturnCallback(
             static function (string $message) use (&$logged): void {
                 $logged[] = $message;
