@@ -132,33 +132,39 @@ readonly class LSOAdaptiveTable
 
             $tags = [];
             if ($record->is_online) {
-                $tags[] = $this->buildStatusTag('table_online', Tag::REL_LOW);
+                $tags[] = $this->buildStatusTag('table_online', 'lso_adaptive_online_info', Tag::REL_LOW);
             } else {
-                $tags[] = $this->buildStatusTag('lso_adaptive_offline', Tag::REL_MID);
+                $tags[] = $this->buildStatusTag('lso_adaptive_offline', 'lso_adaptive_offline_info', Tag::REL_MID);
             }
 
             if ($record->start_object !== '') {
-                $tags[] = $this->buildStatusTag('lso_adaptive_start', Tag::REL_LOW);
+                $tags[] = $this->buildStatusTag('lso_adaptive_start', 'lso_adaptive_start_info', Tag::REL_LOW);
             }
             if ($record->end_object !== '') {
-                $tags[] = $this->buildStatusTag('lso_adaptive_end', Tag::REL_LOW);
+                $tags[] = $this->buildStatusTag('lso_adaptive_end', 'lso_adaptive_end_info', Tag::REL_LOW);
             }
             if ($record->end_object === '' && !$record->has_structural_successor) {
-                $tags[] = $this->buildStatusTag('lso_adaptive_dead_end', Tag::REL_HIGH);
+                $tags[] = $this->buildStatusTag('lso_adaptive_dead_end', 'lso_adaptive_dead_end_info', Tag::REL_HIGH);
             }
             if ($record->has_conflicting_input_configuration) {
-                $tags = [...$tags, ...$this->buildMisconfigurationTag($record)];
+                $tags[] = $this->buildMisconfigurationTag($record);
             }
             if ($record->start_object === '' && !$record->has_structural_predecessor) {
-                $tags[] = $this->buildStatusTag('lso_adaptive_entry_point', Tag::REL_LOW);
+                $tags[] = $this->buildStatusTag(
+                    'lso_adaptive_entry_point',
+                    'lso_adaptive_entry_point_info',
+                    Tag::REL_LOW
+                );
             }
 
+            // Each entry is a popover together with its triggering tag.
             $tags_html = array_map(
-                fn(\ILIAS\UI\Component\Component $tag): string => $this->ui_renderer->render($tag),
+                fn(array $popover_and_tag): string => $this->ui_renderer->render($popover_and_tag),
                 $tags
             );
 
-            return $link_html . ' ' . implode(' ', $tags_html);
+            // Tags carry their own right margin, so no extra whitespace is added between them.
+            return $link_html . ' ' . implode('', $tags_html);
         };
 
         $actions = function (\ilObjLearningSequenceContentData $record) use (&$modals) {
@@ -235,14 +241,25 @@ readonly class LSOAdaptiveTable
     }
 
     /**
-     * Builds a display-only status tag.
+     * Builds a status tag that opens a popover explaining the status.
+     *
+     * @return \ILIAS\UI\Component\Component[] The popover and its triggering tag.
      */
-    private function buildStatusTag(string $language_var, string $relevance): \ILIAS\UI\Component\Button\Button
+    private function buildStatusTag(string $language_var, string $info_language_var, string $relevance): array
     {
-        return $this->ui_factory->button()
+        $popover = $this->ui_factory->popover()
+            ->listing([
+                $this->ui_factory->item()
+                    ->standard($this->lng->txt($language_var))
+                    ->withDescription($this->lng->txt($info_language_var)),
+            ])
+            ->withVerticalPosition();
+        $tag = $this->ui_factory->button()
             ->tag($this->lng->txt($language_var), '')
             ->withRelevance($relevance)
-            ->withUnavailableAction();
+            ->withOnClick($popover->getShowSignal());
+
+        return [$popover, $tag];
     }
 
     /**
@@ -253,7 +270,11 @@ readonly class LSOAdaptiveTable
     private function buildMisconfigurationTag(\ilObjLearningSequenceContentData $record): array
     {
         if ($record->static_input_configuration_issue_details === []) {
-            return [$this->buildStatusTag('lso_adaptive_misconfigured', Tag::REL_HIGH)];
+            return $this->buildStatusTag(
+                'lso_adaptive_misconfigured',
+                'lso_adaptive_misconfigured_info',
+                Tag::REL_HIGH
+            );
         }
 
         $items = [];
