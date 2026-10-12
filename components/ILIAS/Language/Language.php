@@ -239,6 +239,8 @@ class Language implements Component\Component
                 $internal[\ilSetupLanguage::class],
                 // Setup checks no permissions, hence no RBAC.
                 InstallLanguage::forSetup($internal[\ilSetupLanguage::class]),
+                // forSetup() also does not re-apply the plugin language files (the plugin
+                // objectives do that, and the Setup has no component repository in $DIC)
                 UpdateLanguage::forSetup($internal[\ilSetupLanguage::class])
             );
 

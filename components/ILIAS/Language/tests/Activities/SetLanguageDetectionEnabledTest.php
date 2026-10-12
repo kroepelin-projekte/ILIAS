@@ -25,7 +25,6 @@ use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Data\Description\Description;
 use ILIAS\Administration\Setting;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -55,7 +54,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(rbac_system: $rbac);
@@ -64,17 +63,14 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * isAllowedToPerform() must be a pure permission check: it must never
-     * touch the Setting collaborator (and therefore never write
-     * "lang_detection") - unlike perform(), which is the only place
-     * allowed to have side effects.
+     * isAllowedToPerform() must be a pure permission check: it must never touch the Setting collaborator.
      */
     public function testIsAllowedToPerformNeverTouchesSettings(): void
     {
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(rbac_system: $rbac, settings: $settings);
@@ -127,10 +123,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Boundary/type-juggling regression: perform() must require a strict
-     * bool for 'enabled' and must never silently cast a truthy/falsy
-     * look-alike (string "1"/"0"/"true", int 1, etc.) - unlike PHP's own
-     * loose comparison rules, which would happily accept any of these.
+     * perform() requires a strict bool for 'enabled' and must not cast look-alikes ("1", "0", "true", 1).
      */
     #[DataProvider('nonBooleanEnabledValuesProvider')]
     public function testPerformRejectsNonStrictBooleanEnabledValues(mixed $value): void
@@ -161,7 +154,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testMaybePerformAsWithGrantedPermissionPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -175,17 +168,8 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Core security regression test: before this extraction,
-     * enableLanguageDetectionObject()/disableLanguageDetectionObject()
-     * performed no RBAC check of their own at all - a request forged
-     * directly against the corresponding ilCtrl
-     * commands by a user with only "read" access on the language folder
-     * would still have flipped "lang_detection". isAllowedToPerform() now
-     * enforces a "write" check, and this must actually cause
-     * maybePerformAs() to reject the request (Result\Error) *and* leave the
-     * Setting collaborator completely untouched - a permission check that
-     * merely rejected the outcome without preventing the side effect would
-     * not close the gap at all.
+     * A "read"-only user forging the ilCtrl command must be rejected by maybePerformAs() without flipping
+     * "lang_detection": the check must prevent the side effect, not merely reject the outcome.
      */
     public function testMaybePerformAsWithDeniedPermissionReturnsErrorAndNeverWritesTheSetting(): void
     {
@@ -198,8 +182,10 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         $settings = $this->createMock(Setting::class);
         $settings->expects($this->never())->method('set');
 
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
             ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['enabled' => true]);
@@ -208,14 +194,11 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * A Throwable raised from within perform() (or normalizeParameters())
-     * must be turned into a Result\Error rather than propagating - this is
-     * the whole point of maybePerformAs() wrapping perform() in a
-     * try/catch.
+     * A Throwable from perform() or normalizeParameters() must be turned into a Result\Error.
      */
     public function testMaybePerformAsTurnsAThrowableFromNormalizeParametersIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -231,15 +214,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * The 'enabled' Checkbox field is not required, so - now that
-     * maybePerformAs() actually grinds $raw_parameters through
-     * getInputDescription() (see GrindsFormInput) - a completely missing
-     * 'enabled' key is no longer rejected: it defaults to false, exactly
-     * like an unchecked, and therefore never submitted, HTML checkbox
-     * would. This is a deliberate behavioural change from the old
-     * (pre-grinding) normalizeParameters(), which used to reject a missing
-     * key outright. Unlike before, the request now actually reaches
-     * isAllowedToPerform()/perform().
+     * 'enabled' is not required: a missing key defaults to false, like an unchecked and therefore unsubmitted HTML checkbox.
      */
     public function testMaybePerformAsWithMissingEnabledKeyDefaultsToFalseAndStillPerformsTheWrite(): void
     {
@@ -278,17 +253,13 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Grinding tolerance (see GrindsFormInput::normalizeCheckboxRawValue()):
-     * unlike perform() itself (which still requires a strict bool, see
-     * testPerformRejectsNonStrictBooleanEnabledValues), maybePerformAs()
-     * now accepts the common primitive representations of "true" a generic
-     * (non-HTML) caller might reasonably send, and writes the setting
-     * accordingly.
+     * Grinding tolerance (GrindsFormInput::normalizeCheckboxRawValue()): unlike perform(), maybePerformAs() accepts
+     * the common primitive representations of "true".
      */
     #[DataProvider('tolerantlyAcceptedTruthyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveTruthyRepresentationsAndWritesEnabledTrue(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -307,7 +278,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedFalsyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveFalsyRepresentationsAndWritesEnabledFalse(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -334,7 +305,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
     #[DataProvider('rejectedEnabledValuesProvider')]
     public function testMaybePerformAsRejectsValuesGrindCannotInterpretAsACheckboxWithoutTouchingSettings(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
@@ -365,7 +336,7 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
             )
             ->willReturn($checkbox);
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['enabled' => $checkbox])
@@ -378,8 +349,8 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
 
     public function testOutputDescriptionDescribesASingleBooleanEnabledField(): void
     {
-        $bool_description = $this->createMock(Description::class);
-        $object_description = $this->createMock(Description::class);
+        $bool_description = $this->createStub(Description::class);
+        $object_description = $this->createStub(Description::class);
 
         $f = $this->createMock(\ILIAS\Data\Description\Factory::class);
         $f->expects($this->once())->method('bool')->willReturn($bool_description);
@@ -398,10 +369,10 @@ class SetLanguageDetectionEnabledTest extends ActivityContractTestCase
         int $language_folder_ref_id = 0
     ): SetLanguageDetectionEnabled {
         return new SetLanguageDetectionEnabled(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $this->rbacOf($rbac_system ?? $this->createMock(\ilRbacSystem::class)),
-            $settings ?? $this->createMock(Setting::class),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $this->rbacOf($rbac_system ?? $this->createStub(\ilRbacSystem::class)),
+            $settings ?? $this->createStub(Setting::class),
             $this->languageFolder($language_folder_ref_id)
         );
     }

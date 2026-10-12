@@ -32,14 +32,28 @@ class UpdateLanguage extends LanguageActivity
 {
     use DeclaresLanguageKeysOnlyInput;
 
+    private readonly \Closure $refresh_plugins;
+
+    /**
+     * @param \Closure|null $refresh_plugins (list<string> $lang_keys): void - by default
+     *        ilObjLanguage::refreshPlugins(), a no-op without the component repository
+     */
     public function __construct(
         RefineryFactory $refinery,
         Language $language,
         ?RBAC $rbac,
         private readonly \ilSetupLanguage $setup_language,
         LanguageFolder $language_folder,
+        ?\Closure $refresh_plugins = null,
     ) {
         parent::__construct($refinery, $language, $rbac, $language_folder);
+        $this->refresh_plugins = $refresh_plugins
+            ?? static function (array $lang_keys): void {
+                global $DIC;
+                if ($DIC instanceof \ILIAS\DI\Container && $DIC->offsetExists('component.repository')) {
+                    \ilObjLanguage::refreshPlugins($lang_keys);
+                }
+            };
     }
 
     public static function forSetup(\ilSetupLanguage $setup_language): self
@@ -50,7 +64,10 @@ class UpdateLanguage extends LanguageActivity
             null,
             $setup_language,
             // never read: without RBAC, isAllowedToPerform() throws first
-            new LanguageFolderLegacyProxy()
+            new LanguageFolderLegacyProxy(),
+            // in the Setup the plugin objectives apply the plugin language files
+            static function (array $lang_keys): void {
+            }
         );
     }
 
@@ -60,8 +77,9 @@ class UpdateLanguage extends LanguageActivity
             <<<'MARKDOWN'
 Refreshes one or more already installed languages, re-seeding their base
 data (plus a customizing/local file if one exists) from the current
-language files. A language that is not installed is left completely
-untouched - use InstallLanguage to install it first.
+language files; the language files of the active plugins are applied again.
+A language that is not installed is left completely untouched - use
+InstallLanguage to install it first.
 MARKDOWN
         );
     }
@@ -86,6 +104,8 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a not-yet-installed language.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
+                'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingOutputField($f),
             ]
         );
     }
@@ -124,20 +144,31 @@ MARKDOWN
             );
         }
 
+        $overlay_write_failed_language_keys = [];
         if ($to_update !== []) {
             $db_languages = $this->setup_language->getAvailableLanguagesForInstallation();
             $local_language_keys = $this->setup_language->getLocalLanguages();
 
             foreach ($to_update as $language_key) {
                 $this->setup_language->flushLanguageForInstallation($language_key);
-                $this->setup_language->insertLanguageForInstallation($language_key);
+                if ($this->setup_language->insertLanguageForInstallation($language_key) !== []) {
+                    $overlay_write_failed_language_keys[] = $language_key;
+                }
                 $this->setup_language->registerInstalledLanguage($language_key, $db_languages, $local_language_keys);
             }
+
+            // plugin language files are flushed with the rest, so re-apply them
+            ($this->refresh_plugins)($to_update);
         }
 
         return [
             'updated_language_keys' => $to_update,
             'not_installed_language_keys' => $not_installed_no_op,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
+            'invalid_markup_customizing_entries' => $this->invalidMarkupCustomizingEntries(
+                $this->setup_language->getSkippedInvalidMarkupEntries(),
+                $to_update
+            ),
         ];
     }
 }

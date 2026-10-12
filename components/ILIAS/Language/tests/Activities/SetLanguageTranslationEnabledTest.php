@@ -28,7 +28,6 @@ use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
 use ILIAS\Refinery\String\Group as StringGroup;
 use ILIAS\Refinery\String\MarkdownFormattingToHTML;
-use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -59,7 +58,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(rbac_system: $rbac);
@@ -68,10 +67,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * isAllowedToPerform() must be a pure permission check: it must never
-     * touch the Setting collaborator (and therefore never read/write
-     * "lang_translate_*") - unlike perform(), which is the only place
-     * allowed to have side effects.
+     * isAllowedToPerform() must be a pure permission check: it must never touch the Setting collaborator.
      */
     public function testIsAllowedToPerformNeverTouchesSettings(): void
     {
@@ -79,7 +75,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('get');
         $settings->expects($this->never())->method('set');
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity(rbac_system: $rbac, settings: $settings);
@@ -88,14 +84,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Core business rule: perform() must read the
-     * *current* value of "lang_translate_<key>" via a falsy check - exactly
-     * the same interpretation ilObjLanguageAccess::_checkTranslate() applies
-     * - and only write when the requested value actually differs. Every
-     * combination of a realistic stored raw value ("0", "", "1") and a
-     * requested boolean is exercised so that both an accidental "always
-     * write" and an accidental "never write" mutant are caught, along with
-     * an inverted `!==` -> `===` comparison mutant.
+     * perform() reads the current value of "lang_translate_<key>" with a falsy check, like
+     * ilObjLanguageAccess::_checkTranslate(), and writes only when the requested value differs.
      */
     public static function performChangedDecisionProvider(): array
     {
@@ -117,9 +107,9 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         ?string $expected_written_value
     ): void {
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')
-            ->with('lang_translate_de', '0')
-            ->willReturn($stored_value);
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', $stored_value],
+        ]);
 
         if ($expected_written_value === null) {
             $settings->expects($this->never())->method('set');
@@ -139,10 +129,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * get() must be called with the correct per-language key
-     * ("lang_translate_" . language_key) and the documented default '0' -
-     * a mutant that drops the default, or concatenates the key in the wrong
-     * order/without the separator, must be caught here.
+     * get() must receive the key "lang_translate_" . language_key and the default '0'.
      */
     public function testPerformReadsTheCorrectPerLanguageSettingKeyWithDefaultZero(): void
     {
@@ -156,15 +143,14 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * language_key must be trimmed before being used to build the setting
-     * key and before being returned - mirroring toNonEmptyString()'s
-     * behaviour used by normalizeParameters(), but exercised here directly
-     * through perform() since perform() re-implements its own trim().
+     * language_key is trimmed for the setting key and the returned value; perform() re-implements its own trim().
      */
     public function testPerformTrimsLanguageKeyForBothTheSettingKeyAndTheReturnedValue(): void
     {
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(settings: $settings)
@@ -208,11 +194,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
 
     public function testMaybePerformAsWithGrantedPermissionPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -226,11 +214,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Permission check regression: a denied "write" access must both yield
-     * a Result\Error *and* leave the Setting collaborator completely
-     * untouched (no read, no write) - a permission check that merely
-     * rejected the outcome without preventing the read/write would not be a
-     * real gate.
+     * A denied "write" access must yield a Result\Error and leave the Setting untouched (no read, no write).
      */
     public function testMaybePerformAsWithDeniedPermissionReturnsErrorAndNeverTouchesSettings(): void
     {
@@ -244,8 +228,10 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $settings->expects($this->never())->method('get');
         $settings->expects($this->never())->method('set');
 
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings, language: $language)
             ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_key' => 'de', 'enabled' => true]);
@@ -255,17 +241,14 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * A Throwable raised from within perform() (e.g. the Setting
-     * collaborator failing to write) must be turned into a Result\Error
-     * rather than propagating - this is the whole point of maybePerformAs()
-     * wrapping perform() in a try/catch.
+     * A Throwable from within perform() (e.g. the Setting failing to write) must become a Result\Error.
      */
     public function testThrowableFromWithinPerformIsTurnedIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $settings = $this->createMock(Setting::class);
+        $settings = $this->createStub(Setting::class);
         $settings->method('get')->willReturn('0');
         $settings->method('set')->willThrowException(new \RuntimeException('database write failed'));
 
@@ -279,14 +262,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * A completely missing 'language_key' key is caught by grind() itself
-     * (see GrindsFormInput): the required Text field receives a blank raw
-     * value and fails its own required-field constraint before
-     * normalizeParameters()/isAllowedToPerform() are ever reached - so the
-     * rejection surfaces as a Result\Error carrying a field-attributed
-     * InvalidInputException (see GrindsFormInput::describeInputError()), not
-     * an InvalidArgumentException. The rbac system must never be touched
-     * either way (validation happens first).
+     * A missing 'language_key' fails the required Text field in grind() itself, before
+     * normalizeParameters()/isAllowedToPerform(): the result carries a field-attributed InvalidInputException.
      */
     public function testMaybePerformAsWithMissingRawParametersKeysIsAResultErrorAndNeverChecksPermission(): void
     {
@@ -357,14 +334,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * The 'enabled' Checkbox field is not required, so a completely
-     * missing 'enabled' key is no longer rejected by grind() - it defaults
-     * to false, exactly like an unchecked, and therefore never submitted,
-     * HTML checkbox would (same behaviour as
-     * SetLanguageDetectionEnabledTest's equivalent regression test).
-     * Unlike a rejection at grind level, this reaches isAllowedToPerform()/
-     * perform() and can still write the setting if that changes the
-     * currently stored value.
+     * 'enabled' is not required: a missing key defaults to false, like an unchecked HTML checkbox.
      */
     public function testMaybePerformAsWithMissingEnabledKeyDefaultsToFalseAndStillPerformsTheWrite(): void
     {
@@ -372,7 +342,9 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         $rbac->expects($this->once())->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('1');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '1'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -386,13 +358,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * A whitespace-only language_key value satisfies the Text field's own
-     * required-check (min length 1 on the raw string, before trimming), so
-     * grind() accepts it and the request DOES reach isAllowedToPerform() -
-     * unlike the fully-missing-key case above. It is perform() itself
-     * (via its own trim() check, see
-     * testPerformRejectsInvalidOrIncompleteParametersWithoutTouchingSettings)
-     * that ultimately rejects it.
+     * A whitespace-only language_key passes the Text field's required-check (min length 1 before trimming), so the
+     * request does reach isAllowedToPerform().
      */
     public function testMaybePerformAsRejectsWhitespaceOnlyLanguageKeyAfterThePermissionCheck(): void
     {
@@ -432,19 +399,19 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Grinding tolerance (see GrindsFormInput::normalizeCheckboxRawValue()):
-     * unlike perform() itself (which still requires a strict bool),
-     * maybePerformAs() now accepts the common primitive representations of
-     * "true" a generic (non-HTML) caller might reasonably send.
+     * Grinding tolerance (GrindsFormInput::normalizeCheckboxRawValue()): unlike perform(), maybePerformAs() accepts
+     * the common primitive representations of "true".
      */
     #[DataProvider('tolerantlyAcceptedTruthyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveTruthyEnabledRepresentations(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -463,11 +430,13 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     #[DataProvider('tolerantlyAcceptedFalsyEnabledValuesProvider')]
     public function testMaybePerformAsToleratesCommonPrimitiveFalsyEnabledRepresentations(mixed $value): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('1');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '1'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '0');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -481,10 +450,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Regression test for Punkt 4 of this component's grinding task: unlike
-     * before, an unknown/not-installed language_key is now rejected by
-     * perform() itself, for direct perform()/isAllowedToPerform() callers
-     * too - not only via maybePerformAs().
+     * An unknown/not installed language_key is rejected by perform() itself, also for direct callers.
      */
     public function testPerformRejectsUnknownLanguageKeyWithoutTouchingSettings(): void
     {
@@ -499,13 +465,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Regression test: the "Unknown language key" InvalidInputException
-     * message embeds the offending language_key RAW/unescaped - escaping
-     * HTML-significant characters for safe display is deliberately no
-     * longer this domain layer's job (see perform()'s own comment above the
-     * throw), only \ILIAS\Language\RendersActivityErrors::
-     * activityErrorMessage()'s. If this message were pre-escaped here, it
-     * would end up double-escaped once it reaches that single seam.
+     * The "Unknown language key" message embeds the key unescaped: escaping is
+     * RendersActivityErrors::activityErrorMessage()'s job.
      */
     public function testPerformRejectsUnknownLanguageKeyMessageContainsTheRawUnescapedKey(): void
     {
@@ -527,12 +488,8 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * The same rejection, exercised end-to-end through maybePerformAs():
-     * the unknown language_key passes grind() (any non-blank string
-     * satisfies the Text field's own required-check) and the permission
-     * check (isAllowedToPerform() does not know about installed languages
-     * either), so it is perform() itself that rejects it - and the Setting
-     * collaborator must never be touched.
+     * End-to-end: an unknown language_key passes grind() and the permission check, so perform() rejects it
+     * without touching the Setting.
      */
     public function testMaybePerformAsRejectsUnknownLanguageKeyAfterPermissionCheckAndNeverTouchesSettings(): void
     {
@@ -552,20 +509,17 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * normalizeParameters()'s toNonEmptyString() must trim language_key
-     * before it reaches perform() - exercised end-to-end through
-     * maybePerformAs() so a caller submitting e.g. a copy-pasted language
-     * key with surrounding whitespace still resolves to the same setting
-     * key as perform() itself would (see
-     * testPerformTrimsLanguageKeyForBothTheSettingKeyAndTheReturnedValue).
+     * normalizeParameters() trims language_key before perform(), so a padded key resolves to the same setting key.
      */
     public function testMaybePerformAsTrimsLanguageKeyBeforeBuildingTheSettingKey(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $settings = $this->createMock(Setting::class);
-        $settings->method('get')->with('lang_translate_de', '0')->willReturn('0');
+        $settings->method('get')->willReturnMap([
+            ['lang_translate_de', '0', '0'],
+        ]);
         $settings->expects($this->once())->method('set')->with('lang_translate_de', '1');
 
         $result = $this->createActivity(rbac_system: $rbac, settings: $settings)
@@ -603,7 +557,7 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
             )
             ->willReturn($checkbox);
 
-        $group = $this->createMock(\ILIAS\UI\Component\Input\Field\Group::class);
+        $group = $this->createStub(\ILIAS\UI\Component\Input\Field\Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_key' => $text, 'enabled' => $checkbox])
@@ -615,20 +569,16 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
     }
 
     /**
-     * Uses a real DescriptionFactory (like AddLanguageEntryTest's own
-     * output-description test) rather than a mocked one, so that
-     * getFields()'s *actual* iteration order is asserted - a mocked
-     * object()->with([...]) call would accept the three fields in any
-     * order (PHPUnit's array comparison is order-independent), silently
-     * missing a mutation that swapped e.g. 'enabled' and 'changed'.
+     * A real DescriptionFactory (not a mock) so the actual field order of getFields() is asserted; a mocked
+     * object()->with([...]) accepts any order.
      */
     public function testOutputDescriptionDescribesTheThreeDocumentedFieldsInOrder(): void
     {
-        $string_group = $this->createMock(StringGroup::class);
+        $string_group = $this->createStub(StringGroup::class);
         $string_group->method('markdown')->willReturn(
-            $this->createMock(MarkdownFormattingToHTML::class)
+            $this->createStub(MarkdownFormattingToHTML::class)
         );
-        $refinery = $this->createMock(RefineryFactory::class);
+        $refinery = $this->createStub(RefineryFactory::class);
         $refinery->method('string')->willReturn($string_group);
 
         $activity = $this->createActivity(refinery: $refinery);
@@ -652,10 +602,10 @@ class SetLanguageTranslationEnabledTest extends ActivityContractTestCase
         ?InstalledLanguageRepository $installed_language_repository = null,
     ): SetLanguageTranslationEnabled {
         return new SetLanguageTranslationEnabled(
-            $refinery ?? $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $this->rbacOf($rbac_system ?? $this->createMock(\ilRbacSystem::class)),
-            $settings ?? $this->createMock(Setting::class),
+            $refinery ?? $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $this->rbacOf($rbac_system ?? $this->createStub(\ilRbacSystem::class)),
+            $settings ?? $this->createStub(Setting::class),
             installed_language_repository: $installed_language_repository
                 ?? new FakeInstalledLanguageRepository(static fn(): array => ['de', 'fr']),
             language_folder: $this->languageFolder($language_folder_ref_id),

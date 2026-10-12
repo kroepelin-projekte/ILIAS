@@ -22,16 +22,16 @@ use ILIAS\UI\Component\Input\Field\Text;
 use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use ilSetupLanguage;
 
 class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 {
     protected function createDefaultActivity(): UpdateLanguage
     {
-        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         return $this->createActivity($setup_language);
@@ -40,6 +40,134 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     protected function validPerformParameters(): array
     {
         return ['language_keys' => 'de'];
+    }
+
+    /**
+     * UpdateLanguage passes exactly the language key. Captures the raw arguments, as ->with('de') would also
+     * accept an additional one.
+     */
+    public function testPassesOnlyTheLanguageKeyToInsertLanguageForInstallation(): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $calls = [];
+        $setup_language->method('insertLanguageForInstallation')->willReturnCallback(
+            static function () use (&$calls): array {
+                $calls[] = func_get_args();
+                return [];
+            }
+        );
+
+        $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
+
+        $this->assertSame([['de']], $calls);
+    }
+
+    /**
+     * A non-empty return of insertLanguageForInstallation() (migrated modules whose overlay could not be written)
+     * lists the language, which still counts as updated.
+     */
+    public function testListsOnlyTheLanguagesWhoseOverlayCouldNotBeWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->exactly(2))->method('insertLanguageForInstallation')->willReturnMap([
+            ['de', []],
+            ['fr', ['pilot']],
+        ]);
+
+        $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de,fr,it']);
+
+        $this->assertSame(['de', 'fr'], $result['updated_language_keys']);
+        $this->assertSame(['it'], $result['not_installed_language_keys']);
+        $this->assertSame(['fr'], $result['overlay_write_failed_language_keys']);
+    }
+
+    public function testNothingIsListedWhenEveryOverlayWasWritten(): void
+    {
+        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $setup_language->expects($this->once())->method('insertLanguageForInstallation')->with('de')->willReturn([]);
+
+        $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
+
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
+    }
+
+    /**
+     * The update also re-applies the plugin language files, once and only for languages actually updated.
+     */
+    public function testReappliesThePluginLanguageFilesForTheUpdatedLanguagesOnly(): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de', 'fr']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $refreshed = [];
+        $refresh_plugins = static function (array $lang_keys) use (&$refreshed): void {
+            $refreshed[] = $lang_keys;
+        };
+
+        $this->createActivity($setup_language, null, null, $refresh_plugins)->perform(['language_keys' => 'de,fr,it']);
+        $this->assertSame([['de', 'fr']], $refreshed);
+
+        $refreshed = [];
+        $nothing_installed = $this->createSetupLanguageStub([], [], []);
+        $this->createActivity($nothing_installed, null, null, $refresh_plugins)->perform(['language_keys' => 'de']);
+        $this->assertSame([], $refreshed, 'nothing updated, nothing to re-apply');
+    }
+
+    /**
+     * Without a component repository (Setup: $DIC is no container or has none) re-applying does nothing.
+     *
+     * @param \Closure(): mixed $dic
+     */
+    #[DataProvider('dicWithoutComponentRepository')]
+    public function testTheDefaultPluginRefreshDoesNothingWithoutAComponentRepository(\Closure $dic): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic();
+        try {
+            $result = $this->createActivity($setup_language)->perform(['language_keys' => 'de']);
+            $setup_result = UpdateLanguage::forSetup($setup_language)->perform(['language_keys' => 'de']);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['updated_language_keys']);
+        $this->assertSame(['de'], $setup_result['updated_language_keys']);
+    }
+
+    /**
+     * @return array<string, array{0: \Closure}>
+     */
+    public static function dicWithoutComponentRepository(): array
+    {
+        return [
+            'DIC is an array' => [static fn(): array => []],
+            'container without component.repository' => [static fn(): \ILIAS\DI\Container => new \ILIAS\DI\Container()],
+        ];
+    }
+
+    /**
+     * The Setup instance never re-applies the plugin language files (the plugin objectives do), even where $DIC
+     * offers a component repository.
+     */
+    public function testTheSetupInstanceNeverRefreshesPlugins(): void
+    {
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
+        $setup_language->method('checkLanguageForInstallation')->willReturn(true);
+        $dic = new \ILIAS\DI\Container();
+        $dic['component.repository'] = static fn(): never => throw new \LogicException('plugins must not be refreshed in the Setup');
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic;
+        try {
+            $result = UpdateLanguage::forSetup($setup_language)->perform(['language_keys' => 'de']);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['updated_language_keys']);
     }
 
     public function testSingleAlreadyInstalledLanguageIsRefreshed(): void
@@ -108,11 +236,8 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
-     * getAvailableLanguagesForInstallation() (the $known_languages/$db_languages
-     * argument) and getLocalLanguages() ($local_language_keys) must be passed
-     * to registerInstalledLanguage() in exactly this order - both empty (or
-     * equal) values would make a swap of the two arguments invisible, so
-     * this test deliberately uses distinguishable shapes for each.
+     * getAvailableLanguagesForInstallation() and getLocalLanguages() must reach registerInstalledLanguage() in this
+     * order; distinguishable shapes make a swap visible.
      */
     public function testRegisterInstalledLanguageReceivesKnownLanguagesAndLocalLanguageKeysInTheCorrectOrder(): void
     {
@@ -251,20 +376,17 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     {
         $this->expectException(InvalidInputException::class);
 
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform($parameters);
+        $this->createActivity($this->createSetupLanguageStub([], [], []))->perform($parameters);
     }
 
     /**
-     * Regression test for the perform()-parameter-type-check unification
-     * (see UpdateLanguage::perform()): a non-array $parameters must now
-     * raise the concrete InvalidInputException - not just the more general
-     * \InvalidArgumentException it extends.
+     * A non-array $parameters must raise the concrete InvalidInputException, not just \InvalidArgumentException.
      */
     public function testNonArrayParametersAreRejected(): void
     {
         $this->expectException(InvalidInputException::class);
 
-        $this->createActivity($this->createSetupLanguageMock([], [], []))->perform('not-an-array');
+        $this->createActivity($this->createSetupLanguageStub([], [], []))->perform('not-an-array');
     }
 
     public function testInputDescriptionUsesOnlyTheLanguageKeysFieldWithNoModeField(): void
@@ -284,14 +406,14 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         // no mode parameter: the select field must never be built
         $field->expects($this->never())->method('select');
 
-        $group = $this->createMock(Group::class);
+        $group = $this->createStub(Group::class);
         $field->expects($this->once())
             ->method('group')
             ->with(['language_keys' => $text])
             ->willReturn($group);
 
         $activity = $this->createActivity(
-            $this->createSetupLanguageMock([], [], [])
+            $this->createSetupLanguageStub([], [], [])
         );
 
         $this->assertSame($group, $activity->getInputDescription($field));
@@ -312,8 +434,10 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         $setup_language = $this->createSetupLanguageMock([], [], ['de']);
         $setup_language->expects($this->never())->method('getInstalledLanguages');
         $setup_language->expects($this->never())->method('flushLanguageForInstallation');
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $setup_language,
@@ -326,10 +450,10 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
 
     public function testPermissionGrantedPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $setup_language = $this->createSetupLanguageMock([], [], ['de']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         $result = $this->createActivity(
@@ -342,24 +466,15 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     }
 
     /**
-     * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
-     * always builds 'language_keys' as a PHP array of strings, never a
-     * comma-separated string - and GrindsFormInput::grind() (via its
-     * private joinListOfStringsRawValue() helper - see that method's own
-     * docblock) must join that array into the same shape a real HTML text
-     * input would carry BEFORE
-     * it reaches the declared Text field, rather than rejecting it. This
-     * is exercised through the REAL getInputDescription()/grind() pipeline
-     * (createRealFieldsUiFactory(), not a mocked FormInput) via
-     * maybePerformAs() - the previously blocking regression this test
-     * guards against.
+     * A real GUI caller (class.ilObjLanguageFolderGUI.php) sends 'language_keys' as an array of strings;
+     * GrindsFormInput::grind() must join it into a comma-separated string before it reaches the Text field.
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndUpdatesEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        $setup_language = $this->createSetupLanguageMock([], [], ['de', 'fr']);
+        $setup_language = $this->createSetupLanguageStub([], [], ['de', 'fr']);
         $setup_language->method('checkLanguageForInstallation')->willReturn(true);
 
         $result = $this->createActivity($setup_language, $rbac)
@@ -372,14 +487,16 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
     private function createActivity(
         ilSetupLanguage $setup_language,
         ?\ilRbacSystem $rbac = null,
-        ?Language $language = null
+        ?Language $language = null,
+        ?\Closure $refresh_plugins = null
     ): UpdateLanguage {
         return new UpdateLanguage(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $this->rbacOf($rbac ?? $this->createMock(\ilRbacSystem::class)),
+            $this->createStub(RefineryFactory::class),
+            $language ?? $this->createStub(Language::class),
+            $this->rbacOf($rbac ?? $this->createStub(\ilRbacSystem::class)),
             $setup_language,
-            $this->languageFolder()
+            $this->languageFolder(),
+            $refresh_plugins
         );
     }
 
@@ -389,6 +506,27 @@ class UpdateLanguageTest extends ActivityWithPerformResultContractTestCase
         array $installed_language_keys
     ): MockObject&ilSetupLanguage {
         $setup_language = $this->createMock(ilSetupLanguage::class);
+        $setup_language->method('getAvailableLanguagesForInstallation')->willReturn($available_languages);
+        $setup_language->method('getLocalLanguages')->willReturn($local_language_keys);
+        $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);
+
+        return $setup_language;
+    }
+
+    /**
+     * Stub variant of createSetupLanguageMock() for call sites without ->expects(): a plain createMock() there
+     * triggers PHPUnit's "no expectations configured" notice.
+     *
+     * @param array<mixed> $available_languages
+     * @param array<mixed> $local_language_keys
+     * @param array<mixed> $installed_language_keys
+     */
+    private function createSetupLanguageStub(
+        array $available_languages,
+        array $local_language_keys,
+        array $installed_language_keys
+    ): Stub&ilSetupLanguage {
+        $setup_language = $this->createStub(ilSetupLanguage::class);
         $setup_language->method('getAvailableLanguagesForInstallation')->willReturn($available_languages);
         $setup_language->method('getLocalLanguages')->willReturn($local_language_keys);
         $setup_language->method('getInstalledLanguages')->willReturn($installed_language_keys);

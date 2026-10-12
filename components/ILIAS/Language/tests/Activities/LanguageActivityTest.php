@@ -24,6 +24,7 @@ use ILIAS\AccessControl\PublicInterface\RBAC;
 use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\Activities\LanguageActivity;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Language\Language;
 use ILIAS\Language\LanguageFolder;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -48,8 +49,8 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
         $activity = new LanguageActivityThrowingInputDescriptionTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $this->rbacOf($rbac),
             $this->languageFolder()
         );
@@ -72,8 +73,8 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
         $rbac->expects($this->never())->method('checkAccessOfUser');
 
         $activity = new LanguageActivityThrowingInputDescriptionTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $this->rbacOf($rbac),
             $this->languageFolder(),
             throw_type_error: true,
@@ -95,12 +96,12 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
      */
     public function testAdditionalPerformParametersWinsOverANormalizeParametersKeyCollisionInMaybePerformAs(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = new LanguageActivityMergePrecedenceTestDouble(
-            $this->createMock(RefineryFactory::class),
-            $this->createMock(Language::class),
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
             $this->rbacOf($rbac),
             $this->languageFolder()
         );
@@ -113,6 +114,34 @@ class LanguageActivityTest extends ilLanguageBaseTestCase
         $this->assertSame(42, $parameters['usr_id']);
         // a non-colliding key survives the merge
         $this->assertSame('form', $parameters['source']);
+    }
+
+    /**
+     * Skipped entries are listed with their markup, language-neutral and without duplicates; only the requested
+     * languages appear, in requested order.
+     */
+    public function testInvalidMarkupCustomizingEntriesAppendTheMarkupConcernedToEachEntry(): void
+    {
+        $policy = new TranslationMarkupPolicy();
+        $skipped = [
+            'de' => [
+                'tos#:#x' => $policy->findViolations('<script>a</script><script>b</script></form>'),
+                'tos#:#plain' => [],
+            ],
+            'en' => ['tos#:#y' => $policy->findViolations('<script>a</script>')],
+            'fr' => ['tos#:#z' => $policy->findViolations('<script>a</script>')],
+        ];
+        $activity = new LanguageActivityInvalidMarkupTestDouble(
+            $this->createStub(RefineryFactory::class),
+            $this->createStub(Language::class),
+            $this->rbacOf($this->createStub(\ilRbacSystem::class)),
+            $this->languageFolder()
+        );
+
+        $this->assertSame(
+            ['en: tos#:#y: <script>', 'de: tos#:#x: <script>, </form>', 'de: tos#:#plain'],
+            $activity->entries($skipped, ['en', 'de', 'it'])
+        );
     }
 }
 
@@ -202,5 +231,49 @@ final class LanguageActivityMergePrecedenceTestDouble extends LanguageActivity
     protected function additionalPerformParameters(int $usr_id): array
     {
         return ['usr_id' => $usr_id];
+    }
+}
+
+/**
+ * Minimal LanguageActivity making the protected invalidMarkupCustomizingEntries() callable.
+ */
+final class LanguageActivityInvalidMarkupTestDouble extends LanguageActivity
+{
+    /**
+     * @param array<string, array<string, list<string>>> $skipped
+     * @param list<string> $language_keys
+     * @return list<string>
+     */
+    public function entries(array $skipped, array $language_keys): array
+    {
+        return $this->invalidMarkupCustomizingEntries($skipped, $language_keys);
+    }
+
+    public function getDescription(): Text\SimpleDocumentMarkdown
+    {
+        return $this->markdown('Test double for invalidMarkupCustomizingEntries().');
+    }
+
+    public function getInputDescription(FieldFactory $f): FormInput
+    {
+        throw new \LogicException(__METHOD__ . ' is not used by this test double.');
+    }
+
+    public function getOutputDescription(Description\Factory $f): Description\Description
+    {
+        throw new \LogicException(__METHOD__ . ' is not used by this test double.');
+    }
+
+    public function perform(mixed $parameters): mixed
+    {
+        throw new \LogicException(__METHOD__ . ' is not used by this test double.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function normalizeParameters(array $grind_result): array
+    {
+        throw new \LogicException(__METHOD__ . ' is not used by this test double.');
     }
 }

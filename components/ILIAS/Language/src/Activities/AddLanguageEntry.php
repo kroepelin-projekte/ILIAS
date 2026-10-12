@@ -21,8 +21,13 @@ declare(strict_types=1);
 namespace ILIAS\Language\Activities;
 
 use ILIAS\AccessControl\PublicInterface\RBAC;
+use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Data\Description;
 use ILIAS\Data\Text;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
+use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
+use ILIAS\Language\ComponentTranslation\PluralFormKey;
 use ILIAS\Language\Language;
 use ILIAS\Language\LanguageFolder;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
@@ -40,7 +45,8 @@ class AddLanguageEntry extends LanguageActivity
      * @param \Closure|null $replace_lang_entry (string $module, string $identifier, string $lang_key,
      *        string $value, string $local_change, string $remarks): bool
      * @param \Closure|null $update_module_cache (string $lang_key, string $module, string $identifier,
-     *        string $value): void
+     *        string $value, string $remarks = ''): ?bool - `false` if the entry reached the database,
+     *        but the PO/MO overlay could not be written
      * @param \Closure|null $user_login (int $usr_id): string
      */
     public function __construct(
@@ -69,27 +75,174 @@ class AddLanguageEntry extends LanguageActivity
                 string $lang_key,
                 string $module,
                 string $identifier,
-                string $value
-            ) use ($db): void {
-                $set = $db->query(
-                    'SELECT lang_array FROM lng_modules WHERE lang_key = '
-                    . $db->quote($lang_key, 'text') . ' AND module = ' . $db->quote($module, 'text')
+                string $value,
+                string $remarks = ''
+            ) use ($db): bool {
+                global $DIC;
+
+                $write = static function () use ($db, $lang_key, $module, $identifier, $value, $remarks): bool {
+                    global $DIC;
+
+                    $entries = self::currentModuleEntries($db, $lang_key, $module);
+                    if ($entries === null) {
+                        // as before: no lng_modules row of a module not maintained in PO files -
+                        // nothing to update (lng_data holds the entry)
+                        return true;
+                    }
+                    $entries[self::entryKeyOf($entries, $identifier)] = $value;
+                    $written = \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
+                    if ($remarks === '' || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+                        return $written;
+                    }
+                    // the remark lng_data got (see replace_lang_entry) - in the overlay as well
+                    try {
+                        MigratedLanguageFileSync::setRemarks(
+                            $DIC[LanguageFileDirectoryManager::class],
+                            $lang_key,
+                            $module,
+                            [$identifier => $remarks],
+                            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                            ILIAS_ABSOLUTE_PATH
+                        );
+                    } catch (\Throwable) {
+                        return false;
+                    }
+                    return $written;
+                };
+                $manager = isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)
+                    ? $DIC[LanguageFileDirectoryManager::class]
+                    : null;
+
+                // read and written under the overlay lock, so a concurrent write is not lost
+                return MigratedLanguageFileSync::withOverlayLock(
+                    $manager,
+                    $lang_key,
+                    $module,
+                    MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                    $write,
+                    ILIAS_ABSOLUTE_PATH
                 );
-                $row = $db->fetchAssoc($set);
-                if ($row === null || !is_string($row['lang_array'] ?? null)) {
-                    return;
-                }
-
-                $entries = unserialize($row['lang_array'], ['allowed_classes' => false]);
-                if (!is_array($entries)) {
-                    return;
-                }
-
-                $entries[$identifier] = $value;
-                \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
             };
         $this->user_login = $user_login
             ?? static fn(int $usr_id): string => \ilObjUser::_lookupLogin($usr_id);
+    }
+
+    /**
+     * The key $identifier takes in $entries: the default form's key for a plural message of a
+     * PO-maintained module (the one the database row stands for), otherwise $identifier itself.
+     *
+     * @param array<string|int, string> $entries
+     */
+    private static function entryKeyOf(array $entries, string $identifier): string
+    {
+        return MigratedLanguageFileSync::defaultFormKeyOf($identifier, $entries) ?? $identifier;
+    }
+
+    /**
+     * The languages whose shipped `.po` has a plural message for $identifier that lacks this form
+     * (e.g. `poll_population [2]`). Empty if the `.po` cannot be read.
+     *
+     * @param list<string|int> $lang_keys
+     * @return list<string>
+     */
+    private static function languagesWithoutPluralForm(string $module, string $identifier, array $lang_keys): array
+    {
+        global $DIC;
+
+        if (PluralFormKey::parse($identifier) === null || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            return [];
+        }
+        $languages = [];
+        foreach ($lang_keys as $lang_key) {
+            $lang_key = (string) $lang_key;
+            $shipped_po = MigratedLanguageFileSync::findShippedModuleFiles(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $lang_key
+            )[$module] ?? null;
+            if ($shipped_po === null) {
+                continue;
+            }
+            try {
+                $shipped = MigratedLanguageFileSync::loadShippedModuleEntries($shipped_po, $module);
+            } catch (\Throwable) {
+                continue;
+            }
+            if (MigratedLanguageFileSync::pluralMessageOf($identifier, $shipped) !== null && !array_key_exists($identifier, $shipped)) {
+                $languages[] = $lang_key;
+            }
+        }
+
+        return $languages;
+    }
+
+    /**
+     * The content of $module/$lang_key the new entry is added to: for a module maintained in PO files
+     * its shipped state with the overlay delta on top (what ilLanguage serves, see
+     * MigratedLanguageFileSync::loadModuleTranslations()), otherwise - or if that cannot be read -
+     * the lng_modules row. Without a readable row, only the module array of a module maintained in
+     * PO files is rebuilt from lng_data (which already holds the new entry), so the entry never
+     * stays invisible behind its overlay; for any other module `null` is
+     * returned and nothing is written, as before - the module name is free input, and no
+     * lng_modules row must be created for an arbitrary one.
+     *
+     * @return array<string, string>|null identifier => value
+     */
+    private static function currentModuleEntries(\ilDBInterface $db, string $lang_key, string $module): ?array
+    {
+        global $DIC;
+
+        $is_migrated = false;
+        if (isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+            $is_migrated = isset(MigratedLanguageFileSync::findShippedModuleFiles(
+                $DIC[LanguageFileDirectoryManager::class],
+                ILIAS_ABSOLUTE_PATH,
+                $lang_key
+            )[$module]);
+        }
+        if ($is_migrated) {
+            try {
+                $overlay = MigratedLanguageFileSync::loadModuleTranslations(
+                    $DIC[LanguageFileDirectoryManager::class],
+                    $lang_key,
+                    $module,
+                    MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
+                    ILIAS_ABSOLUTE_PATH
+                );
+            } catch (\Throwable) {
+                // an unreadable overlay is rebuilt by the sync - the database content is the base then
+                $overlay = null;
+            }
+            if ($overlay !== null) {
+                return array_map(static fn(array $entry): string => $entry['value'], $overlay);
+            }
+        }
+
+        $set = $db->query(
+            'SELECT lang_array FROM lng_modules WHERE lang_key = '
+            . $db->quote($lang_key, 'text') . ' AND module = ' . $db->quote($module, 'text')
+        );
+        $row = $db->fetchAssoc($set);
+        $entries = is_string($row['lang_array'] ?? null)
+            ? unserialize($row['lang_array'], ['allowed_classes' => false])
+            : null;
+        if (is_array($entries)) {
+            return $entries;
+        }
+        if (!$is_migrated) {
+            return null;
+        }
+
+        $entries = [];
+        $set = $db->query(
+            'SELECT identifier, value FROM lng_data WHERE lang_key = '
+            . $db->quote($lang_key, 'text') . ' AND module = ' . $db->quote($module, 'text')
+        );
+        while ($row = $db->fetchAssoc($set)) {
+            $entries[(string) $row['identifier']] = (string) $row['value'];
+        }
+
+        return $entries;
     }
 
     public function getDescription(): Text\SimpleDocumentMarkdown
@@ -175,6 +328,7 @@ MARKDOWN
                     ),
                     $f->string($this->markdown('Language key of a language with no given value.'))
                 ),
+                'overlay_write_failed_language_keys' => $this->overlayWriteFailedOutputField($f),
             ]
         );
     }
@@ -226,12 +380,34 @@ MARKDOWN
             );
         }
 
+        // all languages are checked before anything is written; only language keys are named, never values
+        $values = [];
+        foreach ($installed_language_keys as $lang_key) {
+            $value = $translations[$lang_key] ?? '';
+            $values[$lang_key] = is_string($value) ? trim($value) : '';
+        }
+        $invalid_values = (new TranslationMarkupPolicy())->findInvalidValues($values);
+        if ($invalid_values !== []) {
+            throw new InvalidInputException(
+                'The value contains markup that is not allowed for: ' . implode(', ', array_keys($invalid_values)) . '.'
+            );
+        }
+
+        // such a form would be dropped from the module's content: reject instead of reporting success
+        $languages_without_form = self::languagesWithoutPluralForm($module, $identifier, array_keys(array_filter($values)));
+        if ($languages_without_form !== []) {
+            throw new InvalidInputException(
+                'The plural message has no such form for: ' . implode(', ', $languages_without_form) . '.'
+            );
+        }
+
         // '' (no usr_id) means "no remarks" for replaceLangEntry()
         $login = is_int($usr_id) ? ($this->user_login)($usr_id) : '';
         $local_change = gmdate('Y-m-d H:i:s');
 
         $added_language_keys = [];
         $skipped_empty_language_keys = [];
+        $overlay_write_failed_language_keys = [];
 
         // not transactional: a failure partway leaves the languages processed so far written
         foreach ($installed_language_keys as $lang_key) {
@@ -245,7 +421,9 @@ MARKDOWN
             }
 
             ($this->replace_lang_entry)($module, $identifier, $lang_key, $value, $local_change, $login);
-            ($this->update_module_cache)($lang_key, $module, $identifier, $value);
+            if (($this->update_module_cache)($lang_key, $module, $identifier, $value, $login) === false) {
+                $overlay_write_failed_language_keys[] = $lang_key;
+            }
 
             $added_language_keys[] = $lang_key;
         }
@@ -255,6 +433,7 @@ MARKDOWN
             'identifier' => $identifier,
             'added_language_keys' => $added_language_keys,
             'skipped_empty_language_keys' => $skipped_empty_language_keys,
+            'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
     }
 

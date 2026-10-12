@@ -9,34 +9,27 @@
  * You should have received a copy of said license along with
  * the source code, too.
  *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
  *********************************************************************/
 
 declare(strict_types=1);
 
 namespace ILIAS\Language\Tests\Activities;
 
-use ILIAS\Language\Tests\Activities\ActivityWithPerformResultContractTestCase;
-use ILIAS\Language\Activities\AmbiguousLanguageTitleException;
 use ILIAS\Language\Activities\InvalidInputException;
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\Language;
-use ILIAS\Refinery\Factory as RefineryFactory;
-use ILIAS\UI\Component\Input\Factory as InputFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * RemoveLocalLanguageChanges has no ilSetupLanguage collaborator (unlike
- * InstallLanguage/UpdateLanguage) - instead it resolves language keys to
- * objects via two closures, $lng_objects and $obj_language_factory. The
- * object returned by $obj_language_factory must behave like \ilObjLanguage
- * (isInstalled(), removeLocalChanges()), but \ilObjLanguage itself cannot be
- * constructed or meaningfully mocked in a unit test (its constructor needs
- * the global $DIC) - so tests use a small fake object instead, injected
- * through $obj_language_factory.
- */
 class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTestCase
 {
+    use RemoveLocalLanguageChangesTestFixture;
+
     protected function createDefaultActivity(): RemoveLocalLanguageChanges
     {
         [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld(['de' => []]);
@@ -50,12 +43,8 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * @param array<string, array{installed?: bool, remove_local_changes_return?: bool}> $language_objects
-     *        Keyed by language key; each entry becomes a fake object with
-     *        the given isInstalled() answer (default true) and
-     *        removeLocalChanges() return value (default true) reachable
-     *        from the corresponding obj_id (assigned in iteration order,
-     *        starting at 1).
+     * @param array<string, array{installed?: bool, remove_local_changes_return?: bool, unwritten_overlay?: list<string>}> $language_objects
+     *        keyed by language key; obj_ids are assigned in iteration order, starting at 1
      * @return array{0: array<int, FakeRemoveLocalLanguageChangesObject>, 1: \Closure, 2: \Closure}
      *         [obj id => fake object, lng_objects closure, obj_language_factory closure]
      */
@@ -70,6 +59,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             $fakes_by_obj_id[$obj_id] = new FakeRemoveLocalLanguageChangesObject(
                 is_installed: $flags['installed'] ?? true,
                 remove_local_changes_return_value: $flags['remove_local_changes_return'] ?? true,
+                modules_with_unwritten_overlay: $flags['unwritten_overlay'] ?? [],
             );
             $obj_id++;
         }
@@ -79,237 +69,6 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
 
         return [$fakes_by_obj_id, $lng_objects, $obj_language_factory];
     }
-
-    // -----------------------------------------------------------------
-    // resolveObjIdsByLanguageKey() ambiguous-title guard (m1): two "lng"
-    // objects sharing the same title must reject the whole request for
-    // that title rather than silently resolving to whichever one happened
-    // to be enumerated last - see UninstallLanguage's identical guard and
-    // UninstallLanguageTest's equivalent tests for the same reasoning.
-    // -----------------------------------------------------------------
-
-    public function testAmbiguousTitleRejectsTheRequestAndNeverCallsTheObjectFactoryForIt(): void
-    {
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => 'de'],
-            ['obj_id' => 2, 'title' => 'de'],
-        ];
-        $factory_calls = [];
-        $obj_language_factory = static function (int $id) use (&$factory_calls): never {
-            $factory_calls[] = $id;
-            throw new \LogicException('must never be called for an ambiguous title');
-        };
-
-        $activity = $this->createActivity($lng_objects, $obj_language_factory);
-
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/"de"/');
-
-        try {
-            $activity->perform(['language_keys' => 'de']);
-        } finally {
-            $this->assertSame([], $factory_calls);
-        }
-    }
-
-    /**
-     * Regression test: the AmbiguousLanguageTitleException message embeds
-     * the ambiguous title RAW/unescaped - escaping HTML-significant
-     * characters for safe display is deliberately no longer this domain
-     * layer's job (see RemoveLocalLanguageChanges::perform()'s own comment
-     * above the throw), only \ILIAS\Language\RendersActivityErrors::
-     * activityErrorMessage()'s. If this message were pre-escaped here, it
-     * would end up double-escaped once it reaches that single seam.
-     *
-     * NOTE (found while adding format validation coverage for
-     * ParsesLanguageKeyList::toLanguageKeyList()): this test originally used
-     * an HTML/XSS payload ('<script>alert(1)</script>&"quoted"') as BOTH the
-     * ambiguous objects' title AND the requested 'language_keys' value -
-     * $language_keys must equal an object's title verbatim for
-     * resolveObjIdsByLanguageKey()'s ambiguity map to ever be consulted
-     * (perform() intersects the requested, already-parsed $language_keys
-     * against that map's keys). Since toLanguageKeyList() now rejects any
-     * value that is not exactly two lowercase ASCII letters BEFORE that
-     * intersection is even computed, such a value now throws
-     * InvalidInputException immediately and never reaches
-     * AmbiguousLanguageTitleException at all - this test would otherwise
-     * fail with that InvalidInputException instead of the expected
-     * AmbiguousLanguageTitleException. The dangerous-title scenario is
-     * therefore no longer reachable through perform()'s public parameter
-     * surface at all (a real, if incidental, hardening side effect of the
-     * new format check) - only a title that happens to already be a
-     * plausible two-letter language key can ever become "ambiguous" via a
-     * real request. The title/key below is changed accordingly; the
-     * "no HTML-escaping happens" assertions are kept for continuity, even
-     * though a two-letter title trivially satisfies them.
-     */
-    public function testAmbiguousTitleExceptionMessageContainsTheRawUnescapedTitle(): void
-    {
-        $ambiguous_title = 'de';
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => $ambiguous_title],
-            ['obj_id' => 2, 'title' => $ambiguous_title],
-        ];
-        $obj_language_factory = static function (int $id): never {
-            throw new \LogicException('must never be called for an ambiguous title');
-        };
-
-        $activity = $this->createActivity($lng_objects, $obj_language_factory);
-
-        try {
-            $activity->perform(['language_keys' => $ambiguous_title]);
-            $this->fail('Expected an AmbiguousLanguageTitleException to be thrown.');
-        } catch (AmbiguousLanguageTitleException $e) {
-            $this->assertStringContainsString($ambiguous_title, $e->getMessage());
-            $this->assertStringNotContainsString('&lt;script&gt;', $e->getMessage());
-            $this->assertStringNotContainsString('&quot;', $e->getMessage());
-        }
-    }
-
-    /**
-     * Via maybePerformAs(), the same ambiguous-title \RuntimeException must
-     * surface as a Result\Error, not propagate as an uncaught exception -
-     * and, again, the object factory must never be reached for it.
-     */
-    public function testAmbiguousTitleViaMaybePerformAsReturnsResultErrorAndNeverCallsTheObjectFactory(): void
-    {
-        $rbac = $this->createMock(\ilRbacSystem::class);
-        $rbac->method('checkAccessOfUser')->willReturn(true);
-
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => 'de'],
-            ['obj_id' => 2, 'title' => 'de'],
-        ];
-        $factory_calls = [];
-        $obj_language_factory = static function (int $id) use (&$factory_calls): never {
-            $factory_calls[] = $id;
-            throw new \LogicException('must never be called for an ambiguous title');
-        };
-
-        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
-            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
-
-        $this->assertTrue($result->isError());
-        $this->assertInstanceOf(\RuntimeException::class, $result->error());
-        $this->assertSame([], $factory_calls);
-    }
-
-    /**
-     * An ambiguous title must not poison unrelated, unambiguous titles in
-     * the same $lng_objects() world/request - a genuinely unique language
-     * key coexisting with an ambiguous one must still resolve and have its
-     * local changes removed normally.
-     */
-    public function testUnambiguousLanguageKeyStillWorksAlongsideAnAmbiguousOneInTheSameLngObjectsList(): void
-    {
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => 'de'],
-            ['obj_id' => 2, 'title' => 'de'],
-            ['obj_id' => 3, 'title' => 'fr'],
-        ];
-        $fr = new FakeRemoveLocalLanguageChangesObject(is_installed: true);
-        $obj_language_factory = static function (int $id) use ($fr): FakeRemoveLocalLanguageChangesObject {
-            if ($id === 3) {
-                return $fr;
-            }
-
-            throw new \LogicException('must never be called for the ambiguous "de" title');
-        };
-
-        $activity = $this->createActivity($lng_objects, $obj_language_factory);
-
-        $result = $activity->perform(['language_keys' => 'fr']);
-
-        $this->assertSame(['fr'], $result['removed_local_changes_language_keys']);
-        $this->assertSame(1, $fr->removeLocalChangesCallCount());
-    }
-
-    /**
-     * Regression test for the ambiguity check being moved OUT of the
-     * per-key foreach loop and performed for ALL requested keys BEFORE any
-     * removeLocalChanges() call (see the comment directly above that check
-     * in perform(): "Checked upfront, for all requested keys at once, so a
-     * request naming both an unambiguous and an ambiguous key never
-     * changes the unambiguous one before rejecting the whole call."). A
-     * request naming an unambiguous key ('de') FIRST and an ambiguous one
-     * ('fr') SECOND must reject the whole request and must NOT have already
-     * changed 'de' by the time 'fr' is reached - before this fix, the
-     * ambiguity check ran inline inside the loop, so 'de' (processed first)
-     * would already have had its local changes removed for real before the
-     * loop reached the ambiguous 'fr' and threw.
-     */
-    public function testAnUnambiguousKeyBeforeAnAmbiguousOneNeverHasLocalChangesRemovedOnceTheWholeRequestIsRejected(): void
-    {
-        $de = new FakeRemoveLocalLanguageChangesObject(is_installed: true);
-
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => 'de'],
-            ['obj_id' => 2, 'title' => 'fr'],
-            ['obj_id' => 3, 'title' => 'fr'],
-        ];
-        $factory_calls = [];
-        $obj_language_factory = static function (int $id) use (&$factory_calls, $de): FakeRemoveLocalLanguageChangesObject {
-            $factory_calls[] = $id;
-            if ($id === 1) {
-                return $de;
-            }
-
-            throw new \LogicException('must never be called for the ambiguous "fr" title');
-        };
-
-        $activity = $this->createActivity($lng_objects, $obj_language_factory);
-
-        try {
-            // 'de' listed BEFORE the ambiguous 'fr' on purpose - see the
-            // "Checked upfront, for all requested keys at once" comment
-            // above the ambiguity check in perform().
-            $activity->perform(['language_keys' => 'de,fr']);
-            $this->fail('Expected an AmbiguousLanguageTitleException to be thrown.');
-        } catch (AmbiguousLanguageTitleException $e) {
-            $this->assertStringContainsString('"fr"', $e->getMessage());
-            // 'de' was never resolved to a factory call, let alone changed -
-            // the ambiguity check ran BEFORE the per-key loop.
-            $this->assertSame([], $factory_calls);
-            $this->assertSame(0, $de->removeLocalChangesCallCount());
-        }
-    }
-
-    /**
-     * Same regression, exercised end-to-end through maybePerformAs(): the
-     * Result\Error must surface without 'de' having had its local changes
-     * removed.
-     */
-    public function testMaybePerformAsNeverRemovesLocalChangesForAnUnambiguousKeyWhenAnotherRequestedKeyIsAmbiguous(): void
-    {
-        $rbac = $this->createMock(\ilRbacSystem::class);
-        $rbac->method('checkAccessOfUser')->willReturn(true);
-
-        $de = new FakeRemoveLocalLanguageChangesObject(is_installed: true);
-
-        $lng_objects = static fn(): array => [
-            ['obj_id' => 1, 'title' => 'de'],
-            ['obj_id' => 2, 'title' => 'fr'],
-            ['obj_id' => 3, 'title' => 'fr'],
-        ];
-        $obj_language_factory = static function (int $id) use ($de): FakeRemoveLocalLanguageChangesObject {
-            if ($id === 1) {
-                return $de;
-            }
-
-            throw new \LogicException('must never be called for the ambiguous "fr" title');
-        };
-
-        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
-            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => ['de', 'fr']]);
-
-        $this->assertTrue($result->isError());
-        $this->assertInstanceOf(AmbiguousLanguageTitleException::class, $result->error());
-        $this->assertSame(0, $de->removeLocalChangesCallCount());
-    }
-
-    // -----------------------------------------------------------------
-    // isAllowedToPerform()
-    // -----------------------------------------------------------------
 
     public function testIsAllowedToPerformDelegatesToRbacSystemWithWriteAndTheConfiguredRefId(): void
     {
@@ -332,7 +91,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
 
     public function testIsAllowedToPerformReturnsFalseWhenRbacDenies(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(false);
 
         $activity = $this->createActivity(
@@ -345,10 +104,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * isAllowedToPerform() must be a pure permission check: it must never
-     * touch $lng_objects or $obj_language_factory (and therefore never call
-     * removeLocalChanges()) - unlike perform(), which is the only place
-     * allowed to have side effects.
+     * isAllowedToPerform() must be a pure permission check: it must never touch $lng_objects or $obj_language_factory.
      */
     public function testIsAllowedToPerformNeverTouchesLngObjectsOrObjectFactory(): void
     {
@@ -359,17 +115,13 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
             throw new \LogicException('obj_language_factory must never be called by isAllowedToPerform()');
         };
 
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $activity = $this->createActivity($lng_objects, $obj_language_factory, $rbac);
 
         $this->assertTrue($activity->isAllowedToPerform(6, ['language_keys' => 'de']));
     }
-
-    // -----------------------------------------------------------------
-    // perform()
-    // -----------------------------------------------------------------
 
     public function testInstalledLanguageWithValidFileHasItsLocalChangesRemoved(): void
     {
@@ -385,6 +137,27 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $this->assertSame([], $result['invalid_language_file_keys']);
         $this->assertSame([], $result['not_installed_language_keys']);
         $this->assertSame(1, $fakes[1]->removeLocalChangesCallCount());
+    }
+
+    /**
+     * A language whose migrated-module overlay could not be written still counts as removed and is also listed in
+     * "overlay_write_failed_language_keys".
+     */
+    public function testALanguageWithAnUnwrittenOverlayIsListedAdditionallyToBeingRemoved(): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => ['unwritten_overlay' => ['pilot']],
+            'en' => [],
+            'fr' => ['remove_local_changes_return' => false, 'unwritten_overlay' => ['pilot']],
+        ]);
+
+        $result = $this->createActivity($lng_objects, $obj_language_factory)->perform([
+            'language_keys' => ['de', 'en', 'fr'],
+        ]);
+
+        $this->assertSame(['de', 'en'], $result['removed_local_changes_language_keys']);
+        $this->assertSame(['fr'], $result['invalid_language_file_keys']);
+        $this->assertSame(['de'], $result['overlay_write_failed_language_keys']);
     }
 
     public function testExistingButNotInstalledLanguageObjectIsReportedAsNotInstalledWithoutCallingRemoveLocalChanges(): void
@@ -404,13 +177,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * Regression test: removeLocalChanges() itself is the authority on
-     * whether the language file was valid, not merely the outer
-     * isInstalled() guard. A language that passes isInstalled() (so
-     * perform() does call removeLocalChanges()) but whose
-     * removeLocalChanges() nonetheless returns false (invalid language
-     * file) must be reported as invalid_language_file_keys, never as
-     * removed_local_changes_language_keys or not_installed_language_keys.
+     * removeLocalChanges() itself, not just the outer isInstalled() guard, decides whether the language file was valid.
      */
     public function testInstalledLanguageWhereRemoveLocalChangesFailsIsReportedAsInvalidLanguageFile(): void
     {
@@ -429,10 +196,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * A language key with no corresponding "lng" object at all must be
-     * reported as not installed - and, crucially, $obj_language_factory
-     * must never even be invoked for it (there is no obj_id to construct it
-     * from in the first place).
+     * A language key without "lng" object is reported as not installed; $obj_language_factory is never invoked.
      */
     public function testUnknownLanguageKeyIsReportedAsNotInstalledWithoutTouchingTheObjectFactory(): void
     {
@@ -454,11 +218,8 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * A single request can carry languages in every possible state at once;
-     * each must land in its own bucket, and removeLocalChanges() must only
-     * ever be invoked for the two genuinely installed languages (regardless
-     * of whether their file turns out valid or not) - never for the
-     * not-installed or unknown ones.
+     * Languages in every state at once land in their own bucket; removeLocalChanges() runs only for the two
+     * installed languages.
      */
     public function testMixedBulkRequestPartitionsEachKeyIntoTheCorrectBucket(): void
     {
@@ -534,19 +295,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * Regression test for the perform()-parameter-type-check unification
-     * (see RemoveLocalLanguageChanges::perform(), ~line 143): this check was
-     * switched from a plain \InvalidArgumentException to the concrete
-     * InvalidInputException, to be consistent with AddLanguageEntry,
-     * SetLanguageDetectionEnabled and SetLanguageTranslationEnabled, which
-     * already used it. The docblock/comment that used to justify the
-     * opposite ("deliberately NOT an InvalidInputException") is stale and
-     * has been removed - this test now pins the CURRENT, more specific
-     * exception class, not just \InvalidArgumentException (which
-     * InvalidInputException extends, and against which this assertion would
-     * therefore have kept passing silently even after the behaviour change -
-     * see RendersActivityErrors, which treats InvalidInputException/
-     * SafeToDisplayActivityError specially).
+     * A non-array $parameters must raise the concrete InvalidInputException, like the other Activities.
      */
     public function testNonArrayParametersAreRejected(): void
     {
@@ -555,16 +304,8 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $this->createActivity(static fn(): array => [], static fn(int $id) => null)->perform('not-an-array');
     }
 
-    // -----------------------------------------------------------------
-    // maybePerformAs()
-    // -----------------------------------------------------------------
-
     /**
-     * Regression test analogous to
-     * UninstallLanguageTest::testPermissionDeniedBeforePerformNeverCallsObjectFactoryOrUninstall():
-     * a denied permission must short-circuit before perform() ever runs -
-     * $lng_objects/$obj_language_factory (and therefore removeLocalChanges())
-     * must never be touched.
+     * Like UninstallLanguageTest's permission test: a denied permission short-circuits before perform() runs.
      */
     public function testPermissionDeniedBeforePerformNeverCallsObjectFactoryOrRemoveLocalChanges(): void
     {
@@ -577,8 +318,10 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
             'de' => [],
         ]);
-        $language = $this->createMock(Language::class);
-        $language->method('txt')->with('msg_no_perm_write')->willReturn('no write permission');
+        $language = $this->createStub(Language::class);
+        $language->method('txt')->willReturnMap([
+            ['msg_no_perm_write', 'no write permission'],
+        ]);
 
         $result = $this->createActivity(
             $lng_objects,
@@ -593,7 +336,7 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
 
     public function testPermissionGrantedPerformsAndReturnsOkResult(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -612,21 +355,12 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * Contract test: a real GUI caller (class.ilObjLanguageFolderGUI.php)
-     * always builds 'language_keys' as a PHP array of strings, never a
-     * comma-separated string - and GrindsFormInput::grind() (via its
-     * private joinListOfStringsRawValue() helper - see that method's own
-     * docblock) must join that array into the same shape a real HTML text
-     * input would carry BEFORE
-     * it reaches the declared Text field, rather than rejecting it. This
-     * is exercised through the REAL getInputDescription()/grind() pipeline
-     * (createRealFieldsUiFactory(), not a mocked FormInput) via
-     * maybePerformAs() - the previously blocking regression this test
-     * guards against.
+     * A real GUI caller (class.ilObjLanguageFolderGUI.php) sends 'language_keys' as an array of strings;
+     * GrindsFormInput::grind() must join it into a comma-separated string before it reaches the Text field.
      */
     public function testMaybePerformAsAcceptsAnArrayOfLanguageKeysAndRemovesLocalChangesForEachOne(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         [$fakes, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
@@ -644,14 +378,11 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * A Throwable raised from within perform() (e.g. a validation failure
-     * on the normalized parameters, or any other unexpected failure) must
-     * be turned into a Result\Error rather than propagating - this is the
-     * whole point of maybePerformAs() wrapping perform() in a try/catch.
+     * A Throwable from within perform() must be turned into a Result\Error by maybePerformAs().
      */
     public function testThrowableFromPerformIsTurnedIntoAResultError(): void
     {
-        $rbac = $this->createMock(\ilRbacSystem::class);
+        $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
         $lng_objects = static fn(): array => [];
@@ -670,14 +401,8 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
     }
 
     /**
-     * A completely missing 'language_keys' key is now caught by grind()
-     * itself (see GrindsFormInput): the required Text field receives a
-     * blank raw value and fails its own required-field constraint before
-     * normalizeParameters()/isAllowedToPerform() are ever reached - so the
-     * rejection surfaces as a Result\Error carrying the UI field's own
-     * (string) validation message, not an InvalidArgumentException thrown
-     * by normalizeParameters(). Either way, the rbac system must never be
-     * touched (validation happens first).
+     * A missing 'language_keys' key fails the required Text field in grind() itself, before
+     * normalizeParameters()/isAllowedToPerform(): the result carries the field's own (string) message.
      */
     public function testMissingLanguageKeysParameterViaMaybePerformAsIsAResultErrorAndNeverChecksPermission(): void
     {
@@ -695,63 +420,124 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $this->assertNotSame('', $result->error()->getMessage());
     }
 
-    private function createActivity(
-        \Closure $lng_objects,
-        \Closure $obj_language_factory,
-        ?\ilRbacSystem $rbac = null,
-        ?Language $language = null,
-        int $language_folder_ref_id = 0
-    ): RemoveLocalLanguageChanges {
-        return new RemoveLocalLanguageChanges(
-            $this->createMock(RefineryFactory::class),
-            $language ?? $this->createMock(Language::class),
-            $this->rbacOf($rbac ?? $this->createMock(\ilRbacSystem::class)),
-            $this->languageFolder($language_folder_ref_id),
-            $lng_objects,
-            $obj_language_factory
-        );
-    }
-}
+    /**
+     * A Throwable from removeLocalChanges() itself (not a `false` return) is logged as a warning naming "setup update"
+     * as the way back, then rethrown.
+     */
+    public function testRemoveLocalChangesThrowingIsLoggedWithSetupUpdateAdviceAndSurfacesAsAResultError(): void
+    {
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('setup.php update'));
+        $logger_factory = $this->createStub(\ilLoggerFactory::class);
+        $logger_factory->method('getComponentLogger')->willReturn($logger);
+        $previous_dic = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilLoggerFactory'] = static fn() => $logger_factory;
 
-/**
- * Minimal stand-in for \ilObjLanguage: that class cannot be constructed or
- * meaningfully mocked in a unit test (its constructor requires the global
- * $DIC), so tests substitute this fake via RemoveLocalLanguageChanges's
- * $obj_language_factory closure instead. Counts removeLocalChanges()
- * invocations so tests can assert it was never called for a bucket other
- * than "removed"/"invalid".
- */
-final class FakeRemoveLocalLanguageChangesObject
-{
-    private int $remove_local_changes_calls = 0;
+        $object = new class () {
+            public function isInstalled(): bool
+            {
+                return true;
+            }
+
+            public function removeLocalChanges(): bool
+            {
+                throw new \RuntimeException('db gone');
+            }
+        };
+        $lng_objects = static fn(): array => [['obj_id' => 1, 'title' => 'de']];
+        $obj_language_factory = static fn(int $id) => $object;
+
+        $rbac = $this->createStub(\ilRbacSystem::class);
+        $rbac->method('checkAccessOfUser')->willReturn(true);
+
+        try {
+            $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
+                ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
+
+            $this->assertTrue($result->isError());
+            $this->assertInstanceOf(\RuntimeException::class, $result->error());
+        } finally {
+            if ($previous_dic === null) {
+                unset($GLOBALS['DIC']);
+            } else {
+                $GLOBALS['DIC'] = $previous_dic;
+            }
+        }
+    }
 
     /**
-     * @param bool $remove_local_changes_return_value What removeLocalChanges()
-     *        returns - true mimics a real, successful removal of local
-     *        changes; false mimics \ilObjLanguage::removeLocalChanges()
-     *        rejecting the call because the underlying language file failed
-     *        check() (isInstalled() having already let it through).
+     * Plugin language files are re-applied once, only for languages whose local changes were actually removed.
      */
-    public function __construct(
-        private readonly bool $is_installed,
-        private readonly bool $remove_local_changes_return_value = true,
-    ) {
+    public function testRefreshPluginsIsCalledOnceWithExactlyTheRemovedLanguageKeys(): void
+    {
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => [],
+            'en' => [],
+            'fr' => ['remove_local_changes_return' => false],
+            'it' => ['installed' => false],
+        ]);
+        $calls = [];
+
+        $this->createActivity(
+            $lng_objects,
+            $obj_language_factory,
+            refresh_plugins: function (array $lang_keys) use (&$calls): void {
+                $calls[] = $lang_keys;
+            }
+        )->perform(['language_keys' => ['de', 'en', 'fr', 'it']]);
+
+        $this->assertSame([['de', 'en']], $calls);
     }
 
-    public function isInstalled(): bool
+    /**
+     * Without a component repository ($DIC is no container or has none) the default re-applying does nothing.
+     */
+    #[DataProvider('dicWithoutComponentRepository')]
+    public function testTheDefaultPluginRefreshDoesNothingWithoutAComponentRepository(\Closure $dic): void
     {
-        return $this->is_installed;
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld(['de' => []]);
+        $previous = $GLOBALS['DIC'] ?? null;
+        $GLOBALS['DIC'] = $dic();
+        try {
+            $result = $this->createActivity($lng_objects, $obj_language_factory)->perform(['language_keys' => ['de']]);
+        } finally {
+            $GLOBALS['DIC'] = $previous;
+        }
+
+        $this->assertSame(['de'], $result['removed_local_changes_language_keys']);
     }
 
-    public function removeLocalChanges(): bool
+    /**
+     * @return array<string, array{0: \Closure}>
+     */
+    public static function dicWithoutComponentRepository(): array
     {
-        $this->remove_local_changes_calls++;
-
-        return $this->remove_local_changes_return_value;
+        return [
+            'DIC is an array' => [static fn(): array => []],
+            'container without component.repository' => [static fn(): \ILIAS\DI\Container => new \ILIAS\DI\Container()],
+        ];
     }
 
-    public function removeLocalChangesCallCount(): int
+    /**
+     * Without a single removed language refresh_plugins() is not called at all, not even with an empty list.
+     */
+    public function testRefreshPluginsIsNeverCalledWhenNoLanguagesLocalChangesWereActuallyRemoved(): void
     {
-        return $this->remove_local_changes_calls;
+        [, $lng_objects, $obj_language_factory] = $this->buildFakeLanguageWorld([
+            'de' => ['remove_local_changes_return' => false],
+            'en' => ['installed' => false],
+        ]);
+        $calls = [];
+
+        $this->createActivity(
+            $lng_objects,
+            $obj_language_factory,
+            refresh_plugins: function (array $lang_keys) use (&$calls): void {
+                $calls[] = $lang_keys;
+            }
+        )->perform(['language_keys' => ['de', 'en']]);
+
+        $this->assertSame([], $calls);
     }
 }
