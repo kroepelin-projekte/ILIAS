@@ -535,7 +535,7 @@ class ilObjLanguage extends ilObject
         // ilGlobalCache::flushAll();
 
         if (is_string($a_remarks) && $a_remarks !== '') {
-            $a_remarks = substr($a_remarks, 0, 250);
+            $a_remarks = mb_substr($a_remarks, 0, 250);
         }
 
         if ($a_remarks === '') {
@@ -545,7 +545,7 @@ class ilObjLanguage extends ilObject
         if ($a_value === "") {
             $a_value = null;
         } else {
-            $a_value = substr($a_value, 0, 4000);
+            $a_value = mb_substr($a_value, 0, 4000);
         }
 
         $ilDB->replace(
@@ -579,7 +579,7 @@ class ilObjLanguage extends ilObject
         $ilDB = $DIC->database();
 
         if (is_string($a_remarks) && $a_remarks !== '') {
-            $a_remarks = substr($a_remarks, 0, 250);
+            $a_remarks = mb_substr($a_remarks, 0, 250);
         }
 
         if ($a_remarks === '') {
@@ -589,7 +589,7 @@ class ilObjLanguage extends ilObject
         if ($a_value === "") {
             $a_value = null;
         } else {
-            $a_value = substr($a_value, 0, 4000);
+            $a_value = mb_substr($a_value, 0, 4000);
         }
 
         $ilDB->manipulate(sprintf(

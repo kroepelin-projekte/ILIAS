@@ -46,73 +46,156 @@ class ilObjLanguageDBAccess
 
     public function insertLangEntries(string $lang_file): array
     {
-        // initialize the array for updating lng_modules below
-        $lang_array = array();
-        $lang_array["common"] = array();
+        $entries = self::collectEntries(
+            $this->content,
+            $this->local_changes,
+            $this->scope,
+            $this->separator,
+            $this->comment_separator
+        );
 
-        $double_checker = [];
-        $query_check = false;
-        $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES ";
-        foreach ($this->content as $val) {
-            // split the line of the language file
-            // [0]: module
-            // [1]: identifier
-            // [2]: value
-            // [3]: comment (optional)
-            $separated = explode($this->separator, trim($val));
-            $pos = strpos($separated[2], $this->comment_separator);
-            if ($pos !== false) {
-                $separated[3] = substr($separated[2], $pos + strlen($this->comment_separator));
-                $separated[2] = substr($separated[2], 0, $pos);
-            }
-
-            // check if the value has a local change
-            $local_value = $this->local_changes[$separated[0]][$separated[1]] ?? "";
-
-            if (empty($this->scope)) {
-                // import of a global language file
-                if ($local_value !== "" && $local_value !== $separated[2]) {
-                    // keep an existing and different local value
-                    $lang_array[$separated[0]][$separated[1]] = $local_value;
-                    continue;
-                }
-            } elseif ($this->scope === "local") {
-                // import of a local language file
-                if ($local_value !== "") {
-                    // keep a locally changed value that is newer than the file
-                    $lang_array[$separated[0]][$separated[1]] = $local_value;
-                    continue;
-                }
-            }
-            if ($double_checker[$separated[0]][$separated[1]][$this->key] ?? false) {
-                global $DIC;
-                $DIC->ui()->mainTemplate()->setOnScreenMessage(
-                    'failure',
-                    "Duplicate Language Entry in $lang_file:\n$val",
-                    true
-                );
-                $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
-            }
-            $double_checker[$separated[0]][$separated[1]][$this->key] = true;
-
-            $query .= sprintf(
-                "(%s,%s,%s,%s,%s,%s),",
-                $this->ilDB->quote($separated[0], "text"),
-                $this->ilDB->quote($separated[1], "text"),
-                $this->ilDB->quote($this->key, "text"),
-                $this->ilDB->quote($separated[2], "text"),
-                $this->ilDB->quote($this->change_date, "timestamp"),
-                $this->ilDB->quote($separated[3] ?? null, "text")
+        if ($entries["duplicates"] !== []) {
+            global $DIC;
+            $DIC->ui()->mainTemplate()->setOnScreenMessage(
+                'failure',
+                "Duplicate Language Entry in $lang_file:\n" . $entries["duplicates"][0],
+                true
             );
-            $query_check = true;
-            $lang_array[$separated[0]][$separated[1]] = $separated[2];
-        }
-        $query = rtrim($query, ",") . " ON DUPLICATE KEY UPDATE value=VALUES(value),local_change=VALUES(local_change),remarks=VALUES(remarks);";
-        if ($query_check) {
-            $this->ilDB->manipulate($query);
+            $DIC->ctrl()->redirectByClass(ilobjlanguagefoldergui::class, 'view');
         }
 
-        return $lang_array;
+        $rows = [];
+        foreach ($entries["rows"] as $row) {
+            $rows[] = sprintf(
+                "(%s,%s,%s,%s,%s,%s)",
+                $this->ilDB->quote($row["module"], "text"),
+                $this->ilDB->quote($row["identifier"], "text"),
+                $this->ilDB->quote($this->key, "text"),
+                $this->ilDB->quote($row["value"], "text"),
+                $this->ilDB->quote($this->change_date, "timestamp"),
+                $this->ilDB->quote($row["remarks"], "text")
+            );
+        }
+        if ($rows !== []) {
+            $this->ilDB->manipulate(
+                "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES " .
+                implode(",", $rows) .
+                " ON DUPLICATE KEY UPDATE identifier=VALUES(identifier),value=VALUES(value),local_change=VALUES(local_change),remarks=VALUES(remarks);"
+            );
+        }
+
+        return $entries["lang_array"];
+    }
+
+    /**
+     * Splits the lines of a language file into the values for lng_modules and the rows for lng_data.
+     *
+     * lng_data compares identifiers case-insensitively, so identifiers differing only in case share one row:
+     * the last line of the file wins, and a local change of that row protects all its spellings.
+     * lng_modules keeps every spelling with its own value; a kept local change replaces the value of its own
+     * spelling or, if the file no longer contains that spelling, the value of the last spelling.
+     * Identifiers are grouped with strtolower(), which folds ASCII only; the collation utf8mb3_general_ci also folds
+     * non-ASCII letters and ignores trailing spaces. The language files currently contain no such identifiers.
+     * Remarks are cut to the 250 characters of lng_data.remarks.
+     *
+     * @param array<string, array<string, ?string>> $local_changes module => identifier => value
+     * @return array{lang_array: array<string, array<string, string>>, rows: list<array{module: string, identifier: string, value: string, remarks: ?string}>, duplicates: list<string>}
+     */
+    public static function collectEntries(
+        array $content,
+        array $local_changes,
+        string $scope = "",
+        string $separator = "#:#",
+        string $comment_separator = "###"
+    ): array {
+        $folded_local_changes = [];
+        foreach ($local_changes as $module => $identifiers) {
+            foreach ($identifiers as $identifier => $value) {
+                $folded_local_changes[strtolower($module . $separator . $identifier)] = [
+                    "identifier" => (string) $identifier,
+                    "value" => (string) $value,
+                ];
+            }
+        }
+
+        $lang_array = ["common" => []];
+        $rows = [];
+        $kept = [];
+        $local_spelling_found = [];
+        $seen = [];
+        $duplicates = [];
+        foreach ($content as $line) {
+            // [0]: module, [1]: identifier, [2]: value, [3]: comment (optional)
+            $separated = explode($separator, trim($line));
+            $module = $separated[0];
+            $identifier = $separated[1];
+            $value = $separated[2];
+            $remarks = null;
+            $pos = strpos($value, $comment_separator);
+            if ($pos !== false) {
+                $remarks = mb_substr(substr($value, $pos + strlen($comment_separator)), 0, 250);
+                $value = substr($value, 0, $pos);
+            }
+
+            if (isset($seen[$module][$identifier])) {
+                $duplicates[] = $line;
+            }
+            $seen[$module][$identifier] = true;
+
+            $folded_key = strtolower($module . $separator . $identifier);
+            $local = $folded_local_changes[$folded_key] ?? null;
+            if ($local !== null && $local["identifier"] === $identifier) {
+                $local_spelling_found[$folded_key] = true;
+                if (self::keepsLocalValue($local["value"], $value, $scope)) {
+                    $lang_array[$module][$identifier] = $local["value"];
+                    $kept[$folded_key] = true;
+                    continue;
+                }
+            }
+
+            $lang_array[$module][$identifier] = $value;
+            $rows[$folded_key] = [
+                "module" => $module,
+                "identifier" => $identifier,
+                "value" => $value,
+                "remarks" => $remarks,
+            ];
+        }
+
+        foreach ($rows as $folded_key => $row) {
+            if (isset($kept[$folded_key])) {
+                unset($rows[$folded_key]);
+                continue;
+            }
+            $local = $folded_local_changes[$folded_key] ?? null;
+            if ($local !== null
+                && !isset($local_spelling_found[$folded_key])
+                && self::keepsLocalValue($local["value"], $row["value"], $scope)
+            ) {
+                // the spelling of the local change is no longer in the file: it applies to the last spelling
+                $lang_array[$row["module"]][$row["identifier"]] = $local["value"];
+                unset($rows[$folded_key]);
+            }
+        }
+
+        return [
+            "lang_array" => $lang_array,
+            "rows" => array_values($rows),
+            "duplicates" => $duplicates,
+        ];
+    }
+
+    private static function keepsLocalValue(string $local_value, string $file_value, string $scope): bool
+    {
+        if ($local_value === "") {
+            return false;
+        }
+        if ($scope === "") {
+            // import of a global language file: keep an existing and different local value
+            return $local_value !== $file_value;
+        }
+        // import of a local language file: keep a locally changed value that is newer than the file
+        return $scope === "local";
     }
 
     public function replaceLangModules(array $lang_array): void

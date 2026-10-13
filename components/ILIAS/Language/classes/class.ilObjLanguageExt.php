@@ -161,7 +161,8 @@ class ilObjLanguageExt extends ilObjLanguage
         $global_values = $global_file_obj->getAllValues();
         $local_values = self::_getValues($this->key, $a_modules, $a_topics, $a_pattern);
 
-        return array_diff_key($local_values, $global_values);
+        // identifiers differing only in case share one database entry
+        return array_diff_ukey($local_values, $global_values, strcasecmp(...));
     }
 
 
@@ -182,7 +183,8 @@ class ilObjLanguageExt extends ilObjLanguage
         $global_comments = $global_file_obj->getAllComments();
         $local_values = self::_getValues($this->key, $a_modules, $a_topics, $a_pattern);
 
-        return array_intersect_key($local_values, $global_comments);
+        // identifiers differing only in case share one database entry
+        return array_intersect_ukey($local_values, $global_comments, strcasecmp(...));
     }
 
 
@@ -203,7 +205,7 @@ class ilObjLanguageExt extends ilObjLanguage
         $global_values = $global_file_obj->getAllValues();
         $local_values = self::_getValues($this->key);
 
-        return array_merge($global_values, $local_values);
+        return array_merge($global_values, self::mapToFileSpelling($local_values, $global_values));
     }
 
     /**
@@ -225,7 +227,35 @@ class ilObjLanguageExt extends ilObjLanguage
         // get remarks including empty remarks for local changes
         $local_remarks = self::_getRemarks($this->key, true);
 
-        return array_merge($global_comments, $local_remarks);
+        return array_merge(
+            $global_comments,
+            self::mapToFileSpelling($local_remarks, $global_file_obj->getAllValues())
+        );
+    }
+
+    /**
+     * Identifiers differing only in case share one database entry. Like the installation, an entry keeps its key
+     * if the file contains this spelling, otherwise it gets the spelling of the last matching line of the file.
+     *
+     * @param array<string, mixed> $db_entries   module.separator.topic => value or remark
+     * @param array<string, mixed> $file_entries module.separator.topic => value of the language file
+     * @return array<string, mixed>
+     */
+    private static function mapToFileSpelling(array $db_entries, array $file_entries): array
+    {
+        $last_spellings = [];
+        foreach (array_keys($file_entries) as $key) {
+            $last_spellings[strtolower((string) $key)] = $key;
+        }
+
+        $mapped = [];
+        foreach ($db_entries as $key => $entry) {
+            if (!array_key_exists($key, $file_entries)) {
+                $key = $last_spellings[strtolower((string) $key)] ?? $key;
+            }
+            $mapped[$key] = $entry;
+        }
+        return $mapped;
     }
 
     /**
@@ -276,9 +306,11 @@ class ilObjLanguageExt extends ilObjLanguage
         }
 
         // process the values of the import file
+        // identifiers differing only in case share one database entry
+        $to_keep = array_change_key_case($to_keep, CASE_LOWER);
         $to_save = array();
         foreach ($import_file_obj->getAllValues() as $key => $value) {
-            if (!isset($to_keep[$key])) {
+            if (!isset($to_keep[strtolower($key)])) {
                 $to_save[$key] = $value;
             }
         }
@@ -438,6 +470,12 @@ class ilObjLanguageExt extends ilObjLanguage
         $global_values = array_merge($db_values, $file_values);
         $global_comments = array_merge($db_comments, $file_comments);
 
+        // identifiers differing only in case share one row in lng_data: the last of them wins
+        $last_keys = [];
+        foreach (array_keys($a_values) as $key) {
+            $last_keys[strtolower((string) $key)] = $key;
+        }
+
         // save the single translations in lng_data
         foreach ($a_values as $key => $value) {
             $keys = explode($lng->separator, $key);
@@ -448,6 +486,10 @@ class ilObjLanguageExt extends ilObjLanguage
 
             list($module, $topic) = $keys;
             $save_array[$module][$topic] = $value;
+
+            if ($last_keys[strtolower((string) $key)] !== $key) {
+                continue;
+            }
 
             $are_comments_set = array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
             $are_changes_made = !isset($global_values[$key])

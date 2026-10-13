@@ -442,6 +442,7 @@ class ilSetupLanguage extends ilLanguage
             // remove header first
             if ($content = $this->cut_header(file($lang_file))) {
                 // get the local changes from the database
+                $local_changes = [];
                 if (empty($scope)) {
                     $local_changes = $this->getLocalChanges($lang_key);
                 } elseif ($scope === "local") {
@@ -453,60 +454,33 @@ class ilSetupLanguage extends ilLanguage
                     $local_changes = $this->getLocalChanges($lang_key, $min_date);
                 }
 
-                $query_check = false;
-                $query = "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES ";
-                foreach ($content as $key => $val) {
-                    // split the line of the language file
-                    // [0]: module
-                    // [1]: identifier
-                    // [2]: value
-                    // [3]: comment (optional)
-                    $separated = explode($this->separator, trim($val));
+                $entries = ilObjLanguageDBAccess::collectEntries(
+                    $content,
+                    $local_changes,
+                    $scope,
+                    $this->separator,
+                    $this->comment_separator
+                );
+                $lang_array = $entries["lang_array"];
 
-                    //get position of the comment_separator
-                    $pos = strpos($separated[2], $this->comment_separator);
-
-                    if ($pos !== false) {
-                        //cut comment of
-                        $separated[2] = substr($separated[2], 0, $pos);
-                    }
-
-                    // check if the value has a local change
-                    if (isset($local_changes[$separated[0]])) {
-                        $local_value = $local_changes[$separated[0]][$separated[1]] ?? "";
-                    } else {
-                        $local_value = "";
-                    }
-
-                    if (empty($scope)) {
-                        if ($local_value !== "" && $local_value !== $separated[2]) {
-                            // keep the locally changed value
-                            $lang_array[$separated[0]][$separated[1]] = $local_value;
-                            continue;
-                        }
-                    } elseif ($scope === "local") {
-                        if ($local_value !== "") {
-                            // keep a locally changed value that is newer than the local file
-                            $lang_array[$separated[0]][$separated[1]] = $local_value;
-                            continue;
-                        }
-                    }
-
-                    $query .= sprintf(
-                        "(%s,%s,%s,%s,%s,%s),",
-                        $ilDB->quote($separated[0], "text"),
-                        $ilDB->quote($separated[1], "text"),
+                $rows = [];
+                foreach ($entries["rows"] as $row) {
+                    $rows[] = sprintf(
+                        "(%s,%s,%s,%s,%s,%s)",
+                        $ilDB->quote($row["module"], "text"),
+                        $ilDB->quote($row["identifier"], "text"),
                         $ilDB->quote($lang_key, "text"),
-                        $ilDB->quote($separated[2], "text"),
+                        $ilDB->quote($row["value"], "text"),
                         $ilDB->quote($change_date, "timestamp"),
-                        $ilDB->quote($separated[3] ?? null, "text")
+                        $ilDB->quote(null, "text")
                     );
-                    $query_check = true;
-                    $lang_array[$separated[0]][$separated[1]] = $separated[2];
                 }
-                $query = rtrim($query, ",") . " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);";
-                if ($query_check) {
-                    $ilDB->manipulate($query);
+                if ($rows !== []) {
+                    $ilDB->manipulate(
+                        "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES " .
+                        implode(",", $rows) .
+                        " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);"
+                    );
                 }
             }
 
