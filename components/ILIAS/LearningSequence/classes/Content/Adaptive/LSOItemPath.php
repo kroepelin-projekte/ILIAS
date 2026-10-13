@@ -1,11 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
-namespace ILIAS\LearningSequence\Content\Adaptive;
-
-use ilDBInterface;
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -21,6 +15,12 @@ use ilDBInterface;
  * https://github.com/ILIAS-eLearning
  *
  *********************************************************************/
+
+declare(strict_types=1);
+
+namespace ILIAS\LearningSequence\Content\Adaptive;
+
+use ilDBInterface;
 
 /**
  * Repository for the path a learner has actually walked through a learning

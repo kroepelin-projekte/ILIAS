@@ -28,6 +28,7 @@ use ILIAS\LearningSequence\Content\Condition\ConditionFactory;
 use ILIAS\LearningSequence\Content\Condition\ConditionHandler;
 use ILIAS\LearningSequence\Content\Condition\ilObjLearningSequenceConditionDiscover;
 use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapDataBuilder;
 use ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer;
 use ILIAS\LearningSequence\LearningMap\LSOLearningMapViewMode;
 use ILIAS\News\Service;
@@ -277,7 +278,7 @@ class ilObjLearningSequence extends ilContainer
                     $new_condition->create(true);
                     $created = true;
 
-                    $new_condition_id = (int)$new_condition->getConditionId();
+                    $new_condition_id = (int) $new_condition->getConditionId();
                     if ($new_condition_id > 0) {
                         $new_condition->setImportMapping($mapping);
                         $new_condition->import($export_payload, $new_condition_id);
@@ -664,8 +665,22 @@ class ilObjLearningSequence extends ilContainer
      */
     public function getCurrentUserLearningMap(bool $with_panel = true): string
     {
+        return $this->renderLearningMap(
+            $this->getLocalDI()['learning_map.data_builder'],
+            $with_panel
+        );
+    }
+
+    /**
+     * Renders the learning map from the given data builder. The player hands in
+     * the builder of its own local DI, resolved before the current object is
+     * rendered: some kiosk views (e.g. the ILIAS learning module) change the
+     * ilCtrl context while rendering, so building the player url afterwards
+     * fails.
+     */
+    public function renderLearningMap(LSOLearningMapDataBuilder $data_builder, bool $with_panel = true): string
+    {
         global $DIC;
-        $dic = $this->getLocalDI();
         $sequential = $this->getLSSettings()->getMode() !== ilLearningSequenceSettings::MODE_ADAPTIVE;
         $renderer = new LSOLearningMapRenderer(
             $DIC['ui.factory'],
@@ -673,7 +688,7 @@ class ilObjLearningSequence extends ilContainer
             $DIC['tpl'],
             $sequential
         );
-        $map_data = $dic['learning_map.data_builder']
+        $map_data = $data_builder
             ->build(LSOLearningMapViewMode::MODE_FULL_ROUTE)
             ->toArray();
         $graph = $renderer->fromMapData($map_data);

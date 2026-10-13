@@ -1312,13 +1312,19 @@
         apply();
         announce(fmt(labels.sr_zoom, [100]));
       },
-      fit() {
+      fit(whole = true) {
         const ch = contentHeight();
         const sx = (viewport.clientWidth - 2 * PAD_Y) / width;
         const sy = (viewport.clientHeight - 2 * PAD_Y) / ch;
         if (horizontal) {
-          zoom = 1;
-          panX = Math.max(0, (viewport.clientWidth - width) / 2);
+          // Never enlarge. The automatic fit (opening, resizing) only shrinks
+          // to the height, so a long chain stays readable and is panned
+          // sideways; "fit view" shrinks until width and height fit.
+          // clampPan() centres panY with the current zoom, so only panX is
+          // set here.
+          zoom = clampZoom(whole ? Math.min(1, sx, sy) : Math.min(1, sy));
+          // centred if the chain fits, otherwise it starts at the left edge
+          panX = Math.max(0, (viewport.clientWidth - width * zoom) / 2);
           apply();
           announce(labels.sr_fitted);
           return;
@@ -1450,7 +1456,7 @@
     drawEdges();
     autoHeight();
     apply();
-    silently(api.fit);
+    silently(() => api.fit(false));
     announcementsOn = true;
 
     if (window.ResizeObserver) {
@@ -1467,11 +1473,11 @@
         lastH = h;
         if (wasHidden) {
           autoHeight();
-          silently(api.fit);
+          silently(() => api.fit(false));
           return;
         }
         if (inModal) {
-          silently(api.fit);
+          silently(() => api.fit(false));
           return;
         }
         apply();
@@ -1481,7 +1487,7 @@
 
     if (inModal) {
       window.addEventListener('resize', () => {
-        silently(api.fit);
+        silently(() => api.fit(false));
       });
     }
 

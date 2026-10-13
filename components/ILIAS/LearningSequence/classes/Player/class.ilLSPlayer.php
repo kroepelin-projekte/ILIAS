@@ -47,6 +47,7 @@ class ilLSPlayer
     public const LSO_CMD_FINISH = 'lsofinish';
     public const LSO_CMD_CHOICE = 'lsochoice'; //show the branch/dead-end interstitial page
     public const LSO_CMD_STAY = 'lsostay'; //return from interstitial page back to the object
+    public const REDIRECT_PREFIX = 'REDIRECT::';
 
     public const GS_DATA_LS_KIOSK_MODE = 'ls_kiosk_mode';
     public const GS_DATA_LS_TITLE = 'ls_title';
@@ -72,7 +73,8 @@ class ilLSPlayer
         protected int $lso_obj_id = 0,
         protected int $usr_id = 0,
         protected ?LSOLearningMapPosition $position = null,
-        protected ?LSChoicePageBuilder $choice_page_builder = null
+        protected ?LSChoicePageBuilder $choice_page_builder = null,
+        protected ?Closure $learning_map = null
     ) {
     }
 
@@ -167,6 +169,25 @@ class ilLSPlayer
         //write State to DB
         $this->ls_items->storeState($state, $current_item_ref_id, $next_item->getRefId());
 
+        // After a navigation step the player continues on a url without the
+        // navigation command, so reloading the page does not step on again.
+        // A step back onto a branch/dead-end object continues on its
+        // interstitial page, as it did before the redirect.
+        if (in_array($command, [self::LSO_CMD_NEXT, self::LSO_CMD_GOTO, self::LSO_CMD_JUMP], true)
+            && $next_item->getRefId() !== $current_item_ref_id
+        ) {
+            $continue_with = self::LSO_CMD_STAY;
+            $is_back_step = $command === self::LSO_CMD_NEXT && $param !== null && $param < 0;
+            if ($this->isAdaptive() && $is_back_step) {
+                $reloaded_items = $this->ls_items->getItems();
+                list(, $target_item) = $this->findItemByRefId($reloaded_items, $next_item->getRefId());
+                if ($this->landsOnInterstitialPage($reloaded_items, $target_item)) {
+                    $continue_with = self::LSO_CMD_CHOICE;
+                }
+            }
+            return self::REDIRECT_PREFIX . $this->url_builder->getHref($continue_with);
+        }
+
         //get proper view
         if ($next_item != $current_item) {
             $view = $this->view_factory->getViewFor($next_item);
@@ -199,19 +220,12 @@ class ilLSPlayer
         //get position
         list($item_position, $item) = $this->findItemByRefId($items, $next_item->getRefId());
 
-        // On "back" steps onto a branch/dead-end object, and also when resuming
-        // the player (no command, e.g. after leaving and re-entering) onto such
-        // an object, land directly on its interstitial page (choice / dead-end
-        // notice) instead of the object content.
-        $is_back_step = $command === self::LSO_CMD_NEXT && $param !== null && $param < 0;
-        $is_resume = $command === null;
-        if ($this->isAdaptive() && ($is_back_step || $is_resume)) {
-            $back_situation = $this->getAdaptiveSituation($items, $item);
-            $structural_situation = $this->position->getStructuralSituation($items, $item);
-            if (
-                $back_situation === 'branch'
-                || ($back_situation === 'deadend' && $structural_situation === 'deadend')
-            ) {
+        // When resuming the player (no command, e.g. after leaving and
+        // re-entering) onto a branch/dead-end object, land directly on its
+        // interstitial page (choice / dead-end notice) instead of the object
+        // content. Steps back are redirected to that page above.
+        if ($this->isAdaptive() && $command === null) {
+            if ($this->landsOnInterstitialPage($items, $item)) {
                 $show_choice = true;
             }
         }
@@ -375,15 +389,14 @@ class ilLSPlayer
      */
     protected function getLearningMapHtml(int $ls_ref_id): string
     {
-        $lso = ilObjectFactory::getInstanceByRefId($ls_ref_id, false);
-        if (!$lso instanceof ilObjLearningSequence) {
+        if ($this->learning_map === null) {
             return '';
         }
 
         $this->page_renderer->addCss(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::CSS);
         $this->page_renderer->addJs(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::JS, true);
 
-        return $lso->getCurrentUserLearningMap(false);
+        return ($this->learning_map)();
     }
 
 
@@ -479,6 +492,11 @@ class ilLSPlayer
         if ($target_item->getAvailability() === Step::AVAILABLE) {
             return true;
         }
+        // Only used in the linear mode: the post condition of the current
+        // item alone decides whether the learner may proceed.
+        if ($direction > 0) {
+            return false;
+        }
         $position = $this->getPosition();
         if ($position === null) {
             return false;
@@ -486,12 +504,7 @@ class ilLSPlayer
         if ($target_item->getRefId() === $current_item->getRefId()) {
             return true;
         }
-        $target_obj_id = ilObject::_lookupObjId($target_item->getRefId());
-        if ($direction < 0) {
-            return $position->hasVisited($target_obj_id);
-        }
-        $current_obj_id = ilObject::_lookupObjId($current_item->getRefId());
-        return $position->hasCompleted($items, $current_obj_id);
+        return $position->hasVisited(ilObject::_lookupObjId($target_item->getRefId()));
     }
 
     protected function getPosition(): ?LSOLearningMapPosition
@@ -658,6 +671,21 @@ class ilLSPlayer
     protected function getAdaptiveSituation(array $items, LSLearnerItem $item): string
     {
         return $this->position->getSituation($items, $item);
+    }
+
+    /**
+     * Whether arriving on the item (by a step back or by resuming) shows its
+     * interstitial page instead of the object: on a branch, or on a dead end
+     * that is one structurally as well.
+     *
+     * @param LSLearnerItem[] $items
+     */
+    protected function landsOnInterstitialPage(array $items, LSLearnerItem $item): bool
+    {
+        $situation = $this->getAdaptiveSituation($items, $item);
+        return $situation === 'branch'
+            || ($situation === 'deadend'
+                && $this->position->getStructuralSituation($items, $item) === 'deadend');
     }
 
     /**

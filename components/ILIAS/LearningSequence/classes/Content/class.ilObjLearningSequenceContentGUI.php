@@ -476,24 +476,14 @@ class ilObjLearningSequenceContentGUI implements ilCtrlSecurityInterface
      */
     public function extractItemRefId(): int
     {
-        $item_ref_id = 0;
         $query_params = $this->request->getQueryParams();
-
-        if (isset($query_params['lso_content_seq_item_ref_id'])) {
-            if (is_array($query_params['lso_content_seq_item_ref_id'])) {
-                $item_ref_id = (int) ($query_params['lso_content_seq_item_ref_id'][0] ?? 0);
-            } else {
-                $item_ref_id = (int) $query_params['lso_content_seq_item_ref_id'];
+        foreach (['lso_content_seq_item_ref_id', 'item_ref_id'] as $key) {
+            $value = $query_params[$key] ?? 0;
+            $ref_id = (int) (is_array($value) ? ($value[0] ?? 0) : $value);
+            if ($ref_id !== 0) {
+                return $ref_id;
             }
         }
-        if ($item_ref_id === 0 && isset($query_params['item_ref_id'])) {
-            if (is_array($query_params['item_ref_id'])) {
-                $item_ref_id = (int) ($query_params['item_ref_id'][0] ?? 0);
-            } else {
-                $item_ref_id = (int) $query_params['item_ref_id'];
-            }
-        }
-
-        return $item_ref_id;
+        return 0;
     }
 }

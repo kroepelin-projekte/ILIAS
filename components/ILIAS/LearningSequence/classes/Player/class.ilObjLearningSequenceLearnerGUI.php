@@ -363,6 +363,10 @@ class ilObjLearningSequenceLearnerGUI implements ilCtrlSecurityInterface
     {
         $response = $this->player->play($this->get);
 
+        if ($response !== null && str_starts_with($response, $this->player::REDIRECT_PREFIX)) {
+            $this->ctrl->redirectToURL(substr($response, strlen($this->player::REDIRECT_PREFIX)));
+        }
+
         switch ($response) {
             case null:
                 //render the page

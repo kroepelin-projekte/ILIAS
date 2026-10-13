@@ -47,7 +47,8 @@ class LSOObjectPicker
         $lso = \ilObjLearningSequence::getInstanceByRefId($this->lso_ref_id);
         $lso_items = $lso->getLSItems();
         $filtered_lso_items = array_filter(
-            $lso_items, fn($item) => $item->getRefId() !== $this->current_item_ref_id
+            $lso_items,
+            fn($item) => $item->getRefId() !== $this->current_item_ref_id
         );
 
         $retrieval = new class ($filtered_lso_items) implements NodeRetrieval {
