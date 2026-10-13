@@ -25,7 +25,6 @@ use ILIAS\Language\ComponentTranslation\TranslationMarkupPolicy;
 use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
-use ILIAS\Language\ComponentTranslation\MigratedLanguageFilePaths;
 use ILIAS\Language\ComponentTranslation\MigratedLanguageFileSync;
 use ILIAS\Language\ComponentTranslation\PluralFormKey;
 use ILIAS\Language\Language;
@@ -48,6 +47,7 @@ class AddLanguageEntry extends LanguageActivity
      *        string $value, string $remarks = ''): ?bool - `false` if the entry reached the database,
      *        but the PO/MO overlay could not be written
      * @param \Closure|null $user_login (int $usr_id): string
+     * @param \Closure $client_data_dir_resolver (): ?string
      */
     public function __construct(
         RefineryFactory $refinery,
@@ -58,6 +58,7 @@ class AddLanguageEntry extends LanguageActivity
         LanguageFolder $language_folder,
         private readonly LanguageFileDirectoryManager $language_file_directory_manager,
         private readonly string $ilias_root,
+        private readonly \Closure $client_data_dir_resolver,
         ?\Closure $replace_lang_entry = null,
         ?\Closure $update_module_cache = null,
         ?\Closure $user_login = null,
@@ -92,7 +93,8 @@ class AddLanguageEntry extends LanguageActivity
         string $value,
         string $remarks
     ): bool {
-        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir($this->ilias_root);
+        // must equal resolveClientDataDir() in replaceLangModule(): re-entrance is detected by lock path only
+        $client_data_dir = ($this->client_data_dir_resolver)();
         $write = function () use ($db, $lang_key, $module, $identifier, $value, $remarks, $client_data_dir): bool {
             $entries = $this->currentModuleEntries($db, $lang_key, $module, $client_data_dir);
             if ($entries === null) {

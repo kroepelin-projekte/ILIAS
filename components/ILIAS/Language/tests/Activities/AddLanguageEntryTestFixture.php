@@ -129,6 +129,7 @@ trait AddLanguageEntryTestFixture
             language_folder: $this->languageFolder($language_folder_ref_id),
             language_file_directory_manager: $language_file_directory_manager ?? $this->noMigratedModules(),
             ilias_root: $this->iliasRoot(),
+            client_data_dir_resolver: static fn(): ?string => null,
             replace_lang_entry: $replace_lang_entry,
             update_module_cache: $update_module_cache,
             user_login: $user_login,

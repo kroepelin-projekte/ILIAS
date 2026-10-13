@@ -423,6 +423,7 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             language_folder: $this->languageFolder(),
             language_file_directory_manager: $this->noMigratedModules(),
             ilias_root: $this->iliasRoot(),
+            client_data_dir_resolver: static fn(): ?string => null,
         ) extends AddLanguageEntry {
             public function getInputDescription(FieldFactory $f): FormInput
             {

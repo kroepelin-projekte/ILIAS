@@ -450,6 +450,7 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
             language_folder: $this->languageFolder(),
             language_file_directory_manager: $language_file_directory_manager ?? $this->noMigratedModules(),
             ilias_root: $this->iliasRoot(),
+            client_data_dir_resolver: static fn(): ?string => null,
             replace_lang_entry: static fn(
                 string $module,
                 string $identifier,
