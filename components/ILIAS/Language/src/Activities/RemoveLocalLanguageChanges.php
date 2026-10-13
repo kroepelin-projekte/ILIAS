@@ -25,6 +25,7 @@ use ILIAS\Data\Description;
 use ILIAS\Data\Text;
 use ILIAS\Language\Language;
 use ILIAS\Language\LanguageFolder;
+use ILIAS\Logging\Logger\LoggerInterface;
 use ILIAS\Refinery\Factory as RefineryFactory;
 
 class RemoveLocalLanguageChanges extends LanguageActivity
@@ -47,6 +48,7 @@ class RemoveLocalLanguageChanges extends LanguageActivity
         Language $language,
         RBAC $rbac,
         LanguageFolder $language_folder,
+        private readonly LoggerInterface $logger,
         ?\Closure $lng_objects = null,
         ?\Closure $obj_language_factory = null,
         ?\Closure $refresh_plugins = null,
@@ -115,16 +117,6 @@ MARKDOWN
         );
     }
 
-    private static function logWarning(string $message): void
-    {
-        global $DIC;
-        try {
-            $DIC->logger()->forComponent('lang')->warning($message);
-        } catch (\Throwable) {
-            error_log($message);
-        }
-    }
-
     public function perform(mixed $parameters): array
     {
         if (!is_array($parameters)) {
@@ -171,7 +163,7 @@ MARKDOWN
                 $removed = $language_object->removeLocalChanges();
             } catch (\Throwable $t) {
                 // flush("all") and the rebuild are not one transaction: the language may be left incomplete
-                self::logWarning(sprintf(
+                $this->logWarning(sprintf(
                     'Removing the local changes of language "%s" failed after its data was flushed - '
                     . 'the language may be incomplete, run "php cli/setup.php update" (or "Update" in the '
                     . 'language list) to rebuild it: %s',
@@ -201,5 +193,15 @@ MARKDOWN
             'not_installed_language_keys' => $not_installed_language_keys,
             'overlay_write_failed_language_keys' => $overlay_write_failed_language_keys,
         ];
+    }
+
+    private function logWarning(string $message): void
+    {
+        try {
+            $this->logger->warning($message);
+        } catch (\Throwable) {
+            // must not replace the exception being reported
+            error_log($message);
+        }
     }
 }

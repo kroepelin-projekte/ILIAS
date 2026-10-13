@@ -426,13 +426,8 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
      */
     public function testRemoveLocalChangesThrowingIsLoggedWithSetupUpdateAdviceAndSurfacesAsAResultError(): void
     {
-        $logger = $this->createMock(\ilLogger::class);
+        $logger = $this->createMock(\ILIAS\Logging\Logger\LoggerInterface::class);
         $logger->expects($this->once())->method('warning')->with($this->stringContains('setup.php update'));
-        $logger_factory = $this->createStub(\ilLoggerFactory::class);
-        $logger_factory->method('getComponentLogger')->willReturn($logger);
-        $previous_dic = $GLOBALS['DIC'] ?? null;
-        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
-        $GLOBALS['DIC']['ilLoggerFactory'] = static fn() => $logger_factory;
 
         $object = new class () {
             public function isInstalled(): bool
@@ -451,18 +446,44 @@ class RemoveLocalLanguageChangesTest extends ActivityWithPerformResultContractTe
         $rbac = $this->createStub(\ilRbacSystem::class);
         $rbac->method('checkAccessOfUser')->willReturn(true);
 
-        try {
-            $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac)
-                ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
+        $result = $this->createActivity($lng_objects, $obj_language_factory, $rbac, logger: $logger)
+            ->maybePerformAs($this->createRealFieldsUiFactory()->input(), 6, ['language_keys' => 'de']);
 
-            $this->assertTrue($result->isError());
-            $this->assertInstanceOf(\RuntimeException::class, $result->error());
-        } finally {
-            if ($previous_dic === null) {
-                unset($GLOBALS['DIC']);
-            } else {
-                $GLOBALS['DIC'] = $previous_dic;
+        $this->assertTrue($result->isError());
+        $this->assertInstanceOf(\RuntimeException::class, $result->error());
+    }
+
+    public function testAThrowingLoggerDoesNotReplaceTheExceptionOfRemoveLocalChanges(): void
+    {
+        $this->expectErrorLog();
+        $logger = $this->createStub(\ILIAS\Logging\Logger\LoggerInterface::class);
+        $logger->method('warning')->willThrowException(new \LogicException('logger is down'));
+        $original = new \RuntimeException('db gone');
+        $object = new class ($original) {
+            public function __construct(private readonly \Throwable $failure)
+            {
             }
+
+            public function isInstalled(): bool
+            {
+                return true;
+            }
+
+            public function removeLocalChanges(): bool
+            {
+                throw $this->failure;
+            }
+        };
+
+        try {
+            $this->createActivity(
+                static fn(): array => [['obj_id' => 1, 'title' => 'de']],
+                static fn(int $id) => $object,
+                logger: $logger
+            )->perform(['language_keys' => ['de']]);
+            $this->fail('Expected the exception of removeLocalChanges() to be rethrown');
+        } catch (\Throwable $thrown) {
+            $this->assertSame($original, $thrown);
         }
     }
 

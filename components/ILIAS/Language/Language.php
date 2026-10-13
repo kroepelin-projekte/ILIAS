@@ -33,6 +33,7 @@ use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Environment\Configuration\Installation\Directories;
+use ILIAS\Logging\Logger\LoggerFactoryInterface;
 
 class Language implements Component\Component
 {
@@ -85,7 +86,8 @@ class Language implements Component\Component
             new \ilSetupLanguage(
                 "en",
                 $internal[LanguageFileDirectoryManager::class],
-                $pull[\ILIAS\Database\Connection::class]
+                $pull[\ILIAS\Database\Connection::class],
+                $use[LoggerFactoryInterface::class]->getLazy('lang')
             );
 
         $internal[InstallLanguage::class] = static fn() =>
@@ -131,7 +133,8 @@ class Language implements Component\Component
                 $pull[\ILIAS\Refinery\Factory::class],
                 $use[\ILIAS\Language\Language::class],
                 $use[\ILIAS\AccessControl\PublicInterface\RBAC::class],
-                $internal[Language\LanguageFolder::class]
+                $internal[Language\LanguageFolder::class],
+                $use[LoggerFactoryInterface::class]->getLazy('lang')
             );
 
         // Same reasoning again, minus the Setup/forSetup() bridge, which does not apply here

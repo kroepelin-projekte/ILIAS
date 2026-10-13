@@ -22,6 +22,7 @@ namespace ILIAS\Language\Tests\Activities;
 
 use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Language;
+use ILIAS\Logging\Logger\LoggerInterface;
 use ILIAS\Refinery\Factory as RefineryFactory;
 
 trait RemoveLocalLanguageChangesTestFixture
@@ -32,13 +33,15 @@ trait RemoveLocalLanguageChangesTestFixture
         ?\ilRbacSystem $rbac = null,
         ?Language $language = null,
         int $language_folder_ref_id = 0,
-        ?\Closure $refresh_plugins = null
+        ?\Closure $refresh_plugins = null,
+        ?LoggerInterface $logger = null
     ): RemoveLocalLanguageChanges {
         return new RemoveLocalLanguageChanges(
             $this->createStub(RefineryFactory::class),
             $language ?? $this->createStub(Language::class),
             $this->rbacOf($rbac ?? $this->createStub(\ilRbacSystem::class)),
             $this->languageFolder($language_folder_ref_id),
+            $logger ?? $this->createStub(LoggerInterface::class),
             $lng_objects,
             $obj_language_factory,
             $refresh_plugins

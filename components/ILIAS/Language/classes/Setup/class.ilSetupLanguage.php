@@ -27,6 +27,7 @@ use ILIAS\Language\LanguageIdentifier;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Language\Setup\InstalledLanguageDatabaseRepository;
 use ILIAS\Language\Setup\LanguageInstallationManager;
+use ILIAS\Logging\Logger\LoggerInterface;
 
 /**
  * language handling for setup
@@ -65,11 +66,14 @@ class ilSetupLanguage extends ilLanguage
      * @param LanguageFileDirectoryManager|null $language_file_directory_manager directories contributed through the
      *        component graph; without it only main lang/ and customizing are known (usesDefaultLanguageFileDirectories())
      * @param ilDBInterface|null $connection none for callers outside the component graph
+     * @param LoggerInterface|null $logger for the warnings of the installation manager; the Setup
+     *        instance is built without a logger and passes none (they go to the PHP error log then).
      */
     public function __construct(
         string $a_lang_key,
         ?LanguageFileDirectoryManager $language_file_directory_manager = null,
         private readonly ?ilDBInterface $connection = null,
+        private readonly ?LoggerInterface $logger = null,
     ) {
         $this->lang_key = $a_lang_key ?: $this->lang_default;
         $this->absolute_path = (string) realpath(__DIR__ . "/../../../../../");
@@ -119,7 +123,8 @@ class ilSetupLanguage extends ilLanguage
                 $this->repository(),
                 null,
                 fn(): ?string => $this->getClientDataDir(),
-                static fn(string $lang_key) => ilCachedLanguage::deleteInCacheIfAvailable($lang_key)
+                static fn(string $lang_key) => ilCachedLanguage::deleteInCacheIfAvailable($lang_key),
+                $this->logger
             );
         }
         return $this->manager;
