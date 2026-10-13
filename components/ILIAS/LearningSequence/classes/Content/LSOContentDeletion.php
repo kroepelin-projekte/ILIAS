@@ -87,20 +87,47 @@ trait LSOContentDeletion
             }
 
             if ($boundaries_changed) {
-                $online = $lso->getObjectProperties()->getPropertyIsOnline();
-                if ($online->getIsOnline()) {
-                    $lso->getObjectProperties()->storePropertyIsOnline($online->withOffline());
-                }
-                $this->tpl->setOnScreenMessage(
-                    'info',
-                    $this->lng->txt('lso_adaptive_offline_due_to_missing_boundaries'),
-                    true
-                );
+                $this->enforceOfflineForMissingBoundaries($lso);
             }
         }
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_removed'), true);
         $this->ctrl->redirect($this->parent_gui, \ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
+    }
+
+    /**
+     * An adaptive learning sequence may only be online if it has a start AND
+     * an end object. If either one is missing, the learning sequence is taken
+     * offline and the user is informed.
+     *
+     * @return bool true if the learning sequence was switched offline
+     */
+    protected function enforceOfflineForMissingBoundaries(\ilObjLearningSequence $lso): bool
+    {
+        if ($lso->getLSSettings()->getMode() !== \ilLearningSequenceSettings::MODE_ADAPTIVE) {
+            return false;
+        }
+
+        $online = $lso->getObjectProperties()->getPropertyIsOnline();
+        if (!$online->getIsOnline()) {
+            return false;
+        }
+
+        global $DIC;
+        $boundaries = new \ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries($DIC->database());
+        $current = $boundaries->getBoundariesFor($lso->getId());
+        if ($current['start_ref_id'] > 0 && $current['end_ref_id'] > 0) {
+            return false;
+        }
+
+        $lso->getObjectProperties()->storePropertyIsOnline($online->withOffline());
+        $this->tpl->setOnScreenMessage(
+            'info',
+            $this->lng->txt('lso_adaptive_offline_due_to_missing_boundaries'),
+            true
+        );
+
+        return true;
     }
 
     /**

@@ -228,7 +228,7 @@ class ilLSLocalDI extends Container
             );
         };
 
-        $this["player"] = function ($c) use ($dic, $lsdic): ilLSPlayer {
+        $this["player"] = function ($c) use ($dic, $lsdic, $object): ilLSPlayer {
             $mode = $lsdic["db.settings"]->getSettingsFor($c["obj.obj_id"])->getMode();
             $navigator = ($mode === ilLearningSequenceSettings::MODE_ADAPTIVE)
                 ? new AdaptiveNavigator()
@@ -254,6 +254,13 @@ class ilLSLocalDI extends Container
                 ilLSPlayer::LSO_CMD_GOTO
             );
 
+            // Resolved here, before the player renders the current object: the
+            // kiosk view of an ILIAS learning module changes the ilCtrl context,
+            // and the player url of the map could not be built afterwards.
+            $learning_map_data_builder = $c["learning_map.data_builder"];
+            $learning_map = static fn(): string
+                => $object->renderLearningMap($learning_map_data_builder, false);
+
             return new ilLSPlayer(
                 $c["learneritems"],
                 $c["player.controlbuilder"],
@@ -272,7 +279,8 @@ class ilLSLocalDI extends Container
                 $c["obj.obj_id"],
                 $c["usr.id"],
                 $position,
-                $choice_page_builder
+                $choice_page_builder,
+                $learning_map
             );
         };
 

@@ -47,6 +47,7 @@ class ilLSPlayer
     public const LSO_CMD_FINISH = 'lsofinish';
     public const LSO_CMD_CHOICE = 'lsochoice'; //show the branch/dead-end interstitial page
     public const LSO_CMD_STAY = 'lsostay'; //return from interstitial page back to the object
+    public const REDIRECT_PREFIX = 'REDIRECT::';
 
     public const GS_DATA_LS_KIOSK_MODE = 'ls_kiosk_mode';
     public const GS_DATA_LS_TITLE = 'ls_title';
@@ -72,7 +73,8 @@ class ilLSPlayer
         protected int $lso_obj_id = 0,
         protected int $usr_id = 0,
         protected ?LSOLearningMapPosition $position = null,
-        protected ?LSChoicePageBuilder $choice_page_builder = null
+        protected ?LSChoicePageBuilder $choice_page_builder = null,
+        protected ?Closure $learning_map = null
     ) {
     }
 
@@ -166,6 +168,14 @@ class ilLSPlayer
         }
         //write State to DB
         $this->ls_items->storeState($state, $current_item_ref_id, $next_item->getRefId());
+
+        // After a navigation step the player continues on a url without the
+        // navigation command, so reloading the page does not step on again.
+        if (in_array($command, [self::LSO_CMD_NEXT, self::LSO_CMD_GOTO, self::LSO_CMD_JUMP], true)
+            && $next_item->getRefId() !== $current_item_ref_id
+        ) {
+            return self::REDIRECT_PREFIX . $this->url_builder->getHref(self::LSO_CMD_STAY);
+        }
 
         //get proper view
         if ($next_item != $current_item) {
@@ -375,15 +385,14 @@ class ilLSPlayer
      */
     protected function getLearningMapHtml(int $ls_ref_id): string
     {
-        $lso = ilObjectFactory::getInstanceByRefId($ls_ref_id, false);
-        if (!$lso instanceof ilObjLearningSequence) {
+        if ($this->learning_map === null) {
             return '';
         }
 
         $this->page_renderer->addCss(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::CSS);
         $this->page_renderer->addJs(\ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer::JS, true);
 
-        return $lso->getCurrentUserLearningMap(false);
+        return ($this->learning_map)();
     }
 
 
@@ -478,6 +487,11 @@ class ilLSPlayer
     ): bool {
         if ($target_item->getAvailability() === Step::AVAILABLE) {
             return true;
+        }
+        // In the linear mode the post condition of the current item alone
+        // decides whether the learner may proceed; a visit is not enough.
+        if (!$this->isAdaptive() && $direction > 0) {
+            return false;
         }
         $position = $this->getPosition();
         if ($position === null) {

@@ -22,6 +22,7 @@ namespace ILIAS\LearningSequence\Content\Condition;
 
 use ilCtrlException;
 use ilDBInterface;
+use ilException;
 use ILIAS\Data\URI;
 use ILIAS\DI\Container;
 use ILIAS\LearningSequence\Content\Adaptive\LSOAdaptiveBoundaries;
@@ -299,6 +300,13 @@ abstract class AbstractCondition
             return;
         }
 
+        // Imports and copies fill the payload later via importPayload(), so the
+        // configuration needed for the duplicate check is not available here.
+        if (!$is_import && $this->duplicateExistsInContext($type_id)) {
+            $this->addValidationMessage($this->lang->txt('condition_already_exists'));
+            return;
+        }
+
         $db = $this->getDatabase();
         $condition_id = $db->nextId('lso_conditions');
         $db->insert('lso_conditions', [
@@ -330,6 +338,11 @@ abstract class AbstractCondition
         $this->assertContextSet();
         $this->assertConditionDataHookImplemented('editConditionData');
         $type_id = $this->getTypeId();
+
+        if ($this->duplicateExistsInContext($type_id)) {
+            $this->addValidationMessage($this->lang->txt('condition_already_exists'));
+            return;
+        }
 
         $this->getDatabase()->update(
             'lso_conditions',
@@ -523,6 +536,48 @@ abstract class AbstractCondition
     }
 
     /**
+     * Checks whether another condition of the same type on the same object in the
+     * same learning sequence is configured identically, see isDuplicateOf().
+     * The condition itself is excluded, so editing without changes is possible.
+     *
+     * @throws ReflectionException
+     */
+    protected function duplicateExistsInContext(?int $type_id): bool
+    {
+        if ($type_id === null) {
+            throw new LogicException('Condition type ID is not set.');
+        }
+
+        $db = $this->getDatabase();
+        $res = $db->queryF(
+            'SELECT condition_id FROM lso_conditions WHERE lso_ref_id = %s AND obj_ref_id = %s AND type_id = %s',
+            ['integer', 'integer', 'integer'],
+            [$this->lso_ref_id, $this->obj_ref_id, $type_id]
+        );
+
+        $factory = null;
+        while ($row = $db->fetchAssoc($res)) {
+            $condition_id = (int) $row['condition_id'];
+            if ($condition_id === $this->condition_id) {
+                continue;
+            }
+
+            $factory ??= new ConditionFactory(new ilObjLearningSequenceConditionDiscover(), $db);
+            try {
+                $other = $factory->getConditionInstanceById($condition_id);
+            } catch (ilException) {
+                continue;
+            }
+
+            if ($this->isDuplicateOf($other)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Extracts the identifier for the condition type from the class name.
      *
      * @param string $class
@@ -613,6 +668,18 @@ abstract class AbstractCondition
     public function allowMultipleConditionsOfSameType(): bool
     {
         return true;
+    }
+
+    /**
+     * Determines whether this condition is configured identically to the given one.
+     * create() and edit() refuse to save a condition that duplicates another condition
+     * of the same type on the same object in the same learning sequence.
+     * Override this method in child classes that allow multiple conditions of the same type,
+     * but not with the same configuration.
+     */
+    public function isDuplicateOf(AbstractCondition $other): bool
+    {
+        return false;
     }
 
     /**

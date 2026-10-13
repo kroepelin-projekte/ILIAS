@@ -86,6 +86,10 @@ Important base hooks:
   Return `true` if creation must go through the configuration GUI first.
 - `public function allowMultipleConditionsOfSameType(): bool`  
   Return `false` if one instance per item is enough.
+- `public function isDuplicateOf(AbstractCondition $other): bool`  
+  Return `true` if `$other` has the same configuration. `create()` and `edit()` then refuse to save
+  and add the `condition_already_exists` validation message. Only conditions of the same type on the
+  same item in the same Learning Sequence are compared; the condition being edited is skipped.
 
 Useful optional hooks:
 

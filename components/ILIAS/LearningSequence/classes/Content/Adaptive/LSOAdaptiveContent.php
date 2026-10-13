@@ -566,6 +566,10 @@ class LSOAdaptiveContent implements LSOContentController
         $boundaries = new LSOAdaptiveBoundaries($DIC->database());
         $boundaries->unsetStartRefId($this->obj_id);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
+
+        /** @var ilObjLearningSequence $lso */
+        $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+        $this->enforceOfflineForMissingBoundaries($lso);
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }
 
@@ -603,6 +607,10 @@ class LSOAdaptiveContent implements LSOContentController
         $boundaries = new LSOAdaptiveBoundaries($DIC->database());
         $boundaries->unsetEndRefId($this->obj_id);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('msg_obj_modified'), true);
+
+        /** @var ilObjLearningSequence $lso */
+        $lso = ilObjLearningSequence::getInstanceByRefId($this->ref_id);
+        $this->enforceOfflineForMissingBoundaries($lso);
         $this->ctrl->redirect($this->parent_gui, ilObjLearningSequenceContentGUI::CMD_MANAGE_CONTENT);
     }
 }

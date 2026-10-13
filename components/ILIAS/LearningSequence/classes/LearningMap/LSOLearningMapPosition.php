@@ -188,12 +188,31 @@ class LSOLearningMapPosition
         }
         $count = count($this->getSuccessors($items, $item));
         if ($count === 0) {
-            return self::SIT_DEADEND;
+            // successors exist, but none of them may be entered yet
+            return $this->hasOpenStructuralSuccessor($items, $item)
+                ? self::SIT_BLOCKED
+                : self::SIT_DEADEND;
         }
         if ($count === 1) {
             return self::SIT_STRAIGHT;
         }
         return self::SIT_BRANCH;
+    }
+
+    /**
+     * Whether at least one structural successor of the item has not been
+     * completed yet, i.e. the path goes on once its input conditions are met.
+     *
+     * @param \LSLearnerItem[] $items
+     */
+    protected function hasOpenStructuralSuccessor(array $items, \LSLearnerItem $item): bool
+    {
+        foreach ($this->getStructuralSuccessors($items, $item) as $successor) {
+            if (!$this->isCompletedSuccessor($successor)) {
+                return true;
+            }
+        }
+        return false;
     }
     /**
      * Returns the structural situation of an item.
@@ -553,6 +572,13 @@ class LSOLearningMapPosition
                 && $item->getPostCondition()->getConditionOperator() === \ilLSPostCondition::OPERATOR_ALWAYS
             ) {
                 return $this->hasVisited($obj_id);
+            }
+            // "according to learning progress": the learning progress decides,
+            // a visit alone does not complete the item
+            if ($this->navigator instanceof LSOLearningMapSequentialNavigator
+                && $item->getPostCondition()->getConditionOperator() === \ilLSPostCondition::OPERATOR_LP
+            ) {
+                return $this->hasLearningProgressCompleted($item, $obj_id);
             }
             if ($this->navigator->getOutputConditionIds($item) === []) {
                 return $this->hasVisited($obj_id);

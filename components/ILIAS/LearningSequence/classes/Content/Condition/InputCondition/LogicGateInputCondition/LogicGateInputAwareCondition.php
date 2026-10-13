@@ -255,7 +255,10 @@ class LogicGateInputAwareCondition extends AbstractCondition implements
             foreach ($affected_ref_ids as $affected_ref_id) {
                 $details[] = new StaticInputConfigurationIssueDetail(
                     $affected_ref_id,
-                    'lso_logic_gate_input_not_start_reference'
+                    'lso_logic_gate_input_not_start_reference',
+                    properties_by_language_var: [
+                        'lso_static_input_configuration_referenced_objects' => [$start_ref_id]
+                    ]
                 );
             }
         }

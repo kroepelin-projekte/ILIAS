@@ -95,6 +95,24 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
     }
 
     /**
+     * Two learning progress input conditions are identical if they require the
+     * same learning progress status on the same target object.
+     */
+    public function isDuplicateOf(AbstractCondition $other): bool
+    {
+        if (!$other instanceof self) {
+            return false;
+        }
+
+        try {
+            return $this->getSubtype() === $other->getSubtype()
+                && $this->getConditionTargetRefId() === $other->getConditionTargetRefId();
+        } catch (LogicException) {
+            return false;
+        }
+    }
+
+    /**
      * @param array<string, mixed> $context
      */
     public function hasStaticInputConfigurationConflict(array $context = []): bool
