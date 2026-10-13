@@ -104,8 +104,8 @@ class ilLanguageFile
 
         foreach ($content as $line_num => $line) {
             if ($in_header) {
-                // store the header line
-                $this->header .= $line . "\n";
+                // store the header line with its own line ending
+                $this->header .= $line;
 
                 // check header end
                 if (trim($line) === $this->file_start) {
@@ -191,13 +191,14 @@ class ilLanguageFile
     public function build(string $a_header = ''): string
     {
         global $DIC;
-        $ilUser = $DIC->user();
-        $lng = $DIC->language();
 
         if ($a_header) {
             // take the given header
             $content = $a_header;
         } else {
+            $ilUser = $DIC->user();
+            $lng = $DIC->language();
+
             // set default params
             $lng->loadLanguageModule("meta");
             $lang_name = $lng->txtlng("meta", "meta_l_" . $this->lang_key, "en");
@@ -223,15 +224,17 @@ class ilLanguageFile
             $content = $tpl->get();
         }
 
+        // keep the line endings of a given header, e.g. CRLF
+        $newline = str_contains($content, "\r\n") ? "\r\n" : "\n";
         // fault tolerant check for adding newline
-        $add_newline = (substr($content, strlen($content) - 1, 1) !== "\n");
+        $add_newline = !str_ends_with($content, "\n");
 
         // build the content
         foreach ($this->values as $key => $value) {
             // add the newline before the line!
             // a valid lang file should not have a newline at the end!
             if ($add_newline) {
-                $content .= "\n";
+                $content .= $newline;
             }
             $add_newline = true;
 

@@ -725,7 +725,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                     $global_file_obj = $this->object->getGlobalLanguageFile();
                     $global_file_obj->setAllValues($this->object->getMergedValues());
                     $global_file_obj->setAllComments($this->object->getMergedRemarks());
-                    $global_file_obj->write();
+                    $global_file_obj->write($global_file_obj->getHeader());
                     $this->tpl->setOnScreenMessage('success', $this->lng->txt("language_merged_global"), true);
                 } else {
                     $this->tpl->setOnScreenMessage('failure', $this->lng->txt("language_error_write_global"), true);
