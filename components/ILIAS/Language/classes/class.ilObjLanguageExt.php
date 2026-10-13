@@ -392,6 +392,24 @@ class ilObjLanguageExt extends ilObjLanguage
     }
 
     /**
+     * An entry is a local change if it is missing in the global language file (e.g. plugin variables)
+     * or if its value or remark differs from the file. A remark of null means it is not part of the save.
+     */
+    protected static function isLocalChange(
+        string $key,
+        string $value,
+        ?string $remark,
+        array $file_values,
+        array $file_comments
+    ): bool {
+        if (!isset($file_values[$key]) || $file_values[$key] !== $value) {
+            return true;
+        }
+
+        return $remark !== null && $remark !== ($file_comments[$key] ?? '');
+    }
+
+    /**
     * Save a set of translation in the database
     *
     * $a_lang_key      language key
@@ -432,9 +450,20 @@ class ilObjLanguageExt extends ilObjLanguage
             $save_array[$module][$topic] = $value;
 
             $are_comments_set = array_key_exists($key, $global_comments) && array_key_exists($key, $a_remarks);
-            $are_changes_made = (isset($global_values[$key]) ? $global_values[$key] != $value : true) || (isset($db_values[$key]) ? $db_values[$key] != $value : true);
-            if ($are_changes_made || ($are_comments_set ? $global_comments[$key] != $a_remarks[$key] : $are_comments_set)) {
-                $local_change = (isset($db_values[$key]) ? $db_values[$key] == $value : true) || (isset($global_values[$key]) ? $global_values[$key] != $value : true) ? $save_date : null;
+            $are_changes_made = !isset($global_values[$key])
+                || (string) $global_values[$key] !== (string) $value
+                || !isset($db_values[$key])
+                || (string) $db_values[$key] !== (string) $value;
+            $is_comment_changed = $are_comments_set
+                && (string) $global_comments[$key] !== (string) $a_remarks[$key];
+            if ($are_changes_made || $is_comment_changed) {
+                $local_change = self::isLocalChange(
+                    $key,
+                    (string) $value,
+                    isset($a_remarks[$key]) ? (string) $a_remarks[$key] : null,
+                    $file_values,
+                    $file_comments
+                ) ? $save_date : null;
                 ilObjLanguage::replaceLangEntry(
                     $module,
                     $topic,
