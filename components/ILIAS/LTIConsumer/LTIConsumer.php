@@ -20,6 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS;
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
+
 class LTIConsumer implements Component\Component
 {
     public function init(
@@ -54,5 +57,9 @@ class LTIConsumer implements Component\Component
         new Component\Resource\Endpoint($this, "ltiservices.php");
         $contribute[Component\Resource\PublicAsset::class] = fn() =>
         new Component\Resource\Endpoint($this, "ltiresult.php");
+        $contribute[LanguageFileDirectory::class] = fn() => new ComponentLanguageFileDirectory(
+            $this,
+            'ltiv'
+        );
     }
 }
