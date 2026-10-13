@@ -277,7 +277,7 @@ class ilObjLearningSequence extends ilContainer
                     $new_condition->create(true);
                     $created = true;
 
-                    $new_condition_id = (int)$new_condition->getConditionId();
+                    $new_condition_id = (int) $new_condition->getConditionId();
                     if ($new_condition_id > 0) {
                         $new_condition->setImportMapping($mapping);
                         $new_condition->import($export_payload, $new_condition_id);
