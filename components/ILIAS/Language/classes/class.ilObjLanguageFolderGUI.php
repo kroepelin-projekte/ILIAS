@@ -434,9 +434,20 @@ class ilObjLanguageFolderGUI extends ilObjectGUI
         $curUser->setLanguage($newUserLangObj->getKey());
         $curUser->update();
 
-        $this->data = $this->lng->txt("user_language") . " " . $this->lng->txt("changed_to") . " " . $this->lng->txt("meta_l_" . $newUserLangObj->getKey()) . ".";
+        // the confirmation is shown after the redirect, i.e. already in the new language
+        $this->data = self::getUserLanguageChangedMessage(
+            ilLanguageFactory::_getLanguage($newUserLangObj->getKey()),
+            $newUserLangObj->getKey()
+        );
 
         $this->out();
+    }
+
+    protected static function getUserLanguageChangedMessage(ilLanguage $lng, string $lang_key): string
+    {
+        $lng->loadLanguageModule("meta");
+
+        return $lng->txt("user_language") . " " . $lng->txt("changed_to") . " " . $lng->txt("meta_l_" . $lang_key) . ".";
     }
 
 
