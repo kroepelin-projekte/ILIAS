@@ -479,7 +479,7 @@ class ilSetupLanguage extends ilLanguage
                     $ilDB->manipulate(
                         "INSERT INTO lng_data (module,identifier,lang_key,value,local_change,remarks) VALUES " .
                         implode(",", $rows) .
-                        " ON DUPLICATE KEY UPDATE value=VALUES(value),remarks=VALUES(remarks);"
+                        " ON DUPLICATE KEY UPDATE identifier=VALUES(identifier),value=VALUES(value),local_change=VALUES(local_change),remarks=VALUES(remarks);"
                     );
                 }
             }
