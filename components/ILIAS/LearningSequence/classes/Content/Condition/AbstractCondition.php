@@ -302,7 +302,7 @@ abstract class AbstractCondition
 
         // Imports and copies fill the payload later via importPayload(), so the
         // configuration needed for the duplicate check is not available here.
-        if (!$is_import && $this->duplicateExistsInContext($type_id)) {
+        if (!$is_import && $this->supportsDuplicateCheck() && $this->duplicateExistsInContext($type_id)) {
             $this->addValidationMessage($this->lang->txt('condition_already_exists'));
             return;
         }
@@ -339,7 +339,7 @@ abstract class AbstractCondition
         $this->assertConditionDataHookImplemented('editConditionData');
         $type_id = $this->getTypeId();
 
-        if ($this->duplicateExistsInContext($type_id)) {
+        if ($this->supportsDuplicateCheck() && $this->duplicateExistsInContext($type_id)) {
             $this->addValidationMessage($this->lang->txt('condition_already_exists'));
             return;
         }
@@ -540,7 +540,7 @@ abstract class AbstractCondition
      * same learning sequence is configured identically, see isDuplicateOf().
      * The condition itself is excluded, so editing without changes is possible.
      *
-     * @throws ReflectionException
+     * @throws LogicException
      */
     protected function duplicateExistsInContext(?int $type_id): bool
     {
@@ -671,11 +671,21 @@ abstract class AbstractCondition
     }
 
     /**
+     * Whether create() and edit() check for an identically configured condition,
+     * see isDuplicateOf(). Off by default, so types without a duplicate check do not
+     * load the other conditions of the item.
+     */
+    public function supportsDuplicateCheck(): bool
+    {
+        return false;
+    }
+
+    /**
      * Determines whether this condition is configured identically to the given one.
      * create() and edit() refuse to save a condition that duplicates another condition
      * of the same type on the same object in the same learning sequence.
-     * Override this method in child classes that allow multiple conditions of the same type,
-     * but not with the same configuration.
+     * Override this method together with supportsDuplicateCheck() in child classes that allow
+     * multiple conditions of the same type, but not with the same configuration.
      */
     public function isDuplicateOf(AbstractCondition $other): bool
     {

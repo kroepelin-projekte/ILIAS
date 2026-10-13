@@ -94,6 +94,11 @@ final class LearningProgressInputAwareCondition extends AbstractCondition implem
         return [$this->getConditionTargetRefId()];
     }
 
+    public function supportsDuplicateCheck(): bool
+    {
+        return true;
+    }
+
     /**
      * Two learning progress input conditions are identical if they require the
      * same learning progress status on the same target object.
