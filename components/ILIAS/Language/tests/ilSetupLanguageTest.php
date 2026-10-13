@@ -57,4 +57,60 @@ class ilSetupLanguageTest extends ilLanguageBaseTestCase
         $this->assertContains('de', $languagesAsKeys);
         $this->assertContains('es', $languagesAsKeys);
     }
+
+    public function testInsertLanguageStoresTheRemarksOfTheLastLineOfACasePair(): void
+    {
+        $dir = sys_get_temp_dir() . '/ilSetupLanguageTest_' . uniqid('', true);
+        mkdir($dir);
+        $file = $dir . '/ilias_fr.lang';
+        file_put_contents(
+            $file,
+            "header\n<!-- language file start -->\n"
+            . "content#:#cont_Link#:#Lien\n"
+            . "content#:#cont_link#:#Link###31 10 2023 new variable\n"
+        );
+
+        $queries = [];
+        $db = $this->createStub(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(
+            static fn($value): string => $value === null ? 'NULL' : "'" . $value . "'"
+        );
+        $db->method('query')->willReturn($this->createStub(ilDBStatement::class));
+        $db->method('in')->willReturn('1 = 1');
+        $db->method('manipulate')->willReturnCallback(
+            static function (string $query) use (&$queries): int {
+                $queries[] = $query;
+                return 1;
+            }
+        );
+        $GLOBALS['ilDB'] = $db;
+
+        $setup = new class ('fr') extends ilSetupLanguage {
+            public function insert(string $lang_key): void
+            {
+                $this->insertLanguage($lang_key);
+            }
+        };
+        $setup->lang_path = $dir;
+
+        try {
+            $setup->insert('fr');
+        } finally {
+            unlink($file);
+            rmdir($dir);
+            unset($GLOBALS['ilDB']);
+        }
+
+        $inserts = array_values(array_filter(
+            $queries,
+            static fn(string $query): bool => str_starts_with($query, 'INSERT INTO lng_data')
+        ));
+        $this->assertCount(1, $inserts);
+        $this->assertStringContainsString(
+            "('content','cont_link','fr','Link',NULL,'31 10 2023 new variable')",
+            $inserts[0]
+        );
+        $this->assertStringNotContainsString('cont_Link', $inserts[0]);
+        $this->assertStringContainsString('remarks=VALUES(remarks)', $inserts[0]);
+    }
 }

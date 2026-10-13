@@ -472,7 +472,7 @@ class ilSetupLanguage extends ilLanguage
                         $ilDB->quote($lang_key, "text"),
                         $ilDB->quote($row["value"], "text"),
                         $ilDB->quote($change_date, "timestamp"),
-                        $ilDB->quote(null, "text")
+                        $ilDB->quote($row["remarks"], "text")
                     );
                 }
                 if ($rows !== []) {
