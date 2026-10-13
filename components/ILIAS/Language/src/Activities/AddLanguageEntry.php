@@ -56,6 +56,8 @@ class AddLanguageEntry extends LanguageActivity
         private readonly InstalledLanguageRepository $installed_language_repository,
         \ilDBInterface $db,
         LanguageFolder $language_folder,
+        private readonly LanguageFileDirectoryManager $language_file_directory_manager,
+        private readonly string $ilias_root,
         ?\Closure $replace_lang_entry = null,
         ?\Closure $update_module_cache = null,
         ?\Closure $user_login = null,
@@ -71,60 +73,62 @@ class AddLanguageEntry extends LanguageActivity
                 string $remarks
             ): bool => \ilObjLanguage::replaceLangEntry($module, $identifier, $lang_key, $value, $local_change, $remarks);
         $this->update_module_cache = $update_module_cache
-            ?? static function (
+            ?? fn(
                 string $lang_key,
                 string $module,
                 string $identifier,
                 string $value,
                 string $remarks = ''
-            ) use ($db): bool {
-                global $DIC;
-
-                $write = static function () use ($db, $lang_key, $module, $identifier, $value, $remarks): bool {
-                    global $DIC;
-
-                    $entries = self::currentModuleEntries($db, $lang_key, $module);
-                    if ($entries === null) {
-                        // as before: no lng_modules row of a module not maintained in PO files -
-                        // nothing to update (lng_data holds the entry)
-                        return true;
-                    }
-                    $entries[self::entryKeyOf($entries, $identifier)] = $value;
-                    $written = \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
-                    if ($remarks === '' || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
-                        return $written;
-                    }
-                    // the remark lng_data got (see replace_lang_entry) - in the overlay as well
-                    try {
-                        MigratedLanguageFileSync::setRemarks(
-                            $DIC[LanguageFileDirectoryManager::class],
-                            $lang_key,
-                            $module,
-                            [$identifier => $remarks],
-                            MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
-                            ILIAS_ABSOLUTE_PATH
-                        );
-                    } catch (\Throwable) {
-                        return false;
-                    }
-                    return $written;
-                };
-                $manager = isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)
-                    ? $DIC[LanguageFileDirectoryManager::class]
-                    : null;
-
-                // read and written under the overlay lock, so a concurrent write is not lost
-                return MigratedLanguageFileSync::withOverlayLock(
-                    $manager,
-                    $lang_key,
-                    $module,
-                    MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
-                    $write,
-                    ILIAS_ABSOLUTE_PATH
-                );
-            };
+            ): bool => $this->updateModuleCache($db, $lang_key, $module, $identifier, $value, $remarks);
         $this->user_login = $user_login
             ?? static fn(int $usr_id): string => \ilObjUser::_lookupLogin($usr_id);
+    }
+
+    private function updateModuleCache(
+        \ilDBInterface $db,
+        string $lang_key,
+        string $module,
+        string $identifier,
+        string $value,
+        string $remarks
+    ): bool {
+        $client_data_dir = MigratedLanguageFilePaths::resolveClientDataDir($this->ilias_root);
+        $write = function () use ($db, $lang_key, $module, $identifier, $value, $remarks, $client_data_dir): bool {
+            $entries = $this->currentModuleEntries($db, $lang_key, $module, $client_data_dir);
+            if ($entries === null) {
+                // not maintained in PO files: lng_data already holds the entry
+                return true;
+            }
+            $entries[self::entryKeyOf($entries, $identifier)] = $value;
+            $written = \ilObjLanguage::replaceLangModule($lang_key, $module, $entries);
+            if ($remarks === '') {
+                return $written;
+            }
+            // the overlay needs the remark lng_data got as well
+            try {
+                MigratedLanguageFileSync::setRemarks(
+                    $this->language_file_directory_manager,
+                    $lang_key,
+                    $module,
+                    [$identifier => $remarks],
+                    $client_data_dir,
+                    $this->ilias_root
+                );
+            } catch (\Throwable) {
+                return false;
+            }
+            return $written;
+        };
+
+        // read and written under the overlay lock, so a concurrent write is not lost
+        return MigratedLanguageFileSync::withOverlayLock(
+            $this->language_file_directory_manager,
+            $lang_key,
+            $module,
+            $client_data_dir,
+            $write,
+            $this->ilias_root
+        );
     }
 
     /**
@@ -145,21 +149,15 @@ class AddLanguageEntry extends LanguageActivity
      * @param list<string|int> $lang_keys
      * @return list<string>
      */
-    private static function languagesWithoutPluralForm(string $module, string $identifier, array $lang_keys): array
+    private function languagesWithoutPluralForm(string $module, string $identifier, array $lang_keys): array
     {
-        global $DIC;
-
-        if (PluralFormKey::parse($identifier) === null || !isset($DIC) || !$DIC->offsetExists(LanguageFileDirectoryManager::class)) {
+        if (PluralFormKey::parse($identifier) === null) {
             return [];
         }
         $languages = [];
         foreach ($lang_keys as $lang_key) {
             $lang_key = (string) $lang_key;
-            $shipped_po = MigratedLanguageFileSync::findShippedModuleFiles(
-                $DIC[LanguageFileDirectoryManager::class],
-                ILIAS_ABSOLUTE_PATH,
-                $lang_key
-            )[$module] ?? null;
+            $shipped_po = $this->shippedModuleFile($lang_key, $module);
             if ($shipped_po === null) {
                 continue;
             }
@@ -176,38 +174,39 @@ class AddLanguageEntry extends LanguageActivity
         return $languages;
     }
 
+    private function shippedModuleFile(string $lang_key, string $module): ?string
+    {
+        return MigratedLanguageFileSync::findShippedModuleFiles(
+            $this->language_file_directory_manager,
+            $this->ilias_root,
+            $lang_key
+        )[$module] ?? null;
+    }
+
     /**
-     * The content of $module/$lang_key the new entry is added to: for a module maintained in PO files
-     * its shipped state with the overlay delta on top (what ilLanguage serves, see
-     * MigratedLanguageFileSync::loadModuleTranslations()), otherwise - or if that cannot be read -
-     * the lng_modules row. Without a readable row, only the module array of a module maintained in
-     * PO files is rebuilt from lng_data (which already holds the new entry), so the entry never
-     * stays invisible behind its overlay; for any other module `null` is
-     * returned and nothing is written, as before - the module name is free input, and no
-     * lng_modules row must be created for an arbitrary one.
+     * The content of $module/$lang_key the new entry is added to: for PO-maintained modules the
+     * shipped state plus overlay (what ilLanguage serves), otherwise the lng_modules row. Without a
+     * readable row only PO-maintained modules are rebuilt from lng_data, so the entry never stays
+     * invisible behind its overlay; any other module yields `null` (the module name is free input).
+     *
      *
      * @return array<string, string>|null identifier => value
      */
-    private static function currentModuleEntries(\ilDBInterface $db, string $lang_key, string $module): ?array
-    {
-        global $DIC;
-
-        $is_migrated = false;
-        if (isset($DIC) && $DIC->offsetExists(LanguageFileDirectoryManager::class)) {
-            $is_migrated = isset(MigratedLanguageFileSync::findShippedModuleFiles(
-                $DIC[LanguageFileDirectoryManager::class],
-                ILIAS_ABSOLUTE_PATH,
-                $lang_key
-            )[$module]);
-        }
+    private function currentModuleEntries(
+        \ilDBInterface $db,
+        string $lang_key,
+        string $module,
+        ?string $client_data_dir
+    ): ?array {
+        $is_migrated = $this->shippedModuleFile($lang_key, $module) !== null;
         if ($is_migrated) {
             try {
                 $overlay = MigratedLanguageFileSync::loadModuleTranslations(
-                    $DIC[LanguageFileDirectoryManager::class],
+                    $this->language_file_directory_manager,
                     $lang_key,
                     $module,
-                    MigratedLanguageFilePaths::resolveClientDataDir(ILIAS_ABSOLUTE_PATH),
-                    ILIAS_ABSOLUTE_PATH
+                    $client_data_dir,
+                    $this->ilias_root
                 );
             } catch (\Throwable) {
                 // an unreadable overlay is rebuilt by the sync - the database content is the base then
@@ -394,7 +393,7 @@ MARKDOWN
         }
 
         // such a form would be dropped from the module's content: reject instead of reporting success
-        $languages_without_form = self::languagesWithoutPluralForm($module, $identifier, array_keys(array_filter($values)));
+        $languages_without_form = $this->languagesWithoutPluralForm($module, $identifier, array_keys(array_filter($values)));
         if ($languages_without_form !== []) {
             throw new InvalidInputException(
                 'The plural message has no such form for: ' . implode(', ', $languages_without_form) . '.'

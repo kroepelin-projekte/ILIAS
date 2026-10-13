@@ -149,6 +149,8 @@ class Language implements Component\Component
                 $internal[InstalledLanguageDatabaseRepository::class],
                 $pull[\ILIAS\Database\Connection::class],
                 $internal[Language\LanguageFolder::class],
+                $internal[LanguageFileDirectoryManager::class],
+                $use[Directories::class]->getRoot(),
                 // replace_lang_entry/update_module_cache/user_login: left at
                 // their defaults (see AddLanguageEntry's own constructor
                 // docblock).

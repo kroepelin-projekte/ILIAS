@@ -23,7 +23,6 @@ namespace ILIAS\Language\Tests\Activities;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Language;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
 {
@@ -425,25 +424,52 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
     }
 
     /**
-     * AddLanguageEntry::currentModuleEntries() is a private static helper of perform(); its cases
-     * (migrated or not, usable lng_modules row or not) are not reachable cheaply through perform().
+     * Called directly because its result otherwise only reaches \ilObjLanguage::replaceLangModule(), which needs the global database.
      *
      * @return array<string, string>|null
      */
-    private function currentModuleEntries(\ilDBInterface $db): ?array
-    {
-        return (new \ReflectionMethod(AddLanguageEntry::class, 'currentModuleEntries'))->invoke(null, $db, 'de', 'common');
+    private function currentModuleEntries(
+        AddLanguageEntry $activity,
+        \ilDBInterface $db,
+        ?string $client_data_dir = null
+    ): ?array {
+        return (new \ReflectionMethod(AddLanguageEntry::class, 'currentModuleEntries'))
+            ->invoke($activity, $db, 'de', 'common', $client_data_dir);
+    }
+
+    private function createActivityWithDefaultModuleCache(
+        \ilDBInterface $db,
+        ?\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager $language_file_directory_manager = null
+    ): AddLanguageEntry {
+        return new AddLanguageEntry(
+            refinery: $this->createStub(\ILIAS\Refinery\Factory::class),
+            language: $this->createStub(Language::class),
+            rbac: $this->rbacOf($this->createStub(\ilRbacSystem::class)),
+            installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
+            db: $db,
+            language_folder: $this->languageFolder(),
+            language_file_directory_manager: $language_file_directory_manager ?? $this->noMigratedModules(),
+            ilias_root: $this->iliasRoot(),
+            replace_lang_entry: static fn(
+                string $module,
+                string $identifier,
+                string $lang_key,
+                string $value,
+                string $local_change,
+                string $remarks
+            ): bool => true,
+            user_login: static fn(int $usr_id): string => 'default-login',
+        );
     }
 
     /**
-     * lng_data is only ever used to rebuild the module array for a module maintained in PO files (S2) -
-     * never for an arbitrary one, since the module name is free input and no lng_modules row must be
-     * created for one that was never actually migrated.
+     * lng_data only rebuilds the module array of a module maintained in PO files, never of an arbitrary
+     * (free input) one: the entry is added, the module cache is left alone.
      *
      * @param array<string, mixed>|null $lng_modules_row
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('unusableLngModulesRows')]
-    public function testCurrentModuleEntriesReturnsNullWithoutAUsableLngModulesRowWhenNotMigrated(
+    #[DataProvider('unusableLngModulesRows')]
+    public function testWithoutAUsableLngModulesRowANotMigratedModuleCacheIsLeftAlone(
         ?array $lng_modules_row
     ): void {
         $lng_data_rows = [
@@ -451,33 +477,31 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
             ['identifier' => 'new_topic', 'value' => 'Hallo'],
         ];
         $db = $this->mockDbFetchingLngModulesRowThenLngDataRows($lng_modules_row, $lng_data_rows);
+        $activity = $this->createActivityWithDefaultModuleCache($db);
 
-        $entries = $this->currentModuleEntries($db);
+        $this->assertNull($this->currentModuleEntries($activity, $db));
 
-        $this->assertNull($entries);
+        $result = $activity->perform([
+            'module' => 'common',
+            'identifier' => 'new_topic',
+            'translations' => ['de' => 'Hallo'],
+            'usr_id' => 6,
+        ]);
+
+        $this->assertSame(['de'], $result['added_language_keys']);
+        $this->assertSame([], $result['overlay_write_failed_language_keys']);
     }
 
     /**
-     * The counterpart of the test above (S2): for a module that IS migrated (a shipped `.po` exists for
-     * it, discoverable via a LanguageFileDirectoryManager registered in $DIC) but has neither a readable
-     * overlay (none was ever compiled here) nor a usable lng_modules row, the module array IS rebuilt from
-     * lng_data, which already holds the new entry - the only way the entry would not otherwise stay
-     * invisible behind the (about to be recreated) overlay.
+     * A migrated module without readable overlay and usable lng_modules row is rebuilt from lng_data,
+     * else the new entry would stay invisible behind the recreated overlay.
      */
-    #[RunInSeparateProcess]
     public function testCurrentModuleEntriesRebuildsFromLngDataForAMigratedModuleWithoutAReadableOverlayOrUsableLngModulesRow(): void
     {
-        if (!defined('ILIAS_ABSOLUTE_PATH')) {
-            // This file lives one level deeper (tests/Activities/) than the fixture family's usual
-            // tests/ root, hence 5 levels up instead of the usual 4.
-            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../../'));
-        }
-        define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_add_entry_test_' . bin2hex(random_bytes(4)));
-
+        $client_data_dir = sys_get_temp_dir() . '/ilias_add_entry_test_' . bin2hex(random_bytes(4));
         $fixture_dir = __DIR__ . '/tmp-add-entry-fixtures-' . bin2hex(random_bytes(4));
         mkdir($fixture_dir, 0775, true);
-        // Only the SHIPPED `.po` is seeded - that alone is what makes the module "migrated"; no
-        // overlay is compiled at all, so loadModuleTranslations() finds nothing to read.
+        // the shipped `.po` alone makes the module "migrated"
         \MigratedPoFixture::writePo(
             $fixture_dir . '/common_de.po',
             \MigratedPoFixture::catalog('common', ['existing' => 'Veraltet'])
@@ -486,16 +510,8 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
             'common',
             'components/ILIAS/Language/tests/Activities/' . basename($fixture_dir) . '/'
         );
-        $this->setGlobalVariable(
-            \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class,
-            new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
-                new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-                $directory
-            )
-        );
-        // Adapted to the delta overlay: without overlay the shipped state is a readable base (no
-        // local changes); only an unreadable overlay leads to the lng_modules/lng_data fallback
-        $overlay_dir = CLIENT_DATA_DIR . '/lang/common/de';
+        // only an unreadable overlay (not a missing one) leads to the lng_modules/lng_data fallback
+        $overlay_dir = $client_data_dir . '/lang/common/de';
         mkdir($overlay_dir, 0775, true);
         file_put_contents($overlay_dir . '/common_de.po', "msgid \"kaputt\n");
 
@@ -505,13 +521,20 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
                 ['identifier' => 'new_topic', 'value' => 'Hallo'],
             ];
             $db = $this->mockDbFetchingLngModulesRowThenLngDataRows(null, $lng_data_rows);
+            $activity = $this->createActivityWithDefaultModuleCache(
+                $db,
+                new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
+                    new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+                    $directory
+                )
+            );
 
-            $entries = $this->currentModuleEntries($db);
+            $entries = $this->currentModuleEntries($activity, $db, $client_data_dir);
 
             $this->assertSame(['existing' => 'Bestehend', 'new_topic' => 'Hallo'], $entries);
         } finally {
             \MigratedPoFixture::removeDirectory($fixture_dir);
-            \MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
+            \MigratedPoFixture::removeDirectory($client_data_dir);
         }
     }
 
@@ -533,7 +556,7 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
             [['identifier' => 'ignored', 'value' => 'x']]
         );
 
-        $entries = $this->currentModuleEntries($db);
+        $entries = $this->currentModuleEntries($this->createActivityWithDefaultModuleCache($db), $db);
 
         $this->assertSame(['existing' => 'Bestehend'], $entries);
     }
@@ -542,8 +565,10 @@ class AddLanguageEntryWritesTest extends \ilLanguageBaseTestCase
      * @param array<string, mixed>|null $lng_modules_row
      * @param list<array{identifier: string, value: string}> $lng_data_rows
      */
-    private function mockDbFetchingLngModulesRowThenLngDataRows(?array $lng_modules_row, array $lng_data_rows): \ilDBInterface
-    {
+    private function mockDbFetchingLngModulesRowThenLngDataRows(
+        ?array $lng_modules_row,
+        array $lng_data_rows
+    ): \ilDBInterface {
         $modules_statement = $this->createStub(\ilDBStatement::class);
         $data_statement = $this->createStub(\ilDBStatement::class);
 

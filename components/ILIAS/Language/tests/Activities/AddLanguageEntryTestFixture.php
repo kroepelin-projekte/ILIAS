@@ -21,6 +21,8 @@ declare(strict_types=1);
 namespace ILIAS\Language\Tests\Activities;
 
 use ILIAS\Language\Activities\AddLanguageEntry;
+use ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\Language;
 use ILIAS\Language\Setup\InstalledLanguageRepository;
 use ILIAS\Refinery\Factory as RefineryFactory;
@@ -68,6 +70,19 @@ trait AddLanguageEntryTestFixture
         return $db;
     }
 
+    protected function noMigratedModules(): LanguageFileDirectoryManager
+    {
+        return new LanguageFileDirectoryManager(new CustomizingLanguageFileDirectory());
+    }
+
+    /**
+     * The fixture directories (MigratedPoFixture::directory()) are relative to the installation root.
+     */
+    protected function iliasRoot(): string
+    {
+        return (string) realpath(__DIR__ . '/../../../../../');
+    }
+
     /**
      * @param list<string> $installed_languages
      */
@@ -82,6 +97,7 @@ trait AddLanguageEntryTestFixture
         ?\Closure $update_module_cache = null,
         ?\Closure $user_login = null,
         ?RefineryFactory $refinery = null,
+        ?LanguageFileDirectoryManager $language_file_directory_manager = null,
     ): AddLanguageEntry {
         // no-op defaults: the real closures need global $DIC; tests proving a closure is never called pass a throwing one
         $replace_lang_entry ??= static fn(
@@ -111,6 +127,8 @@ trait AddLanguageEntryTestFixture
                 static fn(): array => $installed_languages
             ),
             language_folder: $this->languageFolder($language_folder_ref_id),
+            language_file_directory_manager: $language_file_directory_manager ?? $this->noMigratedModules(),
+            ilias_root: $this->iliasRoot(),
             replace_lang_entry: $replace_lang_entry,
             update_module_cache: $update_module_cache,
             user_login: $user_login,

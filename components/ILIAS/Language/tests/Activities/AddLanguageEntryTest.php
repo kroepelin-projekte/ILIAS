@@ -421,6 +421,8 @@ class AddLanguageEntryTest extends ActivityContractTestCase
             installed_language_repository: new FakeInstalledLanguageRepository(static fn(): array => ['de']),
             db: $this->createUnusedDb(),
             language_folder: $this->languageFolder(),
+            language_file_directory_manager: $this->noMigratedModules(),
+            ilias_root: $this->iliasRoot(),
         ) extends AddLanguageEntry {
             public function getInputDescription(FieldFactory $f): FormInput
             {

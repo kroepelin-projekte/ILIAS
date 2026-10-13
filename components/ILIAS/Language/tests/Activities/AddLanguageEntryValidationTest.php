@@ -24,7 +24,6 @@ use ILIAS\Language\Activities\InvalidInputException;
 use ILIAS\Language\Activities\SafeToDisplayActivityError;
 use ILIAS\Language\Language;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class AddLanguageEntryValidationTest extends \ilLanguageBaseTestCase
 {
@@ -93,14 +92,8 @@ class AddLanguageEntryValidationTest extends \ilLanguageBaseTestCase
      * A form key (PluralFormKey) missing from the shipped message (here "item [2]") rejects the request
      * instead of being silently dropped on the next save.
      */
-    #[RunInSeparateProcess]
     public function testAFormKeyWithNoSuchFormInAShippedMessageRejectsTheRequestBeforeAnyWrite(): void
     {
-        if (!defined('ILIAS_ABSOLUTE_PATH')) {
-            define('ILIAS_ABSOLUTE_PATH', realpath(__DIR__ . '/../../../../../'));
-        }
-        define('CLIENT_DATA_DIR', sys_get_temp_dir() . '/ilias_add_entry_plural_test_' . bin2hex(random_bytes(4)));
-
         $fixture_dir = __DIR__ . '/tmp-add-entry-plural-fixtures-' . bin2hex(random_bytes(4));
         mkdir($fixture_dir, 0775, true);
         $catalog = new \ILIAS\Language\ComponentTranslation\Catalog\TranslationCatalog();
@@ -113,20 +106,16 @@ class AddLanguageEntryValidationTest extends \ilLanguageBaseTestCase
             'poll',
             'components/ILIAS/Language/tests/Activities/' . basename($fixture_dir) . '/'
         );
-        $this->setGlobalVariable(
-            \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class,
-            new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
-                new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
-                $directory
-            )
-        );
-
         try {
             $calls = [];
             $activity = $this->createActivity(
                 ['de'],
                 replace_lang_entry: $this->spyReplaceLangEntry($calls),
-                update_module_cache: $this->spyUpdateModuleCache($calls)
+                update_module_cache: $this->spyUpdateModuleCache($calls),
+                language_file_directory_manager: new \ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager(
+                    new \ILIAS\Language\ComponentTranslation\CustomizingLanguageFileDirectory(),
+                    $directory
+                )
             );
 
             try {
@@ -145,7 +134,6 @@ class AddLanguageEntryValidationTest extends \ilLanguageBaseTestCase
             }
         } finally {
             \MigratedPoFixture::removeDirectory($fixture_dir);
-            \MigratedPoFixture::removeDirectory(CLIENT_DATA_DIR);
         }
     }
 
