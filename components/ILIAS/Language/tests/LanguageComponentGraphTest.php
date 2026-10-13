@@ -26,6 +26,7 @@ use ILIAS\Language\Activities\RemoveLocalLanguageChanges;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageDetectionEnabled;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
+use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
 use ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager;
 use ILIAS\Language\ComponentTranslation\MainLanguageFileDirectory;
@@ -156,6 +157,24 @@ class LanguageComponentGraphTest extends TestCase
         self::assertInstanceOf(SetLanguageDetectionEnabled::class, $contribute[\ILIAS\Component\Activities\Activity::class . '_7']);
         self::assertInstanceOf(SetLanguageTranslationEnabled::class, $contribute[\ILIAS\Component\Activities\Activity::class . '_8']);
         self::assertInstanceOf(UserSettingsSettings::class, $contribute[\ILIAS\User\Settings\UserSettings::class . '_9']);
+    }
+
+    public function testTheLngModuleIsContributedAsComponentLanguageFileDirectory(): void
+    {
+        [, , , $contribute] = $this->initComponent();
+
+        $keys = (new ReflectionProperty(RenamingDIC::class, 'wrapped'))->getValue($contribute)->keys();
+        $directories = [];
+        foreach ($keys as $key) {
+            if (str_starts_with($key, LanguageFileDirectory::class . '_')) {
+                $directories[$key] = $contribute[$key];
+            }
+        }
+        $lng = array_filter($directories, static fn(object $d): bool => $d instanceof ComponentLanguageFileDirectory && $d->getPrefix() === 'lng');
+
+        self::assertCount(1, $lng, 'exactly one ComponentLanguageFileDirectory with prefix "lng" expected');
+        self::assertSame('components/ILIAS/Language/lang/', array_values($lng)[0]->getPath());
+        self::assertInstanceOf(MainLanguageFileDirectory::class, $directories[LanguageFileDirectory::class . '_0']);
     }
 
     /** The Setup agent gets UpdateLanguage's Setup instance, not the GUI's: it must not re-apply plugin language files (no component repository in $DIC). */
