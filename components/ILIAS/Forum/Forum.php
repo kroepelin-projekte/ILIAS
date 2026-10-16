@@ -20,6 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS;
 
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
+
 class Forum implements Component\Component
 {
     public function init(
@@ -40,5 +43,9 @@ class Forum implements Component\Component
             new Component\Resource\ComponentJS($this, "autosave_forum.js");
         $contribute[Component\Resource\PublicAsset::class] = fn() =>
         new Component\Resource\ComponentCSS($this, "forum_table.css");
+        $contribute[LanguageFileDirectory::class] = fn() => new ComponentLanguageFileDirectory(
+            $this,
+            'forum'
+        );
     }
 }
