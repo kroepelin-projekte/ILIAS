@@ -62,6 +62,8 @@ use ILIAS\Environment\Configuration\Installation\Directories;
 use ILIAS\FileDelivery\Activities\FilePayloadFactory;
 use ILIAS\ResourceStorage\Activities\DeliverResource;
 use ILIAS\ResourceStorage\Activities\ServiceProvider;
+use ILIAS\Language\ComponentTranslation\LanguageFileDirectory;
+use ILIAS\Language\ComponentTranslation\ComponentLanguageFileDirectory;
 
 class ResourceStorage implements Component
 {
@@ -218,5 +220,9 @@ class ResourceStorage implements Component
          * it themselves.
          */
         $provide[DeliverResource::class] = static fn() => $internal[DeliverResource::class];
+        $contribute[LanguageFileDirectory::class] = fn() => new ComponentLanguageFileDirectory(
+            $this,
+            'irss'
+        );
     }
 }
