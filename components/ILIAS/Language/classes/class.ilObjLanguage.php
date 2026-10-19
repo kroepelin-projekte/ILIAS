@@ -555,7 +555,7 @@ class ilObjLanguage extends ilObject
         // ilGlobalCache::flushAll();
 
         if (is_string($a_remarks) && $a_remarks !== '') {
-            $a_remarks = substr($a_remarks, 0, 250);
+            $a_remarks = mb_substr($a_remarks, 0, 250);
         }
 
         if ($a_remarks === '') {
@@ -599,7 +599,7 @@ class ilObjLanguage extends ilObject
         $ilDB = $DIC->database();
 
         if (is_string($a_remarks) && $a_remarks !== '') {
-            $a_remarks = substr($a_remarks, 0, 250);
+            $a_remarks = mb_substr($a_remarks, 0, 250);
         }
 
         if ($a_remarks === '') {

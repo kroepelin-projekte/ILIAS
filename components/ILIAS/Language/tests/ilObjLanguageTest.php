@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -47,5 +48,62 @@ class ilObjLanguageTest extends TestCase
             'live - otherwise check()/refresh()/removeLocalChanges() will report every ' .
             'language as invalid.'
         );
+    }
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['DIC']);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function multibyteCharacterProvider(): array
+    {
+        return [
+            '2-byte umlaut' => ['ä'],
+            '2-byte cyrillic' => ['ж'],
+        ];
+    }
+
+    #[DataProvider('multibyteCharacterProvider')]
+    public function testReplaceLangEntryCutsTheRemarkToExactly250CharactersOfValidUtf8(string $character): void
+    {
+        $remarks = null;
+        $db = $this->createMock(ilDBInterface::class);
+        $db->method('replace')->willReturnCallback(
+            function (string $table, array $pk, array $data) use (&$remarks): int {
+                $remarks = $data['remarks'][1];
+                return 1;
+            }
+        );
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilDB'] = $db;
+
+        ilObjLanguage::replaceLangEntry('common', 'access', 'de', 'Zugang', null, str_repeat($character, 251));
+
+        self::assertSame(str_repeat($character, 250), $remarks);
+        self::assertTrue(mb_check_encoding($remarks, 'UTF-8'));
+    }
+
+    #[DataProvider('multibyteCharacterProvider')]
+    public function testUpdateLangEntryCutsTheRemarkToExactly250CharactersOfValidUtf8(string $character): void
+    {
+        $quoted_texts = [];
+        $db = $this->createMock(ilDBInterface::class);
+        $db->method('quote')->willReturnCallback(
+            function ($value, string $type) use (&$quoted_texts): string {
+                $quoted_texts[] = $value;
+                return "'" . $value . "'";
+            }
+        );
+        $GLOBALS['DIC'] = new \ILIAS\DI\Container();
+        $GLOBALS['DIC']['ilDB'] = $db;
+
+        ilObjLanguage::updateLangEntry('common', 'access', 'de', 'Zugang', null, str_repeat($character, 251));
+
+        $remarks = array_values(array_filter($quoted_texts, static fn($v): bool => is_string($v) && str_starts_with($v, $character)));
+        self::assertSame([str_repeat($character, 250)], $remarks);
+        self::assertTrue(mb_check_encoding($remarks[0], 'UTF-8'));
     }
 }
