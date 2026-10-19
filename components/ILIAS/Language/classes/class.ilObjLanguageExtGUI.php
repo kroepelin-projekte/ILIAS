@@ -27,6 +27,9 @@ use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\UI\Component\Input\Container\Filter\Filter as ilFilter;
 use ILIAS\UI\Implementation\Component\Table as DataTable;
+use ILIAS\UI\Component\Component as UIComponent;
+use ILIAS\UI\Component\Modal\RoundTrip;
+use ILIAS\Filesystem\Stream\Streams;
 
 /**
 * Class ilObjLanguageExtGUI
@@ -47,6 +50,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     use RendersActivityErrors;
 
     private const string ILIAS_LANGUAGE_MODULE = "components/ILIAS/Language";
+    private const string EDIT_SELECTION_SESSION_KEY = 'lang_ext_edit_selection';
+    private const string EDIT_SELECTION_PARAMETER = 'lang_entries_edit_selection';
+    private const int EDIT_SELECTION_MAX_STORED = 10;
+    private const int REMARK_MAX_LENGTH = 250;
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
     private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
@@ -54,6 +61,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
     private URLBuilderToken $action_token;
     private URLBuilderToken $row_id_token;
     private ilLanguageEntriesTable $entries_table;
+    private ?array $all_translations = null;
 
     /**
     * Constructor
@@ -131,7 +139,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $this->ui_factory,
             $url_builder,
             $action_token,
-            $row_id_token
+            $row_id_token,
+            (bool) $this->langmode
         );
     }
 
@@ -168,7 +177,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             exit;
         }
 
-        // returns instead of falling through, editSelectedObject() may render the form itself
+        // async table action: editSelectedObject() answers with the modal and closes the response
         if ($action = $this->getCommandFromQueryToken($this->action_token->getName())) {
             switch ($action) {
                 case 'edit':
@@ -197,7 +206,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         return $this->request_wrapper->retrieve($param, $trafo);
     }
 
-    /** Only normalises the shape, initEditEntriesForm() drops unknown names. */
+    /** Only normalises the shape, resolveEntryNames() drops unknown names. */
     private function getIdsFromQueryToken(): array
     {
         if (!$this->request_wrapper->has($this->row_id_token->getName())) {
@@ -252,6 +261,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 ->withValue('administration');
 
             $fields['identifier'] = $field_factory->text(ucfirst($this->lng->txt('identifier')));
+
+            if ($this->langmode) {
+                $fields['comment'] = $field_factory->text($this->lng->txt('comment'));
+            }
 
             $mode_options = [
                 'all' => $this->lng->txt('language_scope_global'),
@@ -354,144 +367,213 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         }
     }
 
-    /** Rejects selections whose form could not be posted back within max_input_vars. */
+    /**
+     * Answers the async "edit" action of the entries table with the edit modal, or with a failure message box.
+     * ALL_OBJECTS is resolved against the session-persisted filter, like the table itself.
+     */
     protected function editSelectedObject(array $names): void
     {
-        if (in_array('ALL_OBJECTS', $names, true)) {
-            $filter = $this->initFilter();
-            $names = $this->entries_table->getFilteredEntryNames($this->resolveFilterData($filter));
+        $names = $this->resolveEntryNames($names);
+
+        if ($names === []) {
+            $this->sendAsync($this->ui_factory->messageBox()->failure($this->lng->txt('no_checkbox')));
+            return;
         }
 
+        if ($this->exceedsMaxInputVars(count($names))) {
+            $this->sendAsync(
+                $this->ui_factory->messageBox()->failure($this->lng->txt('language_too_many_entries_selected'))
+            );
+            return;
+        }
+
+        $this->sendAsync($this->buildEditEntriesModal($names, $this->storeEditSelection($names), true));
+    }
+
+    /**
+     * Expands ALL_OBJECTS and drops names that do not exist (labels are rendered unescaped by KS).
+     *
+     * @return list<string>
+     */
+    private function resolveEntryNames(array $names): array
+    {
+        if (in_array('ALL_OBJECTS', $names, true)) {
+            $names = $this->entries_table->getFilteredEntryNames($this->resolveFilterData($this->initFilter()));
+        }
+
+        $translations = $this->getAllTranslations();
+
+        return array_values(array_filter(
+            $names,
+            static fn(string $name): bool => array_key_exists($name, $translations)
+        ));
+    }
+
+    private function getAllTranslations(): array
+    {
+        return $this->all_translations ??= $this->object->getAllValues();
+    }
+
+    /** Fields per entry (translation, plus comment in langmode) and the trailing "expected_entry_count". */
+    private function exceedsMaxInputVars(int $entry_count): bool
+    {
+        $max_input_vars = ini_get('max_input_vars');
+        $limit = ($max_input_vars === false || $max_input_vars === '') ? 1000 : (int) $max_input_vars;
+
+        return ($entry_count * ($this->langmode ? 2 : 1) + 1) > $limit;
+    }
+
+    /**
+     * The selection stays in the session (a long one does not fit into the post URL); the token keeps
+     * modals opened in parallel tabs apart, so no value is ever saved to another tab's entry.
+     *
+     * @param list<string> $names
+     */
+    private function storeEditSelection(array $names): string
+    {
+        $token = bin2hex(random_bytes(8));
+        $selections = (array) (ilSession::get(self::EDIT_SELECTION_SESSION_KEY) ?? []);
+        $selections[$token] = $names;
+        ilSession::set(
+            self::EDIT_SELECTION_SESSION_KEY,
+            array_slice($selections, -self::EDIT_SELECTION_MAX_STORED, null, true)
+        );
+
+        return $token;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function retrieveEditSelection(): array
+    {
+        if (!$this->request_wrapper->has(self::EDIT_SELECTION_PARAMETER)) {
+            return [];
+        }
+        $token = $this->request_wrapper->retrieve(
+            self::EDIT_SELECTION_PARAMETER,
+            $this->refinery->byTrying([$this->refinery->kindlyTo()->string(), $this->refinery->always('')])
+        );
+        $selections = (array) (ilSession::get(self::EDIT_SELECTION_SESSION_KEY) ?? []);
+
+        return array_values(array_map('strval', (array) ($selections[$token] ?? [])));
+    }
+
+    /**
+     * One textarea per entry, in edit mode with the compare language's value (from the table filter) as byline.
+     * "expected_entry_count" is the last field, so a POST truncated by max_input_vars misses it.
+     *
+     * @param list<string> $names existing entry names, see resolveEntryNames()
+     */
+    protected function buildEditEntriesModal(array $names, string $selection_token, bool $with_bylines): RoundTrip
+    {
+        $field_factory = $this->ui_factory->input()->field();
+        $translations = $this->getAllTranslations();
+        $remarks = $this->langmode ? $this->object->getAllRemarks() : [];
+
+        $compare_values = [];
+        $compare_title = '';
+        if ($with_bylines) {
+            $filter_data = $this->resolveFilterData($this->initFilter());
+            $compare_values = $this->entries_table->getCompareValues($filter_data);
+            $compare_title = $this->entries_table->getCompareTitle($filter_data);
+        }
+
+        $inputs = [];
+        foreach ($names as $idx => $name) {
+            $keys = explode($this->lng->separator, $name);
+            $translation = $field_factory
+                ->textarea(($keys[0] ?? '') . ' / ' . ($keys[1] ?? ''))
+                ->withValue($translations[$name] ?? '');
+
+            $compare_value = str_replace(['<br />', '<br/>', '<br>'], ' ', (string) ($compare_values[$name] ?? ''));
+            if ($compare_value !== '') {
+                // KS renders bylines unescaped
+                $translation = $translation->withByline(
+                    htmlspecialchars($compare_title . ': ' . $compare_value, ENT_QUOTES, 'UTF-8')
+                );
+            }
+            $inputs["translation_$idx"] = $translation;
+
+            if ($this->langmode) {
+                // no withMaxLength(): KS counts bytes, the remarks column characters; see normalizeRemark()
+                $inputs["comment_$idx"] = $field_factory
+                    ->text($this->lng->txt('comment'))
+                    ->withValue($this->normalizeRemark((string) ($remarks[$name] ?? '')));
+            }
+        }
+        $inputs['expected_entry_count'] = $field_factory->hidden()->withValue((string) count($names));
+
+        $post_url = $this->ctrl->getFormAction($this, 'saveEditedEntries')
+            . '&' . http_build_query([self::EDIT_SELECTION_PARAMETER => $selection_token]);
+
+        return $this->ui_factory->modal()->roundtrip($this->lng->txt('edit'), null, $inputs, $post_url)
+            ->withSubmitLabel($this->lng->txt('save'));
+    }
+
+    /** Single line, a line break would break the .lang format on export/merge. */
+    private function normalizeRemark(string $remark): string
+    {
+        return mb_substr(trim((string) preg_replace('/\R/u', ' ', $remark)), 0, self::REMARK_MAX_LENGTH);
+    }
+
+    /** Outside langmode the existing remarks are written back unchanged. */
+    public function saveEditedEntriesObject(): void
+    {
+        $selection = $this->retrieveEditSelection();
+        $names = $this->resolveEntryNames($selection);
         if ($names === []) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_checkbox'), true);
             $this->ctrl->redirect($this, 'view');
             return;
         }
 
-        if ($this->exceedsMaxInputVars(count($names))) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('language_too_many_entries_selected'), true);
-            $this->ctrl->redirect($this, 'view');
-            return;
+        try {
+            $data = $this->buildEditEntriesModal($names, '', false)->withRequest($this->request)->getData();
+        } catch (InvalidArgumentException) {
+            // KS rejects missing (truncated) field values instead of reporting them
+            $data = null;
         }
 
-        $this->tpl->setContent($this->initEditEntriesForm($names)->getHTML());
-    }
-
-    /** Three fields per entry plus "expected_entry_count", see initEditEntriesForm(). */
-    private function exceedsMaxInputVars(int $entry_count): bool
-    {
-        $max_input_vars = ini_get('max_input_vars');
-        $limit = ($max_input_vars === false || $max_input_vars === '') ? 1000 : (int) $max_input_vars;
-
-        return ($entry_count * 3 + 1) > $limit;
-    }
-
-    /**
-     * Unknown names are dropped because field titles are rendered unescaped. Outside langmode the
-     * remark travels as a hidden field so that saving does not wipe it.
-     */
-    protected function initEditEntriesForm(array $names): ilPropertyFormGUI
-    {
-        $translations = $this->object->getAllValues();
-        $remarks = $this->object->getAllRemarks();
-
-        $names = array_values(array_filter(
-            $names,
-            static fn(string $name): bool => array_key_exists($name, $translations)
-        ));
-
-        $form = new ilPropertyFormGUI();
-        $form->setFormAction($this->ctrl->getFormAction($this, 'saveEditedEntries'));
-        $form->setTitle($this->lng->txt('edit'));
-
-        $expected_count = new ilHiddenInputGUI('expected_entry_count');
-        $expected_count->setValue((string) count($names));
-        $form->addItem($expected_count);
-
-        foreach (array_values($names) as $idx => $name) {
-            $keys = explode($this->lng->separator, $name);
-            $module = $keys[0] ?? '';
-            $topic = $keys[1] ?? '';
-
-            $hidden = new ilHiddenInputGUI("entry_name[$idx]");
-            $hidden->setValue($name);
-            $form->addItem($hidden);
-
-            $ti = new ilTextAreaInputGUI($module . ' / ' . $topic, "translation[$idx]");
-            $ti->setValue($translations[$name] ?? '');
-            $form->addItem($ti);
-
-            if ($this->langmode) {
-                // single line: a line break would break the .lang format, 250 as in replaceLangEntry()
-                $ci = new ilTextInputGUI($this->lng->txt('comment'), "comment[$idx]");
-                $ci->setMaxLength(250);
-                $ci->setSize(30);
-                $ci->setValue($remarks[$name] ?? '');
-                $form->addItem($ci);
-            } else {
-                $ci = new ilHiddenInputGUI("comment[$idx]");
-                $ci->setValue($remarks[$name] ?? '');
-                $form->addItem($ci);
-            }
-        }
-
-        $form->addCommandButton('saveEditedEntries', $this->lng->txt('save'));
-        $form->addCommandButton('view', $this->lng->txt('cancel'));
-
-        return $form;
-    }
-
-    /**
-    * Save the changed translations
-    *
-    * Aborts if max_input_vars truncated the POST, instead of saving a partial selection.
-    */
-    public function saveEditedEntriesObject(): void
-    {
-        $post = (array) ($this->http->request()->getParsedBody() ?? []);
-        $entry_names = (array) ($post['entry_name'] ?? []);
-        $translations = (array) ($post['translation'] ?? []);
-        $comments = (array) ($post['comment'] ?? []);
-        $expected_entry_count = (int) ($post['expected_entry_count'] ?? -1);
-
-        if (count($entry_names) !== $expected_entry_count
-            || count($translations) !== $expected_entry_count
-            || count($comments) !== $expected_entry_count
+        // an entry deleted meanwhile shifts the indexes, so the whole selection must still exist
+        if ($data === null
+            || count($names) !== count($selection)
+            || (string) ($data['expected_entry_count'] ?? '') !== (string) count($names)
         ) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('language_too_many_entries_selected'), true);
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_form_save_error'), true);
             $this->ctrl->redirect($this, 'view');
             return;
         }
 
+        $remarks = $this->langmode ? [] : $this->object->getAllRemarks();
         $save_array = [];
         $remarks_array = [];
-
-        foreach ($entry_names as $idx => $key) {
-            $key = ilUtil::stripSlashes((string) $key);
-
-            // example key of variable: 'common#:#access'
-            $keys = explode($this->lng->separator, $key);
-            if (count($keys) !== 2) {
-                continue;
-            }
-
-            $value = (string) ($translations[$idx] ?? '');
+        foreach ($names as $idx => $name) {
+            $value = (string) ($data["translation_$idx"] ?? '');
             // avoid line breaks
             $value = preg_replace("/(\015\012)|(\015)|(\012)/", "<br />", $value);
             $value = str_replace("<<", "«", $value);
             $value = ilUtil::stripSlashes($value, true, "<strong><em><u><strike><ol><li><ul><p><div><i><b><code><sup><pre><gap><a><img><bdo><br><span>");
-            $save_array[$key] = $value;
+            $save_array[$name] = $value;
 
-            // the comment has the same index as the translation it belongs to
-            $remarks_array[$key] = (string) ($comments[$idx] ?? '');
+            $remarks_array[$name] = $this->langmode
+                ? $this->normalizeRemark((string) ($data["comment_$idx"] ?? ''))
+                : (string) ($remarks[$name] ?? '');
         }
 
-        if ($save_array !== []) {
-            ilObjLanguageExt::_saveValues($this->object->key, $save_array, $remarks_array);
-        }
+        ilObjLanguageExt::_saveValues($this->object->key, $save_array, $remarks_array);
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('language_variables_saved'), true);
         $this->ctrl->redirect($this, 'view');
+    }
+
+    private function sendAsync(UIComponent $component): void
+    {
+        $this->http->saveResponse(
+            $this->http->response()->withBody(Streams::ofString($this->ui_renderer->renderAsync($component)))
+        );
+        $this->http->sendResponse();
+        $this->http->close();
     }
 
     /**
