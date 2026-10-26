@@ -159,7 +159,6 @@ class ilObjLanguageExtGUITest extends TestCase
             ->onlyMethods(['buildSettingsForm'])
             ->getMock();
 
-        // the KS checkbox reads the post; here only what it hands on matters
         $post = $http->request()->getParsedBody();
         $form = $this->createStub(\ILIAS\UI\Component\Input\Container\Form\Standard::class);
         $form->method('withRequest')->willReturnSelf();
@@ -487,7 +486,6 @@ class ilObjLanguageExtGUITest extends TestCase
             $form,
             $this->createLanguageMockReturningTopicAsIs(['de', 'en'])
         );
-        // the re-render gets the form that carries the entered values
         $gui->expects($this->once())->method('addNewEntryObject')->with($form);
 
         $gui->saveNewEntryObject();
@@ -2422,7 +2420,6 @@ class ilObjLanguageExtGUITest extends TestCase
     {
         return [
             'unknown mode' => ['format_disk'],
-            // Radio throws a TypeError for an array, which must not become an error page
             'array instead of a mode' => [['replace']],
         ];
     }
@@ -2666,8 +2663,6 @@ class ilObjLanguageExtGUITest extends TestCase
         self::assertSame([['maintain', []]], $ctx->redirects);
     }
 
-    // export, settings, new entry and missing entries as KS forms/panel (real KS factory, request and session)
-
     /** @return array<string, array{string, list<string>}> langmode, scopes in the order of the former form */
     public static function exportScopesByLangmode(): array
     {
@@ -2734,7 +2729,6 @@ class ilObjLanguageExtGUITest extends TestCase
             'unknown scope' => ['1', ['scope' => '../etc/passwd']],
             'no scope' => ['1', []],
             'empty scope' => ['1', ['scope' => '']],
-            // Radio throws a TypeError for an array, which must not become an error page
             'array instead of a scope' => ['1', ['scope' => ['global']]],
             'nested array instead of a scope' => ['1', ['scope' => ['a' => ['global']]]],
         ];
