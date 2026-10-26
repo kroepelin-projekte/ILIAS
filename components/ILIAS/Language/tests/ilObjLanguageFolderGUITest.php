@@ -1218,12 +1218,11 @@ class ilObjLanguageFolderGUITest extends TestCase
      * Stub for buildConfirmModal()'s abort branch; returns the Interruptive that chain produces, so a test can
      * assert the abort branch's `return` was taken.
      *
-     * @return array{0: \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\MockObject, 1: \ILIAS\UI\Implementation\Component\Modal\Interruptive}
+     * @return array{0: \ILIAS\UI\Factory&\PHPUnit\Framework\MockObject\MockObject, 1: \ILIAS\UI\Component\Modal\Interruptive}
      */
     private function createStubModalUiFactory(): array
     {
-        // buildConfirmModal() returns the concrete Interruptive class, so the interface alone fails the return type
-        $interruptive = $this->createMock(\ILIAS\UI\Implementation\Component\Modal\Interruptive::class);
+        $interruptive = $this->createMock(\ILIAS\UI\Component\Modal\Interruptive::class);
         $interruptive->method('withActionButtonLabel')->willReturnSelf();
 
         $modal_factory = $this->createMock(\ILIAS\UI\Component\Modal\Factory::class);

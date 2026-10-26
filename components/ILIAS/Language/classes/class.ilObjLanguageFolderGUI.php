@@ -184,7 +184,7 @@ class ilObjLanguageFolderGUI extends ilObjectGUI implements ilCtrlSecurityInterf
         $this->tpl->setContent($this->ui_renderer->render($table->withRequest($this->request)));
     }
 
-    protected function buildConfirmModal(array $ids, string $title, string $action, string $text, string $add_text = ''): ILIAS\UI\Implementation\Component\Modal\Interruptive
+    protected function buildConfirmModal(array $ids, string $title, string $action, string $text, string $add_text = ''): ILIAS\UI\Component\Modal\Interruptive
     {
         $f = $this->ui_factory;
         $title = $this->lng->txt($title);
