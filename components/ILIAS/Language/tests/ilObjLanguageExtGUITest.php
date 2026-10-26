@@ -156,12 +156,18 @@ class ilObjLanguageExtGUITest extends TestCase
         /** @var ilObjLanguageExtGUI&MockObject $gui */
         $gui = $this->getMockBuilder(ilObjLanguageExtGUI::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['initNewSettingsForm'])
+            ->onlyMethods(['buildSettingsForm'])
             ->getMock();
 
-        $form = $this->createMock(ilPropertyFormGUI::class);
-        $form->method('getHTML')->willReturn('');
-        $gui->method('initNewSettingsForm')->willReturn($form);
+        // the KS checkbox reads the post; here only what it hands on matters
+        $post = $http->request()->getParsedBody();
+        $form = $this->createStub(\ILIAS\UI\Component\Input\Container\Form\Standard::class);
+        $form->method('withRequest')->willReturnSelf();
+        $form->method('getData')->willReturn(['translation' => ($post['translation'] ?? '') === 'checked']);
+        $gui->method('buildSettingsForm')->willReturn($form);
+        $renderer = $this->createStub(\ILIAS\UI\Renderer::class);
+        $renderer->method('render')->willReturn('');
+        $this->setProperty($gui, 'ui_renderer', $renderer);
 
         $this->setProperty($gui, 'http', $http);
         $this->setProperty($gui, 'user', $user);
@@ -184,7 +190,7 @@ class ilObjLanguageExtGUITest extends TestCase
     }
 
     /** A non-empty "translation" POST value means the checkbox was checked; parameters come from $this->object->key. */
-    public function testSaveSettingsObjectBuildsEnabledTrueFromANonEmptyTranslationPostValue(): void
+    public function testSaveSettingsObjectBuildsEnabledTrueFromACheckedTranslationPostValue(): void
     {
         $user = $this->createMock(ilObjUser::class);
         $user->method('getId')->willReturn(6);
@@ -197,7 +203,7 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $gui = $this->createGuiForSaveSettings(
             $set_language_translation_enabled,
-            $this->mockHttpWithParsedBody(['translation' => '1']),
+            $this->mockHttpWithParsedBody(['translation' => 'checked']),
             $user,
             $this->createMock(ilGlobalTemplateInterface::class)
         );
@@ -240,7 +246,7 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $gui = $this->createGuiForSaveSettings(
             $set_language_translation_enabled,
-            $this->mockHttpWithParsedBody(['translation' => '1']),
+            $this->mockHttpWithParsedBody(['translation' => 'checked']),
             $user,
             $tpl,
             $this->createLanguageMockReturningTopicAsIs()
@@ -263,7 +269,7 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $gui = $this->createGuiForSaveSettings(
             $set_language_translation_enabled,
-            $this->mockHttpWithParsedBody(['translation' => '1']),
+            $this->mockHttpWithParsedBody(['translation' => 'checked']),
             $user,
             $tpl,
             $this->createLanguageMockReturningTopicAsIs()
@@ -290,7 +296,7 @@ class ilObjLanguageExtGUITest extends TestCase
 
         $gui = $this->createGuiForSaveSettings(
             $set_language_translation_enabled,
-            $this->mockHttpWithParsedBody(['translation' => '1']),
+            $this->mockHttpWithParsedBody(['translation' => 'checked']),
             $user,
             $tpl,
             $this->createLanguageMockReturningTopicAsIs()
