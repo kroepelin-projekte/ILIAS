@@ -4481,6 +4481,8 @@ common#:#kb#:#KByte
 common#:#keywords#:#Schlagwörter
 common#:#label_search_options#:#Suchbereich
 common#:#lang_dateformat#:#d.m.Y
+common#:#lang_install_confirm_selected#:#Möchten Sie die ausgewählten Sprachen wirklich installieren?
+common#:#lang_install_local_confirm_selected#:#Möchten Sie die ausgewählten Sprachen wirklich mit Custom-Sprachdatei installieren? Die Custom-Sprachdatei überschreibt lokale Änderungen, die älter sind als ihr Speicherdatum.
 common#:#lang_path#:#Sprachdateien-Pfad
 common#:#lang_refresh_confirm#:#Sollen wirklich alle Sprachen aktualisiert werden?
 common#:#lang_refresh_confirm_info#:#ILIAS hat geänderte Sprachvariablen gefunden. Die Aktualisierung einer Sprache lädt alle Daten aus ihrer Standard-Sprachdatei und eventuell aus einer Custom-Sprachdatei in die Datenbank. Ihre Änderungen werden durch das Laden der Standard-Sprachdatei nicht überschrieben. Eine Custom-Sprachdatei überschreibt nur Änderungen, die älter sind als ihr eigenes Speicherdatum.
