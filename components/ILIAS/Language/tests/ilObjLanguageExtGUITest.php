@@ -151,18 +151,21 @@ class ilObjLanguageExtGUITest extends TestCase
         \ILIAS\HTTP\GlobalHttpState $http,
         ilObjUser $user,
         ilGlobalTemplateInterface $tpl,
-        ?ilLanguage $lng = null
+        ?ilLanguage $lng = null,
+        ?\ILIAS\UI\Component\Input\Container\Form\Standard $form = null
     ): ilObjLanguageExtGUI {
         /** @var ilObjLanguageExtGUI&MockObject $gui */
         $gui = $this->getMockBuilder(ilObjLanguageExtGUI::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['buildSettingsForm'])
+            ->onlyMethods(['buildSettingsForm', 'settingsObject'])
             ->getMock();
 
-        $post = $http->request()->getParsedBody();
-        $form = $this->createStub(\ILIAS\UI\Component\Input\Container\Form\Standard::class);
-        $form->method('withRequest')->willReturnSelf();
-        $form->method('getData')->willReturn(['translation' => ($post['translation'] ?? '') === 'checked']);
+        if ($form === null) {
+            $post = $http->request()->getParsedBody();
+            $form = $this->createStub(\ILIAS\UI\Component\Input\Container\Form\Standard::class);
+            $form->method('withRequest')->willReturnSelf();
+            $form->method('getData')->willReturn(['translation' => ($post['translation'] ?? '') === 'checked']);
+        }
         $gui->method('buildSettingsForm')->willReturn($form);
         $renderer = $this->createStub(\ILIAS\UI\Renderer::class);
         $renderer->method('render')->willReturn('');
@@ -302,6 +305,32 @@ class ilObjLanguageExtGUITest extends TestCase
         );
 
         // no $ctrl injected: a redirect would fatally error instead of silently passing
+        $gui->saveSettingsObject();
+    }
+
+    /** A rejected request (e.g. a TypeError of a KS input) is logged and never switches the setting. */
+    public function testSaveSettingsObjectNeverCallsTheActivityForARejectedRequest(): void
+    {
+        $activity = $this->createMock(SetLanguageTranslationEnabled::class);
+        $activity->expects($this->never())->method('maybePerformAs');
+        $tpl = $this->createMock(ilGlobalTemplateInterface::class);
+        $tpl->expects($this->once())->method('setOnScreenMessage')->with('failure', 'form_input_not_valid');
+        $logger = $this->createMock(\ilLogger::class);
+        $logger->expects($this->once())->method('warning');
+        $this->stubbed_activity_error_logger = $logger;
+
+        $form = $this->createStub(\ILIAS\UI\Component\Input\Container\Form\Standard::class);
+        $form->method('withRequest')->willThrowException(new TypeError('array given'));
+        $gui = $this->createGuiForSaveSettings(
+            $activity,
+            $this->mockHttpWithParsedBody(['translation' => ['checked']]),
+            $this->createStub(ilObjUser::class),
+            $tpl,
+            null,
+            $form
+        );
+        $gui->expects($this->once())->method('settingsObject');
+
         $gui->saveSettingsObject();
     }
 
@@ -2016,10 +2045,22 @@ class ilObjLanguageExtGUITest extends TestCase
             }
         );
 
+        $ctx->panel_titles = [];
         $renderer = $this->createStub(\ILIAS\UI\Renderer::class);
         $renderer->method('render')->willReturnCallback(
             static function ($components) use ($ctx): string {
-                $ctx->rendered[] = is_array($components) ? $components : [$components];
+                // a form is wrapped in a panel for its title: recorded as the panel content plus its title
+                $flat = [];
+                foreach (is_array($components) ? $components : [$components] as $component) {
+                    if ($component instanceof \ILIAS\UI\Component\Panel\Standard) {
+                        $ctx->panel_titles[] = $component->getTitle();
+                        $content = $component->getContent();
+                        array_push($flat, ...(is_array($content) ? $content : [$content]));
+                    } else {
+                        $flat[] = $component;
+                    }
+                }
+                $ctx->rendered[] = $flat;
                 return 'html';
             }
         );
@@ -2100,6 +2141,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $declaring = new ReflectionClass(ilObjLanguageExtGUI::class);
         $declaring->getProperty('langmode')->setValue($gui, $langmode);
         $declaring->getProperty('import_upload_handler')->setValue($gui, $ctx->handler);
+        $declaring->getProperty('activity_error_logger')->setValue($gui, $this->activityErrorLoggerForGui());
 
         return [$gui, $ctx];
     }
