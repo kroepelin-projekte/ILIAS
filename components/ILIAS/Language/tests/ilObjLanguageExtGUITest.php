@@ -2232,6 +2232,7 @@ class ilObjLanguageExtGUITest extends TestCase
             'langmode option without langmode' => [['maintain' => 'remove_local_file'], '0'],
             'merge without langmode' => [['maintain' => 'merge'], '0'],
             'nothing selected' => [[], '1'],
+            'array instead of an option' => [['maintain' => ['clear']], '1'],
         ];
     }
 
@@ -2416,9 +2417,20 @@ class ilObjLanguageExtGUITest extends TestCase
         return ['replace' => ['replace'], 'delete' => ['delete']];
     }
 
-    public function testUploadObjectRejectsAnUnknownModeAndImportsNothing(): void
+    /** @return array<string, array{mixed}> */
+    public static function forgedImportModes(): array
     {
-        [$gui, $ctx] = $this->importGui(['file' => ['up1'], 'mode' => 'format_disk']);
+        return [
+            'unknown mode' => ['format_disk'],
+            // Radio throws a TypeError for an array, which must not become an error page
+            'array instead of a mode' => [['replace']],
+        ];
+    }
+
+    #[DataProvider('forgedImportModes')]
+    public function testUploadObjectRejectsAnUnknownModeAndImportsNothing(mixed $mode): void
+    {
+        [$gui, $ctx] = $this->importGui(['file' => ['up1'], 'mode' => $mode]);
         $ctx->object->expects($this->never())->method('importLanguageFile');
 
         $gui->uploadObject();
@@ -2722,6 +2734,9 @@ class ilObjLanguageExtGUITest extends TestCase
             'unknown scope' => ['1', ['scope' => '../etc/passwd']],
             'no scope' => ['1', []],
             'empty scope' => ['1', ['scope' => '']],
+            // Radio throws a TypeError for an array, which must not become an error page
+            'array instead of a scope' => ['1', ['scope' => ['global']]],
+            'nested array instead of a scope' => ['1', ['scope' => ['a' => ['global']]]],
         ];
     }
 
@@ -2917,7 +2932,7 @@ class ilObjLanguageExtGUITest extends TestCase
         self::assertSame([['view', []]], $ctx->redirects);
     }
 
-    /** @return array<string, array{array<string, string>}> */
+    /** @return array<string, array{array<string, mixed>}> */
     public static function invalidNewEntries(): array
     {
         $valid = ['mod' => 'common', 'trans_de' => 'Hallo', 'trans_en' => 'Hello', 'trans_fr' => 'Salut'];
@@ -2927,10 +2942,12 @@ class ilObjLanguageExtGUITest extends TestCase
             'de blank' => [['trans_de' => "  \t"] + $valid],
             'module not offered' => [['mod' => 'secrets'] + $valid],
             'module missing' => [array_diff_key($valid, ['mod' => 1])],
+            'array instead of a module' => [['mod' => ['common']] + $valid],
+            'array instead of a translation' => [['trans_de' => ['Hallo']] + $valid],
         ];
     }
 
-    /** @param array<string, string> $values */
+    /** @param array<string, mixed> $values */
     #[DataProvider('invalidNewEntries')]
     public function testSaveNewEntryObjectRefusesMissingRequiredFieldsAndForeignModulesAndShowsTheFormAgain(array $values): void
     {
