@@ -2484,4 +2484,99 @@ class ilObjLanguageExtGUITest extends TestCase
             self::assertArrayNotHasKey(self::IMPORT_PENDING, $_SESSION);
         }
     }
+
+    /** @return array<string, array{string, string, string}> request method, unsafe command, view shown instead of a non-POST */
+    public static function unsafeCommandsByRequestMethod(): array
+    {
+        $views = [
+            'saveEditedEntries' => 'view',
+            'upload' => 'import',
+            'importConfirmed' => 'import',
+            'maintainExecute' => 'maintain',
+            'maintainConfirmed' => 'maintain',
+            'saveSettings' => 'settings',
+            'saveNewEntry' => 'addNewEntry',
+        ];
+        $cases = [];
+        foreach ($views as $cmd => $view) {
+            foreach (['GET', 'HEAD', 'POST'] as $method) {
+                $cases[$cmd . ' by ' . $method] = [$method, $cmd, $view];
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('unsafeCommandsByRequestMethod')]
+    public function testEachUnsafeCommandRunsOnlyByPostAndOtherwiseOnlyItsViewIsRendered(
+        string $method,
+        string $cmd,
+        string $view
+    ): void {
+        $this->stubMaintenanceGranted();
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->method('getCmd')->willReturn($cmd);
+        $mocked = [
+            'viewObject', 'importObject', 'maintainObject', 'settingsObject', 'addNewEntryObject',
+            'saveEditedEntriesObject', 'uploadObject', 'importConfirmedObject', 'maintainExecuteObject',
+            'maintainConfirmedObject', 'saveSettingsObject', 'saveNewEntryObject',
+        ];
+        $gui = $this->createGuiForExecuteCommand(false, null, [], $ctrl, $mocked);
+        $request = $this->createStub(ServerRequestInterface::class);
+        $request->method('getMethod')->willReturn($method);
+        $http = $this->createStub(\ILIAS\HTTP\GlobalHttpState::class);
+        $http->method('request')->willReturn($request);
+        $this->setProperty($gui, 'http', $http);
+
+        $expected = ($method === 'POST' ? $cmd : $view) . 'Object';
+        foreach ($mocked as $candidate) {
+            $gui->expects($candidate === $expected ? $this->once() : $this->never())->method($candidate);
+        }
+
+        $gui->executeCommand();
+    }
+
+    public function testUploadObjectShowsTheErrorOfAnInvalidFileAndStillRemovesUploadAndLocalCopy(): void
+    {
+        [$gui, $ctx] = $this->importGui(['file' => ['up1'], 'mode' => 'keepall']);
+        $ctx->object->expects($this->once())->method('importLanguageFile')
+            ->willThrowException(new ilException('broken file'));
+
+        $gui->uploadObject();
+
+        self::assertSame([['failure', 'broken file']], $ctx->messages);
+        self::assertContains('up1', $ctx->handler->discarded);
+        self::assertCount(1, $ctx->handler->local_files);
+        self::assertFileDoesNotExist($ctx->handler->local_files[0]);
+        self::assertSame([['import', []]], $ctx->redirects);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function maintainOptionsImportingAFile(): array
+    {
+        return ['load' => ['load', 'ilias_de.lang.local'], 'clear' => ['clear', 'ilias_de.lang']];
+    }
+
+    #[DataProvider('maintainOptionsImportingAFile')]
+    public function testMaintainConfirmedShowsTheErrorOfAnInvalidFileInsteadOfTheSuccessAndKeepsTheLocalFlag(
+        string $option,
+        string $file_name
+    ): void {
+        [$gui, $ctx] = $this->createGuiForForms('0', [], [self::MAINTAIN_TOKEN => 'tok']);
+        $dir = $this->scratchDir();
+        $this->scratch_paths[] = $dir . '/' . $file_name;
+        file_put_contents($dir . '/' . $file_name, 'invalid');
+        $ctx->object->method('getLangPath')->willReturn($dir);
+        $ctx->object->method('getCustLangPath')->willReturn($dir);
+        $this->givenPending(self::MAINTAIN_PENDING, ['option' => $option]);
+        $ctx->object->expects($this->once())->method('importLanguageFile')
+            ->with($dir . '/' . $file_name, 'replace')
+            ->willThrowException(new ilException('broken file'));
+        $ctx->object->expects($this->never())->method('setLocal');
+
+        $gui->maintainConfirmedObject();
+
+        self::assertSame([['failure', 'broken file']], $ctx->messages);
+        self::assertSame([['maintain', []]], $ctx->redirects);
+    }
 }
