@@ -45,7 +45,7 @@ use ILIAS\Filesystem\Stream\Streams;
 *
 * @ingroup ServicesLanguage
 */
-class ilObjLanguageExtGUI extends ilObjectGUI
+class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
 {
     use RendersActivityErrors;
 
@@ -144,6 +144,23 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         );
     }
 
+    /** State-changing commands, only to be reached by a form POST. */
+    public function getUnsafeGetCommands(): array
+    {
+        return [
+            'saveEditedEntries',
+            'upload',
+            'maintainExecute',
+            'saveSettings',
+            'saveNewEntry',
+        ];
+    }
+
+    public function getSafePostCommands(): array
+    {
+        return [];
+    }
+
     /**
     * Assign the extended language object
     *
@@ -188,8 +205,25 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             }
         }
 
-        $cmd = $this->ctrl->getCmd("view") . "Object";
-        $this->$cmd();
+        $cmd = $this->ctrl->getCmd('view');
+        // exact match: ilCtrl compares the unsafe commands case-sensitively, PHP method calls are not
+        match ($cmd) {
+            'cancel',
+            'view',
+            'saveEditedEntries',
+            'import',
+            'upload',
+            'export',
+            'download',
+            'maintain',
+            'maintainExecute',
+            'settings',
+            'saveSettings',
+            'statistics',
+            'addNewEntry',
+            'saveNewEntry' => $this->{$cmd . 'Object'}(),
+            default => $this->viewObject(),
+        };
 
         $ilHelp->setScreenIdComponent("lng");
     }
