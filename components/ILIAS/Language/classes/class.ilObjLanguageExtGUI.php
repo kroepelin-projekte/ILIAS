@@ -567,7 +567,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
                     ->text($this->lng->txt('comment'))
                     // remarks were always stored unfiltered and are only output escaped
                     ->withoutStripTags()
-                    ->withValue($this->normalizeRemark((string) ($remarks[$name] ?? '')));
+                    // KS escapes without double encoding, so "&amp;" would come back as "&"
+                    ->withValue(str_replace('&', '&amp;', $this->normalizeRemark((string) ($remarks[$name] ?? ''))));
             }
         }
         $inputs['expected_entry_count'] = $field_factory->hidden()->withValue((string) count($names));
