@@ -467,8 +467,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
     private function storeEditSelection(array $names): string
     {
         $token = bin2hex(random_bytes(8));
-        $selections = (array) (ilSession::get(self::EDIT_SELECTION_SESSION_KEY) ?? []);
-        $selections[$token] = $names;
+        $selections = $this->getEditSelections();
+        $selections[$token] = ['obj_id' => $this->object->getId(), 'names' => $names];
         ilSession::set(
             self::EDIT_SELECTION_SESSION_KEY,
             array_slice($selections, -self::EDIT_SELECTION_MAX_STORED, null, true)
@@ -478,20 +478,43 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
     }
 
     /**
-     * @return list<string>
+     * Null for a missing, evicted or unknown token and for a selection of another language.
+     *
+     * @return list<string>|null
      */
-    private function retrieveEditSelection(): array
+    private function retrieveEditSelection(): ?array
+    {
+        $selections = $this->getEditSelections();
+        $selection = $selections[$this->getEditSelectionToken()] ?? null;
+        if (!is_array($selection) || ($selection['obj_id'] ?? null) !== $this->object->getId()) {
+            return null;
+        }
+
+        return array_values(array_map('strval', (array) ($selection['names'] ?? [])));
+    }
+
+    private function getEditSelections(): array
+    {
+        return (array) (ilSession::get(self::EDIT_SELECTION_SESSION_KEY) ?? []);
+    }
+
+    private function getEditSelectionToken(): string
     {
         if (!$this->request_wrapper->has(self::EDIT_SELECTION_PARAMETER)) {
-            return [];
+            return '';
         }
-        $token = $this->request_wrapper->retrieve(
+
+        return $this->request_wrapper->retrieve(
             self::EDIT_SELECTION_PARAMETER,
             $this->refinery->byTrying([$this->refinery->kindlyTo()->string(), $this->refinery->always('')])
         );
-        $selections = (array) (ilSession::get(self::EDIT_SELECTION_SESSION_KEY) ?? []);
+    }
 
-        return array_values(array_map('strval', (array) ($selections[$token] ?? [])));
+    private function removeEditSelection(): void
+    {
+        $selections = $this->getEditSelections();
+        unset($selections[$this->getEditSelectionToken()]);
+        ilSession::set(self::EDIT_SELECTION_SESSION_KEY, $selections);
     }
 
     /**
@@ -562,9 +585,15 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
     public function saveEditedEntriesObject(): void
     {
         $selection = $this->retrieveEditSelection();
+        if ($selection === null) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('action_aborted'), true);
+            $this->ctrl->redirect($this, 'view');
+            return;
+        }
+
         $names = $this->resolveEntryNames($selection);
         if ($names === []) {
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('no_checkbox'), true);
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('msg_form_save_error'), true);
             $this->ctrl->redirect($this, 'view');
             return;
         }
@@ -603,6 +632,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         }
 
         ilObjLanguageExt::_saveValues($this->object->key, $save_array, $remarks_array);
+        $this->removeEditSelection();
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('language_variables_saved'), true);
         $this->ctrl->redirect($this, 'view');
