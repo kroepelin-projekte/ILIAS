@@ -40,6 +40,8 @@ class ilObjLanguageFolderGUITest extends TestCase
     {
         unset($GLOBALS['DIC']);
         $this->stubbed_activity_error_logger = null;
+        // the real, static ilSession writes into $_SESSION
+        $_SESSION = [];
     }
 
     /**
@@ -1417,7 +1419,7 @@ class ilObjLanguageFolderGUITest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('confirmParameterValues')]
-    public function testConfirmLanguageDetectionIsReadOnlyAndRendersTheViewWithTheRequestedModal(
+    public function testConfirmLanguageDetectionIsReadOnlyAndRedirectsToTheViewWithTheRequestedModalMarked(
         ?string $parameter,
         bool $expected_confirm_state
     ): void {
@@ -1442,18 +1444,19 @@ class ilObjLanguageFolderGUITest extends TestCase
         $settings->expects($this->never())->method('set');
         $this->setProperty($gui, 'settings', $settings);
 
-        $confirm_state_while_rendering = 'view not rendered';
+        $ctrl = $this->createMock(ilCtrl::class);
+        $ctrl->method('getNextClass')->willReturn('');
+        $ctrl->method('getCmd')->willReturn('confirmLanguageDetection');
+        $ctrl->expects($this->once())->method('redirect')->with($gui, 'view');
+        $this->setProperty($gui, 'ctrl', $ctrl);
+
         $gui->expects($this->never())->method('enableLanguageDetectionObject');
         $gui->expects($this->never())->method('disableLanguageDetectionObject');
-        $gui->expects($this->once())->method('viewObject')->willReturnCallback(
-            function () use ($gui, &$confirm_state_while_rendering): void {
-                $confirm_state_while_rendering = (new ReflectionProperty(ilObjLanguageFolderGUI::class, 'confirm_detection'))->getValue($gui);
-            }
-        );
+        $gui->expects($this->never())->method('viewObject');
 
         $gui->executeCommand();
 
-        $this->assertSame($expected_confirm_state, $confirm_state_while_rendering);
+        $this->assertSame($expected_confirm_state, $_SESSION['lang_detection_confirm'] ?? 'not marked');
     }
 
     /** @return array<string, array{?string, bool}> */
@@ -1581,10 +1584,10 @@ class ilObjLanguageFolderGUITest extends TestCase
             'settings' => $settings,
             'request' => $this->createStub(\Psr\Http\Message\ServerRequestInterface::class),
             'languageFolderTable' => $folder_table,
-            'confirm_detection' => $confirm_detection,
         ] as $name => $value) {
             (new ReflectionProperty(ilObjLanguageFolderGUI::class, $name))->setValue($gui, $value);
         }
+        $_SESSION = $confirm_detection === null ? [] : ['lang_detection_confirm' => $confirm_detection];
 
         return [$gui, $record];
     }
@@ -1619,6 +1622,7 @@ class ilObjLanguageFolderGUITest extends TestCase
             ['ON' => $modal_with_on_load === 'ON', 'OFF' => $modal_with_on_load === 'OFF'],
             $on_load_by_title
         );
+        $this->assertArrayNotHasKey('lang_detection_confirm', $_SESSION, 'a reload must not open the modal again');
     }
 
     /** @return array<string, array{?bool, bool, ?string}> */
