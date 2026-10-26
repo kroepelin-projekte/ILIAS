@@ -1461,118 +1461,138 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         return implode("\n", $res);
     }
 
-    public function addNewEntryObject(?ilPropertyFormGUI $a_form = null): void
+    public function addNewEntryObject(?\ILIAS\UI\Component\Input\Container\Form\Standard $form = null): void
     {
-        global $DIC;
-        $tpl = $DIC["tpl"];
-
-        $id = "";
-        if ($this->http->wrapper()->query()->has("eid")) {
-            $id = trim($this->http->wrapper()->query()->retrieve("eid", $this->refinery->kindlyTo()->string()));
-        }
-        if (!$a_form) {
-            $a_form = $this->initAddNewEntryForm($id);
+        $identifier = $this->getNewEntryIdentifier();
+        if ($identifier === null) {
+            $this->ctrl->redirect($this, 'view');
+            return;
         }
 
-        $tpl->setContent($a_form->getHTML());
+        $this->tpl->setContent($this->ui_renderer->render([
+            $form ?? $this->buildAddNewEntryForm($identifier),
+            // KS forms have a single submit, the former "cancel" command button led to the view
+            $this->ui_factory->button()->standard($this->lng->txt('cancel'), $this->ctrl->getLinkTarget($this, 'view')),
+        ]));
     }
 
-    protected function initAddNewEntryForm(?string $a_id = null): ilPropertyFormGUI
+    /** The "eid" of a missing entry, only if it is one of the topics stored by the entries view. */
+    protected function getNewEntryIdentifier(): ?string
     {
-        global $DIC;
-        $ilCtrl = $DIC->ctrl();
-
-        if (!$a_id) {
-            $a_id = $this->http->request()->getParsedBody()['id'] ?? "";
+        if (!$this->http->wrapper()->query()->has('eid')) {
+            return null;
         }
+        $identifier = trim($this->http->wrapper()->query()->retrieve(
+            'eid',
+            $this->refinery->byTrying([$this->refinery->kindlyTo()->string(), $this->refinery->always('')])
+        ));
 
-        if (!$a_id ||
-            !in_array($a_id, ilObjLanguageAccess::_getSavedTopics())) {
-            $ilCtrl->redirect($this, "view");
-        }
+        return $identifier !== '' && in_array($identifier, ilObjLanguageAccess::_getSavedTopics())
+            ? $identifier
+            : null;
+    }
 
-        $form = new ilPropertyFormGUI();
-        $form->setFormAction($ilCtrl->getFormAction($this, "saveNewEntry"));
-        $form->setTitle($this->lng->txt("adm_missing_entry_add"));
+    /** Text inputs as before: ilTextInputGUI keeps the secure tags and strips all others (see ilFormPropertyGUI::str()). */
+    private function filterLikeTextInput(string $value): string
+    {
+        $filtered = ilUtil::stripSlashes($value);
 
-        $mods = ilObjLanguageAccess::_getSavedModules();
-        $options = array_combine($mods, $mods);
+        return $filtered === $value ? $filtered : ilUtil::stripSlashes(str_replace('<', '< ', $value));
+    }
 
-        $mod = new ilSelectInputGUI(ucfirst($this->lng->txt("module")), "mod");
-        $mod->setOptions(array("" => $this->lng->txt("please_select")) + $options);
-        $mod->setRequired(true);
-        $form->addItem($mod);
+    protected function buildAddNewEntryForm(string $identifier): \ILIAS\UI\Component\Input\Container\Form\Standard
+    {
+        $field = $this->ui_factory->input()->field();
+        $filter = $this->refinery->custom()->transformation(
+            fn($value): string => $this->filterLikeTextInput((string) $value)
+        );
+        $required = $this->refinery->custom()->constraint(
+            fn($value): bool => trim($this->filterLikeTextInput((string) $value)) !== '',
+            $this->lng->txt('msg_input_is_required')
+        );
 
-        $id = new ilTextInputGUI(ucfirst($this->lng->txt("identifier")), "id");
-        $id->setValue($a_id);
-        $id->setDisabled(true);
-        $form->addItem($id);
-
+        $modules = ilObjLanguageAccess::_getSavedModules();
+        $inputs = [
+            'mod' => $field->select(ucfirst($this->lng->txt('module')), array_combine($modules, $modules))
+                ->withRequired(true),
+            // carried by the "eid" of the form action, a disabled KS field is not submitted
+            'id' => $field->text(ucfirst($this->lng->txt('identifier')))->withValue($identifier)->withDisabled(true),
+        ];
         foreach ($this->lng->getInstalledLanguages() as $lang_key) {
-            $trans = new ilTextInputGUI($this->lng->txt("meta_l_" . $lang_key), "trans_" . $lang_key);
-            if (in_array($lang_key, array("de", "en"))) {
-                $trans->setRequired(true);
+            $translation = $field->text($this->lng->txt('meta_l_' . $lang_key))
+                ->withoutStripTags()
+                ->withAdditionalTransformation($filter);
+            if (in_array($lang_key, ['de', 'en'], true)) {
+                $translation = $translation->withRequired(true, $required);
             }
-            $form->addItem($trans);
+            $inputs['trans_' . $lang_key] = $translation;
         }
 
-        $form->addCommandButton("saveNewEntry", $this->lng->txt("save"));
-        $form->addCommandButton("view", $this->lng->txt("cancel"));
+        $this->ctrl->setParameter($this, 'eid', $identifier);
+        $action = $this->ctrl->getFormAction($this, 'saveNewEntry');
+        $this->ctrl->clearParameterByClass(self::class, 'eid');
 
-        return $form;
+        return $this->ui_factory->input()->container()->form()->standard($action, $inputs)
+            ->withSubmitLabel($this->lng->txt('save'));
     }
 
     public function saveNewEntryObject(): void
     {
-        $ilCtrl = $this->ctrl;
-        $ilUser = $this->user;
-
-        $form = $this->initAddNewEntryForm();
-        if ($form->checkInput()) {
-            $mod = $form->getInput("mod");
-            $id = $form->getInput("id");
-
-            // a language left blank is skipped by AddLanguageEntry
-            $translations = [];
-            foreach ($this->lng->getInstalledLanguages() as $lang_key) {
-                $translations[$lang_key] = trim((string) $form->getInput("trans_" . $lang_key));
-            }
-
-            $result = $this->add_language_entry->maybePerformAs(
-                $this->ui_factory->input(),
-                $ilUser->getId(),
-                [
-                    'module' => $mod,
-                    'identifier' => $id,
-                    'translations' => $translations,
-                ]
-            );
-
-            if ($result->isError()) {
-                $error = $result->error();
-                $error_message = $this->activityErrorMessage($error);
-
-                if ($this->isActivityInputError($error)) {
-                    // input rejection (e.g. blank "de"/"en"): re-render the form, keeping the entered values
-                    $this->tpl->setOnScreenMessage('failure', $error_message);
-                    $form->setValuesByPost();
-                    $this->addNewEntryObject($form);
-                    return;
-                }
-
-                // unexpected failure (logged by activityErrorMessage()): redirect, like every other Activity error path
-                $this->tpl->setOnScreenMessage('failure', $error_message, true);
-                $ilCtrl->redirect($this, "view");
-                return;
-            }
-
-            $this->tpl->setOnScreenMessage('success', $this->lng->txt("settings_saved"), true);
-            $ilCtrl->redirect($this, "view");
+        $identifier = $this->getNewEntryIdentifier();
+        if ($identifier === null) {
+            $this->ctrl->redirect($this, 'view');
             return;
         }
 
-        $form->setValuesByPost();
-        $this->addNewEntryObject($form);
+        try {
+            $form = $this->buildAddNewEntryForm($identifier)->withRequest($this->http->request());
+            $data = $form->getData();
+        } catch (InvalidArgumentException) {
+            // KS rejects a module that is not one of the options
+            $form = null;
+            $data = null;
+        }
+        if ($data === null) {
+            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('form_input_not_valid'));
+            $this->addNewEntryObject($form);
+            return;
+        }
+
+        // a language left blank is skipped by AddLanguageEntry
+        $translations = [];
+        foreach ($this->lng->getInstalledLanguages() as $lang_key) {
+            $translations[$lang_key] = trim((string) ($data['trans_' . $lang_key] ?? ''));
+        }
+
+        $result = $this->add_language_entry->maybePerformAs(
+            $this->ui_factory->input(),
+            $this->user->getId(),
+            [
+                'module' => (string) $data['mod'],
+                'identifier' => $identifier,
+                'translations' => $translations,
+            ]
+        );
+
+        if ($result->isError()) {
+            $error = $result->error();
+            $error_message = $this->activityErrorMessage($error);
+
+            if ($this->isActivityInputError($error)) {
+                // input rejection (e.g. blank "de"/"en"): re-render the form, keeping the entered values
+                $this->tpl->setOnScreenMessage('failure', $error_message);
+                $this->addNewEntryObject($form);
+                return;
+            }
+
+            // unexpected failure (logged by activityErrorMessage()): redirect, like every other Activity error path
+            $this->tpl->setOnScreenMessage('failure', $error_message, true);
+            $this->ctrl->redirect($this, "view");
+            return;
+        }
+
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt("settings_saved"), true);
+        $this->ctrl->redirect($this, "view");
     }
 
     private function getSession(): array
