@@ -1497,7 +1497,7 @@ class ilObjLanguageExtGUITest extends TestCase
         $this->assertInstanceOf(ilCtrlSecurityInterface::class, $gui);
 
         $this->assertEqualsCanonicalizing(
-            ['saveEditedEntries', 'upload', 'maintainExecute', 'maintainConfirmed', 'saveSettings', 'saveNewEntry'],
+            ['saveEditedEntries', 'upload', 'importConfirmed', 'maintainExecute', 'maintainConfirmed', 'saveSettings', 'saveNewEntry'],
             $gui->getUnsafeGetCommands()
         );
         $this->assertSame([], $gui->getSafePostCommands());
