@@ -484,6 +484,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
             $keys = explode($this->lng->separator, $name);
             $translation = $field_factory
                 ->textarea(($keys[0] ?? '') . ' / ' . ($keys[1] ?? ''))
+                // allowed markup is filtered by ilUtil::stripSlashes() in saveEditedEntriesObject()
+                ->withoutStripTags()
                 ->withValue($translations[$name] ?? '');
 
             $compare_value = str_replace(['<br />', '<br/>', '<br>'], ' ', (string) ($compare_values[$name] ?? ''));
@@ -499,6 +501,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
                 // no withMaxLength(): KS counts bytes, the remarks column characters; see normalizeRemark()
                 $inputs["comment_$idx"] = $field_factory
                     ->text($this->lng->txt('comment'))
+                    // remarks were always stored unfiltered and are only output escaped
+                    ->withoutStripTags()
                     ->withValue($this->normalizeRemark((string) ($remarks[$name] ?? '')));
             }
         }
