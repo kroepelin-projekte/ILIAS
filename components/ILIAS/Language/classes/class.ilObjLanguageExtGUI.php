@@ -407,9 +407,9 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             $missing_entries = array_diff($topics, $db_found);
         }
 
-        $this->tpl->setContent(
-            $this->ui_renderer->render([$filter, $table]) . $this->buildMissingEntries($missing_entries)
-        );
+        $this->tpl->setContent($this->ui_renderer->render(
+            array_filter([$filter, $table, $this->buildMissingEntries($missing_entries)])
+        ));
     }
 
     /**
@@ -1437,28 +1437,30 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
     // new entries
     //
 
-    protected function buildMissingEntries(?array $a_missing = null): string
+    /** @param list<string> $missing topics of the translated page without an entry in this language */
+    protected function buildMissingEntries(array $missing): ?\ILIAS\UI\Component\Panel\Standard
     {
-        global $DIC;
-        $ilCtrl = $DIC->ctrl();
-
-        if (!count($a_missing)) {
-            return '';
+        if ($missing === []) {
+            return null;
         }
 
-        $res = array("<h3>" . $this->lng->txt("adm_missing_entries") . "</h3>", "<ul>");
-
-        foreach ($a_missing as $entry) {
-            $ilCtrl->setParameter($this, "eid", $entry);
-            $res[] = '<li>' . $entry .
-                ' <a href="' . $ilCtrl->getLinkTarget($this, "addNewEntry") .
-                '">' . $this->lng->txt("adm_missing_entry_add_action") . '</a></li>';
-            $ilCtrl->setParameter($this, "eid", "");
+        $items = [];
+        foreach ($missing as $entry) {
+            $this->ctrl->setParameter($this, 'eid', $entry);
+            // listing items given as string are not escaped by the KS renderer
+            $items[] = htmlspecialchars((string) $entry, ENT_QUOTES, 'UTF-8') . ' ' . $this->ui_renderer->render(
+                $this->ui_factory->link()->standard(
+                    $this->lng->txt('adm_missing_entry_add_action'),
+                    $this->ctrl->getLinkTarget($this, 'addNewEntry')
+                )
+            );
+            $this->ctrl->clearParameterByClass(self::class, 'eid');
         }
 
-        $res[] = "</ul>";
-
-        return implode("\n", $res);
+        return $this->ui_factory->panel()->standard(
+            $this->lng->txt('adm_missing_entries'),
+            $this->ui_factory->listing()->unordered($items)
+        );
     }
 
     public function addNewEntryObject(?\ILIAS\UI\Component\Input\Container\Form\Standard $form = null): void
