@@ -254,7 +254,8 @@ class ilObjLanguageExtGUI extends ilObjectGUI
 
             $module_options = ['all' => $this->lng->txt('language_all_modules')];
             foreach (ilObjLanguageExt::_getModules($this->lng->getLangKey()) as $module) {
-                $module_options[$module] = $module;
+                // KS renders option texts unescaped, the key stays raw for isClientSideValueOk()
+                $module_options[$module] = htmlspecialchars($module, ENT_QUOTES, 'UTF-8');
             }
             $fields['module'] = $field_factory
                 ->select(ucfirst($this->lng->txt('module')), $module_options)
@@ -482,8 +483,10 @@ class ilObjLanguageExtGUI extends ilObjectGUI
         $inputs = [];
         foreach ($names as $idx => $name) {
             $keys = explode($this->lng->separator, $name);
+            // KS renders labels unescaped
+            $label = htmlspecialchars(($keys[0] ?? '') . ' / ' . ($keys[1] ?? ''), ENT_QUOTES, 'UTF-8');
             $translation = $field_factory
-                ->textarea(($keys[0] ?? '') . ' / ' . ($keys[1] ?? ''))
+                ->textarea($label)
                 // allowed markup is filtered by ilUtil::stripSlashes() in saveEditedEntriesObject()
                 ->withoutStripTags()
                 ->withValue($translations[$name] ?? '');
