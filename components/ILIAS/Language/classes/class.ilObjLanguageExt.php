@@ -233,18 +233,19 @@ class ilObjLanguageExt extends ilObjLanguage
     *
     * $a_mode_existing      handling of existing values
     *                       ('keepall','keepnew','replace','delete')
+    *
+    * @throws ilException for an invalid file, before anything is changed
     */
     public function importLanguageFile(string $a_file, string $a_mode_existing = "keepnew"): void
     {
         global $DIC;
         $ilDB = $DIC->database();
-        /** @var ilErrorHandling $ilErr */
-        $ilErr = $DIC["ilErr"];
 
         // read the new language file
         $import_file_obj = new ilLanguageFile($a_file);
         if (!$import_file_obj->read()) {
-            $ilErr->raiseError($import_file_obj->getErrorMessage(), $ilErr->MESSAGE);
+            // no raiseError(): its exit would skip the clean-up of the caller
+            throw new ilException($import_file_obj->getErrorMessage());
         }
 
         switch ($a_mode_existing) {
