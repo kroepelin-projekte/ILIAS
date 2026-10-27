@@ -24,6 +24,7 @@ use ILIAS\KeyValueStorage\Store;
 use ILIAS\Language\Activities\AddLanguageEntry;
 use ILIAS\Language\Activities\SetLanguageTranslationEnabled;
 use ILIAS\Language\RendersActivityErrors;
+use ILIAS\UI\Storage as UIStorage;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\UI\Component\Input\Container\Filter\Filter as ilFilter;
@@ -80,6 +81,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
     private string $langmode;
     private readonly AddLanguageEntry $add_language_entry;
     private readonly SetLanguageTranslationEnabled $set_language_translation_enabled;
+    private readonly UIStorage $ui_storage;
     private URLBuilderToken $action_token;
     private URLBuilderToken $row_id_token;
     private ilLanguageEntriesTable $entries_table;
@@ -107,6 +109,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
         $this->refinery = $DIC['refinery'];
         $this->add_language_entry = $DIC[AddLanguageEntry::class];
         $this->set_language_translation_enabled = $DIC[SetLanguageTranslationEnabled::class];
+        $this->ui_storage = $DIC[UIStorage::class];
         // used by activityErrorMessage() (see RendersActivityErrors)
         $this->activity_error_logger = $DIC->logger()->lang();
 
@@ -420,8 +423,7 @@ class ilObjLanguageExtGUI extends ilObjectGUI implements ilCtrlSecurityInterface
             && $this->request_wrapper->retrieve('reset_offset', $this->refinery->kindlyTo()->bool());
 
         if ($reset_offset) {
-            // relies on KS storing the view controls in ilSession under STORAGE_ID_PREFIX . table id
-            ilSession::clear(DataTable\Data::STORAGE_ID_PREFIX . ilLanguageEntriesTable::tableId());
+            unset($this->ui_storage[DataTable\Data::STORAGE_ID_PREFIX . ilLanguageEntriesTable::tableId()]);
         }
     }
 
