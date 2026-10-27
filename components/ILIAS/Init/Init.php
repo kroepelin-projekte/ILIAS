@@ -177,6 +177,7 @@ class Init implements Component\Component
                 $use[ConditionTypes::class],
                 $use[\ILIAS\LTI\View::class],
                 $use[\ILIAS\KeyValueStorage\Services::class],
+                $use[\ILIAS\UI\Storage::class],
                 $pull[\ILIAS\Language\ComponentTranslation\LanguageFileDirectoryManager::class],
                 $pull[\ILIAS\Language\Activities\InstallLanguage::class],
                 $pull[\ILIAS\Language\Activities\UpdateLanguage::class],
