@@ -110,7 +110,8 @@ jobs:
           sed -i '' 's/^ *//' ../fpm.conf
           "$(brew --prefix php)/sbin/php-fpm" -y ../fpm.conf -D
           sleep 2
-          req() { env -i SCRIPT_FILENAME="$1" QUERY_STRING="$2" REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9001 2>&1 | tail -1; }
+          cgi=$(command -v cgi-fcgi) || { echo "::error title=fpm::cgi-fcgi missing"; exit 1; }
+          req() { env -i SCRIPT_FILENAME="$1" QUERY_STRING="$2" REQUEST_METHOD=GET "$cgi" -bind -connect 127.0.0.1:9001 2>&1 | tail -1; }
           probe=$PWD/.github/ci/48622-fpm-probe.php
           runtime=$PWD/.github/ci/48622-runtime.php
           echo "::notice title=fpm probe none::$(req $probe "dir=$d") | $(req $probe "dir=$d")"
