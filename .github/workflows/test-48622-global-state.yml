@@ -1,0 +1,126 @@
+# Throwaway check: native gettext on macOS with a kept administrator locale and under php-fpm, not part of any PR.
+name: test-48622-global-state
+on:
+  push:
+    branches: [wip/trunk/ck/language-gettext-global-state]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Homebrew PHP
+        run: |
+          brew install php composer gettext fcgi || echo "::warning title=brew::brew install returned $?"
+          ini="$(php -r 'echo PHP_CONFIG_FILE_SCAN_DIR;')" && mkdir -p "$ini" && echo "memory_limit = -1" > "$ini/99-ci.ini"
+          echo "::notice title=runner env::$(env | grep -E '^(LC_|LANG)' | tr '\n' ' ') gettext $(brew list --versions gettext) $(php -r 'echo PHP_VERSION;')"
+
+      - name: Probe matrix (plain gettext)
+        run: |
+          d=$(mktemp -d) && mkdir -p "$d/messages/LC_MESSAGES"
+          printf 'msgid ""\nmsgstr "Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "hello"\nmsgstr "Hallo"\n' > "$d/t.po"
+          "$(brew --prefix gettext)/bin/msgfmt" -o "$d/messages/LC_MESSAGES/t.de.mo" "$d/t.po"
+          p=.github/ci/48622-locale-probe.php
+          for fix in none lc_messages lc_all lang; do
+            r=""
+            r="$r runner:$(php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            r="$r none:$(env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE -u LANG php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            r="$r LC_ALL=C:$(env LC_ALL=C php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            r="$r LANG=C:$(env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE LANG=C php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            r="$r LC_MESSAGES=C:$(env -u LC_ALL LC_MESSAGES=C php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            r="$r LANG=de:$(env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE LANG=de_DE.UTF-8 php $p "$d" $fix | grep -o '"ok":[a-z]*')"
+            echo "::notice title=macOS probe fix=$fix::$r"
+          done
+          echo "::notice title=macOS probe detail none/none::$(env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE -u LANG php $p "$d" none)"
+
+      - name: composer install
+        run: |
+          npm clean-install --omit=dev --ignore-scripts > ../npm.log 2>&1 || true
+          composer install --no-interaction --no-progress --ignore-platform-req=ext-imagick > ../composer.log 2>&1 || true
+          echo "::notice title=macOS composer::$(grep -iE 'language files|Native gettext|All static' ../composer.log | tail -3 | tr '\n' ' ')"
+
+      - name: setup build and lookup per environment
+        run: |
+          build() {
+            name="$1"; shift
+            rm -rf artifacts/language
+            "$@" php cli/setup.php build --yes > "../build-$name.log" 2>&1 && st=ok || st=fail
+            echo "::notice title=macOS build $name ($st)::$(grep -iE 'Native gettext|could not be built|language files' "../build-$name.log" | tail -3 | tr '\n' ' ')"
+            r=$("$@" php .github/ci/48622-lookup.php)
+            echo "::notice title=macOS lookup $name::$r"
+            if [ "$st" != ok ] || [[ "$r" != *'"ok":true'* ]]; then failed="$failed $name"; fi
+          }
+          failed=""
+          build runner env
+          build none env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE -u LANG
+          build lc_all_c env LC_ALL=C
+          build lang_c env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE LANG=C
+          build lang_de env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE LANG=de_DE.UTF-8
+          build lc_messages_c env -u LC_ALL LC_MESSAGES=C
+          build lang_c_utf8_colleague env -u LC_ALL -u LC_MESSAGES LC_CTYPE=UTF-8 LANG=C.UTF-8
+          build lc_all_c_utf8 env LC_ALL=C.UTF-8
+          # lookup without LANG from a build made with LANG (web server without locale environment)
+          rm -rf artifacts/language && php cli/setup.php build --yes > /dev/null 2>&1
+          echo "::notice title=macOS lookup none after runner build::$(env -u LC_ALL -u LC_MESSAGES -u LC_CTYPE -u LANG php .github/ci/48622-lookup.php)"
+          echo "::notice title=macOS lookup LANG=C.UTF-8 after runner build::$(env -u LC_ALL -u LC_MESSAGES LC_CTYPE=UTF-8 LANG=C.UTF-8 php .github/ci/48622-lookup.php)"
+          [ -z "$failed" ] || { echo "::error title=macOS failed::$failed"; exit 1; }
+
+      - name: PHPUnit Language
+        if: always()
+        run: |
+          php vendor/composer/vendor/phpunit/phpunit/phpunit -c scripts/PHPUnit/phpunit.xml components/ILIAS/Language/tests/ > ../phpunit.log 2>&1 && st=ok || st=fail
+          echo "::notice title=macOS PHPUnit ($st)::$(tail -4 ../phpunit.log | tr '\n' ' ')"
+          echo "::notice title=macOS failures::$(grep -A4 -E '^[0-9]+\) ' ../phpunit.log | head -40 | tr '\n' ' ')"
+          [ "$st" = ok ]
+
+      - name: Web runtime with administrator locale (php -S)
+        if: always()
+        run: |
+          php -S 127.0.0.1:8099 .github/ci/48622-runtime.php > ../server.log 2>&1 &
+          sleep 2
+          ok=yes
+          for q in "" "admin=before" "admin=after" "" "admin=after"; do
+            r=$(curl -s "http://127.0.0.1:8099/?$q")
+            echo "::notice title=php -S $q::$r"
+            [[ "$r" == *'"ok":true'* ]] || ok=no
+          done
+          kill %1 || true
+          [ "$ok" = yes ]
+
+      - name: php-fpm without locale environment (forked worker)
+        if: always()
+        run: |
+          d=$(mktemp -d) && mkdir -p "$d/messages/LC_MESSAGES"
+          printf 'msgid ""\nmsgstr "Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "hello"\nmsgstr "Hallo"\n' > "$d/t.po"
+          "$(brew --prefix gettext)/bin/msgfmt" -o "$d/messages/LC_MESSAGES/t.de.mo" "$d/t.po"
+          cat > ../fpm.conf <<CONF
+          [global]
+          error_log = $PWD/../fpm.log
+          log_level = notice
+          [www]
+          listen = 127.0.0.1:9001
+          pm = static
+          pm.max_children = 1
+          clear_env = yes
+          catch_workers_output = yes
+          CONF
+          sed -i '' 's/^ *//' ../fpm.conf
+          "$(brew --prefix php)/sbin/php-fpm" -y ../fpm.conf -D
+          sleep 2
+          req() { env -i SCRIPT_FILENAME="$1" QUERY_STRING="$2" REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9001 2>&1 | tail -1; }
+          probe=$PWD/.github/ci/48622-fpm-probe.php
+          runtime=$PWD/.github/ci/48622-runtime.php
+          echo "::notice title=fpm probe none::$(req $probe "dir=$d") | $(req $probe "dir=$d")"
+          echo "::notice title=fpm probe lc_all::$(req $probe "env=lc_all&dir=$d") | $(req $probe "env=lc_all&dir=$d")"
+          ok=yes
+          for q in "" "admin=before" "admin=after" ""; do
+            r=$(req $runtime "$q")
+            echo "::notice title=fpm ILIAS $q::$r"
+            [[ "$r" == *'"ok":true'* ]] || ok=no
+          done
+          echo "::notice title=fpm log::$(grep -iE 'signal|exited|SIGSEGV|crash' ../fpm.log | tail -5 | tr '\n' ' ')"
+          kill "$(cat "$(brew --prefix)/var/run/php-fpm.pid" 2>/dev/null)" 2>/dev/null || pkill php-fpm || true
+          [ "$ok" = yes ]
