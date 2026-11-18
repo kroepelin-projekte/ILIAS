@@ -2256,6 +2256,8 @@ awrn#:#user_awrn_default#:#Default
 awrn#:#user_awrn_hide#:#Hide my status
 awrn#:#user_awrn_show#:#Show my status
 background_tasks#:#abort#:#Abort
+background_tasks#:#background_task_garbage_collection#:#Background Tasks GC###17 11 2026 new variable
+background_tasks#:#background_task_garbage_collection_info#:#This job cleans up stale tasks and related database tables.###17 11 2026 new variable
 background_tasks#:#background_tasks#:#Background Tasks
 background_tasks#:#background_tasks_running#:#Background Tasks
 background_tasks#:#completed#:#Completed
@@ -7296,6 +7298,8 @@ content#:#cont_versions#:#Različice
 content#:#cont_whole_glossary#:#Celoten glosar
 content#:#cont_width#:#Širina
 content#:#cont_width_height_info#:#Velikost prikaza lahko določite. V praksi se je za najboljšo izkazala širina 950 pikslov in višina 650 pikslov. Če ni vnesena nobena vrednost, bo brskalnik določil velikost okna.
+content#:#cont_width_px_perc#:#Width###17 11 2026 new variable
+content#:#cont_width_px_perc_info#:#(e.g. px or % value)###17 11 2026 new variable
 content#:#cont_wiki_link_dialog#:#Povezava do strani Wiki (pogovorno okno)
 content#:#cont_wiki_page#:#Stran Wiki
 content#:#cont_wiki_page_link#:#Povezava do strani Wiki
@@ -12920,8 +12924,6 @@ mst#:#mst_profile_fulfilled#:#Not met, yet
 mst#:#mst_profile_not_fulfilled#:#Fulfilled
 mst#:#mst_select_course#:#Izberi tečaj
 mst#:#mst_show_courses#:#Vpisi
-news#:#lso_news_online_title#:#A new learning sequence object is online!
-news#:#lso_news_online_txt#:#A new object for your learning sequence was just published.
 news#:#new_test_online#:#The test was set online.
 news#:#news_1_file_created#:#One file has been added.
 news#:#news_1_file_updated#:#One file has been updated.

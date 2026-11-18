@@ -247,7 +247,7 @@ class ilDclBaseRecordFieldModel
      */
     public function getValueFromExcel(ilExcel $excel, int $row, int $col)
     {
-        return (string) $excel->getCell($row, $col);
+        return ilUtil::secureString((string) $excel->getCell($row, $col));
     }
 
     /**
@@ -330,7 +330,7 @@ class ilDclBaseRecordFieldModel
                 $set = $this->db->query($query);
                 $rec = $this->db->fetchAssoc($set);
                 $value = $this->deserializeData($rec['value'] ?? null);
-                $this->value = $value;
+                $this->value = ilUtil::secureString($value);
             }
         }
     }

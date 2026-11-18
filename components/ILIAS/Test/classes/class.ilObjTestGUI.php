@@ -334,6 +334,12 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                     $selected_files = [$selected_files];
                 }
 
+
+                $this->tpl->setOnScreenMessage(
+                    'info',
+                    $this->lng->txt('no_manual_feedback_export_info')
+                );
+
                 $export_gui = new ilTestExportGUI(
                     $this,
                     $this->db,
@@ -1044,8 +1050,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
             $this->db,
             $this->refinery->random(),
             $this->global_screen,
-            $this->http,
-            $this->refinery,
+            $this->content_style,
             $this->ref_id
         );
 
@@ -1090,6 +1095,18 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
             $this->ctrl->getLinkTargetByClass(self::class, self::SHOW_QUESTIONS_CMD)
         );
         $this->ctrl->saveParameterByClass(self::class, 'q_id');
+        $this->dispatchQuestionPreviewCommand($gui, $cmd);
+    }
+
+    protected function dispatchQuestionPreviewCommand(
+        ilAssQuestionPreviewGUI $gui,
+        string $cmd
+    ): void {
+        if ($this->ctrl->getNextClass($gui) !== '') {
+            $this->ctrl->forwardCommand($gui);
+            return;
+        }
+
         $gui->{$cmd . 'Cmd'}();
     }
 

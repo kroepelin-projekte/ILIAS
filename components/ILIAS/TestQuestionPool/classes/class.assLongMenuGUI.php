@@ -119,7 +119,9 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
 
         $correct_answers = $this->stripSlashesRecursive(json_decode($this->request_data_collector->raw('hidden_correct_answers')));
         foreach ($correct_answers as $answer) {
-            if (!is_numeric(str_replace(',', '.', $answer[1]))) {
+            try {
+                $this->refinery->kindlyTo()->float()->transform($answer[1]);
+            } catch (\ILIAS\Refinery\ConstraintViolationException $e) {
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('points_non_numeric_or_negative_msg'));
                 return false;
             }
@@ -269,25 +271,32 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
         ];
 
         $question_parts = [
-            'list' => json_decode($this->object->getJsonStructure()) ?? [],
+            'list' => json_decode($this->object->getJsonStructure(), true) ?? [],
             'gap_placeholder' => assLongMenu::GAP_PLACEHOLDER,
             'last_updated_element' => 0,
             'replacement_word' => '',
             'filereader_usable' => false,
             'max_input_fields' => assLongMenu::MAX_INPUT_FIELDS
         ];
-        $answers = $this->object->getAnswersObject();
+
+        $answers = json_decode($this->object->getAnswersObject(), true);
 
         if ($this->request_data_collector->isset('hidden_text_files')) {
             $question_parts['list'] = $this->trimArrayRecursive(
                 $this->stripSlashesRecursive(
                     json_decode(
-                        $this->request_data_collector->string('hidden_correct_answers')
+                        $this->request_data_collector->string('hidden_correct_answers'),
+                        true
                     ) ?? []
                 )
             );
-            $answers = $this->request_data_collector->string('hidden_text_files');
+            $answers = json_decode(
+                $this->request_data_collector->string('hidden_text_files'),
+                true
+            );
         }
+
+        $answers = json_encode(is_array($answers) ? $answers : []) ?: '[]';
 
         $this->tpl->addJavaScript('assets/js/longMenuQuestionGapBuilder.js');
         $this->tpl->addJavaScript('assets/js/longMenuQuestion.js');
@@ -325,7 +334,7 @@ class assLongMenuGUI extends assQuestionGUI implements ilGuiQuestionScoringAdjus
             implode(', ', [
                 json_encode($long_menu_language),
                 json_encode($question_parts),
-                $answers === '' ? '{}' : $answers,
+                $answers,
                 json_encode($modal_id)
             ])
             . ');'

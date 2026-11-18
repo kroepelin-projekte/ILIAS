@@ -57,7 +57,7 @@ class BasicPersistence implements Persistence
         $this->taskHashToTaskContainerId = new \SplObjectStorage();
     }
 
-    protected function gc(): void
+    public function garbageCollection(): void
     {
         $atom = $this->db->buildAtomQuery();
 
@@ -157,11 +157,8 @@ class BasicPersistence implements Persistence
      */
     public function getBucketIdsOfUser(int $user_id, string $order_by = "id", string $order_direction = "ASC"): array
     {
-        // Garbage Collection
-        $random = new \Random\Randomizer();
-
-        if($random->getInt(1, 100) === 1) {
-            $this->gc();
+        if ((new \Random\Randomizer())->getInt(0, 100) === 1) {
+            $this->garbageCollection();
         }
 
         return BucketContainer::where(['user_id' => $user_id])
@@ -194,9 +191,10 @@ class BasicPersistence implements Persistence
      */
     public function getBucketIdsByState(int $state): array
     {
-        $buckets = BucketContainer::where(['state' => $state])->get();
-
-        return array_map(fn (BucketContainer $bucket_container): int => $bucket_container->getId(), $buckets);
+        return array_map(
+            static fn(BucketContainer $bucket_container): int => $bucket_container->getId(),
+            BucketContainer::where(['state' => $state])->get()
+        );
     }
 
     /**
@@ -375,7 +373,7 @@ class BasicPersistence implements Persistence
                 . print_r($value, true));
         }
 
-        return (int )$this->valueHashToValueContainerId[$value];
+        return (int) $this->valueHashToValueContainerId[$value];
     }
 
     /**
@@ -420,6 +418,11 @@ class BasicPersistence implements Persistence
         $factory = $DIC->backgroundTasks()->taskFactory();
         /** @var TaskContainer $taskContainer */
         $taskContainer = TaskContainer::find($taskContainerId);
+        if (!$taskContainer instanceof TaskContainer) {
+            throw new SerializationException(
+                "The requested task with container id $taskContainerId could not be found in the database."
+            );
+        }
         /** @noinspection PhpIncludeInspection */
         /** @var Task $task */
         $task = $factory->createTask($taskContainer->getClassName());
@@ -452,6 +455,11 @@ class BasicPersistence implements Persistence
 
         /** @var ValueContainer $valueContainer */
         $valueContainer = ValueContainer::find($valueContainerId);
+        if (!$valueContainer instanceof ValueContainer) {
+            throw new SerializationException(
+                "The requested value with container id $valueContainerId could not be found in the database."
+            );
+        }
         /** @noinspection PhpIncludeInspection */
 
         /** @var Value $value */

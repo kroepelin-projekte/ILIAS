@@ -16,22 +16,23 @@
  *
  *********************************************************************/
 
-use ILIAS\Setup;
-use ILIAS\Data\Password;
+declare(strict_types=1);
 
-class ilBackgroundTasksDB80 implements ilDatabaseUpdateSteps
+namespace ILIAS\BookingManager\Notification;
+
+class AdminReservation implements Reservation
 {
-    protected ilDBInterface $db;
-
-    public function prepare(ilDBInterface $db): void
-    {
-        $this->db = $db;
+    public function __construct(
+        protected string $object_title,
+        protected int $counter,
+        protected string $booker_name,
+        protected string $when,
+        protected string $message
+    ) {
     }
 
-    public function step_1(): void
+    public function __toString(): string
     {
-        if (!$this->db->indexExistsByFields('il_bt_bucket', ['user_id'])) {
-            $this->db->addIndex('il_bt_bucket', ['user_id'], 'i1');
-        }
+        return rtrim($this->object_title . ' (' . $this->counter . '), ' . $this->booker_name . ', ' . $this->when . "\n  " . $this->message);
     }
 }

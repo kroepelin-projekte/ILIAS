@@ -1014,7 +1014,7 @@ assessment#:#passed_short#:#passed
 assessment#:#passed_status#:#Passed Status
 assessment#:#passes_finished#:#%s passes
 assessment#:#percentage#:#Percentage
-assessment#:#percentage_points_achieved#:#Reached Points
+assessment#:#percentage_points_achieved#:#Average Percentage
 assessment#:#percentile#:#Percentile
 assessment#:#picture#:#Picture
 assessment#:#point#:#Point
@@ -2256,6 +2256,8 @@ awrn#:#user_awrn_default#:#Default
 awrn#:#user_awrn_hide#:#Hide my status
 awrn#:#user_awrn_show#:#Show my status
 background_tasks#:#abort#:#Abort
+background_tasks#:#background_task_garbage_collection#:#Background Tasks GC
+background_tasks#:#background_task_garbage_collection_info#:#This job cleans up stale tasks and related database tables.
 background_tasks#:#background_tasks#:#Background Tasks
 background_tasks#:#background_tasks_running#:#Background Tasks
 background_tasks#:#completed#:#Completed
@@ -7297,6 +7299,8 @@ content#:#cont_versions#:#Versions
 content#:#cont_whole_glossary#:#Whole Glossary
 content#:#cont_width#:#Width in pixels
 content#:#cont_width_height_info#:#The presentation can be set to a fixed size. 950 pixels for width and 650 pixels for height are proven values for setting the size. If no value is entered the browser will determine the size of the presentation.
+content#:#cont_width_px_perc#:#Width
+content#:#cont_width_px_perc_info#:#(e.g. px or % value)
 content#:#cont_wiki_link_dialog#:#Wiki Page (Dialog)
 content#:#cont_wiki_page#:#Wiki Page
 content#:#cont_wiki_page_link#:#Wiki Page Link
@@ -12921,8 +12925,6 @@ mst#:#mst_profile_fulfilled#:#Not met, yet
 mst#:#mst_profile_not_fulfilled#:#Fulfilled
 mst#:#mst_select_course#:#Select Course
 mst#:#mst_show_courses#:#Course Memberships
-news#:#lso_news_online_title#:#A new learning sequence object is online!
-news#:#lso_news_online_txt#:#A new object for your learning sequence was just published.
 news#:#new_test_online#:#The test was set online.
 news#:#news_1_file_created#:#One file has been added.
 news#:#news_1_file_updated#:#One file has been updated.
