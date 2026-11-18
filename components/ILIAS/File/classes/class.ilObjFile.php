@@ -435,6 +435,8 @@ class ilObjFile extends ilObject2 implements ilObjFileImplementationInterface
     {
         $this->createProperties(true);
         $this->updateCopyright();
+        // ilObject::create() sets objects with offline handling offline, but new files are online by default.
+        // On copy, ilObject::cloneObject() applies the online status of the original afterwards.
         $this->getObjectProperties()->storePropertyIsOnline(new ilObjectPropertyIsOnline(true));
         $this->notifyCreation($this->getId(), $this->getDescription());
     }
@@ -475,6 +477,22 @@ class ilObjFile extends ilObject2 implements ilObjFileImplementationInterface
 
         // Copy Resource
         $cloned_title = $new_obj->getTitle();
+        // the copy info is only appended to copies placed in the repository tree
+        if ($cloned_title !== $this->getTitle() && $new_obj->getRefId() > 0) {
+            $cloned_title = $this->moveCopyInfoInFrontOfSuffix(
+                $this->getTitle(),
+                $cloned_title,
+                $this->file_info->getSuffix(),
+                array_map(
+                    static fn(array $child): string => $child['title'],
+                    array_filter(
+                        $this->tree->getChildsByType($a_target_id, $this->getType()),
+                        static fn(array $child): bool => (int) $child['ref_id'] !== $new_obj->getRefId()
+                    )
+                ),
+                $this->lng->txt('copy_n_of_suffix')
+            );
+        }
         $new_resource_identification = $this->manager->clone($identification);
         $new_current_revision = $this->manager->getCurrentRevision($new_resource_identification);
         $new_obj->setResourceId($new_resource_identification->serialize());
@@ -486,8 +504,6 @@ class ilObjFile extends ilObject2 implements ilObjFileImplementationInterface
         $new_obj->setRating($this->hasRating());
         $new_obj->setOnclickMode($this->getOnClickMode());
         $new_obj->update();
-
-        $new_obj->getObjectProperties()->storePropertyIsOnline(new ilObjectPropertyIsOnline(true));
 
         // Copy learning progress settings
         $obj_settings = new ilLPObjSettings($this->getId());

@@ -20,6 +20,7 @@ use ILIAS\Setup;
 use ILIAS\Refinery;
 use ILIAS\Data;
 use ILIAS\UI;
+use ILIAS\BackgroundTasks\Setup\BackgoundWorkerObjective;
 
 class ilBackgroundTasksSetupAgent implements Setup\Agent
 {
@@ -58,7 +59,7 @@ class ilBackgroundTasksSetupAgent implements Setup\Agent
     public function getInstallObjective(Setup\Config $config = null): Setup\Objective
     {
         /** @noinspection PhpParamsInspection */
-        return new ilBackgroundTasksConfigStoredObjective($config);
+        return $this->getUpdateObjective($config);
     }
 
     /**
@@ -66,11 +67,17 @@ class ilBackgroundTasksSetupAgent implements Setup\Agent
      */
     public function getUpdateObjective(Setup\Config $config = null): Setup\Objective
     {
-        if ($config !== null) {
-            /** @noinspection PhpParamsInspection */
-            return new ilBackgroundTasksConfigStoredObjective($config);
+        if (!$config instanceof ilBackgroundTasksSetupConfig) {
+            return new Setup\Objective\NullObjective();
         }
-        return new Setup\Objective\NullObjective();
+
+        /** @noinspection PhpParamsInspection */
+        return new Setup\ObjectiveCollection(
+            'BackgroundTasks',
+            true,
+            new ilBackgroundTasksConfigStoredObjective($config),
+            new ilDatabaseUpdateStepsExecutedObjective(new ilBackgroundTasksDBHotfixes10())
+        );
     }
 
     /**
@@ -90,8 +97,18 @@ class ilBackgroundTasksSetupAgent implements Setup\Agent
             'Component BackgroundTasks',
             true,
             new ilBackgroundTasksMetricsCollectedObjective($storage),
-            new ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new ilBackgroundTasksDB80())
+            new ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new ilBackgroundTasksDBHotfixes10())
         );
+    }
+
+    public function getNamedObjectives(?Setup\Config $config = null): array
+    {
+        return [
+            'startBackgroundWorker' => new Setup\ObjectiveConstructor(
+                'Start Worker',
+                static fn(): Setup\Objective => new BackgoundWorkerObjective()
+            )
+        ];
     }
 
     /**

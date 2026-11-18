@@ -250,6 +250,8 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
         $cmd = $this->ctrl->getCmd();
         $tpl = $this->tpl;
 
+        $this->redirectForeignItemToRepository($next_class, $cmd);
+
         parent::prepareOutput();
         $this->addToNavigationHistory();
         //showRepTree is from containerGUI;
@@ -311,17 +313,6 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
                 $gui->setType('lso');
                 $this->ctrl->forwardCommand($gui);
                 break;
-            case 'ilobjindividualassessmentgui':
-                $struct = ['ilrepositorygui', 'ilobjindividualassessmentgui'];
-                if ($cmd === 'edit') {
-                    $struct[] = 'ilindividualassessmentsettingsgui';
-                }
-                $this->ctrl->redirectByClass($struct, $cmd);
-                // no break
-            case 'ilobjtestgui':
-                $struct = ['ilrepositorygui', 'ilobjtestgui'];
-                $this->ctrl->redirectByClass($struct, $cmd);
-                // no break
             case 'ilobjlearningsequencelppollinggui':
                 $gui = $this->object->getLocalDI()["gui.learner.lp"];
                 $this->ctrl->forwardCommand($gui);
@@ -693,7 +684,7 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
             $this->tabs->addTab(
                 self::TAB_LP,
                 $this->lng->txt(self::TAB_LP),
-                $this->ctrl->getLinkTargetByClass(array('ilobjlearningsequencegui', 'illearningprogressgui'), '')
+                $this->ctrl->getLinkTargetByClass(ilLearningProgressGUI::class, '')
             );
         }
 
@@ -754,6 +745,27 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
         return $this->access->checkAccess($which, "", $this->ref_id);
     }
 
+    /**
+     * Links to items of the sequence may be routed through this class, while ref_id
+     * already points to the item. Redirect before any output is prepared, since
+     * $this->object is not a learning sequence then.
+     * Handles the @ilCtrl_Calls targets ilObjIndividualAssessmentGUI and ilObjTestGUI,
+     * which therefore have no case in executeCommand().
+     */
+    protected function redirectForeignItemToRepository(?string $next_class, ?string $cmd): void
+    {
+        $struct = match ($next_class) {
+            'ilobjindividualassessmentgui' => $cmd === 'edit'
+                ? ['ilrepositorygui', 'ilobjindividualassessmentgui', 'ilindividualassessmentsettingsgui']
+                : ['ilrepositorygui', 'ilobjindividualassessmentgui'],
+            'ilobjtestgui' => ['ilrepositorygui', 'ilobjtestgui'],
+            default => null,
+        };
+        if ($struct !== null) {
+            $this->ctrl->redirectByClass($struct, $cmd);
+        }
+    }
+
     protected function guardForwardAccess(string|false $next_class): void
     {
         if ($next_class === false) {
@@ -804,14 +816,15 @@ class ilObjLearningSequenceGUI extends ilContainerGUI implements ilCtrlBaseClass
         return ilLearningProgressAccess::checkAccess($ref_id, $is_participant);
     }
 
+    /**
+     * Build the link target relative to the current ilCtrl context. An absolute
+     * class path starting with ilObjLearningSequenceGUI would make it the
+     * baseClass and thus drop the repository context (e.g. the member view
+     * mode info is only provided in the repository context).
+     */
     protected function getLinkTarget(string $cmd): string
     {
-        $class = $this->getClassForTabs($cmd);
-        $class_path = [
-            strtolower('ilObjLearningSequenceGUI'),
-            $class
-        ];
-        return $this->ctrl->getLinkTargetByClass($class_path, $cmd);
+        return $this->ctrl->getLinkTargetByClass($this->getClassForTabs($cmd), $cmd);
     }
 
     protected function getClassForTabs(string $cmd): string

@@ -16,6 +16,7 @@
  *
  *********************************************************************/
 
+use ILIAS\Repository\Deletion\MissingPermissionException;
 use ILIAS\Repository\Trash\TrashGUIRequest;
 
 /**
@@ -213,7 +214,7 @@ class ilRepositoryTrashGUI
         foreach ($a_ids as $ref_id) {
             $obj_id = ilObject::_lookupObjId($ref_id);
             $type = ilObject::_lookupType($obj_id);
-            $title = call_user_func([ilObjectFactory::getClassByType($type), '_lookupTitle'], $obj_id);
+            $title = ilObject::_lookupTitle($obj_id);
             $alt = ($objDefinition->isPlugin($type))
                 ? $lng->txt("icon") . " " . ilObjectPlugin::lookupTxtById($type, "obj_" . $type)
                 : $lng->txt("icon") . " " . $lng->txt("obj_" . $type);
@@ -418,6 +419,8 @@ class ilRepositoryTrashGUI
                 } else {
                     $this->tpl->setOnScreenMessage('success', $lng->txt("msg_removed"), true);
                 }
+            } catch (MissingPermissionException $e) {
+                $this->tpl->setOnScreenMessage('failure', $this->lng->txt('permission_denied'), true);
             } catch (ilRepositoryException $e) {
                 // we catch ilRepositoryException, since this is usually permission related
                 // other exceptions are thrown to get call stacks
@@ -511,7 +514,7 @@ class ilRepositoryTrashGUI
         foreach ($a_ids as $id) {
             $obj_id = ilObject::_lookupObjId($id);
             $type = ilObject::_lookupType($obj_id);
-            $title = call_user_func([ilObjectFactory::getClassByType($type), '_lookupTitle'], $obj_id);
+            $title = ilObject::_lookupTitle($obj_id);
             $alt = ($objDefinition->isPlugin($type))
                 ? $lng->txt("icon") . " " . ilObjectPlugin::lookupTxtById($type, "obj_" . $type)
                 : $lng->txt("icon") . " " . $lng->txt("obj_" . $type);
